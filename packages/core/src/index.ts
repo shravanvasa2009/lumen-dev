@@ -31,3 +31,4 @@ export { buildTimebase, type Timebase } from './timebase';
 export { resampleCubic, type ResampledSegment } from './resample';
 export { dcLevel, fingerSignals, type FingerSignals } from './finger-signal';
 export { butterBandpass, butterLowpass, CausalFilter, filterZeroPhase, type SosSection } from './filters';
+export { hasEnoughUsableIntervals, rhythmWindows, type RhythmWindow } from './rhythm-features';

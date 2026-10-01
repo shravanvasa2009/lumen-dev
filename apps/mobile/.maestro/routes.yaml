@@ -1,0 +1,80 @@
+# Opens every route listed in src/routes.test.tsx and checks its English title. Maestro matches text as a
+# regular expression, so ? and . are escaped. Tab titles also appear in the tab bar, so tab screens check
+# a second line that only that screen shows.
+appId: io.github.shravanvasa2009.heartcheck
+name: Every route opens
+---
+- launchApp:
+    clearState: true
+# launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
+- extendedWaitUntil:
+    visible: 'Change mode'
+    timeout: 60000
+- openLink: lumen://welcome
+- assertVisible: 'Lumen'
+- openLink: lumen://consent
+- assertVisible: "What Lumen is — and isn't"
+- openLink: lumen://profile
+- assertVisible: 'About you'
+- openLink: lumen://phone-check
+- assertVisible: 'Checking your phone'
+- openLink: lumen://placement
+- assertVisible: 'Where your finger goes'
+- openLink: lumen://practice
+- assertVisible: 'Practice reading'
+- openLink: lumen://how-to-sit
+- assertVisible: 'How to sit'
+- openLink: lumen://rating
+- assertVisible: 'Your Lumen rating'
+- openLink: lumen://reminders
+- assertVisible: 'Reminders'
+- openLink: lumen://
+- assertVisible: 'Change mode'
+- openLink: lumen://trends
+- assertVisible: 'Your band'
+- openLink: lumen://learn
+- assertVisible: 'How Lumen reads your pulse'
+- openLink: lumen://settings
+- assertVisible: 'Profile & medications'
+- openLink: lumen://measure/mode
+- assertVisible: 'Choose a mode'
+- openLink: lumen://measure/precheck?mode=full
+- assertVisible: 'Before you start'
+- openLink: lumen://measure/capture?mode=full
+- assertVisible: 'Full Scan'
+- openLink: lumen://measure/capture?mode=quick
+- assertVisible: 'Quick Check'
+- openLink: lumen://measure/processing
+- assertVisible: 'Analyzing your reading'
+- openLink: lumen://results/demo
+- assertVisible: 'Results'
+- openLink: lumen://results/demo/why
+- assertVisible: 'Show me why'
+- openLink: lumen://measure/inconclusive
+- assertVisible: 'Not enough clean signal\.'
+- openLink: lumen://emergency
+- assertVisible: 'Get help now'
+- openLink: lumen://measure/standing-test
+- assertVisible: 'Standing heart-rate test'
+- openLink: lumen://report/demo
+- assertVisible: 'Doctor report'
+- openLink: lumen://learn/what-is-afib
+- assertVisible: 'What is AFib — and why it matters'
+- openLink: lumen://settings/phone
+- assertVisible: 'Your phone'
+- openLink: lumen://settings/lab
+- assertVisible: 'Lab mode'
+- openLink: lumen://measure/fix-technique
+- assertVisible: 'Fix my technique'
+- openLink: lumen://settings/accuracy
+- assertVisible: 'How accurate is Lumen\?'
+- openLink: lumen://settings/appearance
+- assertVisible: 'Appearance'
+- openLink: lumen://settings/notifications
+- assertVisible: 'Notifications'
+- openLink: lumen://settings/widgets
+- assertVisible: 'Widgets'
+- openLink: lumen://settings/widgets/lock-screen
+- assertVisible: 'Lock-screen previews'
+- openLink: lumen://follow-up
+- assertVisible: 'Did you get a chance to see a doctor\?'

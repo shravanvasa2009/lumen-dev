@@ -1,6 +1,8 @@
 /** @jest-environment node */
 import type { ExpoConfig } from 'expo/config';
 import { AndroidConfig, compileModsAsync } from 'expo/config-plugins';
+// app.plugin.js re-exports this build file and ships no types.
+import withNotifications from 'expo-notifications/plugin/build/withNotifications';
 
 import withLumenCapture from './app.plugin';
 
@@ -141,5 +143,66 @@ describe('lumen-capture config plugin (CAP-2)', () => {
     expect(namesIn(manifest['uses-permission'], 'android.permission.CAMERA')).toHaveLength(1);
     expect(namesIn(manifest['uses-feature'], 'android.hardware.camera')).toHaveLength(1);
     expect(namesIn(manifest['uses-feature'], 'android.hardware.camera.flash')).toHaveLength(1);
+  });
+});
+
+// expo-notifications adds aps-environment through its own entitlements mod; app.config.ts lists it before
+// lumen-capture, and the other order is checked too so the result does not depend on plugin order.
+async function entitlementsAfter(
+  projectRoot: string,
+  order: 'notifications-first' | 'notifications-last',
+  personalTeam: boolean,
+) {
+  let config: ExpoConfig = {
+    name: 'Lumen',
+    slug: 'lumen-test',
+    ios: { bundleIdentifier: 'test.lumen', entitlements: { 'keychain-access-groups': ['test'] } },
+    _internal: { projectRoot },
+  };
+  const withCapture = (current: ExpoConfig) =>
+    personalTeam ? withLumenCapture(current, { personalTeam }) : withLumenCapture(current);
+  if (order === 'notifications-first') {
+    config = withCapture(withNotifications(config, {}));
+  } else {
+    config = withNotifications(withCapture(config), {});
+  }
+  const compiled = await compileModsAsync(config, { projectRoot, introspect: true, platforms: ['ios'] });
+  return compiled.ios?.entitlements;
+}
+
+describe('lumen-capture personal-team mode (CAP-2, BOOT)', () => {
+  let projectRoot: string;
+
+  beforeEach(() => {
+    projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lumen-plugin-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  });
+
+  it('keeps the push entitlement from expo-notifications by default', async () => {
+    const entitlements = await entitlementsAfter(projectRoot, 'notifications-first', false);
+    expect(entitlements?.['aps-environment']).toBe('development');
+  });
+
+  it.each(['notifications-first', 'notifications-last'] as const)(
+    'removes the push entitlement in personal-team mode (%s)',
+    async (order) => {
+      const entitlements = await entitlementsAfter(projectRoot, order, true);
+      expect(entitlements).not.toHaveProperty('aps-environment');
+      expect(entitlements?.['keychain-access-groups']).toEqual(['test']);
+    },
+  );
+
+  it('still sets the camera purpose string in personal-team mode', async () => {
+    const config = await compileModsAsync(
+      withLumenCapture(
+        { name: 'Lumen', slug: 'lumen-test', _internal: { projectRoot } },
+        { personalTeam: true },
+      ),
+      { projectRoot, introspect: true, platforms: ['ios'] },
+    );
+    expect(config.ios?.infoPlist?.NSCameraUsageDescription).toMatch(/^Lumen uses your camera/);
   });
 });

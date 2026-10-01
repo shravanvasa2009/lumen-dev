@@ -76,6 +76,7 @@ Generated from `packages/device-db/devices.json` by `npm run devices:table`.
 
 | Phone | Tier | HR error vs ECG strap | Interval error | Notes |
 | ----- | ---- | --------------------- | -------------- | ----- |
+| iPhone 16 | — | — | — | Not tested yet |
 
 ## Privacy
 

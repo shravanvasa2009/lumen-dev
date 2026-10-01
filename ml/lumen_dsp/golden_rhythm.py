@@ -73,7 +73,6 @@ def window_json(window: RhythmWindow) -> dict:
         "turningPointRatio": window.turning_point_ratio,
         "sd1S": window.sd1_s,
         "sd2S": window.sd2_s,
-        "sd1Sd2Ratio": window.sd1_sd2_ratio,
         "pnn50": window.pnn50,
         "sampleEntropy": window.sample_entropy,
         "atypicalFraction": window.atypical_fraction,

@@ -11,7 +11,6 @@ export interface RhythmWindow {
   turningPointRatio: number; // turning points / (n − 2); ties are not turning points
   sd1S: number;
   sd2S: number;
-  sd1Sd2Ratio: number | null; // null when SD2 is 0
   pnn50: number;
   sampleEntropy: number | null; // null when no template pairs match at length m or m + 1
   atypicalFraction: number; // atypical beats among the n + 1 beats that bound the window
@@ -99,7 +98,6 @@ function windowFeatures(startInterval: number, intervalsS: number[], atypicalBea
     turningPointRatio: turningPoints / (n - 2),
     sd1S,
     sd2S,
-    sd1Sd2Ratio: sd2S === 0 ? null : sd1S / sd2S,
     pnn50: overThreshold.length / differences.length,
     sampleEntropy: sampleEntropy(intervalsS),
     atypicalFraction: boundingBeats.filter(Boolean).length / boundingBeats.length,
@@ -135,6 +133,20 @@ export function rhythmWindows(
     runStart = runEnd;
   }
   return windows;
+}
+
+/** DSP-15: the 8 Rhythm-Net features (§11.3) in fixed order; sample entropy may be null (fill pending H-012). */
+export function rhythmFeatureVector(window: RhythmWindow): (number | null)[] {
+  return [
+    window.normalizedRmssd,
+    window.shannonEntropyBits,
+    window.turningPointRatio,
+    window.sd1S,
+    window.sd2S,
+    window.pnn50,
+    window.sampleEntropy,
+    window.atypicalFraction,
+  ];
 }
 
 /** DSP-15: a reading needs at least 40 intervals that do not span an artifact. */

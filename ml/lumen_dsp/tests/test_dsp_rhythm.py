@@ -3,7 +3,7 @@ import math
 import pytest
 
 from lumen_dsp.config import DSP_CONFIG
-from lumen_dsp.rhythm import has_enough_usable_intervals, rhythm_windows
+from lumen_dsp.rhythm import has_enough_usable_intervals, rhythm_feature_vector, rhythm_windows
 
 WINDOW_INTERVALS = DSP_CONFIG["dsp15"]["windowIntervals"]
 
@@ -72,7 +72,6 @@ def test_alternating_intervals_known_answers():
     assert window.turning_point_ratio == 1
     assert window.pnn50 == 1
     assert window.sd2_s == 0
-    assert window.sd1_sd2_ratio is None
     assert window.sample_entropy == pytest.approx(0, abs=1e-15)
 
 
@@ -84,7 +83,7 @@ def test_constant_intervals_have_zero_spread():
         window.turning_point_ratio,
         window.pnn50,
     ] == [0] * 4
-    assert [window.sd1_s, window.sd2_s, window.sd1_sd2_ratio] == [0, 0, None]
+    assert [window.sd1_s, window.sd2_s] == [0, 0]
 
 
 def test_ties_are_not_turning_points():
@@ -113,3 +112,39 @@ def test_sample_entropy_matches_a_direct_transcription():
 
 def test_sample_entropy_is_undefined_without_length_3_matches():
     assert only_window([0.4 + 0.8 * u for u in park_miller(32, 1)]).sample_entropy is None
+
+
+def alternating(low, high):
+    return [low if k % 2 == 0 else high for k in range(32)]
+
+
+def test_pnn50_counts_62_5_ms_and_skips_46_875_ms():
+    assert only_window(alternating(0.75, 0.8125)).pnn50 == 1
+    assert only_window(alternating(0.75, 0.796875)).pnn50 == 0
+
+
+def test_pnn50_skips_a_difference_exactly_at_the_threshold():
+    # 0.1 − 0.05 is exactly the double 0.05, so only > vs ≥ decides.
+    assert 0.1 - 0.05 == DSP_CONFIG["dsp15"]["pnnThresholdS"]
+    assert only_window(alternating(0.05, 0.1)).pnn50 == 0
+
+
+def test_feature_vector_has_the_8_features_in_order():
+    atypical = clean(33)
+    atypical[4] = True
+    (window,) = rhythm_windows([0.4 + 0.8 * u for u in park_miller(32, 29)], clean(32), atypical)
+    assert rhythm_feature_vector(window) == [
+        window.normalized_rmssd,
+        window.shannon_entropy_bits,
+        window.turning_point_ratio,
+        window.sd1_s,
+        window.sd2_s,
+        window.pnn50,
+        window.sample_entropy,
+        window.atypical_fraction,
+    ]
+
+
+def test_feature_vector_passes_an_undefined_sample_entropy_as_none():
+    window = only_window([0.4 + 0.8 * u for u in park_miller(32, 1)])
+    assert rhythm_feature_vector(window)[6] is None

@@ -1,4 +1,10 @@
-import { DSP_CONFIG, hasEnoughUsableIntervals, rhythmWindows, type RhythmWindow } from '../src';
+import {
+  DSP_CONFIG,
+  hasEnoughUsableIntervals,
+  rhythmFeatureVector,
+  rhythmWindows,
+  type RhythmWindow,
+} from '../src';
 
 const { windowIntervals } = DSP_CONFIG.dsp15;
 
@@ -74,7 +80,7 @@ describe('DSP-15 features, known answers', () => {
     expect(window.pnn50).toBe(1);
   });
 
-  it('alternating intervals: Poincaré SD1 = SD of diff/√2, SD2 = 0, so the ratio is undefined', () => {
+  it('alternating intervals: Poincaré SD1 = SD of diff/√2, SD2 = 0', () => {
     const window = onlyWindow(alternating);
     // 31 differences: 16 of +0.2 and 15 of −0.2; population SD of d/√2.
     const scaled = Array.from({ length: 31 }, (_, k) => (k % 2 === 0 ? 0.2 : -0.2) / Math.SQRT2);
@@ -82,7 +88,6 @@ describe('DSP-15 features, known answers', () => {
     const sd1 = Math.sqrt(scaled.reduce((sum, value) => sum + (value - mean) ** 2, 0) / 31);
     expect(window.sd1S).toBeCloseTo(sd1, 12);
     expect(window.sd2S).toBeCloseTo(0, 12);
-    expect(window.sd1Sd2Ratio).toBeNull();
   });
 
   it('alternating intervals: sample entropy 0 (every 2-match extends to a 3-match)', () => {
@@ -99,7 +104,7 @@ describe('DSP-15 features, known answers', () => {
       window.turningPointRatio,
       window.pnn50,
     ]).toEqual([0, 0, 0, 0]);
-    expect([window.sd1S, window.sd2S, window.sd1Sd2Ratio]).toEqual([0, 0, null]);
+    expect([window.sd1S, window.sd2S]).toEqual([0, 0]);
   });
 
   it('ties are not turning points, and pNN50 counts only differences strictly over 50 ms', () => {
@@ -157,5 +162,46 @@ describe('DSP-15 features match direct transcriptions of their definitions', () 
   it('gives no sample entropy when no 3-long templates match (seed 1: B = 4, A = 0)', () => {
     const noTripleMatches = uniforms(32, 1).map((u) => 0.4 + 0.8 * u);
     expect(onlyWindow(noTripleMatches).sampleEntropy).toBeNull();
+  });
+});
+
+describe('DSP-15 pNN50 counts differences strictly greater than 50 ms', () => {
+  const alternating = (low: number, high: number) =>
+    Array.from({ length: 32 }, (_, k) => (k % 2 === 0 ? low : high));
+
+  it('counts 62.5 ms and skips 46.875 ms (both exact in binary)', () => {
+    expect(onlyWindow(alternating(0.75, 0.8125)).pnn50).toBe(1);
+    expect(onlyWindow(alternating(0.75, 0.796875)).pnn50).toBe(0);
+  });
+
+  it('skips a difference exactly equal to the 0.05 threshold', () => {
+    // 0.1 − 0.05 is exactly the double 0.05 (0.1 = 2 × 0.05 in binary), so only > vs ≥ decides.
+    expect(0.1 - 0.05).toBe(DSP_CONFIG.dsp15.pnnThresholdS);
+    expect(onlyWindow(alternating(0.05, 0.1)).pnn50).toBe(0);
+  });
+});
+
+describe('DSP-15 Rhythm-Net feature vector (§11.3)', () => {
+  it('lists the 8 features in order: nRMSSD, ShEn, TPR, SD1, SD2, pNN50, SampEn, atypical fraction', () => {
+    const intervals = uniforms(32, 29).map((u) => 0.4 + 0.8 * u);
+    const atypical = clean(33);
+    atypical[4] = true;
+    const [window] = rhythmWindows(intervals, clean(32), atypical);
+    expect(rhythmFeatureVector(window!)).toEqual([
+      window!.normalizedRmssd,
+      window!.shannonEntropyBits,
+      window!.turningPointRatio,
+      window!.sd1S,
+      window!.sd2S,
+      window!.pnn50,
+      window!.sampleEntropy,
+      window!.atypicalFraction,
+    ]);
+    expect(rhythmFeatureVector(window!)).toHaveLength(8);
+  });
+
+  it('passes an undefined sample entropy through as null until the fill rule is decided', () => {
+    const window = onlyWindow(uniforms(32, 1).map((u) => 0.4 + 0.8 * u));
+    expect(rhythmFeatureVector(window)[6]).toBeNull();
   });
 });

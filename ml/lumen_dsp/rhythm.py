@@ -17,7 +17,6 @@ class RhythmWindow:
     turning_point_ratio: float  # turning points / (n − 2); ties are not turning points
     sd1_s: float
     sd2_s: float
-    sd1_sd2_ratio: float | None  # None when SD2 is 0
     pnn50: float
     sample_entropy: float | None  # None when no template pairs match at length m or m + 1
     atypical_fraction: float  # atypical beats among the n + 1 beats that bound the window
@@ -93,7 +92,6 @@ def _window_features(start: int, intervals_s: list[float], atypical_beats: list[
         turning_point_ratio=turning_points / (n - 2),
         sd1_s=sd1,
         sd2_s=sd2,
-        sd1_sd2_ratio=None if sd2 == 0 else sd1 / sd2,
         pnn50=over_threshold / len(differences),
         sample_entropy=_sample_entropy(intervals_s),
         atypical_fraction=sum(bounding_beats) / len(bounding_beats),
@@ -129,6 +127,20 @@ def rhythm_windows(
             windows.append(_window_features(start, intervals[start : start + size], atypical))
         run_start = run_end
     return windows
+
+
+def rhythm_feature_vector(window: RhythmWindow) -> list[float | None]:
+    # DSP-15: the 8 Rhythm-Net features (§11.3) in order; sample entropy may be None (fill: H-012).
+    return [
+        window.normalized_rmssd,
+        window.shannon_entropy_bits,
+        window.turning_point_ratio,
+        window.sd1_s,
+        window.sd2_s,
+        window.pnn50,
+        window.sample_entropy,
+        window.atypical_fraction,
+    ]
 
 
 def has_enough_usable_intervals(spans_artifact: Sequence[bool]) -> bool:

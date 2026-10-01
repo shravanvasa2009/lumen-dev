@@ -2,7 +2,7 @@ import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from lumen_dsp.beats import DetectedBeat, js_round
+from lumen_dsp.beats import DetectedBeat, elgendi_windows, js_round
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.resample import ResampledSegment
 
@@ -77,8 +77,11 @@ def _pointwise(windows: list[list[float]], combine: Callable[[list[float]], floa
 
 
 def _neighbours_of(items: list, p: int, count: int) -> list:
-    # Up to `count` items on each side of position p, without p itself.
-    return items[max(0, p - count) : p] + items[p + 1 : p + 1 + count]
+    # 2 × count items around position p, without p itself: count on each side, and at either end the
+    # window shifts inward so it keeps 2 × count items (red-team v2, ADR 0025).
+    start = max(0, min(p - count, len(items) - 1 - 2 * count))
+    end = min(len(items), start + 2 * count + 1)
+    return items[start:p] + items[p + 1 : end]
 
 
 # DSP-9: class and long-pause flag for each beat of one segment; acquisition evidence comes only from the
@@ -95,8 +98,22 @@ def classify_beats(
     def overlaps_span(start_s: float, end_s: float) -> bool:
         return any(span.start_s <= end_s and span.end_s >= start_s for span in rejected_spans)
 
-    # Median over every candidate of the segment, including the ones the rule will remove.
-    upslope_floor = config["notABeatUpslopeRatio"] * _median([beat.max_upslope for beat in beats])
+    # A NaN fails every comparison, so such a beat would pass every rule as normal; refuse it (red-team v2;
+    # RangeError in packages/core).
+    for i, beat in enumerate(beats):
+        onset = 0.0 if beat.onset_s is None else beat.onset_s
+        if not all(math.isfinite(value) for value in (beat.peak_s, beat.max_upslope, beat.amplitude, onset)):
+            raise ValueError(f"beat {i} has a non-finite time, upslope, or amplitude")
+
+    def in_span(beat: DetectedBeat) -> bool:
+        return overlaps_span(beat.peak_s if beat.onset_s is None else beat.onset_s, beat.peak_s)
+
+    # Median over the candidates outside rejected spans, including the ones the rule will remove; all
+    # candidates if none qualify.
+    clean_upslopes = [beat.max_upslope for beat in beats if not in_span(beat)]
+    upslope_floor = config["notABeatUpslopeRatio"] * _median(
+        clean_upslopes if clean_upslopes else [beat.max_upslope for beat in beats]
+    )
     classes = ["not-a-beat" if beat.max_upslope < upslope_floor else "normal" for beat in beats]
 
     # Intervals run between consecutive beats that are not "not a beat"; the first beat has none.
@@ -113,8 +130,7 @@ def classify_beats(
         previous = previous_beat[i]
         interval_s = None if previous is None else beat.peak_s - beats[previous].peak_s
         impossible = interval_s is not None and (interval_s < shortest_s or interval_s > longest_s)
-        start_s = beat.peak_s if beat.onset_s is None else beat.onset_s
-        if overlaps_span(start_s, beat.peak_s) or impossible:
+        if in_span(beat) or impossible:
             classes[i] = "artifact"
 
     before_peak = js_round(config["templateBeforePeakS"] * shape_hz)
@@ -143,12 +159,21 @@ def classify_beats(
 
     candidates = [i for i in range(len(beats)) if classes[i] == "normal"]
     windows = [window_of(beats[i]) for i in candidates]
+
     # Before any normal beat exists, the template is the pointwise median of the first windows, so one early
     # premature beat cannot become the reference.
-    seed_windows = [window for window in windows if window is not None][: config["templateBeats"]]
+    # A beat whose foot was not observed (onset None) never serves as an amplitude or template reference.
+    def foot_seen(i: int) -> bool:
+        return beats[i].onset_s is not None
+
+    seed_windows = [
+        window for p, window in enumerate(windows) if window is not None and foot_seen(candidates[p])
+    ][: config["templateBeats"]]
     normal_windows: list[list[float]] = []
     for p, i in enumerate(candidates):
-        reference = _median([beats[j].amplitude for j in _neighbours_of(candidates, p, config["neighbours"])])
+        reference = _median(
+            [beats[j].amplitude for j in _neighbours_of(candidates, p, config["neighbours"]) if foot_seen(j)]
+        )
         ratio = _js_divide(beats[i].amplitude, reference)
         window = windows[p]
         if normal_windows:
@@ -167,16 +192,27 @@ def classify_beats(
         )
         if odd_size or odd_shape or early_and_small:
             classes[i] = "atypical"
-        elif window is not None:
+        elif window is not None and foot_seen(i):
             normal_windows.append(window)
 
-    # Long-pause references: intervals with no acquisition problem at either end or inside.
+    # Long-pause references: intervals with no acquisition problem at either end or inside, and neither end at
+    # a segment edge: the first candidate when its DSP-8 foot search was cut by the segment start, or a peak
+    # within half of W2 of the segment end, where Elgendi's MA_beat runs past the signal.
+    minimum_search = js_round(DSP_CONFIG["dsp8"]["minimumSearchS"] * shape_hz)
+    end_margin = (elgendi_windows(shape_hz)[1] - 1) / 2
+
+    def near_segment_edge(i: int) -> bool:
+        peak = js_round(beats[i].peak_s * shape_hz) - shape.first_index
+        return (i == 0 and peak < minimum_search) or peak > len(shape_values) - 1 - end_margin
+
     clean_intervals: list[tuple[int, float]] = []
     for i, beat in enumerate(beats):
         start = previous_beat[i]
         if start is None or classes[i] in ("not-a-beat", "artifact"):
             continue
         if classes[start] == "artifact" or overlaps_span(beats[start].peak_s, beat.peak_s):
+            continue
+        if near_segment_edge(i) or near_segment_edge(start):
             continue
         clean_intervals.append((i, beat.peak_s - beats[start].peak_s))
     long_pauses = set()

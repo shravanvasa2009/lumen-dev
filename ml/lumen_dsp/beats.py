@@ -13,7 +13,9 @@ from lumen_dsp.resample import ResampledSegment
 class DetectedBeat:
     # Times are seconds from capture start (DSP-1); amplitudes are in morphology-band signal units.
     peak_s: float
-    onset_s: float | None  # None when nothing rises between the preceding minimum and the peak
+    # None when nothing rises between the preceding minimum and the peak, or when the foot was not observed
+    # (the upstroke began before the segment); DSP-9 then keeps the beat out of its references.
+    onset_s: float | None
     max_upslope: float  # per second, between the preceding minimum and the peak (DSP-9 "not a beat")
     amplitude: float  # peak minus the preceding minimum
 
@@ -123,7 +125,7 @@ def detect_beats(model: ResampledSegment, shape: ResampledSegment) -> list[Detec
         return (shape.first_index + index) / shape_hz
 
     beats = []
-    previous_peak = 0
+    previous_peak: int | None = None
     for model_peak in elgendi_peaks(model.values, model_hz):
         centre = js_round(((model.first_index + model_peak) / model_hz) * shape_hz) - shape.first_index
         start = max(0, centre - refine_half)
@@ -136,11 +138,15 @@ def detect_beats(model: ResampledSegment, shape: ResampledSegment) -> list[Detec
                 peak = k
         offset = _parabolic_offset(wave[peak - 1], wave[peak], wave[peak + 1]) if 0 < peak < last else 0.0
 
-        found = upstroke(wave, peak, max(previous_peak, peak - minimum_search))
+        clipped_at_start = previous_peak is None and peak - minimum_search < 0
+        found = upstroke(wave, peak, max(previous_peak or 0, peak - minimum_search))
+        # A foot on the segment's first sample with the signal still rising there was not observed: the
+        # upstroke began before the segment, so its tangent onset would be fabricated.
+        foot_unseen = clipped_at_start and found is not None and found.foot_index == 0 and wave[1] > wave[0]
         beats.append(
             DetectedBeat(
                 peak_s=to_seconds(peak + offset),
-                onset_s=to_seconds(found.onset_index) if found else None,
+                onset_s=to_seconds(found.onset_index) if found and not foot_unseen else None,
                 max_upslope=found.max_upslope * shape_hz if found else 0.0,
                 amplitude=wave[peak] - wave[found.foot_index] if found else 0.0,
             )

@@ -1,10 +1,13 @@
 import dataclasses
+import math
 
+import numpy as np
 import pytest
 
 from lumen_dsp.beat_classes import RejectedSpan, classify_beats
-from lumen_dsp.beats import detect_beats
+from lumen_dsp.beats import DetectedBeat, detect_beats
 from lumen_dsp.config import DSP_CONFIG
+from lumen_dsp.resample import ResampledSegment
 from lumen_dsp.golden import morphology_segment, ppg_wave, regular_beats, with_premature_beats
 from lumen_dsp.tests.synthetic import park_miller_uniforms
 
@@ -115,3 +118,79 @@ def test_long_pause_is_flagged_unless_a_rejected_span_lies_inside_it():
     spanned = nearest(classify(beats, 30, [RejectedSpan(middle - 0.1, middle + 0.1, "motion")]), beats[13][0])
     assert spanned.long_pause is False
     assert not any(beat.long_pause for beat in classify(with_gap(12, 1.5 * RR_S, 30), 30))
+
+
+# Red-team v2 (ADR 0025, decisions 10-14), mirrored from packages/core/test/redteam/dsp9-classes.test.ts.
+FLAT = ResampledSegment(first_index=0, values=np.zeros(256 * 120))
+
+
+def flat_beats(peaks_s, amplitudes=(), upslopes=()):
+    return [
+        DetectedBeat(
+            peak_s=peak_s,
+            onset_s=peak_s - 0.1,
+            max_upslope=upslopes[i] if i < len(upslopes) else 1.0,
+            amplitude=amplitudes[i] if i < len(amplitudes) else 1.0,
+        )
+        for i, peak_s in enumerate(peaks_s)
+    ]
+
+
+def rhythm(bpm, count, pattern):
+    rr_s = 60 / bpm
+    peaks, amplitudes, t_s = [], [], 2.0
+    for k in range(count):
+        peaks.append(t_s)
+        amplitudes.append(pattern[k % len(pattern)][1])
+        t_s += pattern[(k + 1) % len(pattern)][0] * rr_s
+    return peaks, amplitudes
+
+
+@pytest.mark.parametrize("bpm", [55, 75, 90, 120])
+def test_bigeminy_sinus_beats_stay_normal_and_no_compensatory_interval_is_a_long_pause(bpm):
+    peaks, amplitudes = rhythm(bpm, 40, [(1.4, 1.0), (0.6, 0.45)])
+    classified = classify_beats(flat_beats(peaks, amplitudes), FLAT, [])
+    interior = classified[6:-6]
+    assert [beat.beat_class for beat in interior[::2]] == ["normal"] * len(interior[::2])
+    assert [beat.beat_class for beat in classified[1::2]] == ["atypical"] * len(classified[1::2])
+    assert not any(beat.long_pause for beat in interior)
+
+
+def test_trigeminy_has_no_long_pause_even_at_the_segment_end():
+    peaks, amplitudes = rhythm(75, 45, [(1.4, 1.0), (1.0, 1.0), (0.6, 0.5)])
+    classified = classify_beats(flat_beats(peaks, amplitudes), FLAT, [])
+    assert [beat.beat_class for beat in classified] == [
+        "atypical" if k % 3 == 2 else "normal" for k in range(len(classified))
+    ]
+    assert not any(beat.long_pause for beat in classified)
+
+
+@pytest.mark.parametrize("field", ["peak_s", "amplitude", "max_upslope"])
+def test_a_non_finite_beat_field_is_refused(field):
+    beats = flat_beats([2.0 + k for k in range(12)])
+    beats[5] = dataclasses.replace(beats[5], **{field: math.nan})
+    with pytest.raises(ValueError):
+        classify_beats(beats, FLAT, [])
+
+
+def test_the_upslope_floor_ignores_candidates_inside_rejected_spans():
+    peaks = [2.0 + k for k in range(30)]
+    beats = flat_beats(peaks, upslopes=[20.0] * 20 + [1.0] * 10)
+    classified = classify_beats(beats, FLAT, [RejectedSpan(1.0, 21.5, "motion")])
+    assert {beat.beat_class for beat in classified[20:]} == {"normal"}
+
+
+def test_a_candidate_near_the_segment_end_never_ends_a_long_pause():
+    segment = ResampledSegment(first_index=0, values=np.zeros(256 * 10))
+    peaks = [2.0 + k for k in range(7)] + [9.8]
+    classified = classify_beats(flat_beats(peaks), segment, [])
+    assert not any(beat.long_pause for beat in classified)
+    far = ResampledSegment(first_index=0, values=np.zeros(256 * 20))
+    assert classify_beats(flat_beats(peaks), far, [])[-1].long_pause
+
+
+def test_a_first_beat_whose_upstroke_began_before_the_segment_has_no_onset():
+    detected, _ = pair(regular_beats(0.1, 9, 72), 10)
+    assert detected[0].onset_s is None
+    assert detected[0].max_upslope > 0
+    assert all(beat.onset_s is not None for beat in detected[1:])

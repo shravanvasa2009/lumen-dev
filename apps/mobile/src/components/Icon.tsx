@@ -8,8 +8,6 @@ const strokes = {
   settings:
     'M12 2.5V5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8',
   chevron: 'M9 6l6 6-6 6',
-  check: 'M5 12.5l4.5 4.5L19 7.5',
-  close: 'M6 6l12 12M18 6L6 18',
 } as const;
 
 export type IconName = keyof typeof strokes;
@@ -18,7 +16,14 @@ type IconProps = { name: IconName; size: number; color: ColorValue };
 
 export function Icon({ name, size, color }: IconProps) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" accessibilityElementsHidden>
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       <Path d={strokes[name]} stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
       {name === 'settings' ? <Circle cx={12} cy={12} r={3.6} stroke={color} strokeWidth={1.8} /> : null}
     </Svg>

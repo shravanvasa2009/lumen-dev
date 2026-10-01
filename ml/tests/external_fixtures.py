@@ -11,7 +11,6 @@ from onnx import TensorProto, helper, numpy_helper
 from scipy.signal import find_peaks
 
 from datasets import download
-from datasets.vitaldb_cases import load_split
 from export.provenance import sha256_of
 
 FS = 125.0
@@ -180,30 +179,31 @@ def write_models(models_dir: Path) -> dict:
     return manifest
 
 
-def write_diabetes_scores(path: Path, manifest: dict, subjects: int = 60) -> Path:
-    entry = next(entry for entry in manifest["models"] if entry["name"] == "diabetes-net")
+WITHOUT_PLETH = 3
+
+
+def holdout_scores(holdout: list[int]) -> dict:
+    # Every holdout patient but the last WITHOUT_PLETH, as ADR 0014's amendment allows.
     rng = np.random.default_rng(5)
-    holdout = load_split()["holdout"][:subjects]
-    diabetic = [index % 3 == 0 for index in range(len(holdout))]
-    rows = [
-        {
-            "subject": subject,
-            "diabetic": sick,
-            "score": float(np.clip(rng.normal(0.6 if sick else 0.3, 0.1), 0, 1)),
-        }
-        for subject, sick in zip(holdout, diabetic, strict=True)
-    ]
-    path.write_text(
-        json.dumps(
-            {
-                "model": entry["name"],
-                "version": entry["version"],
-                "onnxSha256": entry["sha256"],
-                "dataset": "vitaldb-holdout",
-                "holdoutWithoutPleth": 3,
-                "subjects": rows,
-            }
-        ),
-        encoding="utf-8",
-    )
-    return path
+    scored = holdout[: len(holdout) - WITHOUT_PLETH]
+    rows = []
+    for index, subject in enumerate(scored):
+        diabetic = index % 3 == 0
+        score = float(np.clip(rng.normal(0.6 if diabetic else 0.3, 0.1), 0, 1))
+        rows.append({"subject": subject, "diabetic": diabetic, "score": score})
+    return {"subjects": rows, "holdoutWithoutPleth": WITHOUT_PLETH}
+
+
+def install_fake_scorer(monkeypatch, edit=None) -> list[tuple]:
+    # Stands in for track/ml-diabetes's holdout scorer; records each call so tests can see when it ran.
+    calls: list[tuple] = []
+    module = ModuleType("train.diabetes_holdout")
+
+    def score_holdout(entry, models_dir, holdout):
+        calls.append((entry["name"], len(holdout)))
+        scored = holdout_scores(holdout)
+        return edit(scored) if edit else scored
+
+    module.score_holdout = score_holdout
+    monkeypatch.setitem(sys.modules, "train.diabetes_holdout", module)
+    return calls

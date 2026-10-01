@@ -14,6 +14,7 @@ from eval.external_stats import (
     floor_met,
     is_reference_clean,
     matched_pairs,
+    possible_af,
     rhythm_bias_report,
     rhythm_outcome,
     stratified_gap_ci,
@@ -109,26 +110,46 @@ def test_diabetes_floor(auroc, specificity, sensitivity, met):
 
 def test_rhythm_outcome_keeps_a_shipped_model_that_meets_the_floor():
     reports = {"lgbm": {"sensitivity": 0.85, "specificity": 0.95, "auroc": 0.9}}
-    assert rhythm_outcome(reports, "lgbm")["outcome"] == "shipped-meets-floor"
+    assert rhythm_outcome(reports, "lgbm", [])["outcome"] == "shipped-meets-floor"
 
 
-def test_rhythm_outcome_names_a_baseline_but_changes_nothing():
+def test_the_ablation_never_rescues_a_failing_shipped_model():
+    # ADR 0031: Rhythm-Net is the ablation; its external numbers never pick the winner.
     reports = {
         "lgbm": {"sensitivity": 0.70, "specificity": 0.95, "auroc": 0.9},
-        "net": {"sensitivity": 0.85, "specificity": 0.92, "auroc": 0.88},
-        "other": {"sensitivity": 0.90, "specificity": 0.91, "auroc": 0.93},
+        "net": {"sensitivity": 0.85, "specificity": 0.92, "auroc": 0.95},
     }
-    decision = rhythm_outcome(reports, "lgbm")
+    decision = rhythm_outcome(reports, "lgbm", [])
+    assert decision["outcome"] == "experimental"
+    assert decision["eligibleForFloor"] == ["lgbm"]
+    assert decision["modelsMeetingFloor"] == []
+
+
+def test_a_classical_baseline_that_meets_the_floor_is_named_but_nothing_changes():
+    reports = {
+        "lgbm": {"sensitivity": 0.70, "specificity": 0.95, "auroc": 0.9},
+        "net": {"sensitivity": 0.99, "specificity": 0.99, "auroc": 0.99},
+        "rule": {"sensitivity": 0.85, "specificity": 0.92, "auroc": 0.88},
+    }
+    decision = rhythm_outcome(reports, "lgbm", ["rule"])
     assert decision["outcome"] == "baseline-meets-floor"
-    assert decision["modelsMeetingFloor"] == ["other", "net"]
+    assert decision["modelsMeetingFloor"] == ["rule"]
     assert "owner decides" in decision["action"]
 
 
 def test_rhythm_outcome_falls_back_to_experimental():
     reports = {"lgbm": {"sensitivity": 0.5, "specificity": 0.95, "auroc": 0.7}}
-    decision = rhythm_outcome(reports, "lgbm")
+    decision = rhythm_outcome(reports, "lgbm", [])
     assert decision["outcome"] == "experimental"
     assert decision["modelsMeetingFloor"] == []
+
+
+def test_two_of_three_rule_within_each_subject():
+    subjects = np.array(["a"] * 5 + ["b"] * 3)
+    positive = np.array([True, False, True, False, False, True, True, False])
+    # a: reading 2 has 2 of 3 positive; reading 0 has no earlier readings. b's first reading does not count
+    # a's last readings as its own history.
+    assert possible_af(positive, subjects).tolist() == [False, False, True, False, False, False, True, False]
 
 
 def test_lag_is_the_median_first_pulse_delay_in_the_first_five_minutes():

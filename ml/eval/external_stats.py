@@ -79,10 +79,13 @@ def floor_met(report: Mapping, floor: Mapping[str, float]) -> bool:
     return all(report.get(name) is not None and report[name] >= minimum for name, minimum in floor.items())
 
 
-def rhythm_outcome(subject_reports: Mapping[str, Mapping], shipped: str) -> dict:
-    # The code reports; which model ships stays the owner's decision (ADR 0031), so no flag changes here.
+def rhythm_outcome(subject_reports: Mapping[str, Mapping], shipped: str, baselines: Sequence[str]) -> dict:
+    # ML-1's fallback is "the best baseline that meets it". Only the shipped model and classical baselines
+    # are eligible: ADR 0031 makes Rhythm-Net the ablation, whose external numbers never pick the winner.
+    # The code reports; which model ships stays the owner's decision, so no flag changes here.
+    eligible = [shipped, *baselines]
     meeting = sorted(
-        (name for name, report in subject_reports.items() if floor_met(report, RHYTHM_FLOOR)),
+        (name for name in eligible if floor_met(subject_reports[name], RHYTHM_FLOOR)),
         key=lambda name: -(subject_reports[name].get("auroc") or -math.inf),
     )
     if shipped in meeting:
@@ -90,13 +93,27 @@ def rhythm_outcome(subject_reports: Mapping[str, Mapping], shipped: str) -> dict
     elif meeting:
         outcome = "baseline-meets-floor"
         action = (
-            f"the shipped {shipped} misses the ML-1 floor; {meeting[0]} meets it. The owner decides whether "
-            "to ship it (ADR 0031); this run does not change any ships flag"
+            f"the shipped {shipped} misses the ML-1 floor; baseline {meeting[0]} meets it. The owner decides "
+            "whether to ship it (ADR 0031); this run does not change any ships flag"
         )
     else:
         outcome = "experimental"
-        action = "no rhythm model meets the ML-1 floor: rhythm becomes Experimental with flags off (§11.5)"
-    return {"outcome": outcome, "modelsMeetingFloor": meeting, "action": action}
+        action = (
+            "no eligible rhythm model meets the ML-1 floor: rhythm becomes Experimental with flags "
+            "off (§11.5)"
+        )
+    return {"outcome": outcome, "eligibleForFloor": eligible, "modelsMeetingFloor": meeting, "action": action}
+
+
+def possible_af(positive: np.ndarray, subjects: np.ndarray) -> np.ndarray:
+    # §10.1 / ADR 0041 2-of-3 rule over one subject's readings in time order: a reading is possible AF when
+    # it is positive and at least 2 of it and its 2 most recent earlier readings are. A 20-minute
+    # recording lies within 24 h, so every earlier reading counts.
+    flags = np.zeros(len(positive), dtype=bool)
+    for index in range(len(positive)):
+        earlier = [back for back in range(max(0, index - 2), index + 1) if subjects[back] == subjects[index]]
+        flags[index] = bool(positive[index]) and int(np.sum(positive[earlier])) >= 2
+    return flags
 
 
 def subject_lag_s(r_peaks_s: np.ndarray, ppg_peaks_s: np.ndarray) -> float | None:

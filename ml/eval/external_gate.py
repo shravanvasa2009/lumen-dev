@@ -50,19 +50,26 @@ def write_results(path: Path, results: dict) -> None:
     partial.replace(path)
 
 
-def check_gate(models: Iterable[str], approval: Approval, results: dict) -> None:
+def check_gate(runs: Iterable[dict], approval: Approval, results: dict) -> None:
     # §11.5: each model version meets the external set once. A run that started and crashed has already
-    # read the data, so retrying it needs a new owner approval (a different request id).
+    # read the data, so retrying it needs a new owner approval (a different request id). The same weights
+    # under a new version label are the same model, so a done sha256 is refused too.
     problems = []
-    for model in models:
+    for run in runs:
+        model = run["model"]
         if model not in approval.models:
             problems.append(f"{model} is not in the owner's approval {approval.request}")
-        for run in results.get("runs", []):
-            if run["model"] != model:
+        for earlier in results.get("runs", []):
+            if earlier["status"] == "done" and earlier["onnxSha256"] == run["onnxSha256"]:
+                problems.append(
+                    f"{model} has the same ONNX file (sha256) as {earlier['model']}, already externally "
+                    f"tested under {earlier['approval']}"
+                )
+            if earlier["model"] != model:
                 continue
-            if run["status"] == "done":
-                problems.append(f"{model} was already externally tested under {run['approval']}")
-            elif run["approval"] == approval.request:
+            if earlier["status"] == "done":
+                problems.append(f"{model} was already externally tested under {earlier['approval']}")
+            elif earlier["approval"] == approval.request:
                 problems.append(
                     f"{model} already started under {approval.request} and did not finish; a retry needs "
                     "a new owner approval"

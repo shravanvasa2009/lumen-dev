@@ -1,14 +1,15 @@
 import argparse
+import importlib
 import json
 import logging
 import math
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 import onnxruntime as ort
-import pandas as pd
 
 from datasets import download, registry
 from datasets.vitaldb_cases import SPLIT_FILE, load_split
@@ -41,23 +42,35 @@ from eval.external_stats import (
     BiasWindows,
     binary_report,
     floor_met,
+    possible_af,
     rhythm_bias_report,
     rhythm_outcome,
 )
 from export.provenance import sha256_of
-from export.specs import MODELS_DIR
+from export.specs import MODELS_DIR, SPECS
 from export.write_manifest import git_commit
-from train.rhythm import Units, with_ci
-from train.rhythm_windows import window_inputs
+from nets.rhythm_net import LABELS
+from train.rhythm import AF, Units, reading_units, subject_units, with_ci
+from train.rhythm_windows import WindowSet, window_inputs
 
 PARTS = ("rhythm", "sqi", "diabetes")
 # The threshold each family's decision uses, as the manifest and model card freeze it.
 THRESHOLD_KEYS = {"rhythm": "af", "sqi": "clean", "diabetes": "pattern"}
 # The order train.rhythm_windows.window_inputs returns them in (ADR 0020).
 RHYTHM_INPUTS = ("intervals", "mask", "features")
+# MIMIC PERform AF labels subjects only "AF" or "not AF". train.rhythm's reading_units and subject_units
+# read only labels == AF, so every non-AF window carries this other index.
+NOT_AF = LABELS.index("other")
+# ADR 0045: the diabetes pipeline's holdout scorer, called only from run() after the ledger records a
+# start: score_holdout(entry, models_dir, holdout_ids) -> {"subjects": [{"subject", "diabetic", "score"}],
+# "holdoutWithoutPleth": int}.
+DIABETES_SCORER = "train.diabetes_holdout"
+HOLDOUT_DATASET = "vitaldb-holdout"
 MIMIC = next(dataset for dataset in registry.DATASETS if dataset.key == "mimic-perform-af")
 
 log = logging.getLogger("eval.external")
+
+HoldoutScorer = Callable[[dict, Path, list[int]], dict]
 
 
 def model_id(entry: dict) -> str:
@@ -97,57 +110,91 @@ def onnx_output(path: Path, inputs: dict[str, np.ndarray]) -> np.ndarray:
     return np.asarray(output, dtype=np.float64)
 
 
-def _grouped(scores: np.ndarray, is_af: np.ndarray, subjects: np.ndarray, keys: np.ndarray) -> Units:
-    frame = pd.DataFrame({"score": scores, "is_af": is_af, "subject": subjects, "key": keys})
-    grouped = frame.groupby("key", sort=True).agg(
-        score=("score", "mean"), is_af=("is_af", "first"), subject=("subject", "first")
+def window_set(analyses: list[RecordingAnalysis]) -> WindowSet:
+    # Reading ids grow with subject, then time, so train.rhythm.reading_units returns readings in that
+    # order, which the 2-of-3 rule needs.
+    rows, reading = [], 0
+    for analysis in analyses:
+        previous_block = None
+        for block, window in analysis.rhythm:
+            if block != previous_block:
+                reading, previous_block = reading + 1, block
+            label = AF if analysis.is_af else NOT_AF
+            rows.append((*window_inputs(window), label, analysis.subject, reading))
+    if not rows:
+        raise ValueError("no subject produced a DSP-15 window")
+    intervals, mask, features, labels, subjects, readings = zip(*rows, strict=True)
+    return WindowSet(
+        np.stack(intervals),
+        np.stack(mask),
+        np.stack(features),
+        np.asarray(labels, dtype=np.int64),
+        np.asarray(subjects, dtype=str),
+        np.asarray(readings, dtype=np.int64),
     )
-    return Units(
-        grouped["score"].to_numpy(), grouped["is_af"].to_numpy(bool), grouped["subject"].to_numpy(str)
+
+
+def rhythm_role(entry: dict) -> str:
+    if entry["ships"]:
+        return "shipped"
+    spec = SPECS.get(entry["name"])
+    # ADR 0031: a non-shipped neural model is the ablation; classical models are ML-1 baselines.
+    return "baseline" if spec is not None and spec.kind == "classifier" else "ablation"
+
+
+def app_readings(probs: np.ndarray, windows: WindowSet, tau: float, abstain_below: float) -> dict:
+    # §11.5 "scored like the app scores a reading" (ADR 0041): a reading's probabilities are its window
+    # means; it abstains when the top one is below abstainBelow; it is positive when it answers and P(AF)
+    # ≥ τ_AF; the 2-of-3 rule flags possible AF. Card confidence (coverage, SQI) has no bedside
+    # equivalent and is not applied.
+    by_class = np.column_stack([reading_units(probs[:, k], windows).scores for k in range(probs.shape[1])])
+    readings = reading_units(probs[:, AF], windows)
+    top = by_class.max(axis=1)
+    answered = top >= abstain_below
+    flags = possible_af(answered & (readings.scores >= tau), readings.subjects)
+    subjects = np.unique(readings.subjects)
+    # A subject is called AF when any of its readings is flagged possible AF; the scores are 0/1 flags.
+    flagged = Units(
+        np.asarray([float(flags[readings.subjects == subject].any()) for subject in subjects]),
+        np.asarray([readings.is_af[readings.subjects == subject][0] for subject in subjects]),
+        subjects,
     )
+    return {
+        "readings": len(readings.scores),
+        "abstainRate": with_ci(
+            Units(top, readings.is_af, readings.subjects),
+            lambda _is_af, values: float(np.mean(values < abstain_below)),
+        ),
+        "answered": binary_report(
+            Units(readings.scores[answered], readings.is_af[answered], readings.subjects[answered]), tau, ()
+        ),
+        "possibleAfSubjects": binary_report(flagged, 0.5, RHYTHM_PREVALENCES),
+    }
 
 
 def rhythm_part(entries: list[dict], analyses: list[RecordingAnalysis], models_dir: Path) -> dict:
-    rows = [
-        (analysis.subject, analysis.is_af, f"{analysis.subject}#{reading}", window_inputs(window))
-        for analysis in analyses
-        for reading, window in analysis.rhythm
-    ]
-    if not rows:
-        raise ValueError("no subject produced a DSP-15 window")
-    subjects = np.asarray([row[0] for row in rows], dtype=str)
-    is_af = np.asarray([row[1] for row in rows], dtype=bool)
-    readings = np.asarray([row[2] for row in rows], dtype=str)
-    batch = {
-        name: np.stack([row[3][position] for row in rows]).astype(np.float32)
-        for position, name in enumerate(RHYTHM_INPUTS)
-    }
-    reports, shipped = {}, None
+    windows = window_set(analyses)
+    batch = dict(zip(RHYTHM_INPUTS, (windows.intervals, windows.mask, windows.features), strict=True))
+    reports = {}
     for entry in entries:
         tau = frozen_threshold(entry, "rhythm")
         probs = onnx_output(models_dir / entry["file"], {name: batch[name] for name in entry["inputs"]})
-        scores = probs[:, entry["labels"].index("af")]
-        subject_report = binary_report(_grouped(scores, is_af, subjects, subjects), tau, RHYTHM_PREVALENCES)
-        # §11.11 and ADR 0041: a reading's probabilities are the mean over its windows; it abstains when
-        # the top one is below abstainBelow.
-        reading_probs = pd.DataFrame(probs).groupby(readings, sort=True).mean().to_numpy()
-        reading_units = _grouped(scores, is_af, subjects, readings)
-        abstain = with_ci(
-            Units(reading_probs.max(axis=1), reading_units.is_af, reading_units.subjects),
-            lambda _is_af, top, below=entry["abstainBelow"]: float(np.mean(top < below)),
-        )
+        # Columns put in train.rhythm's LABELS order, whatever order the manifest lists them in.
+        probs = probs[:, [entry["labels"].index(label) for label in LABELS]]
+        scores = probs[:, AF]
+        subject_report = binary_report(subject_units(scores, windows), tau, RHYTHM_PREVALENCES)
         reports[entry["name"]] = {
             "model": model_id(entry),
-            "ships": entry["ships"],
+            "role": rhythm_role(entry),
             "subject": subject_report,
-            "reading": binary_report(reading_units, tau, ()),
-            "window": binary_report(Units(scores, is_af, subjects), tau, ()),
-            "readingAbstainRate": abstain,
+            "reading": binary_report(reading_units(scores, windows), tau, ()),
+            "window": binary_report(Units(scores, windows.labels == AF, windows.subjects), tau, ()),
+            "appReadings": app_readings(probs, windows, tau, entry["abstainBelow"]),
             "floorMet": floor_met(subject_report, RHYTHM_FLOOR),
             "targetAurocMet": floor_met(subject_report, {"auroc": RHYTHM_TARGET_AUROC}),
         }
-        if entry["ships"]:
-            shipped = entry["name"]
+    shipped = next(name for name, report in reports.items() if report["role"] == "shipped")
+    baselines = [name for name, report in reports.items() if report["role"] == "baseline"]
     headline = reports[shipped]
     scored = {analysis.subject: analysis.is_af for analysis in analyses if analysis.rhythm}
     return {
@@ -167,7 +214,7 @@ def rhythm_part(entries: list[dict], analyses: list[RecordingAnalysis], models_d
         "floorMet": headline["floorMet"],
         "targetAuroc": RHYTHM_TARGET_AUROC,
         "targetAurocMet": headline["targetAurocMet"],
-        **rhythm_outcome({name: report["subject"] for name, report in reports.items()}, shipped),
+        **rhythm_outcome({name: report["subject"] for name, report in reports.items()}, shipped, baselines),
         "models": reports,
     }
 
@@ -214,53 +261,65 @@ def sqi_part(entry: dict, analyses: list[RecordingAnalysis], models_dir: Path) -
     }
 
 
-def read_diabetes_scores(path: Path, entry: dict, holdout: set[int]) -> tuple[Units, dict]:
-    # Written by the diabetes pipeline (track/ml-diabetes) inside the approved run: one P(pattern) per
-    # locked-holdout patient from the shipped ONNX file, plus how many holdout patients had no PLETH.
-    scores = json.loads(Path(path).read_text(encoding="utf-8"))
-    expected = {"model": entry["name"], "version": entry["version"], "onnxSha256": entry["sha256"]}
-    expected["dataset"] = entry["externalTest"]["dataset"]
-    wrong = [
-        f"{key} is {scores.get(key)!r}, expected {value!r}"
-        for key, value in expected.items()
-        if scores.get(key) != value
-    ]
-    rows = scores.get("subjects")
+def diabetes_scorer() -> HoldoutScorer:
+    # Imported only when the diabetes part runs, so this module loads before track/ml-diabetes merges.
+    try:
+        module = importlib.import_module(DIABETES_SCORER)
+    except ModuleNotFoundError as error:
+        if error.name != DIABETES_SCORER:
+            raise
+        raise ExternalTestRefusedError(
+            f"{DIABETES_SCORER}.score_holdout (the diabetes pipeline's holdout scorer) is not on this branch"
+        ) from error
+    return module.score_holdout
+
+
+def holdout_units(scored: dict, holdout: list[int]) -> Units:
+    # One P(pattern) per locked-holdout patient. ADR 0014's amendment lets only patients without PLETH
+    # drop out, so the scored patients plus those must be the whole holdout.
+    rows = scored.get("subjects")
+    wrong = []
     if not isinstance(rows, list) or not rows:
         wrong.append("subjects must be a non-empty list")
         rows = []
     ids = [row.get("subject") for row in rows]
+    locked = set(holdout)
     if len(set(ids)) != len(ids):
         wrong.append("a subject appears more than once")
-    if not all(isinstance(subject, int) and subject in holdout for subject in ids):
+    if not all(isinstance(subject, int) and subject in locked for subject in ids):
         wrong.append(f"every subject must be a locked holdout patient in {SPLIT_FILE.name}")
     if not all(isinstance(row.get("diabetic"), bool) for row in rows):
         wrong.append("diabetic must be true or false for every subject")
     if not all(isinstance(row.get("score"), float | int) and 0 <= row["score"] <= 1 for row in rows):
         wrong.append("score must be a probability for every subject")
-    if not (isinstance(scores.get("holdoutWithoutPleth"), int) and scores["holdoutWithoutPleth"] >= 0):
+    without_pleth = scored.get("holdoutWithoutPleth")
+    if not (isinstance(without_pleth, int) and without_pleth >= 0):
         wrong.append("holdoutWithoutPleth must be a count")
+    elif len(ids) + without_pleth != len(holdout):
+        wrong.append(
+            f"{len(ids)} scored + {without_pleth} without PLETH is not the {len(holdout)} holdout "
+            "patients (ADR 0014)"
+        )
     if wrong:
-        raise ValueError(f"{path}: " + "; ".join(wrong))
-    units = Units(
+        raise ValueError("holdout scores: " + "; ".join(wrong))
+    return Units(
         np.asarray([row["score"] for row in rows], dtype=float),
         np.asarray([row["diabetic"] for row in rows], dtype=bool),
         np.asarray([str(subject) for subject in ids], dtype=str),
     )
-    return units, scores
 
 
-def diabetes_part(entry: dict, units: Units, scores_file: dict) -> dict:
+def diabetes_part(entry: dict, units: Units, scored: dict) -> dict:
     tau = frozen_threshold(entry, "diabetes")
     report = binary_report(units, tau, DIABETES_PREVALENCES)
     met = floor_met(report, DIABETES_FLOOR)
     return {
         "model": model_id(entry),
-        "dataset": entry["externalTest"]["dataset"],
+        "dataset": HOLDOUT_DATASET,
         "subjects": report["units"],
         "diabeticSubjects": report["positives"],
         "nonDiabeticSubjects": report["negatives"],
-        "holdoutWithoutPleth": scores_file["holdoutWithoutPleth"],
+        "holdoutWithoutPleth": scored["holdoutWithoutPleth"],
         **{
             key: report[key] for key in ("threshold", "auroc", "sensitivity", "specificity", "ci95", "ppvNpv")
         },
@@ -272,22 +331,26 @@ def diabetes_part(entry: dict, units: Units, scores_file: dict) -> dict:
     }
 
 
-def preflight(
-    parts: Sequence[str], models_dir: Path, dataset_dir: Path, diabetes_scores: Path | None
-) -> dict:
-    # Everything that can fail without touching external data fails here, before the ledger records a
-    # start, so a missing file never uses up the owner's approval.
-    entries = {}
+class Preflight(NamedTuple):
+    entries: dict[str, list[dict]]
+    score_holdout: HoldoutScorer | None
+    holdout: list[int]
+
+
+def preflight(parts: Sequence[str], models_dir: Path, dataset_dir: Path) -> Preflight:
+    # Everything that can fail without touching external data or labels fails here, before the ledger
+    # records a start, so a missing file never uses up the owner's approval.
+    entries, score_holdout, holdout = {}, None, []
     if "rhythm" in parts:
         entries["rhythm"] = family_entries(models_dir, "rhythm")
         for entry in entries["rhythm"]:
             if not (
-                "af" in entry["labels"]
+                set(LABELS) <= set(entry["labels"])
                 and set(entry["inputs"]) <= set(RHYTHM_INPUTS)
                 and isinstance(entry.get("abstainBelow"), int | float)
             ):
                 raise ExternalTestRefusedError(
-                    f"{model_id(entry)} needs an af label, inputs from {RHYTHM_INPUTS} and abstainBelow"
+                    f"{model_id(entry)} needs labels {LABELS}, inputs from {RHYTHM_INPUTS} and abstainBelow"
                 )
     if "sqi" in parts:
         shipped = [entry for entry in family_entries(models_dir, "sqi") if entry["ships"]]
@@ -298,8 +361,15 @@ def preflight(
         entries["sqi"] = shipped
     if "diabetes" in parts:
         entries["diabetes"] = [entry for entry in family_entries(models_dir, "diabetes") if entry["ships"]]
-        if diabetes_scores is None or not diabetes_scores.is_file():
-            raise ExternalTestRefusedError("the diabetes part needs --diabetes-scores, a file that exists")
+        dataset = (entries["diabetes"][0].get("externalTest") or {}).get("dataset")
+        if dataset != HOLDOUT_DATASET:
+            raise ExternalTestRefusedError(
+                f"the shipped diabetes entry's external dataset is {dataset!r}, not {HOLDOUT_DATASET}"
+            )
+        holdout = load_split()["holdout"]
+        if not holdout:
+            raise ExternalTestRefusedError(f"{SPLIT_FILE} lists no holdout patients")
+        score_holdout = diabetes_scorer()
     if {"rhythm", "sqi"} & set(parts):
         beat_modules()
         if not (dataset_dir / download.MARKER_NAME).is_file() or not all(
@@ -310,7 +380,7 @@ def preflight(
                 f"{dataset_dir} is not downloaded; the owner's approval step downloads it "
                 "(LUMEN_EXTERNAL_APPROVED=1 python -m datasets.download --external)"
             )
-    return entries
+    return Preflight(entries, score_holdout, holdout)
 
 
 def analyse_mimic(dataset_dir: Path, rhythm: bool, sqi: bool) -> tuple[list[RecordingAnalysis], list[dict]]:
@@ -333,12 +403,11 @@ def run(
     results_path: Path,
     approval_path: Path,
     dataset_dir: Path,
-    diabetes_scores: Path | None,
     commit: str,
     now: Callable[[], str],
 ) -> dict:
     # §11.5: approval-gated, once per model version, each model judged at its frozen threshold.
-    entries = preflight(parts, models_dir, dataset_dir, diabetes_scores)
+    checked = preflight(parts, models_dir, dataset_dir)
     approval = read_approval(approval_path)
     results = read_results(results_path)
     runs = {
@@ -352,9 +421,9 @@ def run(
             }
             for entry in family_list
         ]
-        for family, family_list in entries.items()
+        for family, family_list in checked.entries.items()
     }
-    check_gate([run["model"] for family_runs in runs.values() for run in family_runs], approval, results)
+    check_gate([run for family_runs in runs.values() for run in family_runs], approval, results)
     start_runs(results, [run for family_runs in runs.values() for run in family_runs], now())
     write_results(results_path, results)
 
@@ -368,9 +437,9 @@ def run(
             if family not in parts:
                 continue
             part = (
-                rhythm_part(entries["rhythm"], analyses, models_dir)
+                rhythm_part(checked.entries["rhythm"], analyses, models_dir)
                 if family == "rhythm"
-                else sqi_part(entries["sqi"][0], analyses, models_dir)
+                else sqi_part(checked.entries["sqi"][0], analyses, models_dir)
             )
             results[family] = {
                 **part,
@@ -381,9 +450,10 @@ def run(
             finish_runs(runs[family], now())
             write_results(results_path, results)
     if "diabetes" in parts:
-        (entry,) = entries["diabetes"]
-        units, scores_file = read_diabetes_scores(diabetes_scores, entry, set(load_split()["holdout"]))
-        results["diabetes"] = diabetes_part(entry, units, scores_file)
+        (entry,) = checked.entries["diabetes"]
+        # The holdout is read only here, inside the approved run whose start the ledger already holds.
+        scored = checked.score_holdout(entry, models_dir, checked.holdout)
+        results["diabetes"] = diabetes_part(entry, holdout_units(scored, checked.holdout), scored)
         finish_runs(runs["diabetes"], now())
         write_results(results_path, results)
     return results
@@ -395,9 +465,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument("--rhythm", action="store_true", help="ML-1 on MIMIC PERform AF")
     parser.add_argument("--sqi", action="store_true", help="ML-4 rhythm-bias check on MIMIC PERform AF")
-    parser.add_argument(
-        "--diabetes-scores", type=Path, help="ML-6: holdout scores from the diabetes pipeline"
-    )
+    parser.add_argument("--diabetes", action="store_true", help="ML-6 on the locked VitalDB holdout")
     parser.add_argument("--all", action="store_true", help="rhythm, sqi and diabetes")
     args = parser.parse_args(argv)
     parts = [
@@ -405,12 +473,12 @@ def main(argv: list[str] | None = None) -> None:
         for part, chosen in (
             ("rhythm", args.rhythm or args.all),
             ("sqi", args.sqi or args.all),
-            ("diabetes", args.diabetes_scores is not None or args.all),
+            ("diabetes", args.diabetes or args.all),
         )
         if chosen
     ]
     if not parts:
-        parser.error("choose --rhythm, --sqi, --diabetes-scores, or --all")
+        parser.error("choose --rhythm, --sqi, --diabetes, or --all")
     logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
     # Paths are fixed here so no flag can point the once-per-version ledger somewhere else.
     run(
@@ -419,7 +487,6 @@ def main(argv: list[str] | None = None) -> None:
         results_path=RESULTS_FILE,
         approval_path=APPROVAL_FILE,
         dataset_dir=MIMIC.local_dir,
-        diabetes_scores=args.diabetes_scores,
         commit=git_commit(),
         now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
     )

@@ -13,10 +13,9 @@ import { mean, rmssd, subjectBootstrap } from './eval-replay/stats.mjs';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'eval-replay.mjs');
 
-// A deterministic, irregular-enough interval sequence (ms) so cross-correlation has a clear peak.
-// A seeded, non-periodic interval series (ms) like resting heart-rate variability: a slow wander plus
-// beat-to-beat noise, so only the true lag lines the two sequences up.
-function sequence(length) {
+// A seeded, non-periodic interval series (ms) like resting heart-rate variability: a slow wander (weight
+// `memory`) plus beat-to-beat noise, so only the true lag lines the two sequences up.
+function sequence(length, { memory = 0.8, wanderMs = 40, noiseMs = 30 } = {}) {
   let state = 7;
   const random = () => {
     state = (state * 1103515245 + 12345) % 2147483648;
@@ -24,8 +23,8 @@ function sequence(length) {
   };
   let wander = 0;
   return Array.from({ length }, () => {
-    wander = 0.8 * wander + 40 * random();
-    return 800 + wander + 30 * random();
+    wander = memory * wander + wanderMs * random();
+    return 800 + wander + noiseMs * random();
   });
 }
 
@@ -38,11 +37,11 @@ function tempDir(t) {
 test('alignment finds positive and negative beat lags', () => {
   const polar = sequence(60);
   const later = alignIntervals(
-    polar.slice(3, 50).map((value) => value + 4),
+    polar.slice(3, 50).map((value, i) => value + (i % 2 ? -4 : 4)),
     polar,
   );
   assert.equal(later.lag, 3);
-  assert.ok(later.correlation > 0.99);
+  assert.ok(later.correlation > 0.95);
   const earlier = alignIntervals(polar, polar.slice(4, 56));
   assert.equal(earlier.lag, -4);
 });
@@ -68,6 +67,18 @@ test('a missed phone beat (two intervals merged) does not shift later pairs', ()
   assert.equal(pairFor(alignment, 10), 14);
   assert.equal(pairFor(alignment, 20), undefined);
   assert.equal(pairFor(alignment, 30), 35);
+});
+
+test('a smooth resting rhythm with an early missed beat still pairs every beat with its own heartbeat', () => {
+  // Strong beat-to-beat memory and little noise: successive intervals differ by only ~15 ms, so a
+  // one-beat-off offset also lands every beat within the match window.
+  const polar = sequence(110, { memory: 0.95, wanderMs: 20, noiseMs: 4 });
+  const phone = polar.slice(4, 104);
+  phone.splice(30, 2, phone[30] + phone[31]);
+  const alignment = alignIntervals(phone, polar, (p) => p !== 30);
+  const compared = alignment.pairs.filter(([p]) => p !== 30);
+  assert.ok(compared.length > 90);
+  assert.ok(compared.every(([p, q]) => phone[p] === polar[q]));
 });
 
 test('an extra phone beat (one interval split) does not shift later pairs', () => {

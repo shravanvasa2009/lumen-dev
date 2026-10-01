@@ -13,6 +13,9 @@ const MIN_OVERLAP_FRACTION = 0.6;
 const MIN_CORRELATION = 0.5;
 // Two beats are the same heartbeat when their times agree this closely (well under one interval).
 const BEAT_MATCH_MS = 100;
+// Above this, phone and strap beats don't sit on the same heartbeats closely enough to compare intervals.
+// Pulse-arrival jitter against the ECG R-peak is about 10–20 ms; tune on the M5 captures.
+const MAX_MEDIAN_RESIDUAL_MS = 30;
 
 function pearson(a, b) {
   const meanA = mean(a);
@@ -64,7 +67,14 @@ function nearestBeat(times, target) {
     else high = middle;
   }
   const index = Math.abs(times[low] - target) <= Math.abs(times[high] - target) ? low : high;
-  return Math.abs(times[index] - target) <= BEAT_MATCH_MS ? index : null;
+  const residual = Math.abs(times[index] - target);
+  return residual <= BEAT_MATCH_MS ? { index, residual } : null;
+}
+
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
 // Returns { lag, correlation, pairs: [[phoneIndex, polarIndex], ...] } or null when nothing aligns well
@@ -74,20 +84,29 @@ export function alignIntervals(phoneMs, polarMs, isUsablePair = () => true) {
   if (!coarse) return null;
   const phoneBeats = beatTimes(phoneMs);
   const polarBeats = beatTimes(polarMs);
-  // Anchor on the time offset (from the coarse pairs) that lines up the most beats; any single pair could
-  // sit just after a count error.
-  let offset = 0;
-  let mostMatched = -1;
+  // Each coarse pair proposes a time offset; after a count error some are a whole beat off. Resting
+  // intervals change slowly, so a one-beat-off offset still lands every beat within BEAT_MATCH_MS and ties
+  // on match count. It loses on timing: its residuals are beat-to-beat differences (tens of ms), the true
+  // offset's are only timing jitter. So keep the offset with the smallest median residual.
+  const minMatched = Math.ceil(MIN_OVERLAP_FRACTION * phoneBeats.length);
+  let offset = null;
+  let bestResidual = Infinity;
   for (const [p, q] of coarse.usable) {
     const candidate = polarBeats[q] - phoneBeats[p];
-    const matched = phoneBeats.filter((time) => nearestBeat(polarBeats, time + candidate) !== null).length;
-    if (matched > mostMatched) [offset, mostMatched] = [candidate, matched];
+    const residuals = phoneBeats
+      .map((time) => nearestBeat(polarBeats, time + candidate))
+      .filter((match) => match !== null)
+      .map((match) => match.residual);
+    if (residuals.length < minMatched) continue;
+    const residual = median(residuals);
+    if (residual < bestResidual) [offset, bestResidual] = [candidate, residual];
   }
+  if (offset === null || bestResidual > MAX_MEDIAN_RESIDUAL_MS) return null;
   const pairs = [];
   for (let p = 0; p < phoneMs.length; p += 1) {
     const start = nearestBeat(polarBeats, phoneBeats[p] + offset);
     const end = nearestBeat(polarBeats, phoneBeats[p + 1] + offset);
-    if (start !== null && end === start + 1) pairs.push([p, start]);
+    if (start !== null && end?.index === start.index + 1) pairs.push([p, start.index]);
   }
   // With a very regular rhythm, beat times also line up one whole beat off; the paired intervals then no
   // longer track each other, so the pairing itself must still correlate.

@@ -26,3 +26,7 @@ export type {
   RhythmMetric,
   RmssdMetric,
 } from './results';
+export { DSP_CONFIG } from './config';
+export { buildTimebase, type Timebase } from './timebase';
+export { resampleCubic, type ResampledSegment } from './resample';
+export { fingerSignals, type FingerSignals } from './finger-signal';

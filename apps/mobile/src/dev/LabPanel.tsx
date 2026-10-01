@@ -17,10 +17,12 @@ import {
   type LabDiagnostics,
   type LensInfo,
   type LumenCaptureModule,
+  type Sample,
   type SampleBatch,
 } from '../../modules/lumen-capture/src';
 
 import { captureRequestBody } from './captureRequest';
+import { keepLiveWindow, readLiveHeartRate, type LiveHeartRate } from './liveHeartRate';
 import { sendCapture } from './sendCapture';
 
 // About 5 s at 60 fps or 10 s at 30 fps: enough to see several pulses.
@@ -36,6 +38,8 @@ type FpsChoice = 'default' | 'lensMax' | 30 | 60;
 const FIXED_FPS = [30, 60] as const;
 const TORCH_LEVELS = [0, 0.25, 0.5, 1];
 const TORCH_ON_OFF = [0, 1];
+// ADR 0027: core's live estimate is meant to run about once a second, timed here by the frames' own clock.
+const LIVE_HR_EVERY_NS = 1e9;
 
 type Subscription = { remove(): void };
 type Recorded = { capabilities: Capabilities; summary: CaptureSummary; lab?: LabDiagnostics };
@@ -81,7 +85,7 @@ function RedTrace({ values }: { values: readonly number[] }) {
   );
 }
 
-type Choice<T> = { key: string; label: string; value: T };
+type Choice<T> = { key: string; label: string; value: T; disabled?: boolean };
 
 function ChoiceRow<T>({
   choices,
@@ -99,12 +103,13 @@ function ChoiceRow<T>({
     <View style={[styles.choices, { gap: spacing.sm }]}>
       {choices.map((choice) => {
         const selected = choice.value === chosen;
+        const inactive = disabled || choice.disabled === true;
         return (
           <Pressable
             key={choice.key}
             accessibilityRole="button"
-            accessibilityState={{ selected, disabled }}
-            disabled={disabled}
+            accessibilityState={{ selected, disabled: inactive }}
+            disabled={inactive}
             onPress={() => onChoose(choice.value)}
             style={[
               styles.choice,
@@ -114,7 +119,7 @@ function ChoiceRow<T>({
                 borderRadius: radius.pill,
                 borderColor: selected ? colors.accentFill : colors.line2,
                 backgroundColor: selected ? colors.accentFill : 'transparent',
-                opacity: disabled ? 0.5 : 1,
+                opacity: inactive ? 0.5 : 1,
               },
             ]}
           >
@@ -161,13 +166,15 @@ function Diagnostics({ lab }: { lab: LabDiagnostics }) {
 
 // Development builds only (spec §12 Lab mode, §13.5): records a capture from the rear camera, or from a
 // recording through ReplayCapture, shows the live red trace and capture health, and sends the capture to
-// the PC receiver. No heart rate is computed here; that belongs to @lumen/core.
+// the PC receiver. The live heart rate is @lumen/core's Lab estimate (ADR 0027); no signal math lives here.
 export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const { t } = useTranslation();
   const { colors, spacing, radius, control } = useTheme();
   const subscriptions = useRef<Subscription[]>([]);
   const batches = useRef<SampleBatch[]>([]);
   const reds = useRef<number[]>([]);
+  const liveWindow = useRef<Sample[]>([]);
+  const lastEstimateNs = useRef<number | null>(null);
   const lastLab = useRef<LabDiagnostics | undefined>(undefined);
   const phone = useRef<Capabilities | null>(null);
   const capturing = useRef(false);
@@ -181,6 +188,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const [frames, setFrames] = useState(0);
   const [status, setStatus] = useState<CaptureStatus | null>(null);
   const [lab, setLab] = useState<LabDiagnostics | null>(null);
+  const [liveHr, setLiveHr] = useState<LiveHeartRate>({ kind: 'none' });
   const [recorded, setRecorded] = useState<Recorded | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [address, setAddress] = useState('');
@@ -189,7 +197,8 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const [phoneShown, setPhoneShown] = useState<Capabilities | null>(null);
   const [lensId, setLensId] = useState<string | undefined>(undefined);
   const [fpsChoice, setFpsChoice] = useState<FpsChoice>('default');
-  // Native's own default is the torch at full (ADR 0029 addendum); the panel starts from the same level.
+  // Native's own default is the torch at full (ADR 0029 addendum); the panel starts from the same level, and
+  // Start waits for the capabilities so a phone without a torch is never sent level 1.
   const [torchLevel, setTorchLevel] = useState(1);
   const [autoLock, setAutoLock] = useState(true);
   const [locking, setLocking] = useState(false);
@@ -223,7 +232,10 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
     capture
       .getCapabilities()
       .then((capabilities) => {
-        if (mounted.current) setPhoneShown(capabilities);
+        if (!mounted.current) return;
+        setPhoneShown(capabilities);
+        // Native rejects start() with a torch level when the phone has no torch (ADR 0029 addendum).
+        if (!capabilities.torch.available) setTorchLevel(0);
       })
       .catch((error: unknown) => {
         if (mounted.current) setFailure(reasonOf(error));
@@ -304,7 +316,10 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       if (!mounted.current) return;
       batches.current = [];
       reds.current = [];
+      liveWindow.current = [];
+      lastEstimateNs.current = null;
       lastLab.current = undefined;
+      setLiveHr({ kind: 'none' });
       setTrace([]);
       setFrames(0);
       setStatus(null);
@@ -317,6 +332,17 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           reds.current = [...reds.current, ...batch.samples.map((sample) => sample.r)].slice(-TRACE_POINTS);
           setTrace(reds.current);
           setFrames((count) => count + batch.samples.length);
+          liveWindow.current = keepLiveWindow(liveWindow.current, batch.samples);
+          const newest = batch.samples[batch.samples.length - 1];
+          if (
+            newest &&
+            (lastEstimateNs.current === null ||
+              // abs: a backward clock step must not stall the estimate (Appendix A does not promise order).
+              Math.abs(newest.tNs - lastEstimateNs.current) >= LIVE_HR_EVERY_NS)
+          ) {
+            lastEstimateNs.current = newest.tNs;
+            setLiveHr(readLiveHeartRate(liveWindow.current));
+          }
         }),
         capture.addListener('status', setStatus),
         capture.addListener('lab', (diagnostics) => {
@@ -432,10 +458,12 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   ];
   // Phones without torch levels only take on (1) or off (0).
   const hasLevels = phoneShown?.torch.levels === true;
+  const torchUsable = phoneShown?.torch.available !== false && pickedLens?.torchUsable !== false;
   const torchChoices: Choice<number>[] = (hasLevels ? TORCH_LEVELS : TORCH_ON_OFF).map((level) => ({
     key: String(level),
     label: level === 0 ? t('lab.torchOff') : hasLevels ? t('lab.torchLevel', { level }) : t('lab.torchOn'),
     value: level,
+    disabled: level !== 0 && !torchUsable,
   }));
 
   const canSend = !running && recorded !== null && frames > 0 && address.trim() !== '' && token.trim() !== '';
@@ -481,7 +509,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       <Button
         label={running ? t('lab.stop') : t('lab.start')}
         onPress={running ? stopCapture : startCapture}
-        disabled={switching}
+        disabled={switching || phoneShown === null}
       />
       <Button
         variant="secondary"
@@ -503,6 +531,13 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           <AppText tone="textDim">{thermalText(status.thermal)}</AppText>
         </>
       ) : null}
+
+      <AppText>
+        {liveHr.kind === 'bpm'
+          ? t('lab.liveHr', { bpm: Math.round(liveHr.bpm), snr: liveHr.snrDb.toFixed(1) })
+          : t('lab.liveHrNone')}
+      </AppText>
+      {liveHr.kind === 'error' ? <AppText>{t('lab.liveHrError', { reason: liveHr.reason })}</AppText> : null}
 
       <AppText variant="headline">{t('lab.diagnostics')}</AppText>
       {lab ? <Diagnostics lab={lab} /> : <AppText tone="textDim">{t('lab.noDiagnostics')}</AppText>}

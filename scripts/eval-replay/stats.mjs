@@ -1,4 +1,4 @@
-// Statistics for eval:replay (spec §22, workspace ADR 0037). Every subject counts equally: a metric is the
+// Statistics for eval:replay (spec §22). Every subject counts equally: a metric is the
 // mean of per-subject means, and its 95% CI resamples whole subjects, never readings or windows (§22.1).
 
 export const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;

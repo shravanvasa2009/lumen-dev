@@ -1,7 +1,8 @@
 import { alignIntervals } from './align.mjs';
 import { mean, rmssd, subjectBootstrap } from './stats.mjs';
 
-// Rules from workspace ADR 0037.
+// Which readings count: only conclusive ones feed error metrics; DSP-A uses resting sessions only;
+// strap intervals outside 30–200 bpm are strap artifacts and are never a reference.
 // DSP-B: RMSSD agreement is judged only on phones whose rear camera runs at 60 fps or faster.
 const RMSSD_MIN_FPS = 60;
 const RMSSD_TOLERANCE = 0.1;
@@ -53,7 +54,7 @@ function intervalError(capture, alignment) {
 // The app's own RMSSD against the strap's RMSSD over the matched segment (DSP-B checks what the card shows).
 function rmssdWithinTolerance(capture, alignment) {
   const shown = capture.reading.metrics?.rmssd?.value;
-  if (shown == null || !alignment) return null;
+  if (shown == null || !alignment?.pairs.length) return null;
   const segment = capture.polarRrMs.slice(alignment.pairs[0][1], alignment.pairs.at(-1)[1] + 1);
   const reference = rmssd(segment, segment.map(polarUsable));
   if (!reference) return null;

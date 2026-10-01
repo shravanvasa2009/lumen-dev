@@ -36,6 +36,18 @@ function captureSpan(folder) {
   return Number.isFinite(first) && Number.isFinite(last) && lines.length > 2 ? [first, last] : null;
 }
 
+// The strap and the camera must share a clock; if no strap beat falls inside the capture, the clocks
+// disagree, and dropping the reading silently would hide it from every metric.
+function strapInsideCapture(folder, polar, span) {
+  if (span === null || polar.length === 0) return polar;
+  const inside = polar.filter((row) => row.t_ns >= span[0] && row.t_ns <= span[1]);
+  if (inside.length === 0)
+    throw new Error(
+      `${folder}: polar_rr.csv t_ns ${polar[0].t_ns}..${polar.at(-1).t_ns} does not overlap samples.csv ${span[0]}..${span[1]}`,
+    );
+  return inside;
+}
+
 function readCapture(folder) {
   const phone = readCsv(folder, 'replay-intervals.csv', ['t_ns', 'ibi_ms', 'accepted']);
   if (!phone) throw new Error(`${folder}: replay-result.json has no replay-intervals.csv beside it`);
@@ -46,10 +58,7 @@ function readCapture(folder) {
     meta: JSON.parse(fs.readFileSync(path.join(folder, 'meta.json'), 'utf8')),
     reading: JSON.parse(fs.readFileSync(path.join(folder, RESULT), 'utf8')),
     phone: phone.map((row) => ({ ibiMs: row.ibi_ms, accepted: row.accepted === 1 })),
-    polarRrMs:
-      polar
-        ?.filter((row) => span === null || (row.t_ns >= span[0] && row.t_ns <= span[1]))
-        .map((row) => row.rr_ms) ?? null,
+    polarRrMs: polar && strapInsideCapture(folder, polar, span).map((row) => row.rr_ms),
   };
 }
 

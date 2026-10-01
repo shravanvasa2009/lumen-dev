@@ -14,8 +14,20 @@ import { mean, rmssd, subjectBootstrap } from './eval-replay/stats.mjs';
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'eval-replay.mjs');
 
 // A deterministic, irregular-enough interval sequence (ms) so cross-correlation has a clear peak.
-const sequence = (length) =>
-  Array.from({ length }, (_, i) => 800 + 60 * Math.sin(i * 1.7) + 25 * Math.cos(i * 0.6));
+// A seeded, non-periodic interval series (ms) like resting heart-rate variability: a slow wander plus
+// beat-to-beat noise, so only the true lag lines the two sequences up.
+function sequence(length) {
+  let state = 7;
+  const random = () => {
+    state = (state * 1103515245 + 12345) % 2147483648;
+    return state / 2147483648 - 0.5;
+  };
+  let wander = 0;
+  return Array.from({ length }, () => {
+    wander = 0.8 * wander + 40 * random();
+    return 800 + wander + 30 * random();
+  });
+}
 
 function tempDir(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-replay-'));
@@ -35,11 +47,38 @@ test('alignment finds positive and negative beat lags', () => {
   assert.equal(earlier.lag, -4);
 });
 
-test('a wild rejected beat in the middle does not shift the alignment', () => {
+// The phone saw strap intervals 4..53, so phone interval p is strap interval p + 4 until a count error.
+const pairFor = (alignment, phoneIndex) => alignment.pairs.find(([p]) => p === phoneIndex)?.[1];
+
+test('a misplaced rejected beat in the middle does not shift the alignment', () => {
   const polar = sequence(60);
   const phone = polar.slice(4, 54);
-  phone[20] = 1600;
-  assert.equal(alignIntervals(phone, polar, (p) => p !== 20).lag, 4);
+  phone[20] += 400;
+  phone[21] -= 400;
+  const alignment = alignIntervals(phone, polar, (p) => p !== 20 && p !== 21);
+  assert.equal(alignment.lag, 4);
+  assert.equal(pairFor(alignment, 30), 34);
+});
+
+test('a missed phone beat (two intervals merged) does not shift later pairs', () => {
+  const polar = sequence(60);
+  const phone = polar.slice(4, 54);
+  phone.splice(20, 2, phone[20] + phone[21]);
+  const alignment = alignIntervals(phone, polar, (p) => p !== 20);
+  assert.equal(pairFor(alignment, 10), 14);
+  assert.equal(pairFor(alignment, 20), undefined);
+  assert.equal(pairFor(alignment, 30), 35);
+});
+
+test('an extra phone beat (one interval split) does not shift later pairs', () => {
+  const polar = sequence(60);
+  const phone = polar.slice(4, 54);
+  phone.splice(20, 1, phone[20] / 2, phone[20] / 2);
+  const alignment = alignIntervals(phone, polar, (p) => p !== 20 && p !== 21);
+  assert.equal(pairFor(alignment, 10), 14);
+  assert.equal(pairFor(alignment, 20), undefined);
+  assert.equal(pairFor(alignment, 21), undefined);
+  assert.equal(pairFor(alignment, 30), 33);
 });
 
 test('alignment refuses short sequences and poor correlation', () => {
@@ -68,8 +107,9 @@ test('every subject counts equally, and one subject has no interval', () => {
   assert.deepEqual(subjectBootstrap([]), { value: null, ci95: null });
 });
 
-// Strap intervals scaled to an exact mean HR; the phone sees them 2 beats late, 10 ms long, with one
-// wild beat that the pipeline rejected.
+// Strap intervals scaled to an exact mean HR. The phone sees them 2 beats late with ±10 ms jitter (beat
+// times can't drift, so the errors alternate), and one misplaced beat makes a long interval followed by a
+// short one, both rejected by the pipeline.
 function capture({
   subject,
   hr,
@@ -82,8 +122,11 @@ function capture({
 }) {
   const raw = sequence(40);
   const polarRrMs = raw.map((value) => (value * 60000) / mean(raw) / polarHr);
-  const phone = polarRrMs.slice(2, 38).map((value) => ({ ibiMs: value + 10, accepted: true }));
-  phone[15] = { ibiMs: 1700, accepted: false };
+  const phone = polarRrMs
+    .slice(2, 38)
+    .map((value, i) => ({ ibiMs: value + (i % 2 ? -10 : 10), accepted: true }));
+  phone[15] = { ibiMs: phone[15].ibiMs + 300, accepted: false };
+  phone[16] = { ibiMs: phone[16].ibiMs - 300, accepted: false };
   const reference = rmssd(polarRrMs.slice(2, 38));
   return {
     folder: `${subject}-${hr}`,
@@ -138,7 +181,7 @@ test('metrics follow Appendix B and ADR 0037', () => {
   const metrics = computeMetrics(captures, { commit: 'abc', date: '2026-10-20' }, (line) =>
     logged.push(line),
   );
-  assert.ok(logged.includes('P1-62: lag 2 beats, r 1.000'));
+  assert.match(logged.join('\n'), /^P1-62: lag 2 beats, r 0\.\d{3}$/m);
   assert.equal(metrics.polarPairedCaptures, 6);
   // At rest only (the paced and artifact sessions are left out); P1's two readings average to 3.
   assert.equal(metrics.hr.readings, 4);
@@ -211,6 +254,12 @@ test('malformed or missing files stop the run with the folder name', (t) => {
   const noIntervals = tempDir(t);
   writeCaptureFolder(noIntervals, 'P1', { intervals: false });
   assert.throws(() => readCaptures(noIntervals), /no replay-intervals\.csv/);
+  const otherClock = tempDir(t);
+  writeCaptureFolder(otherClock, 'P1', { polarCsv: 't_ns,rr_ms\n900000,800\n900800,810\n' });
+  assert.throws(
+    () => readCaptures(otherClock),
+    /polar_rr\.csv t_ns 900000\.\.900800 does not overlap samples\.csv 5\.\.25/,
+  );
 });
 
 test('the CLI writes metrics.json and fails without captures', (t) => {

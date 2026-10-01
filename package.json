@@ -38,7 +38,7 @@
     "test:routes": "npm run test:routes -w @lumen/mobile",
     "test:fallback": "node scripts/not-yet.mjs test:fallback",
     "test:evidence": "node scripts/not-yet.mjs test:evidence",
-    "i18n:check": "node scripts/not-yet.mjs i18n:check",
+    "i18n:check": "node scripts/check-i18n.mjs",
     "lint:strings": "node scripts/not-yet.mjs lint:strings",
     "test:notifications": "node scripts/not-yet.mjs test:notifications",
     "test:widgets": "node scripts/not-yet.mjs test:widgets",

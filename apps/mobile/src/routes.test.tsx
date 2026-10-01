@@ -33,7 +33,7 @@ const routes: readonly Route[] = [
   { file: 'measure/capture', url: '/measure/capture?mode=quick', title: 'mode.quick' },
   { file: 'measure/processing', url: '/measure/processing', title: 'processing.title' },
   { file: 'results/[id]/index', url: '/results/demo', title: 'results.title' },
-  { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.title' },
+  { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.titleRegular' },
   { file: 'measure/inconclusive', url: '/measure/inconclusive', title: 'result.inconclusive' },
   { file: 'emergency', url: '/emergency', title: 'emergency.title' },
   { file: 'measure/standing-test', url: '/measure/standing-test', title: 'standing.title' },
@@ -153,7 +153,7 @@ describe('navigation', () => {
   });
 
   it('opens the explanation from results', () => {
-    followButtons('/results/demo', [['results.showWhy', 'why.title']]);
+    followButtons('/results/demo', [['results.showWhy', 'why.titleRegular']]);
   });
 
   it('loops from a failed capture through Fix my technique back to capture', () => {

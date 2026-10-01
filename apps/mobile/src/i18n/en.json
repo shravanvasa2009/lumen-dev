@@ -181,7 +181,6 @@
   "safety.yes": "Yes",
   "safety.no": "No",
   "safety.yesOpens": "Yes opens emergency guidance.",
-  "why.title": "Show me why",
   "why.intervals": "Beat-to-beat intervals (ms)",
   "why.poincare": "Poincaré plot",
   "why.yours": "Yours",
@@ -341,5 +340,13 @@
   "confidence.high": "high confidence",
   "confidence.moderate": "moderate confidence",
   "confidence.low": "low confidence",
-  "safety.dismiss": "Close"
+  "safety.dismiss": "Close",
+  "why.titleIrregular": "Why “irregular”?",
+  "why.titleRegular": "Why “regular”?",
+  "why.beat": "beat",
+  "why.intervalsChart": "Line chart of {{beats}} beat-to-beat intervals",
+  "why.explainIrregular": "Your intervals changed without a repeating pattern.",
+  "why.explainRegular": "Your intervals stayed close to each other from one beat to the next.",
+  "why.rhythmCheck": "AI rhythm check",
+  "why.extraBeatsNote": "{{rate}} per minute · frequent extra beats can also look irregular"
 }

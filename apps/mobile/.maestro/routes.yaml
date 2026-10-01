@@ -49,7 +49,9 @@ name: Every route opens
 - openLink: lumen://results/demo
 - assertVisible: 'Results'
 - openLink: lumen://results/demo/why
-- assertVisible: 'Show me why'
+- assertVisible: 'Why .regular.\?'
+- openLink: lumen://results/demo-flag/why
+- assertVisible: 'Why .irregular.\?'
 - openLink: lumen://measure/inconclusive
 - assertVisible: 'Not enough clean signal\.'
 - openLink: lumen://emergency

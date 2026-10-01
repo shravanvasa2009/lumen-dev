@@ -4,8 +4,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, View } from 'react-native';
 
-import type { RhythmMetric } from '@lumen/core';
-
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
@@ -18,6 +16,7 @@ import type { FixtureReading } from './fixtures';
 import { formatClock, formatDay, isSameDay } from './format';
 import { Glyph } from './Glyph';
 import { MetricCard } from './MetricCard';
+import { rhythmWords } from './rhythmWords';
 import { SafetySheet } from './SafetySheet';
 
 function headlineText(t: TFunction, reading: FixtureReading): string {
@@ -43,12 +42,6 @@ function sublineText(t: TFunction, reading: FixtureReading, anyFlag: boolean): s
   if (headlineKey === 'result.irregularRetake' && reading.repeat)
     return t('results.sublineRetake', { remaining: reading.repeat.of - reading.repeat.number });
   return null;
-}
-
-function rhythmWords(t: TFunction, rhythm: RhythmMetric): { value: string; note: string } {
-  if (rhythm.class === 'sinus') return { value: t('results.rhythmRegular'), note: t('results.noteRegular') };
-  if (rhythm.class === 'af') return { value: t('results.rhythmIrregular'), note: t('results.noteIrregular') };
-  return { value: t('results.rhythmOther'), note: t('results.noteOther') };
 }
 
 export function ReadingResults({ reading }: { reading: FixtureReading }) {

@@ -320,5 +320,9 @@
   "phoneRating.notTested": "Not tested yet",
   "phoneRating.notTestedBody": "Run the phone check to see your score, your tier, and what this phone can do.",
   "phoneRating.points": "—/{{max}}",
-  "lab.notAvailable": "Not available in this build yet."
+  "lab.notAvailable": "Not available in this build yet.",
+  "notifications.followUpHint": "Later the same day and next morning",
+  "notifications.doctorHint": "7 days after a flagged result",
+  "notifications.quietStart": "9:00 PM",
+  "notifications.quietEnd": "7:00 AM"
 }

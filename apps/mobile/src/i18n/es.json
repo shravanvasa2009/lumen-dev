@@ -320,5 +320,9 @@
   "phoneRating.notTested": "Aún sin probar",
   "phoneRating.notTestedBody": "Haz la prueba del teléfono para ver tu puntuación, tu nivel y lo que puede hacer este teléfono.",
   "phoneRating.points": "—/{{max}}",
-  "lab.notAvailable": "Aún no está disponible en esta versión."
+  "lab.notAvailable": "Aún no está disponible en esta versión.",
+  "notifications.followUpHint": "Más tarde el mismo día y a la mañana siguiente",
+  "notifications.doctorHint": "7 días después de un resultado marcado",
+  "notifications.quietStart": "21:00",
+  "notifications.quietEnd": "7:00"
 }

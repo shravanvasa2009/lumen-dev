@@ -93,3 +93,29 @@ describe('Appearance', () => {
     expect(within(row).getByText(en['appearance.light'])).toBeOnTheScreen();
   });
 });
+
+describe('Notifications', () => {
+  it('has a switch per reminder type, all on by default, and the quiet hours', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
+    for (const key of [
+      'notifications.daily',
+      'notifications.followUp',
+      'notifications.doctor',
+      'notifications.standing',
+      'notifications.retest',
+    ] as const) {
+      expect(screen.getByRole('switch', { name: en[key] })).toBeChecked();
+    }
+    expect(screen.getByText(en['notifications.quietStart'])).toBeOnTheScreen();
+    expect(screen.getByText(en['notifications.quietEnd'])).toBeOnTheScreen();
+    expect(screen.getByText(en['notifications.limit'])).toBeOnTheScreen();
+  });
+
+  it('flips a switch and keeps Hide values off until it is turned on', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
+    const hide = screen.getByRole('switch', { name: en['notifications.hideValues'] });
+    expect(hide).not.toBeChecked();
+    fireEvent(hide, 'valueChange', true);
+    expect(screen.getByRole('switch', { name: en['notifications.hideValues'] })).toBeChecked();
+  });
+});

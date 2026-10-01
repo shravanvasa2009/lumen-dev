@@ -11,9 +11,11 @@ import {
   ReplayCapture,
   type CameraPermission,
   type Capabilities,
+  type CaptureConfig,
   type CaptureStatus,
   type CaptureSummary,
   type LabDiagnostics,
+  type LensInfo,
   type LumenCaptureModule,
   type SampleBatch,
 } from '../../modules/lumen-capture/src';
@@ -25,6 +27,13 @@ import { sendCapture } from './sendCapture';
 const TRACE_POINTS = 300;
 const TRACE_HEIGHT = 96;
 const DOT_SIZE = 2;
+// M0 wants exposure locked; 1 s lets auto exposure settle on the finger before native steers and locks it
+// (DSP-5, ADR 0029).
+const AUTO_LOCK_MS = 1000;
+// "Max" sends no targetFps, so native picks the lens maximum capped at 240 (ADR 0029).
+const FPS_CHOICES = [30, 60, undefined] as const;
+const TORCH_LEVELS = [0, 0.25, 0.5, 1];
+const TORCH_ON_OFF = [0, 1];
 
 type Subscription = { remove(): void };
 type Recorded = { capabilities: Capabilities; summary: CaptureSummary; lab?: LabDiagnostics };
@@ -65,6 +74,36 @@ function RedTrace({ values }: { values: readonly number[] }) {
             }}
           />
         </View>
+      ))}
+    </View>
+  );
+}
+
+type Choice<T> = { key: string; label: string; value: T };
+
+// The chosen option is the filled button; the rest are outlined.
+function ChoiceRow<T>({
+  choices,
+  chosen,
+  onChoose,
+  disabled,
+}: {
+  choices: Choice<T>[];
+  chosen: T;
+  onChoose: (value: T) => void;
+  disabled: boolean;
+}) {
+  const { spacing } = useTheme();
+  return (
+    <View style={[styles.choices, { gap: spacing.sm }]}>
+      {choices.map((choice) => (
+        <Button
+          key={choice.key}
+          label={choice.label}
+          variant={choice.value === chosen ? 'primary' : 'secondary'}
+          onPress={() => onChoose(choice.value)}
+          disabled={disabled}
+        />
       ))}
     </View>
   );
@@ -130,6 +169,20 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const [address, setAddress] = useState('');
   const [token, setToken] = useState('');
   const [sendState, setSendState] = useState<SendState>({ kind: 'idle' });
+  const [phoneShown, setPhoneShown] = useState<Capabilities | null>(null);
+  const [lensId, setLensId] = useState<string | undefined>(undefined);
+  const [targetFps, setTargetFps] = useState<number | undefined>(undefined);
+  // Native's own default is the torch at full (ADR 0029 addendum); the panel starts from the same level.
+  const [torchLevel, setTorchLevel] = useState(1);
+  const [autoLock, setAutoLock] = useState(true);
+  const [locking, setLocking] = useState(false);
+  const [lockDone, setLockDone] = useState(false);
+  const autoLockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelAutoLock = () => {
+    if (autoLockTimer.current) clearTimeout(autoLockTimer.current);
+    autoLockTimer.current = null;
+  };
 
   const removeListeners = () => {
     subscriptions.current.forEach((subscription) => subscription.remove());
@@ -141,9 +194,23 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      cancelAutoLock();
       removeListeners();
       if (capturing.current && capture) stopUnattended(capture);
     };
+  }, [capture]);
+
+  // The lens and torch choices come from the phone itself, never from a typed list (spec §4.3).
+  useEffect(() => {
+    if (!capture) return;
+    capture
+      .getCapabilities()
+      .then((capabilities) => {
+        if (mounted.current) setPhoneShown(capabilities);
+      })
+      .catch((error: unknown) => {
+        if (mounted.current) setFailure(reasonOf(error));
+      });
   }, [capture]);
 
   if (!capture) return <AppText tone="textDim">{t('lab.noSource')}</AppText>;
@@ -172,6 +239,30 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
     else console.warn(`Lab capture failed after the screen closed: ${reasonOf(error)}`);
   };
 
+  const lockNow = async () => {
+    setLocking(true);
+    setLockDone(false);
+    try {
+      await capture.lockExposure();
+      if (mounted.current) setLockDone(true);
+    } catch (error) {
+      reportFailure(error);
+    } finally {
+      if (mounted.current) setLocking(false);
+    }
+  };
+
+  const chooseTorch = async (level: number) => {
+    setTorchLevel(level);
+    if (!running) return;
+    setFailure(null);
+    try {
+      await capture.setTorch(level);
+    } catch (error) {
+      reportFailure(error);
+    }
+  };
+
   const startCapture = async () => {
     if (!beginSwitch()) return;
     setFailure(null);
@@ -187,6 +278,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       setStatus(null);
       setLab(null);
       setRecorded(null);
+      setLockDone(false);
       subscriptions.current = [
         capture.addListener('samples', (batch) => {
           batches.current.push(batch);
@@ -200,7 +292,10 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           setLab(diagnostics);
         }),
       ];
-      await capture.start({});
+      const config: CaptureConfig = { torchLevel };
+      if (lensId !== undefined) config.lensId = lensId;
+      if (targetFps !== undefined) config.targetFps = targetFps;
+      await capture.start(config);
       if (!mounted.current) {
         // The screen closed while the camera was starting, so its cleanup had nothing to stop yet.
         removeListeners();
@@ -209,6 +304,11 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       }
       capturing.current = true;
       setRunning(true);
+      if (autoLock)
+        autoLockTimer.current = setTimeout(() => {
+          autoLockTimer.current = null;
+          if (capturing.current) lockNow();
+        }, AUTO_LOCK_MS);
     } catch (error) {
       removeListeners();
       reportFailure(error);
@@ -222,6 +322,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
     setFailure(null);
     // The stop is already in flight, so an unmount meanwhile must not stop a second time.
     capturing.current = false;
+    cancelAutoLock();
     try {
       const summary = await capture.stop();
       removeListeners();
@@ -267,6 +368,38 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
     backgroundColor: colors.surface2,
     color: colors.text,
   };
+  const kindText = (kind: LensInfo['kind']) =>
+    kind === 'wide'
+      ? t('lab.lensWide')
+      : kind === 'ultrawide'
+        ? t('lab.lensUltrawide')
+        : kind === 'tele'
+          ? t('lab.lensTele')
+          : t('lab.lensUnknown');
+  const lensChoices: Choice<string | undefined>[] = [
+    { key: 'default', label: t('lab.lensDefault'), value: undefined },
+    ...(phoneShown?.rearLenses ?? []).map((lens) => {
+      const values = { kind: kindText(lens.kind), id: lens.id, fps: lens.maxFps };
+      return {
+        key: lens.id,
+        label: lens.torchUsable ? t('lab.lensOption', values) : t('lab.lensOptionNoTorch', values),
+        value: lens.id,
+      };
+    }),
+  ];
+  const fpsChoices: Choice<number | undefined>[] = FPS_CHOICES.map((fps) => ({
+    key: String(fps),
+    label: fps === undefined ? t('lab.fpsMax') : t('lab.fpsTarget', { fps }),
+    value: fps,
+  }));
+  // Phones without torch levels only take on (1) or off (0).
+  const hasLevels = phoneShown?.torch.levels === true;
+  const torchChoices: Choice<number>[] = (hasLevels ? TORCH_LEVELS : TORCH_ON_OFF).map((level) => ({
+    key: String(level),
+    label: level === 0 ? t('lab.torchOff') : hasLevels ? t('lab.torchLevel', { level }) : t('lab.torchOn'),
+    value: level,
+  }));
+
   const canSend = !running && recorded !== null && frames > 0 && address.trim() !== '' && token.trim() !== '';
 
   return (
@@ -278,11 +411,42 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       {permission ? (
         <AppText>{permission.granted ? t('lab.permissionGranted') : t('lab.permissionDenied')}</AppText>
       ) : null}
+      {phoneShown ? (
+        <AppText tone="textDim">
+          {t('lab.phone', { model: phoneShown.modelId, os: phoneShown.osVersion })}
+        </AppText>
+      ) : null}
+
+      <AppText variant="headline">{t('lab.lens')}</AppText>
+      <ChoiceRow choices={lensChoices} chosen={lensId} onChoose={setLensId} disabled={running || switching} />
+      <AppText variant="headline">{t('lab.targetFps')}</AppText>
+      <ChoiceRow
+        choices={fpsChoices}
+        chosen={targetFps}
+        onChoose={setTargetFps}
+        disabled={running || switching}
+      />
+      <AppText variant="headline">{t('lab.torch')}</AppText>
+      <ChoiceRow choices={torchChoices} chosen={torchLevel} onChoose={chooseTorch} disabled={switching} />
+      <Button
+        variant="secondary"
+        label={autoLock ? t('lab.autoLockOn') : t('lab.autoLockOff')}
+        onPress={() => setAutoLock((on) => !on)}
+        disabled={running || switching}
+      />
+
       <Button
         label={running ? t('lab.stop') : t('lab.start')}
         onPress={running ? stopCapture : startCapture}
         disabled={switching}
       />
+      <Button
+        variant="secondary"
+        label={locking ? t('lab.locking') : t('lab.lockExposure')}
+        onPress={lockNow}
+        disabled={!running || locking || switching}
+      />
+      {lockDone ? <AppText tone="textDim">{t('lab.lockDone')}</AppText> : null}
       {failure ? <AppText>{t('lab.failed', { reason: failure })}</AppText> : null}
 
       <AppText variant="headline">{t('lab.redTrace')}</AppText>
@@ -341,4 +505,5 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
 const styles = StyleSheet.create({
   trace: { flexDirection: 'row', alignItems: 'flex-end', overflow: 'hidden' },
   traceColumn: { flex: 1, justifyContent: 'flex-end' },
+  choices: { flexDirection: 'row', flexWrap: 'wrap' },
 });

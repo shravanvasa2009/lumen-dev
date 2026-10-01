@@ -1,0 +1,129 @@
+import {
+  buildTimebase,
+  butterBandpass,
+  butterLowpass,
+  CausalFilter,
+  dcLevel,
+  DSP_CONFIG,
+  filterZeroPhase,
+  fingerSignals,
+  resampleCubic,
+  type FrameStat,
+  type Sample,
+} from '../src';
+import filtersGolden from './golden/filters.json';
+import resampleGolden from './golden/resample.json';
+import timebaseGolden from './golden/timebase.json';
+
+// §10.2 parity with ml/lumen_dsp (python -m lumen_dsp.golden). Filters must match within 1e-6 (DSP-C).
+const FILTER_TOLERANCE = 1e-6;
+// The two splines solve the same natural-spline system by different routes (scipy: banded solve for
+// slopes; core: Thomas algorithm for second derivatives), so values agree to rounding: observed 3.3e-16 on
+// values near 0.6. 1e-12 leaves room for other machines and still catches any change of method.
+const RESAMPLE_TOLERANCE = 1e-12;
+// FILTER_TOLERANCE is the §10.2 gate; these tighter bounds hold the implementation to what it achieves,
+// so a regression in padding, initial conditions, or section pairing cannot hide under 1e-6. Observed:
+// coefficients ≤ 4.4e-16 (values up to 2, so 1e-15 × max(1, |c|)); band-pass zero-phase ≤ 7.0e-14 and
+// causal ≤ 9.9e-14; DC level ≤ 7.4e-13 (256 Hz, where the 0.3 Hz low-pass poles sit within 0.5% of z = 1
+// and rounding builds up). Outputs are absolute: the inputs are near 0.63, so 1e-12 is ~1.6e-12 relative.
+const COEFFICIENT_BOUND = 1e-15;
+const FILTER_OUTPUT_BOUND = 1e-12;
+
+function maxAbsDifference(actual: ArrayLike<number>, expected: number[]): number {
+  expect(actual).toHaveLength(expected.length);
+  return expected.reduce((worst, value, i) => Math.max(worst, Math.abs(actual[i]! - value)), 0);
+}
+
+function expectCoefficients(actual: number[], expected: number[]) {
+  expect(maxAbsDifference(actual, expected)).toBeLessThan(FILTER_TOLERANCE);
+  expected.forEach((value, i) =>
+    expect(Math.abs(actual[i]! - value)).toBeLessThanOrEqual(
+      COEFFICIENT_BOUND * Math.max(1, Math.abs(value)),
+    ),
+  );
+}
+
+function expectFilterOutput(actual: ArrayLike<number>, expected: number[]) {
+  const difference = maxAbsDifference(actual, expected);
+  expect(difference).toBeLessThan(FILTER_TOLERANCE);
+  expect(difference).toBeLessThan(FILTER_OUTPUT_BOUND);
+}
+
+const { samples: sampleColumns, stats: statColumns, expected } = timebaseGolden;
+const samples: Sample[] = sampleColumns.tNs.map((tNs, i) => ({
+  tNs,
+  r: sampleColumns.r[i]!,
+  g: sampleColumns.g[i]!,
+  b: sampleColumns.b[i]!,
+}));
+const stats: FrameStat[] = statColumns.tNs.map((tNs, i) => ({
+  tNs,
+  spatialStdR: statColumns.spatialStdR[i]!,
+  clipFrac: statColumns.clipFrac[i]!,
+  exposureNs: statColumns.exposureNs[i]!,
+}));
+const timebase = buildTimebase(samples, stats);
+const { primary, secondary } = fingerSignals(timebase);
+
+describe('DSP-C golden parity: DSP-1 timebase and DSP-3 signals', () => {
+  it('matches seconds, median interval, and dropped-frame gaps exactly (same IEEE operations)', () => {
+    expect(timebase.startNs).toBe(expected.startNs);
+    expect(Array.from(timebase.tS)).toEqual(expected.tS);
+    expect(timebase.medianFrameIntervalS).toBe(expected.medianFrameIntervalS);
+    expect(timebase.droppedGapStarts).toEqual(expected.droppedGapStarts);
+  });
+
+  it('matches −R and −G exactly', () => {
+    expect(Array.from(primary)).toEqual(expected.primary);
+    expect(Array.from(secondary)).toEqual(expected.secondary);
+  });
+});
+
+describe('DSP-C golden parity: DSP-2 resampling', () => {
+  it.each(resampleGolden.rates)('matches segments and values at $rateHz Hz', ({ rateHz, segments }) => {
+    const resampled = resampleCubic(timebase.tS, primary, rateHz);
+    expect(resampled.map((segment) => segment.firstIndex)).toEqual(
+      segments.map((segment) => segment.firstIndex),
+    );
+    resampled.forEach((segment, i) => {
+      expect(maxAbsDifference(segment.values, segments[i]!.values)).toBeLessThan(RESAMPLE_TOLERANCE);
+    });
+  });
+});
+
+// Filter inputs are the Python resampled segments, so these checks isolate the filters.
+function goldenSegment(rateHz: number, firstIndex: number): number[] {
+  const rate = resampleGolden.rates.find((entry) => entry.rateHz === rateHz)!;
+  return rate.segments.find((segment) => segment.firstIndex === firstIndex)!.values;
+}
+
+describe('DSP-C golden parity: DSP-6 filters', () => {
+  it.each(filtersGolden.bandPass)(
+    '$band band (N = $order) at $rateHz Hz: sections, zero-phase, and causal output',
+    ({ band, order, bandHz, rateHz, firstIndex, sos, zeroPhase, causal }) => {
+      const { hrOrder, hrBandHz, morphologyOrder, morphologyBandHz } = DSP_CONFIG.dsp6;
+      // Fails if the config changed without regenerating the golden vectors.
+      expect([order, bandHz]).toEqual(
+        band === 'hr' ? [hrOrder, hrBandHz] : [morphologyOrder, morphologyBandHz],
+      );
+      const designed = butterBandpass(order, bandHz[0]!, bandHz[1]!, rateHz);
+      expectCoefficients(designed.flat(), sos.flat());
+      const input = goldenSegment(rateHz, firstIndex);
+      expectFilterOutput(filterZeroPhase(designed, input), zeroPhase);
+      expectFilterOutput(new CausalFilter(designed).filter(input), causal);
+    },
+  );
+
+  it.each(filtersGolden.dcLevel)(
+    'DSP-3 DC level at $rateHz Hz',
+    ({ rateHz, firstIndex, sos, dcLevel: expectedDc }) => {
+      const { dcOrder, dcCutoffHz } = DSP_CONFIG.dsp3;
+      const designed = butterLowpass(dcOrder, dcCutoffHz, rateHz);
+      expectCoefficients(designed.flat(), sos.flat());
+      const red = resampleCubic(timebase.tS, timebase.r, rateHz).find(
+        (segment) => segment.firstIndex === firstIndex,
+      )!;
+      expectFilterOutput(dcLevel(red.values, rateHz), expectedDc);
+    },
+  );
+});

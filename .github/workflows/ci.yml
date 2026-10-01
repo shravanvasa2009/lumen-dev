@@ -45,7 +45,7 @@ jobs:
       - name: Commit format (commitlint)
         if: github.event_name == 'pull_request' && hashFiles('package-lock.json') != ''
         run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
-      # golden:check, test:notifications, and test:widgets join this list when their tracks implement them;
+      # test:notifications and test:widgets join this list when their tracks implement them;
       # until then they exit 1 on purpose.
       - name: Lint, types, tests, dead code
         if: hashFiles('package-lock.json') != ''
@@ -64,6 +64,9 @@ jobs:
       - name: Evidence labels (EVID-1)
         if: hashFiles('package-lock.json') != ''
         run: npm run test:evidence
+      - name: Golden parity, TypeScript vs Python (DSP-C)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run golden:check
       - name: Expo prebuild smoke test
         if: hashFiles('apps/mobile/app.config.ts') != ''
         working-directory: apps/mobile
@@ -92,6 +95,10 @@ jobs:
           # Exit 5 means "no tests collected" (owner decision 2026-09-30, until Track D adds tests);
           # every other non-zero exit still fails.
           uv run pytest || [ $? -eq 5 ]
+      - name: Golden vectors reproduce from lumen_dsp (DSP-C)
+        if: hashFiles('ml/pyproject.toml') != ''
+        working-directory: ml
+        run: uv run python -m lumen_dsp.golden --check
 
   e2e-android:
     # UI flows on an Android emulator (Maestro) against a release APK; nothing here uses the camera.

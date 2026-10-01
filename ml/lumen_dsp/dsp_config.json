@@ -9,12 +9,32 @@
   },
   "dsp3": {
     "dcCutoffHz": 0.3,
-    "dcOrder": 2
+    "dcOrder": 2,
+    "modelWindowS": 4
   },
   "dsp6": {
     "hrOrder": 4,
     "morphologyOrder": 2,
     "hrBandHz": [0.6, 3.5],
     "morphologyBandHz": [0.5, 8]
+  },
+  "dsp15": {
+    "windowIntervals": 32,
+    "windowStep": 16,
+    "histogramBins": 16,
+    "pnnThresholdS": 0.05,
+    "sampleEntropyM": 2,
+    "sampleEntropyR": 0.2,
+    "minUsableIntervals": 40
+  },
+  "liveHr": {
+    "windowS": 10,
+    "minSegmentS": 8,
+    "detrendHalfWidthS": 1.5,
+    "scanBandHz": [0.6, 3.5],
+    "scanStepHz": 0.01,
+    "minBpm": 40,
+    "maxBpm": 180,
+    "minSnrDb": 6
   }
 }

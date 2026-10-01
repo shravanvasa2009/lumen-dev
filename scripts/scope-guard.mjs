@@ -10,7 +10,7 @@ const ENCODED = [
   'eCCT',
   'YRAF_SNPVAT_SEBAG',
   'QRSNHYG_SEBAG_PNZREN',
-  'cbfvgvba: .sebag',
+  'PNZREN_SNPVAT_SEBAG',
   'ohvygVaGehrQrcguPnzren',
   'PbapheeragPnzren',
   'sebagPnzren',
@@ -21,15 +21,32 @@ const rot13 = (text) =>
     const base = ch <= 'Z' ? 65 : 97;
     return String.fromCharCode(((ch.charCodeAt(0) - base + 13) % 26) + base);
   });
-// Regular-expression sources (ROT13 as well) for Objective-C and Swift forms of the front position.
+// Regular-expression sources (ROT13 as well) for Objective-C and Swift forms of the front position:
+// the Swift enum shorthand anywhere (assignment, comparison, case, argument, array, return), and the
+// qualified Position form. An unspecified position is banned too, because a discovery session for it
+// searches "regardless of position" and can return the front camera; the shorthand for it is matched
+// only after the word position on the same statement, since other Swift enums also have that case.
+// ROT13 would garble backslash escapes, so the sources use these placeholders instead.
+const PLACEHOLDERS = {
+  // Word end, so longer names such as frontier do not match.
+  '~': '(?![A-Za-z0-9_])',
+  // Word start.
+  '@': '(?<![A-Za-z0-9_])',
+  // Not member access: the dot follows no identifier, closing bracket, or optional/forced unwrap,
+  // so cfg.front and items[0].front pass while [.front] and return .front do not.
+  '%': '(?<![A-Za-z0-9_)\\]?!])',
+};
 const ENCODED_REGEX = [
   'NIPncgherQrivprCbfvgvbaSebag',
-  'cbfvgvba[ ]*[=!]=[ ]*[.]sebag',
-  '[(,][ ]*[.]sebag[ ]*[,)]',
+  '%[.]sebag~',
+  '@cbfvgvba[.]sebag~',
+  '@cbfvgvba[.]hafcrpvsvrq~',
+  '@cbfvgvba[^;]*%[.]hafcrpvsvrq~',
 ];
+const decodeRegex = (encoded) => rot13(encoded).replace(/[~@%]/g, (placeholder) => PLACEHOLDERS[placeholder]);
 const PATTERNS = [
   ...ENCODED.map((encoded) => new RegExp(rot13(encoded).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')),
-  ...ENCODED_REGEX.map((encoded) => new RegExp(rot13(encoded), 'i')),
+  ...ENCODED_REGEX.map((encoded) => new RegExp(decodeRegex(encoded), 'i')),
 ];
 const ROOTS = ['apps', 'packages', 'tools', 'ml'];
 // Vendored or generated folders that are skipped wherever they appear.

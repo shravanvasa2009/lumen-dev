@@ -14,6 +14,7 @@ export const DSP_CONFIG = {
     // The spec gives no order. 2 (zero-phase, so 4 in effect) leaves 6% of the pulse at 36 bpm (0.6 Hz) in
     // the DC, about 0.06% of DC for a 1% pulse, with less ringing at baseline steps than a higher order.
     dcOrder: 2,
+    modelWindowS: 4, // model inputs are z-scored per window of this length (SQI-Net: 256 samples at 64 Hz)
   },
   dsp6: {
     // Butterworth prototype order N as in scipy butter(N, ...): N = 4 is 8 poles. §10 DSP-6 says
@@ -24,5 +25,28 @@ export const DSP_CONFIG = {
     morphologyOrder: 2,
     hrBandHz: [0.6, 3.5],
     morphologyBandHz: [0.5, 8],
+  },
+  dsp15: {
+    // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).
+    windowIntervals: 32,
+    windowStep: 16, // 50% overlap
+    histogramBins: 16, // equal-width bins over the window's min..max, for the Shannon entropy
+    pnnThresholdS: 0.05, // pNN50: successive differences strictly greater than 50 ms
+    sampleEntropyM: 2,
+    sampleEntropyR: 0.2, // × the window's population SD
+    minUsableIntervals: 40, // a reading needs this many intervals that do not span an artifact
+  },
+  // Lab-screen live HR (ADR 0027): the M0 proof's method and limits (§18), not DSP-11. The spectrum runs
+  // on the dsp2.modelRateHz grid.
+  liveHr: {
+    windowS: 10,
+    // Longest gap-free (DSP-2) stretch needed: ≥ 5 pulse cycles at 40 bpm, and a 0.125 Hz bin spacing.
+    minSegmentS: 8,
+    detrendHalfWidthS: 1.5, // the proof subtracts a moving average over ±1.5 s
+    scanBandHz: [0.6, 3.5],
+    scanStepHz: 0.01,
+    minBpm: 40,
+    maxBpm: 180,
+    minSnrDb: 6, // peak power over the median power of the scanned bins
   },
 };

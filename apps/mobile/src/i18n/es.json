@@ -367,5 +367,8 @@
   "followUp.booked": "Reservé una cita",
   "followUp.notYet": "Todavía no",
   "followUp.whatToAsk": "Qué pedir",
-  "followUp.whatToAskBody": "Un electrocardiograma por el resultado del ritmo. Una prueba de sangre A1c por el patrón relacionado con la diabetes. Lleva tu informe de Lumen."
+  "followUp.whatToAskBody": "Un electrocardiograma por el resultado del ritmo. Una prueba de sangre A1c por el patrón relacionado con la diabetes. Lleva tu informe de Lumen.",
+  "language.en": "English",
+  "language.es": "Español",
+  "language.label": "Idioma"
 }

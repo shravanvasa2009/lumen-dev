@@ -367,5 +367,8 @@
   "followUp.booked": "I booked a visit",
   "followUp.notYet": "Not yet",
   "followUp.whatToAsk": "What to ask for",
-  "followUp.whatToAskBody": "An ECG for the rhythm result. An A1c blood test for the diabetes pattern. Bring your Lumen report."
+  "followUp.whatToAskBody": "An ECG for the rhythm result. An A1c blood test for the diabetes pattern. Bring your Lumen report.",
+  "language.en": "English",
+  "language.es": "Español",
+  "language.label": "Language"
 }

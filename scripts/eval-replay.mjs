@@ -82,8 +82,7 @@ function writeEvidence() {
     fail(`${metricsFile} has no matching recompute; run eval:replay -- --recompute first (VER-1)`);
   if (!fs.existsSync(out)) fail(`${out} not found; it holds the rhythm and diabetes evidence to keep`);
   const evidence = buildEvidence(metrics, JSON.parse(fs.readFileSync(out, 'utf8')));
-  const text = `${JSON.stringify(evidence, null, 2)}
-`;
+  const text = `${JSON.stringify(evidence, null, 2)}\n`;
   fs.writeFileSync(out, text);
   fs.mkdirSync(path.dirname(appCopy), { recursive: true });
   fs.writeFileSync(appCopy, text);

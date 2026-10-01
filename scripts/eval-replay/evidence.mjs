@@ -10,12 +10,19 @@ const RESP_MAE_BELOW_BRPM = 2;
 
 const atMost = (value, limit) => typeof value === 'number' && value <= limit;
 const enoughPeople = (people) => typeof people === 'number' && people >= MIN_PEOPLE;
+// DSP-A is published "with a subject-level 95% CI" (acceptance), and the M5 proof needs a CI for any label
+// above experimental, so no CI means no pass.
+const hasInterval = (ci95) => Array.isArray(ci95) && ci95.length === 2;
 
 export function decidePasses(metrics) {
   return {
-    hr: atMost(metrics.hr?.maeBpm, HR_MAX_MAE_BPM) && enoughPeople(metrics.hr?.people),
+    hr:
+      atMost(metrics.hr?.maeBpm, HR_MAX_MAE_BPM) &&
+      enoughPeople(metrics.hr?.people) &&
+      hasInterval(metrics.hr?.ci95),
     hrv:
       atMost(metrics.intervals?.maeMs, INTERVAL_MAX_MAE_MS) &&
+      hasInterval(metrics.intervals?.ci95) &&
       atMost(metrics.rmssd?.medianErrorPct, RMSSD_MAX_MEDIAN_ERROR_PCT) &&
       enoughPeople(metrics.rmssd?.people),
     resp:

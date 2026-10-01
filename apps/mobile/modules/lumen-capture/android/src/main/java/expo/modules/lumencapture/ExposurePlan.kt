@@ -1,6 +1,7 @@
 package expo.modules.lumencapture
 
 import kotlin.math.pow
+import kotlin.math.roundToLong
 
 // DSP-5 (spec §10) and Appendix A: lock when the red mean is 0.55–0.80 of full scale unless the caller asks
 // otherwise.
@@ -33,6 +34,15 @@ fun exposureFactor(red: Double, target: ClosedFloatingPointRange<Double>): Doubl
     val wanted = (middle / red.coerceAtLeast(MIN_RED)).pow(GAMMA)
     return wanted.coerceIn(MIN_FACTOR, MAX_FACTOR)
 }
+
+// ADR 0029 addendum: waits inside lockExposure() (settings applied, fresh frames) are
+// clamp(10 x median measured frame interval, 1 s, 3 s), so a slow camera gets more time but never unbounded.
+private const val WAIT_FRAMES = 10
+private const val MIN_WAIT_MS = 1000L
+private const val MAX_WAIT_MS = 3000L
+
+fun lockWaitMs(medianIntervalNs: Double): Long =
+    (WAIT_FRAMES * medianIntervalNs / 1_000_000).roundToLong().coerceIn(MIN_WAIT_MS, MAX_WAIT_MS)
 
 // Scales total exposure (duration x ISO) by `factor` while keeping ISO as low as possible: the longest allowed
 // duration first, then ISO for the rest, since higher ISO adds sensor noise to the pulse trace.

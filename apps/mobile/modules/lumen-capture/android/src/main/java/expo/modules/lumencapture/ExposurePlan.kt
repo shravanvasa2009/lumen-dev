@@ -44,6 +44,17 @@ private const val MAX_WAIT_MS = 3000L
 fun lockWaitMs(medianIntervalNs: Double): Long =
     (WAIT_FRAMES * medianIntervalNs / 1_000_000).roundToLong().coerceIn(MIN_WAIT_MS, MAX_WAIT_MS)
 
+// A changed exposure reaches the output a few frames late; 0.2 s covers that at 30-240 fps (as in Swift).
+const val EXPOSURE_LATENCY_MS = 200L
+
+// Wait before the first red reading of lockExposure(): the rest of the settle (the lock wait, at least the
+// spec's 1 s), counted from the first delivered frame, the closest Android point to Swift's startRunning(),
+// and never less than the exposure latency. With no frame yet, the whole wait is still ahead.
+fun settleWaitMs(lockWaitMs: Long, firstFrameNs: Long?, nowNs: Long): Long {
+    val elapsedMs = if (firstFrameNs == null) 0L else (nowNs - firstFrameNs) / 1_000_000
+    return maxOf(lockWaitMs - elapsedMs, EXPOSURE_LATENCY_MS)
+}
+
 // Scales total exposure (duration x ISO) by `factor` while keeping ISO as low as possible: the longest allowed
 // duration first, then ISO for the rest, since higher ISO adds sensor noise to the pulse trace.
 fun planExposure(current: ExposureSetting, factor: Double, limits: ExposureLimits): ExposureSetting {

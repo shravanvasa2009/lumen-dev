@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { alignIntervals } from './eval-replay/align.mjs';
 import { readCaptures } from './eval-replay/captures.mjs';
 import { computeMetrics } from './eval-replay/metrics.mjs';
+import { compareMetrics } from './eval-replay/recompute.mjs';
 import { mean, rmssd, subjectBootstrap } from './eval-replay/stats.mjs';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'eval-replay.mjs');
@@ -286,4 +287,59 @@ test('the CLI writes metrics.json and fails without captures', (t) => {
     encoding: 'utf8',
   });
   assert.equal(empty.status, 1);
+});
+
+const metricsFixture = () => ({
+  hr: { maeBpm: 2.41, people: 10, readings: 30 },
+  intervals: { maeMs: 14.2 },
+  rmssd: { withinPct: 80, people: 10 },
+  resp: { maeBrpm: null },
+  artifactCaptures: { total: 5, rejectedOrInconclusive: 5 },
+  ux1: { firstReadings: 10, conclusive: 9 },
+  ml5: { sinusReadings: 28, falseIrregular: 1 },
+  perTier: [{ tier: 'full', phones: 1, hrMaeBpm: 2.41, intervalMaeMs: 14.2 }],
+  recompute: { agent: null, matches: null },
+});
+
+test('VER-1: rounding differences match, a count difference or a missing value does not', () => {
+  const independent = metricsFixture();
+  independent.hr.maeBpm = 2.44;
+  assert.deepEqual(compareMetrics(metricsFixture(), independent), { matches: true, differences: [] });
+  independent.ml5.falseIrregular = 2;
+  independent.resp.maeBrpm = 1.2;
+  independent.perTier.push({ tier: 'basic', phones: 1, hrMaeBpm: 3, intervalMaeMs: 20 });
+  assert.deepEqual(compareMetrics(metricsFixture(), independent).differences, [
+    'resp.maeBrpm: null vs 1.2',
+    'ml5.falseIrregular: 1 vs 2',
+    'perTier.basic.phones: undefined vs 1',
+    'perTier.basic.hrMaeBpm: undefined vs 3',
+    'perTier.basic.intervalMaeMs: undefined vs 20',
+  ]);
+});
+
+test('VER-1: the CLI records the recompute and fails on a mismatch', (t) => {
+  const root = tempDir(t);
+  const out = path.join(root, 'metrics.json');
+  const independent = path.join(root, 'independent.json');
+  fs.writeFileSync(out, JSON.stringify(metricsFixture()));
+  fs.writeFileSync(independent, JSON.stringify(metricsFixture()));
+  const run = (...extra) =>
+    spawnSync(process.execPath, [CLI, '--recompute', independent, '--out', out, ...extra], {
+      encoding: 'utf8',
+    });
+  assert.equal(run().status, 1);
+  assert.equal(run('--agent', 'second-agent').status, 0);
+  assert.deepEqual(JSON.parse(fs.readFileSync(out, 'utf8')).recompute, {
+    agent: 'second-agent',
+    matches: true,
+    differences: [],
+  });
+  fs.writeFileSync(
+    independent,
+    JSON.stringify({ ...metricsFixture(), hr: { maeBpm: 3.1, people: 10, readings: 30 } }),
+  );
+  const mismatch = run('--agent', 'second-agent');
+  assert.equal(mismatch.status, 1);
+  assert.match(mismatch.stderr, /hr\.maeBpm: 2\.41 vs 3\.1/);
+  assert.equal(JSON.parse(fs.readFileSync(out, 'utf8')).recompute.matches, false);
 });

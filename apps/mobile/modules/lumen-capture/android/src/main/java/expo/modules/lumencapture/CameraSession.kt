@@ -86,9 +86,6 @@ private const val STATUS_MS = 250L // status event at 4 Hz
 private const val LAB_MS = 1000L // lab event at 1 Hz (ADR 0013)
 private const val MOTION_PERIOD_US = 20_000 // 50 Hz (ADR 0029)
 
-// Spec §4.2 step 3: let auto-exposure settle for 1 s before locking.
-private const val SETTLE_NS = 1_000_000_000L
-
 // ADR 0029 addendum, same values as the Swift module: at most 4 exposure steps, each judged on 3 frames
 // taken at least 0.2 s after the change (a manual exposure reaches the output a few frames late).
 private const val MAX_EXPOSURE_STEPS = 4
@@ -314,11 +311,13 @@ class CameraSession(
     // exposureTarget, then hold exposure, white balance and focus (spec §4.2 step 3, ADR 0013).
     private fun lockOnExposureThread() {
         check(running) { "lockExposure needs a running capture" }
-        val elapsedNs = SystemClock.elapsedRealtimeNanos() - startedRealtimeNs
-        val settleLeftMs = ((SETTLE_NS - elapsedNs) / 1_000_000).coerceAtLeast(0)
+        // Spec §4.2 step 3 lets auto-exposure settle for 1 s; the ADR 0029 addendum stretches that to the lock
+        // wait (at least 1 s, longer on a slow camera), counted from start().
+        val elapsedMs = (SystemClock.elapsedRealtimeNanos() - startedRealtimeNs) / 1_000_000
+        val settleLeftMs = (lockWaitMs(counters.lockIntervalNs()) - elapsedMs).coerceAtLeast(0)
         val manual = lens.manualExposure
         if (manual != null) {
-            // As in Swift: the first reading comes after max(rest of the 1 s settle, 0.2 s).
+            // As in Swift: the first reading comes after max(rest of the settle wait, 0.2 s).
             steerExposure(manual, firstWaitMs = maxOf(settleLeftMs, EXPOSURE_LATENCY_MS))
         } else {
             Thread.sleep(settleLeftMs)
@@ -370,7 +369,7 @@ class CameraSession(
     private fun freshRed(waitMs: Long): Double {
         val before = counters.frames
         Thread.sleep(waitMs)
-        val deadline = SystemClock.elapsedRealtime() + lockWaitMs(counters.referenceIntervalNs())
+        val deadline = SystemClock.elapsedRealtime() + lockWaitMs(counters.lockIntervalNs())
         while (SystemClock.elapsedRealtime() < deadline) {
             val red = counters.lastRed
             if (counters.frames - before >= FRESH_FRAMES && red != null) return red
@@ -398,7 +397,7 @@ class CameraSession(
                 .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
                 .setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, it)
         }
-        val waitMs = lockWaitMs(counters.referenceIntervalNs())
+        val waitMs = lockWaitMs(counters.lockIntervalNs())
         try {
             Camera2CameraControl.from(control).setCaptureRequestOptions(options.build()).get(waitMs, TimeUnit.MILLISECONDS)
         } catch (e: ExecutionException) {

@@ -30,12 +30,15 @@ export function regularOffsets(fps: number, seconds: number): number[] {
   return Array.from({ length: Math.round(fps * seconds) }, (_, k) => k / fps);
 }
 
-// Deterministic jitter (a fixed LCG) so failures reproduce; amplitude in seconds, uniform ± amplitude.
+// Deterministic jitter so failures reproduce; amplitude in seconds, uniform ± amplitude. Park–Miller
+// minimal standard generator (16807, mod 2³¹ − 1): every product stays below 2⁵³, so it is exact in
+// doubles and Python can reproduce it.
 export function jitteredOffsets(fps: number, seconds: number, amplitudeS: number): number[] {
+  const modulus = 2147483647;
   let state = 12345;
   const nextUniform = () => {
-    state = (state * 1103515245 + 12345) % 2147483648;
-    return state / 2147483648;
+    state = (state * 16807) % modulus;
+    return state / modulus;
   };
   return regularOffsets(fps, seconds).map((offsetS, k) =>
     k === 0 ? 0 : offsetS + (2 * nextUniform() - 1) * amplitudeS,

@@ -82,6 +82,32 @@ describe('DSP-2 cubic-spline resampling', () => {
     expect(resampleCubic(timebase.tS, timebase.r, modelRateHz)).toHaveLength(1);
   });
 
+  it('bridges a gap of exactly 150 ms (only longer gaps split)', () => {
+    // Frames at whole ns; 0.18 s then 0.33 s is a case where (t2 − t1) in seconds rounds to just over
+    // 0.15, so this fails if the comparison ignores the 1 ns timestamp resolution.
+    const before = Array.from({ length: 10 }, (_, k) => k * 0.02);
+    const after = Array.from({ length: 10 }, (_, k) => 0.33 + k * 0.02);
+    const timebase = timebaseOf([...before, ...after], sine);
+    expect(resampleCubic(timebase.tS, timebase.r, modelRateHz)).toHaveLength(1);
+  });
+
+  it('interpolates a two-frame segment as a straight line (natural spline through two points)', () => {
+    const before = regularOffsets(60, 1);
+    const pair = [before.at(-1)! + 0.3, before.at(-1)! + 0.35];
+    const after = regularOffsets(60, 1).map((offsetS) => pair[1]! + 0.3 + offsetS);
+    const timebase = timebaseOf([...before, ...pair, ...after], sine);
+    const segments = resampleCubic(timebase.tS, timebase.r, modelRateHz);
+    expect(segments).toHaveLength(3);
+    const middle = segments[1]!;
+    const [t1, t2] = [timebase.tS[60]!, timebase.tS[61]!];
+    const [y1, y2] = [timebase.r[60]!, timebase.r[61]!];
+    expect(middle.values.length).toBeGreaterThanOrEqual(3);
+    middle.values.forEach((value, k) => {
+      const tS = (middle.firstIndex + k) / modelRateHz;
+      expect(Math.abs(value - (y1 + ((y2 - y1) * (tS - t1)) / (t2 - t1)))).toBeLessThan(1e-15);
+    });
+  });
+
   it('drops a lone frame between two long gaps (a spline needs two points)', () => {
     const before = regularOffsets(60, 1);
     const lone = before.at(-1)! + 0.3;

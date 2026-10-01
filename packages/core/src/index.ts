@@ -38,3 +38,4 @@ export {
   rhythmWindows,
   type RhythmWindow,
 } from './rhythm-features';
+export { ensembleBeat, savgolFilter, type PulseShape, type WaveLabels } from './pulse-shape';

@@ -10,6 +10,7 @@ from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import CausalFilter, butter_bandpass, butter_lowpass, filter_zero_phase
 from lumen_dsp.resample import ResampledSegment, resample_cubic
 from lumen_dsp.rhythm import RhythmWindow, has_enough_usable_intervals, rhythm_feature_vector, rhythm_windows
+from lumen_dsp.shape import PulseShape, ensemble_beat
 from lumen_dsp.signals import dc_level, finger_signals, sqi_model_input
 from lumen_dsp.timebase import build_timebase
 
@@ -159,6 +160,7 @@ def golden_files() -> dict[str, dict]:
         "filters.json": {"bandPass": filters, "dcLevel": dc},
         "zscore.json": zscore_windows(longest(resampled[rates[0]])),
         "rhythm.json": rhythm_vectors(),
+        "shape.json": shape_vectors(),
     }
 
 
@@ -253,6 +255,63 @@ def rhythm_vectors() -> dict:
         }
         cases.append({**case, "expected": expected})
     return {"cases": cases}
+
+
+def shape_json(shape: PulseShape | None) -> dict | None:
+    if shape is None:
+        return None
+    waves = shape.waves
+    return {
+        "beatsUsed": shape.beats_used,
+        "beat": floats(shape.beat),
+        "smoothed": floats(shape.smoothed),
+        "secondDerivative": floats(shape.second_derivative),
+        "waves": {"a": waves.a, "b": waves.b, "c": waves.c, "d": waves.d, "e": waves.e},
+    }
+
+
+def shape_vectors() -> dict:
+    # DSP-14 inputs: a 256 Hz morphology-band PPG (rise σ 40 ms, fall σ 90 ms, dicrotic wave +300 ms) with
+    # 24 beats at about 72 bpm (RR 0.83 s ± 50 ms, Park–Miller), onsets 80 ms before each peak.
+    rate = DSP_CONFIG["dsp2"]["shapeRateHz"]
+    jitter = park_miller_uniforms(23, seed=2024)
+    peaks_s = [1.0]
+    for u in jitter:
+        peaks_s.append(peaks_s[-1] + 0.83 + 0.1 * (u - 0.5))
+    t_s = np.arange(round((peaks_s[-1] + 1.0) * rate)) / rate
+    wave = np.zeros_like(t_s)
+    for peak_s in peaks_s:
+        dt = t_s - peak_s
+        wave += np.exp(-0.5 * (dt / np.where(dt < 0, 0.04, 0.09)) ** 2) + 0.3 * np.exp(
+            -0.5 * ((dt - 0.3) / 0.06) ** 2
+        )
+    order, (low, high) = DSP_CONFIG["dsp6"]["morphologyOrder"], DSP_CONFIG["dsp6"]["morphologyBandHz"]
+    morphology = filter_zero_phase(butter_bandpass(order, low, high, rate), wave)
+    onsets = [(peak_s - 0.08) * rate for peak_s in peaks_s]
+
+    one_atypical = [k != 12 for k in range(len(onsets))]
+    too_few = [k % 6 != 0 for k in range(len(onsets))]
+    # Dropping onset 8 leaves one double-length beat flagged normal, which the period gate removes.
+    missed = [onset for k, onset in enumerate(onsets) if k != 8]
+    cases = [
+        ("jittered-72-bpm", onsets, one_atypical, 60),
+        ("missed-onset", missed, [True] * len(missed), 60),
+        ("too-few-normal-beats", onsets, too_few, 60),
+        ("below-60-fps", onsets, one_atypical, 30),
+    ]
+    return {
+        "signal": floats(morphology),
+        "cases": [
+            {
+                "name": name,
+                "onsets": case_onsets,
+                "normal": normal,
+                "captureFps": fps,
+                "expected": shape_json(ensemble_beat(morphology, case_onsets, normal, fps)),
+            }
+            for name, case_onsets, normal, fps in cases
+        ],
+    }
 
 
 def serialize(content: dict) -> str:

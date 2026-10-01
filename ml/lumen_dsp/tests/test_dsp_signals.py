@@ -2,7 +2,10 @@ import math
 
 import numpy as np
 
-from lumen_dsp.signals import dc_level, finger_signals
+import pytest
+
+from lumen_dsp.config import DSP_CONFIG
+from lumen_dsp.signals import dc_level, finger_signals, sqi_model_input, z_score_window
 from lumen_dsp.tests.synthetic import capture_at
 from lumen_dsp.timebase import build_timebase
 
@@ -28,3 +31,41 @@ def test_dc_level_keeps_baseline_and_drift_and_removes_the_pulse():
     dc = dc_level(baseline + 0.006 * np.sin(2 * math.pi * 1.2 * t_s), rate_hz)
     middle = (t_s >= 10) & (t_s < 50)
     assert np.max(np.abs(dc[middle] - baseline[middle])) < 5e-5
+
+
+def test_model_windows_are_4_s_or_256_samples_at_64_hz():
+    assert DSP_CONFIG["dsp3"]["modelWindowS"] * DSP_CONFIG["dsp2"]["modelRateHz"] == 256
+
+
+def test_z_score_uses_the_population_sd():
+    sd = math.sqrt(1.25)
+    assert z_score_window([1, 2, 3, 4]) == pytest.approx(
+        [-1.5 / sd, -0.5 / sd, 0.5 / sd, 1.5 / sd], abs=1e-15
+    )
+
+
+def test_flat_window_has_no_z_score():
+    assert z_score_window([-0.62] * 256) is None
+
+
+def test_sqi_input_is_primary_then_secondary_as_float32():
+    k = np.arange(256)
+    primary = -0.6 - 0.004 * np.sin(2 * math.pi * 1.2 * k / 64)
+    secondary = -0.11 - 0.001 * np.sin(2 * math.pi * 1.2 * k / 64 + 0.3)
+    model_input = sqi_model_input(primary, secondary)
+    assert model_input.dtype == np.float32
+    assert model_input.shape == (512,)
+    assert np.array_equal(model_input[:256], np.asarray(z_score_window(primary), dtype=np.float32))
+    assert np.array_equal(model_input[256:], np.asarray(z_score_window(secondary), dtype=np.float32))
+
+
+def test_no_sqi_input_when_either_channel_is_flat():
+    pulse = np.sin(np.arange(256) / 9)
+    assert sqi_model_input(pulse, np.full(256, -0.1)) is None
+    assert sqi_model_input(np.full(256, -1.0), pulse) is None
+
+
+def test_sqi_input_needs_256_samples():
+    pulse = np.sin(np.arange(255) / 9)
+    with pytest.raises(ValueError):
+        sqi_model_input(pulse, pulse)

@@ -9,7 +9,7 @@ import numpy as np
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import CausalFilter, butter_bandpass, butter_lowpass, filter_zero_phase
 from lumen_dsp.resample import resample_cubic
-from lumen_dsp.signals import dc_level, finger_signals
+from lumen_dsp.signals import dc_level, finger_signals, sqi_model_input
 from lumen_dsp.timebase import build_timebase
 
 GOLDEN_DIR = Path(__file__).resolve().parents[2] / "packages" / "core" / "test" / "golden"
@@ -155,7 +155,36 @@ def golden_files() -> dict[str, dict]:
             ]
         },
         "filters.json": {"bandPass": filters, "dcLevel": dc},
+        "zscore.json": zscore_windows(timebase, primary, secondary),
     }
+
+
+def zscore_windows(timebase, primary: np.ndarray, secondary: np.ndarray) -> dict:
+    # SQI-Net inputs (DSP-3, §11) cut from the longest 64 Hz segment every 64 samples (SQI runs every 1 s),
+    # plus a flat window, which has no input.
+    rate = DSP_CONFIG["dsp2"]["modelRateHz"]
+    samples = DSP_CONFIG["dsp3"]["modelWindowS"] * rate
+    primary_segments = resample_cubic(timebase.t_s, primary, rate)
+    secondary_segments = resample_cubic(timebase.t_s, secondary, rate)
+    longest = max(range(len(primary_segments)), key=lambda i: len(primary_segments[i].values))
+    first_index = primary_segments[longest].first_index
+    primary_values = primary_segments[longest].values
+    secondary_values = secondary_segments[longest].values
+    windows = []
+    for start in range(0, len(primary_values) - samples + 1, rate):
+        window_primary = floats(primary_values[start : start + samples])
+        window_secondary = floats(secondary_values[start : start + samples])
+        windows.append(
+            {
+                "firstIndex": first_index + start,
+                "primary": window_primary,
+                "secondary": window_secondary,
+                "input": floats(sqi_model_input(window_primary, window_secondary)),
+            }
+        )
+    flat = [-0.62] * samples
+    windows.append({"firstIndex": None, "primary": flat, "secondary": window_secondary, "input": None})
+    return {"windowSamples": samples, "windows": windows}
 
 
 def serialize(content: dict) -> str:

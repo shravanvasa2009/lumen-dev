@@ -9,14 +9,22 @@ import onnxruntime
 import torch
 
 from export.provenance import check_parity, load_metrics, sha256_of, trained_source
-from export.specs import MODELS_DIR, RUNS_DIR, ModelSpec, inside_models_dir, release_specs
+from export.specs import (
+    MODELS_DIR,
+    RUNS_DIR,
+    SHIPPED,
+    ModelSpec,
+    inside_models_dir,
+    release_specs,
+    shipped_per_family,
+)
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
 
 # Fixed wording from §11.2–11.4 and §11.11. Every number in a card comes from the training metrics file.
 CARD_TEXT = {
-    "sqi-finger": {
+    "sqi": {
         "intended_use": (
             "Accepts or rejects each 4-second fingertip window during capture, whatever the rhythm, so "
             "that only clean signal reaches heart-rate, rhythm, and pulse-shape analysis. Version 1 sees "
@@ -44,7 +52,7 @@ CARD_TEXT = {
             'check runs instead and the result card says "basic analysis."'
         ),
     },
-    "rhythm-net": {
+    "rhythm": {
         "intended_use": (
             "Classifies 32-interval windows of pulse intervals from a fingertip reading as sinus, AF-like, "
             "or other. Part of a screening prototype, not a diagnosis; no emergency decision depends on "
@@ -72,7 +80,7 @@ CARD_TEXT = {
             'runs instead and the result card says "basic analysis."'
         ),
     },
-    "diabetes-net": {
+    "diabetes": {
         "intended_use": (
             "Estimates whether the averaged fingertip pulse shape matches a pattern research has linked to "
             "diabetes. It is not a diabetes test, a glucose reading, or an A1c. Full tier (60 fps) only. "
@@ -117,6 +125,8 @@ def manifest_entry(spec: ModelSpec, models_dir: Path, metrics: dict | None, comm
     path = models_dir / f"{spec.file_stem}.onnx"
     return {
         "name": spec.name,
+        "family": spec.family,
+        "ships": spec.ships,
         "version": spec.version,
         "file": path.name,
         "sha256": sha256_of(path),
@@ -168,26 +178,41 @@ def _development_section(metrics: dict | None) -> str:
     return section
 
 
-def _baseline_note(spec: ModelSpec) -> str:
-    if spec.baseline_of is None:
-        return ""
+def _ship_note(spec: ModelSpec, metrics: dict | None) -> str:
+    # ADR 0031: the app loads only the shipped model of each family; if it fails to load, the app runs
+    # the classical rule in code (§11.10 "basic analysis"), not another model file.
+    if spec.ships:
+        why = (
+            " It is a classical model; the neural network did not beat it on development subjects, so "
+            "it ships per §11.3 (ADR 0031) and the network is kept as the ablation model."
+            if spec.kind == "classifier"
+            else ""
+        )
+        return f"\n\nThis is the shipped {spec.family} model: the app loads it.{why}"
+    decision = (metrics or {}).get("shipDecision")
+    lost = (
+        f" On development subjects it did not beat {decision['ships']} ({decision['criterion']})."
+        if decision and decision["ships"] != spec.name
+        else ""
+    )
     return (
-        f"\n\nThis file is a classical baseline for {spec.baseline_of}. It ships in place of the network if "
-        "it wins the ablation, and the app falls back to it if the network fails to load."
+        f"\n\nThis is an ablation model and does not ship; the app loads {SHIPPED[spec.family]} for the "
+        f"{spec.family} family (ADR 0031).{lost}"
     )
 
 
 def model_card(spec: ModelSpec, metrics: dict | None) -> str:
     text = CARD_TEXT[spec.family]
+    role = f"shipped {spec.family} model" if spec.ships else "ablation model, not shipped"
     trained_on = ", ".join(metrics["trainedOn"]) if metrics else "no training run yet"
     notes = "".join(f"\n- {note}" for note in (metrics or {}).get("notes", []))
     training_notes = f"\n\nTraining notes:\n{notes}" if notes else ""
     ablation = (metrics or {}).get("ablation")
     calibration = (metrics or {}).get("calibration")
     sections = [
-        f"# {spec.name} {spec.version}",
+        f"# {spec.name} {spec.version} ({role})",
         "Lumen is a screening prototype, not a diagnosis.",
-        f"## Intended use\n\n{text['intended_use']}{_baseline_note(spec)}",
+        f"## Intended use\n\n{text['intended_use']}{_ship_note(spec, metrics)}",
         f"## Data\n\n{text['data']}\n\nTrained on: {trained_on}. Splits are by subject: no person appears in "
         "both development-train and development-validation." + training_notes,
         f"## Development metrics\n\n{_development_section(metrics)}",
@@ -209,7 +234,8 @@ def model_card(spec: ModelSpec, metrics: dict | None) -> str:
 def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> Path:
     commit = git_commit()
     date = datetime.now(UTC).date().isoformat()
-    specs = release_specs(runs_dir)
+    # Outside models/ the manifest may describe an untrained pipeline check, which includes every network.
+    specs = release_specs(runs_dir, untrained_networks=not require_metrics)
     metrics_by_name, source_shas = {}, {}
     for spec in specs:
         metrics = load_metrics(spec, runs_dir)
@@ -221,7 +247,9 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
         metrics_by_name[spec.name] = metrics
         source_shas[spec.name] = metrics["sourceSha256"] if metrics else None
     entries = [manifest_entry(spec, models_dir, metrics_by_name[spec.name], commit, date) for spec in specs]
-    # Checked before anything is written, so a failed check leaves no manifest or cards behind.
+    shipped_per_family(entries)
+    # The ship rule above and parity are checked before anything is written, so a failure leaves no
+    # manifest or cards behind.
     check_parity(models_dir, entries, source_shas)
     for spec in specs:
         card = model_card(spec, metrics_by_name[spec.name])

@@ -98,8 +98,9 @@ def entry_problems(name: str, entry: dict) -> list[str]:
 
 
 def check_parity(models_dir: Path, manifest_entries: list[dict], source_shas: dict[str, str | None]) -> None:
-    # m3.mjs reads only parity.maxAbsDiff, so the manifest writer checks that parity.json covers every
-    # listed model, for these exact files.
+    # m3.mjs checks parity.maxAbsDiff and the shipped entry's onnxSha256 per family; ablation models
+    # are not checked there, so the manifest writer checks that parity.json covers every listed model,
+    # for these exact files.
     path = Path(models_dir) / "parity.json"
     if not path.exists():
         raise ProvenanceError(f"{path} not found; run python -m export.verify_onnx --all")

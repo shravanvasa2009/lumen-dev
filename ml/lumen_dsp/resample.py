@@ -19,6 +19,14 @@ class ResampledSegment:
 
 # DSP-2: natural cubic spline onto a k / rate grid, split wherever frames are > 150 ms apart.
 def resample_cubic(t_s: np.ndarray, values: np.ndarray, rate_hz: float) -> list[ResampledSegment]:
+    # The checks scipy CubicSpline makes, done on the whole input as packages/core does, so a bad frame
+    # in a segment that is skipped (a lone frame, or no grid point) is refused rather than dropped.
+    if len(t_s) != len(values):
+        raise ValueError(f"{len(t_s)} times but {len(values)} values")
+    if not (np.all(np.isfinite(t_s)) and np.all(np.isfinite(values))):
+        raise ValueError("times and values must all be finite")
+    if np.any(np.diff(t_s) <= 0):
+        raise ValueError("times must strictly increase")
     max_gap_s = DSP_CONFIG["dsp2"]["maxGapS"]
     breaks = np.flatnonzero(np.diff(t_s) > max_gap_s + HALF_NS_S) + 1
     segments = []

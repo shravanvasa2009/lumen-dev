@@ -12,7 +12,22 @@ android {
     versionCode 1
     versionName "0.1.0"
   }
+  buildFeatures {
+    // BuildConfig.DEBUG gates the Lab event (ADR 0013, ADR 0029).
+    buildConfig true
+  }
   lintOptions {
     abortOnError false
   }
+}
+
+// CameraX 1.6.2 is the latest stable release; its AARs need compileSdk >= 36 and AGP >= 8.9.1 and are
+// built against Kotlin 2.1.20, which matches React Native 0.86's version catalog (ADR 0032).
+def cameraxVersion = '1.6.2'
+
+dependencies {
+  implementation "androidx.camera:camera-core:${cameraxVersion}"
+  implementation "androidx.camera:camera-camera2:${cameraxVersion}"
+  implementation "androidx.camera:camera-lifecycle:${cameraxVersion}"
+  testImplementation 'junit:junit:4.13.2'
 }

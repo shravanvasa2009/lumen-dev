@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 
 import numpy as np
 import onnx
@@ -56,6 +57,14 @@ def test_sqi_parity_windows_are_z_scored_red_only():
 def test_onnx_file_is_within_its_size_budget(exported, name):
     spec = SPECS[name]
     assert (exported / f"{spec.file_stem}.onnx").stat().st_size < spec.size_budget_bytes
+
+
+@pytest.mark.parametrize("name", BASELINES)
+def test_oversized_baseline_is_refused_and_deleted(tmp_path, name):
+    spec = replace(SPECS[name], size_budget_bytes=100)
+    with pytest.raises(ValueError, match="limit is 100 "):
+        export_model(spec, fit_baseline(spec), tmp_path)
+    assert not (tmp_path / f"{spec.file_stem}.onnx").exists()
 
 
 @pytest.mark.parametrize("name", REQUIRED)

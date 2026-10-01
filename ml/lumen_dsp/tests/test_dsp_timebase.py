@@ -1,3 +1,6 @@
+import math
+
+import numpy as np
 import pytest
 
 from lumen_dsp.tests.synthetic import capture_at, jittered_offsets, regular_offsets
@@ -44,3 +47,17 @@ def test_rejects_stats_that_do_not_line_up_with_samples():
     shifted_stats = {key: column[1:] for key, column in stats.items()}
     with pytest.raises(ValueError, match="frame stats"):
         build_timebase(samples, shifted_stats)
+
+
+# DSP-1 needs native ns timestamps; a non-finite one cannot be put on a time axis (red team, ADR 0025).
+@pytest.mark.parametrize("bad_ns", [math.nan, math.inf, -math.inf])
+@pytest.mark.parametrize("index", [0, 10, 29])
+@pytest.mark.parametrize("as_array", [False, True])
+def test_rejects_a_non_finite_timestamp(bad_ns, index, as_array):
+    samples, stats = capture_at(regular_offsets(30, 1), flat)
+    for columns in (samples, stats):
+        times = [float(t_ns) for t_ns in columns["tNs"]]
+        times[index] = bad_ns
+        columns["tNs"] = np.asarray(times) if as_array else times
+    with pytest.raises(ValueError, match="finite"):
+        build_timebase(samples, stats)

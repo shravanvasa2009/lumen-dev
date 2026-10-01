@@ -25,6 +25,12 @@ CARD_HEADINGS = [
 RHYTHM_EXTRAS = {
     "ablation": [{"model": "rhythm-net", "auroc": 0.5}, {"model": "lightgbm", "auroc": 0.25}],
     "calibration": {"method": "temperature scaling", "temperature": 1.5},
+    "notes": ["Jitter sigma is an assumption."],
+    "development": {
+        "subjects": 4,
+        "metrics": {"auroc": {"estimate": 0.5, "low": 0.25, "high": 0.75}},
+        "byDataset": [{"dataset": "afdb", "subject AUROC": "0.600 (0.400-0.800)"}],
+    },
 }
 
 
@@ -111,6 +117,8 @@ def test_trained_release_fills_metrics_and_lists_baselines(trained):
     assert "| auroc | 0.5 | 0.25 | 0.75 |" in card
     assert "| lightgbm | 0.25 |" in card
     assert "- temperature: 1.5" in card
+    assert "Training notes:\n\n- Jitter sigma is an assumption." in card
+    assert "| afdb | 0.600 (0.400-0.800) |" in card
     assert "Trained on: afdb." in card
     baseline_card = (models_dir / entries["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
     assert "classical baseline for rhythm-net" in baseline_card

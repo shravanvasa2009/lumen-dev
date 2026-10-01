@@ -1,0 +1,30 @@
+# Same chain as the 'walks the onboarding chain' test in src/routes.test.tsx, on a real Android runtime.
+appId: io.github.shravanvasa2009.heartcheck
+name: Onboarding from welcome to Home
+---
+- launchApp:
+    clearState: true
+# launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
+- extendedWaitUntil:
+    visible: 'Change mode'
+    timeout: 60000
+- openLink: lumen://welcome
+- assertVisible: 'Get started'
+- tapOn: 'Get started'
+- assertVisible: "What Lumen is — and isn't"
+- tapOn: 'Continue'
+- assertVisible: 'About you'
+- tapOn: 'Continue'
+- assertVisible: 'Checking your phone'
+- tapOn: 'Next: finger placement'
+- assertVisible: 'Where your finger goes'
+- tapOn: "I'm ready — start practice"
+- assertVisible: 'Practice reading'
+- tapOn: 'Continue'
+- assertVisible: 'How to sit'
+- tapOn: 'Continue'
+- assertVisible: 'Your Lumen rating'
+- tapOn: 'Continue'
+- assertVisible: 'Reminders'
+- tapOn: 'Turn on reminders'
+- assertVisible: 'Change mode'

@@ -21,6 +21,10 @@ function median(values: Float64Array): number {
 
 // DSP-1's time axis alone, for callers that have samples but no frame stats (live HR).
 export function secondsFromStart(samples: Sample[]): Float64Array {
+  samples.forEach((sample, i) => {
+    if (!Number.isFinite(sample.tNs))
+      throw new RangeError(`frame ${i}: timestamp ${sample.tNs} is not finite`);
+  });
   const startNs = samples[0]!.tNs;
   // Subtract in ns before scaling so seconds keep sub-microsecond precision late in a capture.
   const tS = Float64Array.from(samples, (sample) => (sample.tNs - startNs) / 1e9);

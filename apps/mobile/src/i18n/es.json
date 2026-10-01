@@ -316,5 +316,9 @@
   "settings.phoneNotTested": "Aún sin probar",
   "settings.version": "Versión {{version}} · toca 7 veces para el modo Lab",
   "appearance.segmentSystem": "Sistema",
-  "notifications.dailyTime": "8:00"
+  "notifications.dailyTime": "8:00",
+  "phoneRating.noScore": "—",
+  "phoneRating.notTested": "Aún sin probar",
+  "phoneRating.notTestedBody": "Haz la prueba del teléfono para ver tu puntuación, tu nivel y lo que puede hacer este teléfono.",
+  "phoneRating.points": "—/{{max}}"
 }

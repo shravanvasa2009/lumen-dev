@@ -316,5 +316,9 @@
   "settings.phoneNotTested": "Not tested yet",
   "settings.version": "Version {{version}} · tap 7× for Lab mode",
   "appearance.segmentSystem": "System",
-  "notifications.dailyTime": "8:00 AM"
+  "notifications.dailyTime": "8:00 AM",
+  "phoneRating.noScore": "—",
+  "phoneRating.notTested": "Not tested yet",
+  "phoneRating.notTestedBody": "Run the phone check to see your score, your tier, and what this phone can do.",
+  "phoneRating.points": "—/{{max}}"
 }

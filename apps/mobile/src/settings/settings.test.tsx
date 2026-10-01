@@ -40,3 +40,13 @@ describe('Settings tab', () => {
     expect(screen.getByRole('header', { name: en['lab.title'] })).toBeOnTheScreen();
   });
 });
+
+describe('Your phone', () => {
+  it('says the phone is not tested yet and offers the re-test', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/phone' });
+    expect(screen.getByText(en['phoneRating.notTested'])).toBeOnTheScreen();
+    expect(screen.getByText(en['phoneRating.frameRate'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['phoneRating.retest'] }));
+    expect(screen.getByRole('header', { name: en['phoneCheck.title'] })).toBeOnTheScreen();
+  });
+});

@@ -2,14 +2,17 @@ import argparse
 import json
 import math
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 
 from lumen_dsp.beat_classes import RejectedSpan, classify_beats
 from lumen_dsp.beats import detect_beats, elgendi_peaks
+from lumen_dsp.breathing import breathing_rate, breathing_series, welch_psd
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import CausalFilter, butter_bandpass, butter_lowpass, filter_zero_phase
+from lumen_dsp.metrics import MeasuredBeat, clean_seconds, heart_rate, hrv, measure_beats, perfusion_index
 from lumen_dsp.resample import ResampledSegment, resample_cubic
 from lumen_dsp.rhythm import RhythmWindow, has_enough_usable_intervals, rhythm_feature_vector, rhythm_windows
 from lumen_dsp.shape import PulseShape, ensemble_beat
@@ -164,6 +167,7 @@ def golden_files() -> dict[str, dict]:
         "rhythm.json": rhythm_vectors(),
         "beats.json": beat_vectors(),
         "shape.json": shape_vectors(),
+        "metrics.json": metrics_vectors(),
     }
 
 
@@ -361,6 +365,146 @@ def beat_case(name: str, wave: list[float], first_index_256: int, true_peaks_s, 
     }
 
 
+def reading_beats(
+    intervals_s: list[float], seed: int, breaths_per_min: dict[str, float], first_s: float = 1.0
+):
+    # Beats ending each interval; amplitude, intensity, and DC breathe, with small Park–Miller noise.
+    noise = park_miller_uniforms(3 * (len(intervals_s) + 1), seed)
+    beats = []
+    peak_s = first_s
+    for k in range(len(intervals_s) + 1):
+        breath = {
+            kind: math.sin(2 * math.pi * breaths_per_min[kind] * peak_s / 60)
+            for kind in ("intensity", "amplitude")
+        }
+        beats.append(
+            MeasuredBeat(
+                peak_s=peak_s,
+                beat_class="normal",
+                long_pause=False,
+                amplitude=0.004 * (1 + 0.2 * breath["amplitude"]) + 1e-4 * (noise[3 * k] - 0.5),
+                intensity=-0.62 + 0.002 * breath["intensity"] + 1e-4 * (noise[3 * k + 1] - 0.5),
+                dc=-0.62 + 0.01 * (noise[3 * k + 2] - 0.5),
+            )
+        )
+        if k < len(intervals_s):
+            peak_s += intervals_s[k]
+    return beats
+
+
+def rsa_intervals(seconds: float, bpm: float, breaths_per_min: float, seed: int) -> list[float]:
+    # Inspiration shortens the interval by up to 5%, plus 6 ms of uniform jitter.
+    noise = park_miller_uniforms(int(seconds * bpm / 60) + 10, seed)
+    intervals_s: list[float] = []
+    t_s = 0.0
+    while t_s < seconds:
+        breath = math.sin(2 * math.pi * breaths_per_min * t_s / 60)
+        interval_s = 60 / bpm * (1 - 0.05 * breath) + 0.006 * (noise[len(intervals_s)] - 0.5)
+        intervals_s.append(interval_s)
+        t_s += interval_s
+    return intervals_s
+
+
+def with_classes(beats: list[MeasuredBeat], classes: dict[int, str], long_pauses=()) -> list[MeasuredBeat]:
+    return [
+        replace(beat, beat_class=classes.get(i, beat.beat_class), long_pause=i in long_pauses)
+        for i, beat in enumerate(beats)
+    ]
+
+
+def beat_json(beat: MeasuredBeat) -> dict:
+    return {
+        "peakS": beat.peak_s,
+        "beatClass": beat.beat_class,
+        "longPause": beat.long_pause,
+        "amplitude": beat.amplitude,
+        "intensity": beat.intensity,
+        "dc": beat.dc,
+    }
+
+
+def reading_cases() -> list[dict]:
+    at_15 = {"intensity": 15, "amplitude": 15}
+    sinus = reading_beats(rsa_intervals(70, 72, 15, seed=21), seed=22, breaths_per_min=at_15)
+    # A premature beat, a not-a-beat candidate after it, a long pause, and an artifact beat.
+    sinus = with_classes(sinus, {30: "atypical", 31: "not-a-beat", 60: "artifact"}, long_pauses=(45,))
+    after_gap = reading_beats(
+        rsa_intervals(50, 72, 15, seed=23), seed=24, breaths_per_min=at_15, first_s=75.0
+    )
+
+    af_intervals = [0.4 + 0.8 * u for u in park_miller_uniforms(150, seed=25)]
+    af_like = reading_beats(af_intervals, seed=26, breaths_per_min=at_15)
+
+    disagree = reading_beats(
+        rsa_intervals(120, 66, 12, seed=27), seed=28, breaths_per_min={"intensity": 24, "amplitude": 12}
+    )
+    at_6 = {"intensity": 6, "amplitude": 6}
+    deep = reading_beats(rsa_intervals(330, 60, 6, seed=29), seed=30, breaths_per_min=at_6)
+    filtered_intervals = rsa_intervals(80, 70, 18, seed=31)
+    filtered_intervals[40] *= 1.35  # > 20% from its neighbours but < 1.6×: only the HRV filter drops it
+    at_18 = {"intensity": 18, "amplitude": 18}
+    filtered = reading_beats(filtered_intervals, seed=32, breaths_per_min=at_18)
+
+    def case(name, segments, clean, rhythm="sinus", fps=60):
+        return {
+            "name": name,
+            "cleanSeconds": clean,
+            "rhythmClass": rhythm,
+            "captureFps": fps,
+            "segments": segments,
+        }
+
+    return [
+        case("sinus-two-segments", [sinus, after_gap], 118.5),
+        case("af-like", [af_like], 110, rhythm="af"),
+        case("breathing-disagree", [disagree], 120),
+        case("deep-hrv-330s", [deep], 330),
+        case("hrv-filter-30fps", [filtered], 80, fps=30),
+        case("hrv-filter-60fps", [filtered], 80),
+        case("short-14s", [reading_beats([0.8] * 17, seed=33, breaths_per_min=at_15)], 14),
+    ]
+
+
+def series_json(series: dict[str, list[ResampledSegment]]) -> dict:
+    return {
+        kind: [{"firstIndex": grid.first_index, "values": floats(grid.values)} for grid in grids]
+        for kind, grids in series.items()
+    }
+
+
+def reading_json(case: dict) -> dict:
+    segments, clean = case["segments"], case["cleanSeconds"]
+    values = hrv(segments, case["rhythmClass"], case["captureFps"], clean)
+    rate = breathing_rate(segments, clean)
+    hrv_json = None
+    if values is not None:
+        hrv_json = {
+            "rmssdMs": values.rmssd_ms,
+            "sdnnMs": values.sdnn_ms,
+            "pnn50": values.pnn50,
+            "nnIntervals": values.nn_intervals,
+        }
+    breathing_json = None
+    if rate is not None:
+        breathing_json = {
+            "rateBrpm": rate.rate_brpm,
+            "intensityBrpm": rate.intensity_brpm,
+            "amplitudeBrpm": rate.amplitude_brpm,
+            "intervalBrpm": rate.interval_brpm,
+        }
+    return {
+        **case,
+        "segments": [[beat_json(beat) for beat in segment] for segment in segments],
+        "expected": {
+            "heartRate": heart_rate(segments, clean),
+            "perfusionIndex": perfusion_index(segments, clean),
+            "hrv": hrv_json,
+            "breathing": breathing_json,
+            "series": series_json(breathing_series(segments)),
+        },
+    }
+
+
 def beat_vectors() -> dict:
     # DSP-7/8/9 cases (§10.2): sinus, dicrotic double detections, premature beats, AF-like intervals,
     # bigeminy, rejected spans with long pauses and impossible intervals, and noise.
@@ -448,6 +592,51 @@ def shape_vectors() -> dict:
             }
             for name, case_onsets, normal, fps in cases
         ],
+    }
+
+
+def metrics_vectors() -> dict:
+    # DSP-10 to DSP-13 on beat lists (DSP-9 output plus amplitude, intensity, and DC), so the cases do not
+    # depend on a DSP-7/8/9 mirror; measureBeats is checked on its own raw segment.
+    noise = park_miller_uniforms(300, seed=34)
+    welch_input = [
+        math.sin(2 * math.pi * 0.27 * k / 4) + 0.02 * k + 0.5 * (noise[k] - 0.5) for k in range(300)
+    ]
+    spectrum = welch_psd(welch_input)
+
+    shape_rate = DSP_CONFIG["dsp2"]["shapeRateHz"]
+    raw_noise = park_miller_uniforms(20 * shape_rate, seed=35)
+    raw_values = [
+        -0.62 + 0.002 * math.sin(2 * math.pi * 1.2 * (512 + k) / shape_rate) + 1e-4 * (raw_noise[k] - 0.5)
+        for k in range(20 * shape_rate)
+    ]
+    raw = ResampledSegment(first_index=512, values=np.array(raw_values))
+    # Peaks between samples, on a sample, before the segment, and after it (clamped to the ends).
+    peaks_s = [1.0, 2.5 + 1 / 512, 7.3, 12.0019, 23.5]
+    measured = measure_beats(peaks_s, ["normal"] * 5, [False] * 5, [0.004] * 5, raw)
+
+    spans = [(10.0, 14.0), (12.0, 15.0), (0.0, 3.0), (90.0, 99.0), (40.0, 40.0), (50.5, 50.25)]
+    return {
+        "cleanSeconds": {
+            "startS": 2.0,
+            "endS": 92.0,
+            "spans": [list(span) for span in spans],
+            "expected": clean_seconds(2.0, 92.0, spans),
+        },
+        "measureBeats": {
+            "raw": {"firstIndex": raw.first_index, "values": raw_values},
+            "peaksS": peaks_s,
+            "expected": [{"intensity": beat.intensity, "dc": beat.dc} for beat in measured],
+        },
+        "welch": {
+            "series": welch_input,
+            "expected": {
+                "frequenciesHz": floats(spectrum.frequencies_hz),
+                "psd": floats(spectrum.psd),
+                "segments": spectrum.segments,
+            },
+        },
+        "readings": [reading_json(case) for case in reading_cases()],
     }
 
 

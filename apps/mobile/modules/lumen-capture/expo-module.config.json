@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["LumenCaptureModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.lumencapture.LumenCaptureModule"]
+  }
+}

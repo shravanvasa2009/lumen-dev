@@ -25,7 +25,10 @@ const PATTERNS = ENCODED.map(
   (encoded) => new RegExp(rot13(encoded).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
 );
 const ROOTS = ['apps', 'packages', 'tools', 'ml'];
-const SKIP = new Set(['node_modules', '.venv', 'data', 'runs', 'build', 'dist', '.expo', 'ios', 'android']);
+const SKIP = new Set(['node_modules', '.venv', 'data', 'runs', 'build', 'dist', '.expo']);
+// Only the generated prebuild folders are skipped; modules/lumen-capture/{ios,android} is hand-written
+// native camera code and must be scanned.
+const SKIP_PATHS = new Set(['apps/mobile/ios', 'apps/mobile/android']);
 const EXT = /\.(ts|tsx|js|jsx|mjs|cjs|swift|kt|kts|java|py|json)$/;
 
 function* walk(dir) {
@@ -33,6 +36,7 @@ function* walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (SKIP.has(entry.name)) continue;
     const full = path.join(dir, entry.name);
+    if (SKIP_PATHS.has(full.split(path.sep).join('/'))) continue;
     if (entry.isDirectory()) yield* walk(full);
     else if (EXT.test(entry.name)) yield full;
   }

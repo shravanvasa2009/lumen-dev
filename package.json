@@ -30,7 +30,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p apps/mobile --noEmit",
     "test": "node --test scripts/*.test.mjs && npm run test --workspaces --if-present",
-    "test:changed": "npm run test --workspaces --if-present -- --onlyChanged",
+    "test:changed": "npm run test --workspaces --if-present -- --onlyChanged --maxWorkers=8",
     "deadcode": "knip",
     "golden:check": "npm test -w @lumen/core -- golden",
     "test:synthetic": "npm test -w @lumen/core -- synthetic-suite --testPathIgnorePatterns=/node_modules/",

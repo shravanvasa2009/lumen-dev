@@ -162,13 +162,25 @@ def export_model(spec: ModelSpec, source: SourceModel, out_dir: Path) -> Path:
             f"{spec.name} was fitted on {source.n_features_in_} features; the spec says {shape[1]}"
         )
     (output_name,) = spec.outputs
-    return export_classifier(source, input_name, output_name, Path(out_dir) / f"{spec.file_stem}.onnx")
+    path = export_classifier(source, input_name, output_name, Path(out_dir) / f"{spec.file_stem}.onnx")
+    # §11.9: networks are small by construction, but a tree model's size depends on what training fitted.
+    # An oversized file is deleted so it can never be bundled.
+    size = path.stat().st_size
+    if size >= spec.size_budget_bytes:
+        path.unlink()
+        limit = spec.size_budget_bytes
+        raise ValueError(f"{spec.name} exports to {size} bytes; its limit is {limit} (§11.9)")
+    return path
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Export Lumen's models and baselines to ONNX (ML-3)")
     which = parser.add_mutually_exclusive_group(required=True)
-    which.add_argument("--all", action="store_true", help="every network plus each trained baseline")
+    which.add_argument(
+        "--all",
+        action="store_true",
+        help="every shipped model plus each trained one (every network with --random-init)",
+    )
     which.add_argument("--name", choices=sorted(SPECS))
     parser.add_argument("--runs-dir", type=Path, default=RUNS_DIR)
     parser.add_argument("--out-dir", type=Path, default=MODELS_DIR)
@@ -181,7 +193,8 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.random_init is not None and inside_models_dir(args.out_dir):
         parser.error("--random-init needs --out-dir outside models/: untrained models must never ship")
-    for spec in release_specs(args.runs_dir) if args.all else [SPECS[args.name]]:
+    untrained = args.random_init is not None
+    for spec in release_specs(args.runs_dir, untrained) if args.all else [SPECS[args.name]]:
         path = export_model(spec, source_model(spec, args.runs_dir, args.random_init), args.out_dir)
         print(f"{path}  {path.stat().st_size} bytes")
 

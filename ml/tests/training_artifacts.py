@@ -40,6 +40,6 @@ def fit_baseline(spec: ModelSpec, seed: int = 4) -> SourceModel:
     features = rng.normal(size=(400, shape[1])).astype(np.float32)
     edges = [-0.5, 0.5][: len(spec.labels) - 1] if len(spec.labels) > 1 else [0.0]
     labels = np.digitize(features[:, 0] + 0.5 * rng.normal(size=400), edges)
-    if spec.name.endswith("logistic"):
+    if spec.name.endswith(("logistic", "rule")):
         return LogisticRegression(max_iter=500).fit(features, labels)
     return LGBMClassifier(n_estimators=30, verbose=-1).fit(features, labels)

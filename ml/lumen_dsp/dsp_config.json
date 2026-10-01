@@ -9,7 +9,8 @@
   },
   "dsp3": {
     "dcCutoffHz": 0.3,
-    "dcOrder": 2
+    "dcOrder": 2,
+    "modelWindowS": 4
   },
   "dsp6": {
     "hrOrder": 4,

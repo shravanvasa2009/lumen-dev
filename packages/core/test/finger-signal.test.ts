@@ -1,4 +1,4 @@
-import { buildTimebase, dcLevel, fingerSignals } from '../src';
+import { buildTimebase, dcLevel, DSP_CONFIG, fingerSignals, sqiModelInput, zScoreWindow } from '../src';
 import { captureAt } from './synthetic';
 
 describe('DSP-3 finger raw signal', () => {
@@ -31,5 +31,44 @@ describe('DSP-3 DC level for the perfusion index', () => {
       const tS = n / rateHz;
       if (tS >= 10 && tS < 50) expect(Math.abs(value - baseline(tS))).toBeLessThan(5e-5);
     });
+  });
+});
+
+describe('DSP-3 per-window z-score for model inputs', () => {
+  it('uses 4 s windows: 256 samples at 64 Hz', () => {
+    expect(DSP_CONFIG.dsp3.modelWindowS * DSP_CONFIG.dsp2.modelRateHz).toBe(256);
+  });
+
+  it('subtracts the mean and divides by the population SD (divide by n)', () => {
+    // Mean 2.5; population variance (2.25 + 0.25 + 0.25 + 2.25) / 4 = 1.25.
+    const scored = zScoreWindow([1, 2, 3, 4])!;
+    const sd = Math.sqrt(1.25);
+    [-1.5 / sd, -0.5 / sd, 0.5 / sd, 1.5 / sd].forEach((value, i) =>
+      expect(scored[i]).toBeCloseTo(value, 15),
+    );
+  });
+
+  it('returns null for a flat window, which has no pulse to score', () => {
+    expect(zScoreWindow(new Array<number>(256).fill(-0.62))).toBeNull();
+  });
+
+  it('builds the SQI-Net v1 input [1, 256] (ADR 0023): the primary (−R) z-scored, as float32', () => {
+    const primary = Array.from(
+      { length: 256 },
+      (_, k) => -0.6 - 0.004 * Math.sin((2 * Math.PI * 1.2 * k) / 64),
+    );
+    const input = sqiModelInput(primary)!;
+    expect(input).toBeInstanceOf(Float32Array);
+    expect(input).toHaveLength(256);
+    expect(Array.from(input)).toEqual(Array.from(Float32Array.from(zScoreWindow(primary)!)));
+  });
+
+  it('gives no SQI input for a flat window', () => {
+    expect(sqiModelInput(new Array<number>(256).fill(-1))).toBeNull();
+  });
+
+  it('rejects windows that are not 256 samples long', () => {
+    const pulse = Array.from({ length: 255 }, (_, k) => Math.sin(k / 9));
+    expect(() => sqiModelInput(pulse)).toThrow(RangeError);
   });
 });

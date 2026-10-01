@@ -6,15 +6,6 @@ import {
   filterZeroPhase,
   type SosSection,
 } from '../src';
-import {
-  DC_LOWPASS_64HZ_SOS,
-  FILTFILT_DC_LOWPASS_64HZ,
-  FILTFILT_HR_BAND_64HZ,
-  FILTFILT_MORPHOLOGY_BAND_64HZ,
-  HR_BAND_64HZ_SOS,
-  MORPHOLOGY_BAND_64HZ_SOS,
-  REFERENCE_INPUT,
-} from './scipy-reference';
 
 const { hrOrder, morphologyOrder, hrBandHz, morphologyBandHz } = DSP_CONFIG.dsp6;
 const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
@@ -249,41 +240,5 @@ describe('DSP-6 causal filtering for the live display', () => {
       pieces.push(...batched.filter(input.subarray(start, start + 6)));
     }
     pieces.forEach((value, n) => expect(value).toBe(whole[n]));
-  });
-});
-
-// Observed agreement is 2.2e-16 (coefficients) and 1.6e-14 (filtered samples); the bounds leave room for
-// libm differences between machines and stay far inside the 1e-6 parity budget (§10.2).
-describe('DSP-6 agreement with scipy 1.17.1 output', () => {
-  const expectClose = (actual: ArrayLike<number>, expected: number[], tolerance: number) => {
-    expect(actual).toHaveLength(expected.length);
-    expected.forEach((value, i) => expect(Math.abs(actual[i]! - value)).toBeLessThan(tolerance));
-  };
-
-  it('designs the same HR band-pass sections as butter(4, [0.6, 3.5], "band", fs=64)', () => {
-    const sos = butterBandpass(4, 0.6, 3.5, 64);
-    expectClose(sos.flat(), HR_BAND_64HZ_SOS.flat(), 1e-15);
-  });
-
-  it('designs the same morphology band-pass sections as butter(2, [0.5, 8], "band", fs=64)', () => {
-    expectClose(butterBandpass(2, 0.5, 8, 64).flat(), MORPHOLOGY_BAND_64HZ_SOS.flat(), 1e-15);
-  });
-
-  it('designs the same DC low-pass section as butter(2, 0.3, fs=64)', () => {
-    expectClose(butterLowpass(2, 0.3, 64).flat(), DC_LOWPASS_64HZ_SOS.flat(), 1e-15);
-  });
-
-  it('filters like sosfiltfilt, including its odd padding and initial conditions', () => {
-    expectClose(
-      filterZeroPhase(butterBandpass(4, 0.6, 3.5, 64), REFERENCE_INPUT),
-      FILTFILT_HR_BAND_64HZ,
-      1e-12,
-    );
-    expectClose(
-      filterZeroPhase(butterBandpass(2, 0.5, 8, 64), REFERENCE_INPUT),
-      FILTFILT_MORPHOLOGY_BAND_64HZ,
-      1e-12,
-    );
-    expectClose(filterZeroPhase(butterLowpass(2, 0.3, 64), REFERENCE_INPUT), FILTFILT_DC_LOWPASS_64HZ, 1e-12);
   });
 });

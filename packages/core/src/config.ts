@@ -14,6 +14,7 @@ export const DSP_CONFIG = {
     // The spec gives no order. 2 (zero-phase, so 4 in effect) leaves 6% of the pulse at 36 bpm (0.6 Hz) in
     // the DC, about 0.06% of DC for a 1% pulse, with less ringing at baseline steps than a higher order.
     dcOrder: 2,
+    modelWindowS: 4, // model inputs are z-scored per window of this length (SQI-Net: 256 samples at 64 Hz)
   },
   dsp6: {
     // Butterworth prototype order N as in scipy butter(N, ...): N = 4 is 8 poles. §10 DSP-6 says

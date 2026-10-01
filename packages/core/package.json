@@ -1,0 +1,6 @@
+{
+  "name": "@lumen/core",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pure TypeScript signal processing for Lumen (spec section 10)"
+}

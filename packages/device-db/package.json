@@ -1,0 +1,6 @@
+{
+  "name": "@lumen/device-db",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Device database and compatibility rating (spec section 5)"
+}

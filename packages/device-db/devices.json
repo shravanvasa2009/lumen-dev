@@ -1,0 +1,48 @@
+[
+  {
+    "id": "apple-iphone-16",
+    "displayName": "iPhone 16",
+    "match": {
+      "platform": "ios",
+      "modelIdentifiers": ["<paste from DeviceProbe on a real iPhone 16>"]
+    },
+    "backLayout": {
+      "lenses": [
+        {
+          "id": "top",
+          "x": 0.2,
+          "y": 0.09,
+          "r": 0.07
+        },
+        {
+          "id": "bottom",
+          "x": 0.2,
+          "y": 0.21,
+          "r": 0.07
+        }
+      ],
+      "flash": {
+        "x": 0.43,
+        "y": 0.09,
+        "r": 0.03
+      },
+      "flashInsideBump": false
+    },
+    "placement": {
+      "recommendedLens": "top",
+      "fingerAngleDeg": 28,
+      "tipKey": "placement.flashOutsideBump"
+    },
+    "measured": {
+      "maxRearFps": null,
+      "bestPerfusionIndex": null,
+      "hrMaeBpm": null,
+      "intervalMaeMs": null,
+      "rating": null,
+      "testedBy": null,
+      "testedOn": null
+    },
+    "status": "placeholder",
+    "notes": "Coordinates are placeholders, not measurements. Measure from a straight-on photo of the phone's back (divide pixel positions by the phone's width and height in the photo). Set status to measured only after a real test."
+  }
+]

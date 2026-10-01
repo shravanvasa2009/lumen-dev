@@ -1,0 +1,61 @@
+# Dependencies and build output
+node_modules/
+.expo/
+dist/
+build/
+coverage/
+*.log
+*.tsbuildinfo
+.proof/
+
+# Generated native projects (Expo Continuous Native Generation); anchored so modules/*/ios and
+# modules/*/android, which hold hand-written native code, stay tracked.
+/apps/mobile/ios/
+/apps/mobile/android/
+
+# Secrets and signing material
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+*.pem
+*.key
+*.jks
+*.keystore
+*.mobileprovision
+*.cer
+credentials.json
+google-services*.json
+
+# Python and data
+ml/data/
+ml/.venv/
+ml/runs/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Private recordings (health data) and personal or agent files
+captures/
+*.capture.csv
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+HUMAN_STEPS.md
+docs/spec/
+docs/tasks/
+docs/research/
+secrets/
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Expo-generated files
+expo-env.d.ts
+.kotlin/
+.metro-health-check*

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/knip@6.39.0/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.mjs"]
+    },
+    "apps/mobile": {
+      "entry": ["modules/lumen-capture/src/LumenCapture.types.ts"]
+    }
+  }
+}

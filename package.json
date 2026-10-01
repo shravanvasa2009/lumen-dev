@@ -1,0 +1,66 @@
+{
+  "name": "lumen",
+  "private": true,
+  "description": "Phone pulse measurement with the rear camera and flash; screening prototype, not a diagnosis.",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "tools/*"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "lumen": {
+    "bootstrapped": true
+  },
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "proof": "node scripts/proof/index.mjs",
+    "verify:fast": "node scripts/verify-fast.mjs",
+    "scope-guard": "node scripts/scope-guard.mjs",
+    "priv-check": "node scripts/priv-check.mjs",
+    "check:style": "node scripts/check-style.mjs",
+    "check:commit": "node scripts/check-commit-msg.mjs",
+    "receiver": "node tools/capture-receiver/server.mjs",
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "check:notification-copy": "node scripts/check-notification-copy.mjs",
+    "check:diabetes-copy": "node scripts/check-diabetes-copy.mjs",
+    "check:logo": "node scripts/check-logo.mjs",
+    "check:assets": "node scripts/check-assets.mjs",
+    "lint": "eslint .",
+    "typecheck": "tsc -p apps/mobile --noEmit",
+    "test": "npm run test --workspaces --if-present",
+    "test:changed": "npm run test --workspaces --if-present -- --onlyChanged",
+    "deadcode": "knip",
+    "golden:check": "node scripts/not-yet.mjs golden:check",
+    "test:synthetic": "node scripts/not-yet.mjs test:synthetic",
+    "test:redteam": "node scripts/not-yet.mjs test:redteam",
+    "test:routes": "node scripts/not-yet.mjs test:routes",
+    "test:fallback": "node scripts/not-yet.mjs test:fallback",
+    "test:evidence": "node scripts/not-yet.mjs test:evidence",
+    "i18n:check": "node scripts/not-yet.mjs i18n:check",
+    "lint:strings": "node scripts/not-yet.mjs lint:strings",
+    "test:notifications": "node scripts/not-yet.mjs test:notifications",
+    "test:widgets": "node scripts/not-yet.mjs test:widgets",
+    "eval:replay": "node scripts/not-yet.mjs eval:replay",
+    "sync-models": "node scripts/not-yet.mjs sync-models",
+    "devices:table": "node scripts/not-yet.mjs devices:table",
+    "e2e:android": "node scripts/not-yet.mjs e2e:android",
+    "format": "prettier --write ."
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
+    "eslint": "9.39.5",
+    "knip": "6.39.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0"
+  }
+}

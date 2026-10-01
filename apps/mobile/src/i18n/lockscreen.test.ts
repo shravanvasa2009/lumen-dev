@@ -18,5 +18,11 @@ describe('lockscreenStrings', () => {
 
   it('falls back to English for an unsupported language', () => {
     expect(lockscreenStrings('fr')).toBe(english);
+    expect(lockscreenStrings('toString')).toBe(english);
+  });
+
+  it('reads the language from a regional tag', () => {
+    expect(lockscreenStrings('es-MX')).toBe(spanish);
+    expect(lockscreenStrings('EN-us')).toBe(english);
   });
 });

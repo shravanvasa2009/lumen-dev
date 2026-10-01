@@ -1,0 +1,53 @@
+import i18next from 'i18next';
+import { act } from 'react';
+import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { Linking } from 'react-native';
+
+import en from '@/i18n/en.json';
+import es from '@/i18n/es.json';
+
+import { lessons } from './lessons';
+
+import '@/i18n';
+
+const appDirectory = './app';
+
+afterEach(async () => {
+  await act(() => i18next.changeLanguage('en'));
+  jest.restoreAllMocks();
+});
+
+describe('Learn tab', () => {
+  it('lists every lesson with its length, then the care finder', () => {
+    renderRouter(appDirectory, { initialUrl: '/learn' });
+    for (const lesson of lessons) {
+      expect(
+        screen.getByRole('button', { name: new RegExp(lesson.title(i18next.t.bind(i18next))) }),
+      ).toBeOnTheScreen();
+    }
+    expect(screen.getByText(en['learn.minutesAnimated'].replace('{{minutes}}', '2'))).toBeOnTheScreen();
+    expect(screen.getByText(en['learn.careFinderHint'])).toBeOnTheScreen();
+    expect(screen.getByText(en['learn.offline'])).toBeOnTheScreen();
+  });
+
+  it('opens the lesson that was tapped', () => {
+    renderRouter(appDirectory, { initialUrl: '/learn' });
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.lessonAfib']) }));
+    expect(screen.getByRole('header', { name: en['learn.lessonAfib'] })).toBeOnTheScreen();
+  });
+
+  it('switches the lessons to Spanish with the EN/ES toggle', async () => {
+    renderRouter(appDirectory, { initialUrl: '/learn' });
+    await act(async () => fireEvent.press(screen.getByRole('radio', { name: en['learn.langSpanish'] })));
+    expect(screen.getByRole('header', { name: es['learn.title'] })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: new RegExp(es['learn.lessonDiabetes']) })).toBeOnTheScreen();
+  });
+
+  it('opens the health-center finder only when its row is tapped', () => {
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    renderRouter(appDirectory, { initialUrl: '/learn' });
+    expect(open).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.careFinder']) }));
+    expect(open).toHaveBeenCalledWith('https://findahealthcenter.hrsa.gov');
+  });
+});

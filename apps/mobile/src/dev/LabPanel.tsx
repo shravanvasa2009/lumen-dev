@@ -36,6 +36,11 @@ type SendState =
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+// Used once the screen is gone, so a failure can only go to the dev console.
+function stopUnattended(capture: LumenCaptureModule) {
+  capture.stop().catch((error: unknown) => console.warn(`Lab capture did not stop: ${reasonOf(error)}`));
+}
+
 // Raw red means scaled to the visible window's own range, so the pulse is visible at any brightness. This
 // is display scaling only; the signal math lives in @lumen/core.
 function RedTrace({ values }: { values: readonly number[] }) {
@@ -110,6 +115,10 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const lastLab = useRef<LabDiagnostics | undefined>(undefined);
   const phone = useRef<Capabilities | null>(null);
   const capturing = useRef(false);
+  const mounted = useRef(true);
+  // A ref, not state: two presses in the same frame both see the state from before the first press.
+  const switchingRef = useRef(false);
+  const [switching, setSwitching] = useState(false);
   const [permission, setPermission] = useState<CameraPermission | null>(null);
   const [running, setRunning] = useState(false);
   const [trace, setTrace] = useState<number[]>([]);
@@ -128,16 +137,14 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   };
 
   // Leaving the screen mid-capture must not leave the camera and torch running.
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       removeListeners();
-      if (capturing.current && capture)
-        capture
-          .stop()
-          .catch((error: unknown) => console.warn(`Lab capture did not stop: ${reasonOf(error)}`));
-    },
-    [capture],
-  );
+      if (capturing.current && capture) stopUnattended(capture);
+    };
+  }, [capture]);
 
   if (!capture) return <AppText tone="textDim">{t('lab.noSource')}</AppText>;
 
@@ -150,11 +157,28 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
     }
   };
 
+  const beginSwitch = () => {
+    if (switchingRef.current) return false;
+    switchingRef.current = true;
+    setSwitching(true);
+    return true;
+  };
+  const endSwitch = () => {
+    switchingRef.current = false;
+    if (mounted.current) setSwitching(false);
+  };
+  const reportFailure = (error: unknown) => {
+    if (mounted.current) setFailure(reasonOf(error));
+    else console.warn(`Lab capture failed after the screen closed: ${reasonOf(error)}`);
+  };
+
   const startCapture = async () => {
+    if (!beginSwitch()) return;
     setFailure(null);
     setSendState({ kind: 'idle' });
     try {
       phone.current = await capture.getCapabilities();
+      if (!mounted.current) return;
       batches.current = [];
       reds.current = [];
       lastLab.current = undefined;
@@ -177,26 +201,48 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
         }),
       ];
       await capture.start({});
+      if (!mounted.current) {
+        // The screen closed while the camera was starting, so its cleanup had nothing to stop yet.
+        removeListeners();
+        stopUnattended(capture);
+        return;
+      }
       capturing.current = true;
       setRunning(true);
     } catch (error) {
       removeListeners();
-      setFailure(reasonOf(error));
+      reportFailure(error);
+    } finally {
+      endSwitch();
     }
   };
 
   const stopCapture = async () => {
+    if (!beginSwitch()) return;
     setFailure(null);
+    // The stop is already in flight, so an unmount meanwhile must not stop a second time.
+    capturing.current = false;
     try {
       const summary = await capture.stop();
-      capturing.current = false;
       removeListeners();
       setRunning(false);
       if (phone.current) setRecorded({ capabilities: phone.current, summary, lab: lastLab.current });
     } catch (error) {
-      setFailure(reasonOf(error));
+      capturing.current = true;
+      reportFailure(error);
+    } finally {
+      endSwitch();
     }
   };
+
+  const thermalText = (thermal: CaptureStatus['thermal']) =>
+    thermal === 'nominal'
+      ? t('lab.thermalNominal')
+      : thermal === 'fair'
+        ? t('lab.thermalFair')
+        : thermal === 'serious'
+          ? t('lab.thermalSerious')
+          : t('lab.thermalCritical');
 
   const sendToPc = async () => {
     if (!recorded) return;
@@ -235,6 +281,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       <Button
         label={running ? t('lab.stop') : t('lab.start')}
         onPress={running ? stopCapture : startCapture}
+        disabled={switching}
       />
       {failure ? <AppText>{t('lab.failed', { reason: failure })}</AppText> : null}
 
@@ -242,9 +289,12 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       <RedTrace values={trace} />
       <AppText tone="textDim">{t('lab.frames', { frames })}</AppText>
       {status ? (
-        <AppText>
-          {t('lab.status', { fps: status.fps.toFixed(1), dropped: (status.droppedFrac * 100).toFixed(2) })}
-        </AppText>
+        <>
+          <AppText>
+            {t('lab.status', { fps: status.fps.toFixed(1), dropped: (status.droppedFrac * 100).toFixed(2) })}
+          </AppText>
+          <AppText tone="textDim">{thermalText(status.thermal)}</AppText>
+        </>
       ) : null}
 
       <AppText variant="headline">{t('lab.diagnostics')}</AppText>

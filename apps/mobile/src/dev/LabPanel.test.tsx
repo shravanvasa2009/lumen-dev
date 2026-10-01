@@ -131,6 +131,64 @@ test('shows the receiver error when the capture is not accepted', async () => {
   ).toBeOnTheScreen();
 });
 
+test('a second Start press while the first is pending does not record every frame twice', async () => {
+  const fetchMock = jest.fn(
+    async (_url: string, _init: { body: string }) =>
+      ({ status: 201, text: async () => JSON.stringify({ folder: 'f' }) }) as Response,
+  );
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await act(async () => {
+    const start = screen.getByRole('button', { name: en['lab.start'] });
+    fireEvent.press(start);
+    fireEvent.press(start);
+  });
+  await act(async () => {
+    jest.advanceTimersByTime(2500);
+  });
+  expect(screen.getByText(fill(en['lab.frames'], { frames: 100 }))).toBeOnTheScreen();
+
+  await press(en['lab.stop']);
+  typeReceiver('10.0.2.2:8787', 'abc123');
+  await press(en['lab.send']);
+  const sent = JSON.parse(fetchMock.mock.calls[0]?.[1].body ?? '{}');
+  expect(sent.samples.tNs).toEqual(syntheticRecording().samples.tNs);
+});
+
+test('stops the camera if the screen closes while start() is pending, and reports a failed stop', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  let finishStart: () => void = () => undefined;
+  jest.spyOn(replay, 'start').mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        finishStart = resolve;
+      }),
+  );
+  const stop = jest.spyOn(replay, 'stop').mockRejectedValue(new Error('camera busy'));
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const { unmount } = render(<LabPanel capture={replay} />);
+
+  await press(en['lab.start']);
+  expect(screen.getByRole('button', { name: en['lab.start'] })).toBeDisabled();
+  unmount();
+  await act(async () => {
+    finishStart();
+  });
+
+  expect(stop).toHaveBeenCalledTimes(1);
+  expect(warn).toHaveBeenCalledWith('Lab capture did not stop: camera busy');
+  warn.mockRestore();
+});
+
+test('shows the thermal state from the status event', async () => {
+  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await press(en['lab.start']);
+  await act(async () => {
+    jest.advanceTimersByTime(500);
+  });
+  expect(screen.getByText(en['lab.thermalNominal'])).toBeOnTheScreen();
+});
+
 test('keeps Send disabled until a capture is recorded and the receiver is filled in', async () => {
   render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
   typeReceiver('10.0.2.2:8787', 'abc123');

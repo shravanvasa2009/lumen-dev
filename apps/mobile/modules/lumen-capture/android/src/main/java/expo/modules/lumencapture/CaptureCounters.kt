@@ -30,6 +30,7 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
     private var lastFrameNs: Long? = null
     private val intervalEndsNs = ArrayDeque<Long>()
     private val intervalsNs = ArrayDeque<Long>()
+    private val lastIntervalsNs = ArrayDeque<Long>()
     private var newestSinceStatus: FrameNumbers? = null
     private var workCount = 0
     private var workSumNs = 0L
@@ -66,6 +67,11 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
         if (workNs > workMaxNs) workMaxNs = workNs
         return watchOverexposure(frame.numbers.r, frame.tNs)
     }
+
+    // ADR 0029 addendum: lockExposure() waits use the median of the last 5 measured intervals whatever their age
+    // (nominal until 5 exist), so they still work below 5 fps, where the DSP-1 1 s window holds fewer than 5.
+    @Synchronized
+    fun lockIntervalNs(): Double = medianIntervalNs(lastIntervalsNs) ?: nominalIntervalNs.toDouble()
 
     @Synchronized
     fun armOverexposureWatch() {
@@ -125,6 +131,8 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
         if (gapNs > DROP_GAP_FACTOR * referenceNs) dropped += (gapNs / referenceNs).roundToLong() - 1
         intervalEndsNs.addLast(tNs)
         intervalsNs.addLast(gapNs)
+        lastIntervalsNs.addLast(gapNs)
+        if (lastIntervalsNs.size > MIN_MEDIAN_INTERVALS) lastIntervalsNs.removeFirst()
     }
 
     private fun watchOverexposure(red: Double, tNs: Long): Boolean {

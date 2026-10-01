@@ -54,17 +54,19 @@ jobs:
           npm run typecheck
           npm test
           npm run deadcode
-      # Gradle costs about 6 minutes cold, so it runs only when the Kotlin module changed. Base: the PR base,
-      # or the commit before the push (github.event.before); a missing base (new branch, manual run) runs it.
+      # Gradle costs about 6 minutes cold, so it runs only when the Kotlin module, the lockfile (Expo and React
+      # Native versions) or this workflow changed. Base: the PR base, or the commit before the push
+      # (github.event.before); a missing base (new branch, manual run) runs it.
       # https://docs.github.com/en/webhooks/webhook-events-and-payloads#push
       # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (GITHUB_OUTPUT)
-      - name: Did the Kotlin capture module change?
+      - name: Did the Kotlin capture module or its build inputs change?
         id: kotlin
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           if [ -z "$BASE" ] || ! git rev-parse --verify --quiet "${BASE}^0" > /dev/null \
-            || git diff --name-only "$BASE" HEAD -- apps/mobile/modules/lumen-capture/android/ | grep -q .; then
+            || git diff --name-only "$BASE" HEAD -- apps/mobile/modules/lumen-capture/android/ \
+              package-lock.json .github/workflows/ci.yml | grep -q .; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"

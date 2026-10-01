@@ -10,11 +10,17 @@ from nets.rhythm_net import FEATURES, INTERVALS, LABELS, RhythmNet
 from nets.sqi_net import CHANNELS, WINDOW, SqiNet
 
 OPSET = 17
+SQI_RULE_FEATURES = 2
 ML_ROOT = Path(__file__).resolve().parents[1]
 # The repo-root models/ folder the app bundles and scripts/proof/m3.mjs reads.
 MODELS_DIR = ML_ROOT.parent / "models"
 # Training writes the source model (<stem>.pt or <stem>.pkl) and <stem>.json (metrics) here.
 RUNS_DIR = ML_ROOT / "runs"
+# A threshold basis other than "all-bad" (every bad window counted when τ is chosen) changes how a spec
+# threshold is met, so only the owner can accept it. Each entry records the owner's decision as
+# {model name: {"basis": ..., "decision": "<HUMAN_STEPS id and option>"}}. Empty until the owner answers
+# H-024 (ADR 0038); export.provenance.check_threshold_bases refuses to ship without it.
+OWNER_APPROVED_THRESHOLD_BASES: dict[str, dict[str, str]] = {}
 Family = Literal["rhythm", "sqi", "diabetes"]
 FAMILIES: tuple[Family, ...] = ("rhythm", "sqi", "diabetes")
 
@@ -68,7 +74,7 @@ _SQI = ModelSpec(
     external_fields=("subjects", "rhythmBiasGapPts", "acceptRateAf", "acceptRateNonAf"),
     size_budget_bytes=200 * 1024,
     family="sqi",
-    # SQI and diabetes ship rules are decided when those models train; the networks ship until then.
+    # train.sqi: SQI-Net beat sqi-rule on dev-val AUROC. Diabetes is decided when it trains.
     ships=True,
 )
 _RHYTHM = ModelSpec(
@@ -105,12 +111,17 @@ _DIABETES = ModelSpec(
     family="diabetes",
     ships=True,
 )
-# §11.3 and §11.4 baselines on the networks' feature inputs, with the same output names, so the app can
+# §11.1–11.4 baselines on the networks' feature inputs, with the same output names, so the app can
 # swap one in without code changes. The rhythm logistic rule has no entry: it is compared in training
-# (train.rhythm) but never exported.
+# (train.rhythm) but never exported. sqi-rule is §11.1's rule SQI without the acquisition checks, which
+# need camera frames: a logistic regression on the window's skewness and whether its spectral-peak heart
+# rate is in range (train/sqi.py, RULE_FEATURES).
 _BASELINES = tuple(
     replace(network, name=name, kind="classifier", build=None, inputs=inputs, ships=ships)
     for network, name, inputs, ships in (
+        # SQI-Net beat sqi-rule on development subjects (train.sqi); its threshold basis still waits
+        # for the owner (ADR 0038, H-024), which export.provenance enforces.
+        (_SQI, "sqi-rule", {"features": [1, SQI_RULE_FEATURES]}, False),
         # ADR 0031: rhythm-lgbm beat Rhythm-Net on development subjects, so it is the v1 rhythm model.
         (_RHYTHM, "rhythm-lgbm", {"features": [1, FEATURES]}, True),
         (_DIABETES, "diabetes-lgbm", {"shapeFeatures": [1, SHAPE_FEATURES]}, False),

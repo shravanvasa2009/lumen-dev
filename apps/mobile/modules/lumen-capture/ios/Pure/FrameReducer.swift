@@ -1,6 +1,6 @@
 import Accelerate
 
-struct FrameReduction: Equatable {
+struct FrameReduction {
   // Means over the finger region, 0..1 of full scale.
   let r: Double
   let g: Double

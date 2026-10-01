@@ -1,6 +1,6 @@
 import Foundation
 
-struct FormatCandidate: Equatable {
+struct FormatCandidate {
   let width: Int
   let height: Int
   let maxFps: Double
@@ -34,7 +34,7 @@ func exposureWindow(_ bounds: [Double]?) -> ClosedRange<Double>? {
   return bounds[0]...bounds[1]
 }
 
-struct ExposureSetting: Equatable {
+struct ExposureSetting {
   let durationS: Double
   let iso: Double
 }

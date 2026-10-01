@@ -20,5 +20,5 @@ Pod::Spec.new do |s|
 
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
   # Package.swift and Tests/ only run the pure-code tests with `swift test` on a Mac; they are not app code.
-  s.exclude_files = ['Package.swift', 'Tests/**/*']
+  s.exclude_files = ['Package.swift', 'Tests/**/*', '.build/**/*']
 end

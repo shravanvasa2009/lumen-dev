@@ -25,6 +25,12 @@ public final class LumenCaptureModule: Module {
       }
     }
 
+    // A JS reload destroys the module; stopping here keeps the torch, timers and motion from running on.
+    OnDestroy {
+      let capture = self.capture
+      capture.sessionQueue.async { capture.stopCapture() }
+    }
+
     AsyncFunction("getCapabilities") { () -> [String: Any] in
       LumenCaptureModule.capabilities()
     }.runOnQueue(capture.sessionQueue)
@@ -49,15 +55,21 @@ public final class LumenCaptureModule: Module {
     }.runOnQueue(capture.sessionQueue)
 
     AsyncFunction("stop") { () -> [String: Any] in
-      self.capture.stop()
+      try self.capture.stop()
     }.runOnQueue(capture.sessionQueue)
 
     AsyncFunction("setTorch") { (level: Double) in
       try self.capture.setTorch(level)
     }.runOnQueue(capture.sessionQueue)
 
-    AsyncFunction("lockExposure") {
-      try self.capture.lockExposure()
+    AsyncFunction("lockExposure") { (promise: Promise) in
+      self.capture.lockExposure { error in
+        if let error {
+          promise.reject(error)
+        } else {
+          promise.resolve()
+        }
+      }
     }.runOnQueue(capture.sessionQueue)
   }
 

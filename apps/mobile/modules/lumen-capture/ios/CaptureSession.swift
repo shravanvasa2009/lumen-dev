@@ -28,7 +28,8 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
   private let output = AVCaptureVideoDataOutput()
   private let motion = CMMotionManager()
   private let motionQueue = OperationQueue()
-  private let log = Logger(subsystem: "lumen.capture", category: "capture")
+  // Qualified because ExpoModulesCore declares its own Logger class (Expo does the same in LogHandlers.swift).
+  private let log = os.Logger(subsystem: "lumen.capture", category: "capture")
   private var observers: [NSObjectProtocol] = []
 
   // Touched only on sessionQueue.
@@ -38,6 +39,8 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
   private var exposureTarget = defaultExposureTarget
   private var frameDurationS = 0.0
   private var startedNs: Int64 = 0
+  private var generation = 0
+  private var locking = false
 
   // Touched only on frameQueue.
   private struct ActiveLens {
@@ -61,12 +64,14 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     observers = [
       center.addObserver(forName: AVCaptureSession.interruptionEndedNotification, object: session, queue: nil) {
         [weak self] _ in
-        self?.sessionQueue.async { self?.restoreTorch() }
+        guard let self else { return }
+        self.sessionQueue.async { self.restoreTorch() }
       },
       center.addObserver(forName: AVCaptureSession.runtimeErrorNotification, object: session, queue: nil) {
         [weak self] note in
+        guard let self else { return }
         let error = note.userInfo?[AVCaptureSessionErrorKey] as? Error
-        self?.sessionQueue.async { self?.recover(from: error) }
+        self.sessionQueue.async { self.recover(from: error) }
       },
     ]
   }
@@ -163,7 +168,12 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
       fps >= range.maxFrameRate - 0.5 ? range.minFrameDuration : CMTime(value: 1, timescale: CMTimeScale(fps.rounded()))
 
     let input = try AVCaptureDeviceInput(device: device)
-    try configure(device: device, input: input, format: format, frameDuration: frameDuration)
+    do {
+      try configure(device: device, input: input, format: format, frameDuration: frameDuration)
+    } catch {
+      detachSession()
+      throw error
+    }
 
     let intervalNs = frameDuration.seconds * 1e9
     let size = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
@@ -206,13 +216,15 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     )
   }
 
-  func stop() -> [String: Any] {
+  // Rejects without a running capture, like setTorch and lockExposure, so Lab never shows the previous run's counts.
+  func stop() throws -> [String: Any] {
+    guard running else { throw captureError("stop needs a running capture") }
     let stoppedNs = clockNowNs()
     let lensId = device?.uniqueID
     stopCapture()
     let tally = frameQueue.sync { (frames: counters.frames, dropped: counters.dropped) }
     var summary: [String: Any] = [
-      "startedNs": Double(startedNs == 0 ? stoppedNs : startedNs),
+      "startedNs": Double(startedNs),
       "stoppedNs": Double(stoppedNs),
       "frames": tally.frames,
       "dropped": tally.dropped,
@@ -267,9 +279,12 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     }
   }
 
-  private func stopCapture() {
+  // Also called when the module is destroyed (a JS reload), so the torch never stays on (spec §4.6).
+  func stopCapture() {
     guard running else { return }
     running = false
+    generation += 1
+    locking = false
     motion.stopDeviceMotionUpdates()
     if let device, device.torchMode != .off {
       do {
@@ -357,15 +372,81 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
   // MARK: Exposure, white balance and focus (sessionQueue)
 
   // DSP-5 as decided in ADR 0029: steer exposure until the red mean sits inside exposureTarget, then hold
-  // exposure, white balance and focus (spec §4.2 step 3, ADR 0013).
-  func lockExposure() throws {
-    guard running, let device else { throw captureError("lockExposure needs a running capture") }
-    let elapsedS = Double(clockNowNs() - startedNs) / 1e9
-    if elapsedS < Self.settleS {
-      Thread.sleep(forTimeInterval: Self.settleS - elapsedS)
+  // exposure, white balance and focus (spec §4.2 step 3, ADR 0013). Each wait is scheduled with asyncAfter
+  // instead of sleeping, so a stop() tapped meanwhile runs at once and ends the steering. `completion` runs on
+  // sessionQueue exactly once.
+  func lockExposure(completion: @escaping (Error?) -> Void) {
+    guard running, let device else {
+      completion(captureError("lockExposure needs a running capture"))
+      return
     }
+    guard !locking else {
+      completion(captureError("lockExposure is already running"))
+      return
+    }
+    locking = true
+    let steering = Steering(device: device, generation: generation, steps: 0, completion: completion)
+    let elapsedS = Double(clockNowNs() - startedNs) / 1e9
+    measureRed(steering, after: max(Self.settleS - elapsedS, Self.exposureLatencyS))
+  }
+
+  private struct Steering {
+    let device: AVCaptureDevice
+    // The capture this steering belongs to; stop() and start() advance `generation`.
+    let generation: Int
+    var steps: Int
+    let completion: (Error?) -> Void
+  }
+
+  // Reads the red mean once `delayS` has passed and at least 3 new frames have arrived, so the reading reflects the
+  // latest exposure change; gives up after a further 1 s without frames.
+  private func measureRed(_ steering: Steering, after delayS: Double) {
+    let framesBefore = frameQueue.sync { counters.frames }
+    sessionQueue.asyncAfter(deadline: .now() + delayS) {
+      self.pollRed(steering, framesBefore: framesBefore, deadline: Date().addingTimeInterval(1))
+    }
+  }
+
+  private func pollRed(_ steering: Steering, framesBefore: Int, deadline: Date) {
+    guard running, steering.generation == generation else {
+      finishSteering(steering, captureError("The capture stopped while locking exposure"))
+      return
+    }
+    let (frames, latestRed) = frameQueue.sync { (counters.frames, counters.lastRed) }
+    guard frames - framesBefore >= Self.freshFrames, let red = latestRed else {
+      guard Date() < deadline else {
+        finishSteering(steering, captureError("No camera frames arrived while setting exposure"))
+        return
+      }
+      sessionQueue.asyncAfter(deadline: .now() + 0.02) {
+        self.pollRed(steering, framesBefore: framesBefore, deadline: deadline)
+      }
+      return
+    }
+    do {
+      if !exposureTarget.contains(red) && steering.steps < Self.maxExposureSteps {
+        try scaleExposure(steering.device, by: exposureFactor(red: red, target: exposureTarget))
+        var next = steering
+        next.steps += 1
+        measureRed(next, after: Self.exposureLatencyS)
+        return
+      }
+      try holdExposure(steering.device)
+      log.info(
+        "Exposure held after \(steering.steps) steps: red \(red), duration \(steering.device.exposureDuration.seconds) s, ISO \(Double(steering.device.iso))"
+      )
+      finishSteering(steering, nil)
+    } catch {
+      finishSteering(steering, error)
+    }
+  }
+
+  // A custom exposure is a held exposure: the camera keeps the set duration and ISO until changed.
+  private func holdExposure(_ device: AVCaptureDevice) throws {
     if device.isExposureModeSupported(.custom) {
-      try steerExposure(device)
+      if device.exposureMode != .custom {
+        try scaleExposure(device, by: 1)
+      }
     } else if device.isExposureModeSupported(.locked) {
       try configureDevice(device) { device.exposureMode = .locked }
     }
@@ -380,21 +461,11 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     frameQueue.sync { counters.armOverexposureWatch() }
   }
 
-  // A custom exposure is a held exposure: the camera keeps the set duration and ISO until changed.
-  private func steerExposure(_ device: AVCaptureDevice) throws {
-    var steps = 0
-    var red = try freshRed()
-    while !exposureTarget.contains(red) && steps < Self.maxExposureSteps {
-      try scaleExposure(device, by: exposureFactor(red: red, target: exposureTarget))
-      steps += 1
-      red = try freshRed()
+  private func finishSteering(_ steering: Steering, _ error: Error?) {
+    if steering.generation == generation {
+      locking = false
     }
-    if device.exposureMode != .custom {
-      try scaleExposure(device, by: 1)
-    }
-    log.info(
-      "Exposure held after \(steps) steps: red \(red), duration \(device.exposureDuration.seconds) s, ISO \(Double(device.iso))"
-    )
+    steering.completion(error)
   }
 
   // DSP-5: red stayed above 0.95 after the lock, so lower the exposure one step and hold it (ADR 0029). Core sees
@@ -431,21 +502,6 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     try configureDevice(device) {
       device.setExposureModeCustom(duration: duration, iso: iso, completionHandler: nil)
     }
-  }
-
-  // The red mean of a frame taken after the latest exposure change.
-  private func freshRed() throws -> Double {
-    let before = frameQueue.sync { counters.frames }
-    Thread.sleep(forTimeInterval: Self.exposureLatencyS)
-    let deadline = Date().addingTimeInterval(1)
-    while Date() < deadline {
-      let (frames, red) = frameQueue.sync { (counters.frames, counters.lastRed) }
-      if frames - before >= Self.freshFrames, let red {
-        return red
-      }
-      Thread.sleep(forTimeInterval: 0.02)
-    }
-    throw captureError("No camera frames arrived while setting exposure")
   }
 
   private func configureDevice(_ device: AVCaptureDevice, _ change: () -> Void) throws {

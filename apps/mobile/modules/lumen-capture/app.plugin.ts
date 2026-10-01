@@ -6,10 +6,12 @@ import {
   type ConfigPlugin,
 } from 'expo/config-plugins';
 
-// Spec §9.5, verbatim. The Spanish string awaits review by a fluent speaker (owner decision 2026-09-30).
-const CAMERA_PURPOSE_EN =
-  'Lumen uses your camera and flashlight to measure your pulse. Video is never saved.';
-const CAMERA_PURPOSE_ES = 'Lumen usa la cámara y la linterna para medir tu pulso. El video nunca se guarda.';
+// Spec §9.5, verbatim apart from the name, which comes from the config so a rename reaches the prompt
+// (spec §2). The Spanish string awaits review by a fluent speaker (owner decision 2026-09-30).
+const cameraPurposeEn = (appName: string) =>
+  `${appName} uses your camera and flashlight to measure your pulse. Video is never saved.`;
+const cameraPurposeEs = (appName: string) =>
+  `${appName} usa la cámara y la linterna para medir tu pulso. El video nunca se guarda.`;
 
 // Not required, so the store does not hide Lumen from phones without a flash: those phones get the
 // ambient-light fallback and a lower compatibility tier (spec §4, COMP-1).
@@ -40,7 +42,7 @@ const withSpanishCameraPurpose: ConfigPlugin = (config) => {
     ...config.locales,
     es: {
       ...existing,
-      ios: { ...existing?.ios, NSCameraUsageDescription: CAMERA_PURPOSE_ES },
+      ios: { ...existing?.ios, NSCameraUsageDescription: cameraPurposeEs(config.name) },
     },
   };
   return config;
@@ -48,7 +50,7 @@ const withSpanishCameraPurpose: ConfigPlugin = (config) => {
 
 const withLumenCaptureOnce: ConfigPlugin = (config) => {
   config = withInfoPlist(config, (plistConfig) => {
-    plistConfig.modResults.NSCameraUsageDescription = CAMERA_PURPOSE_EN;
+    plistConfig.modResults.NSCameraUsageDescription = cameraPurposeEn(plistConfig.name);
     return plistConfig;
   });
   config = withSpanishCameraPurpose(config);

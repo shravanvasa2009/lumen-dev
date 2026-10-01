@@ -97,6 +97,17 @@ describe('lumen-capture config plugin (CAP-2)', () => {
     });
   });
 
+  it('puts the configured app name into both purpose strings', async () => {
+    const config = await compileModsAsync(
+      withLumenCapture({ name: 'Flicker', slug: 'lumen-test', _internal: { projectRoot } }),
+      { projectRoot, introspect: true, platforms: ['ios'] },
+    );
+    expect(config.ios?.infoPlist?.NSCameraUsageDescription).toMatch(/^Flicker uses your camera/);
+    expect(config.locales?.es).toEqual({
+      ios: { NSCameraUsageDescription: expect.stringMatching(/^Flicker usa la cámara/) },
+    });
+  });
+
   it('refuses a locales.es file path instead of overwriting it', () => {
     expect(() =>
       withLumenCapture({ name: 'Lumen', slug: 'lumen-test', locales: { es: 'locales/es.json' } }),

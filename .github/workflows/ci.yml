@@ -64,6 +64,7 @@ jobs:
           grep -q NSCameraUsageDescription ios/*/Info.plist
           grep -q NSCameraUsageDescription ios/*/Supporting/es.lproj/InfoPlist.strings
           grep -q android.permission.CAMERA android/app/src/main/AndroidManifest.xml
+          grep -q 'android.hardware.camera.flash" android:required="false"' android/app/src/main/AndroidManifest.xml
 
   python:
     runs-on: ubuntu-latest

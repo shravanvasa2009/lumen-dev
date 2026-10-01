@@ -30,6 +30,9 @@ class FakeResponse:
     def __exit__(self, *exc_info):
         return False
 
+    def close(self):
+        pass
+
     def raise_for_status(self):
         if self.status_code >= 400:
             raise requests.HTTPError(f"{self.status_code}")
@@ -48,6 +51,8 @@ class FakeServer:
     def get(self, url, headers=None, stream=False, timeout=None):
         headers = headers or {}
         self.requests.append(headers)
+        if url not in self.files:
+            return FakeResponse(404, b"")
         body = self.files[url]
         if "Range" in headers and self.honour_range:
             start = int(headers["Range"].removeprefix("bytes=").rstrip("-"))
@@ -272,3 +277,32 @@ def test_external_runs_with_approval_into_external_dir(data_dir, mixed_registry,
 def test_a_mode_flag_is_required(data_dir, mixed_registry):
     with pytest.raises(SystemExit):
         download.main([])
+
+
+MIRROR_SUMS = "https://physionet-open.s3.amazonaws.com/afdb/1.0.0/SHA256SUMS.txt"
+
+
+def test_file_missing_on_mirror_comes_from_physionet_org_and_is_verified(data_dir):
+    sums = f"{hashlib.sha256(HEADER).hexdigest()} tables.shtml\n"
+    server = FakeServer(
+        {MIRROR_SUMS: sums.encode(), "https://physionet.org/files/afdb/1.0.0/tables.shtml": HEADER}
+    )
+    dataset = physionet_dataset()
+    fetch_dataset(dataset, server)
+    assert (dataset.local_dir / "tables.shtml").read_bytes() == HEADER
+    assert download.is_complete(dataset)
+
+
+def test_fallback_bytes_still_fail_a_wrong_checksum(data_dir):
+    sums = f"{'0' * 64} tables.shtml\n"
+    server = FakeServer(
+        {MIRROR_SUMS: sums.encode(), "https://physionet.org/files/afdb/1.0.0/tables.shtml": HEADER}
+    )
+    with pytest.raises(ChecksumMismatchError):
+        fetch_dataset(physionet_dataset(), server)
+
+
+def test_file_missing_everywhere_raises(data_dir):
+    sums = f"{'0' * 64} gone.hea\n"
+    with pytest.raises(requests.HTTPError):
+        fetch_dataset(physionet_dataset(), FakeServer({MIRROR_SUMS: sums.encode()}))

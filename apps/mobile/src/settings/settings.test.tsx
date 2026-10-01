@@ -50,3 +50,25 @@ describe('Your phone', () => {
     expect(screen.getByRole('header', { name: en['phoneCheck.title'] })).toBeOnTheScreen();
   });
 });
+
+// __DEV__ is a constant to the compiler but a plain global at run time, so a test can switch it.
+const setDevelopmentBuild = (value: boolean) => Object.assign(globalThis, { __DEV__: value });
+
+describe('Lab mode', () => {
+  afterEach(() => {
+    setDevelopmentBuild(true);
+  });
+
+  it('keeps the capture panel in development builds', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/lab' });
+    expect(screen.getByText(en['lab.badge'])).toBeOnTheScreen();
+    expect(screen.getByText(en['lab.noSource'])).toBeOnTheScreen();
+  });
+
+  it('leaves the capture panel out of release builds', () => {
+    setDevelopmentBuild(false);
+    renderRouter(appDirectory, { initialUrl: '/settings/lab' });
+    expect(screen.getByRole('header', { name: en['lab.title'] })).toBeOnTheScreen();
+    expect(screen.queryByText(en['lab.noSource'])).toBeNull();
+  });
+});

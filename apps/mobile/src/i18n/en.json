@@ -200,7 +200,6 @@
   "phoneRating.tip": "Signal suddenly weaker? Remove thick cases and wipe the lens.",
   "lab.title": "Lab mode",
   "lab.badge": "DEV",
-  "lab.rawRgb": "Raw RGB · finger",
   "lab.sqi": "SQI per 4 s window",
   "lab.reference": "Phone vs ECG intervals",
   "lab.noSource": "This build has no camera module and no recording to replay.",
@@ -320,5 +319,6 @@
   "phoneRating.noScore": "—",
   "phoneRating.notTested": "Not tested yet",
   "phoneRating.notTestedBody": "Run the phone check to see your score, your tier, and what this phone can do.",
-  "phoneRating.points": "—/{{max}}"
+  "phoneRating.points": "—/{{max}}",
+  "lab.notAvailable": "Not available in this build yet."
 }

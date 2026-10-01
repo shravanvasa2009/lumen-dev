@@ -200,7 +200,6 @@
   "phoneRating.tip": "¿La señal se debilitó de repente? Quita las fundas gruesas y limpia el lente.",
   "lab.title": "Modo laboratorio",
   "lab.badge": "DEV",
-  "lab.rawRgb": "RGB sin procesar · dedo",
   "lab.sqi": "SQI por ventana de 4 s",
   "lab.reference": "Teléfono frente a intervalos del ECG",
   "lab.noSource": "Esta compilación no tiene módulo de cámara ni una grabación para reproducir.",
@@ -320,5 +319,6 @@
   "phoneRating.noScore": "—",
   "phoneRating.notTested": "Aún sin probar",
   "phoneRating.notTestedBody": "Haz la prueba del teléfono para ver tu puntuación, tu nivel y lo que puede hacer este teléfono.",
-  "phoneRating.points": "—/{{max}}"
+  "phoneRating.points": "—/{{max}}",
+  "lab.notAvailable": "Aún no está disponible en esta versión."
 }

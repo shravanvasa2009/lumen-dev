@@ -54,6 +54,36 @@ jobs:
           npm run typecheck
           npm test
           npm run deadcode
+      # Gradle costs about 6 minutes cold, so it runs only when the Kotlin module, the lockfile (Expo and React
+      # Native versions) or this workflow changed. Base: the PR base, or the commit before the push
+      # (github.event.before); a missing base (new branch, manual run) runs it.
+      # https://docs.github.com/en/webhooks/webhook-events-and-payloads#push
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (GITHUB_OUTPUT)
+      - name: Did the Kotlin capture module or its build inputs change?
+        id: kotlin
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git rev-parse --verify --quiet "${BASE}^0" > /dev/null \
+            || git diff --name-only "$BASE" HEAD -- apps/mobile/modules/lumen-capture/android/ \
+              package-lock.json .github/workflows/ci.yml | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      # React Native's CMake configure step fails on JDK 25 (workspace ADR 0032), so Gradle runs on JDK 17.
+      - uses: actions/setup-java@v6.0.1
+        if: steps.kotlin.outputs.changed == 'true' && hashFiles('apps/mobile/app.config.ts') != ''
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: lumen-capture JUnit (CAP-1)
+        if: steps.kotlin.outputs.changed == 'true' && hashFiles('apps/mobile/app.config.ts') != ''
+        working-directory: apps/mobile
+        run: |
+          npx expo prebuild --no-install --platform android
+          cd android && ./gradlew :lumen-capture:testDebugUnitTest --console=plain
       - name: i18n keys match in English and Spanish (UI-2)
         if: hashFiles('package-lock.json') != ''
         run: npm run i18n:check
@@ -67,6 +97,12 @@ jobs:
       - name: Golden parity, TypeScript vs Python (DSP-C)
         if: hashFiles('package-lock.json') != ''
         run: npm run golden:check
+      - name: README tested-devices table matches devices.json
+        if: hashFiles('package-lock.json') != ''
+        run: npm run devices:table -- --check
+      - name: Red-team suite (§16)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:redteam
       - name: Expo prebuild smoke test
         if: hashFiles('apps/mobile/app.config.ts') != ''
         working-directory: apps/mobile
@@ -78,6 +114,24 @@ jobs:
           grep -q NSCameraUsageDescription ios/*/Supporting/es.lproj/InfoPlist.strings
           grep -q android.permission.CAMERA android/app/src/main/AndroidManifest.xml
           grep -q 'android.hardware.camera.flash" android:required="false"' android/app/src/main/AndroidManifest.xml
+          grep -q aps-environment ios/*/*.entitlements
+      - name: Expo prebuild smoke test, free Apple ID mode (ADR 0034)
+        if: hashFiles('apps/mobile/app.config.ts') != ''
+        working-directory: apps/mobile
+        env:
+          LUMEN_IOS_PERSONAL_TEAM: '1'
+        # Without LUMEN_IOS_TEAM_ID no team is preset, so expo run:ios picks one; with it, the team is set.
+        run: |
+          npx expo prebuild --no-install --clean --platform ios
+          test -f ios/*/*.entitlements
+          # Bash's -e ignores a failing "! cmd", so the absence checks need an explicit exit.
+          if grep -q aps-environment ios/*/*.entitlements; then exit 1; fi
+          if grep -Eq 'DEVELOPMENT_TEAM = "?[A-Z0-9]{10}"?;' ios/*.xcodeproj/project.pbxproj; then exit 1; fi
+          grep -Eq 'PRODUCT_BUNDLE_IDENTIFIER = "?io\.github\.shravanvasa2009\.heartcheck\.dev"?;' ios/*.xcodeproj/project.pbxproj
+          grep -q NSCameraUsageDescription ios/*/Info.plist
+          LUMEN_IOS_TEAM_ID=ABCDE12345 npx expo prebuild --no-install --clean --platform ios
+          if grep -q aps-environment ios/*/*.entitlements; then exit 1; fi
+          grep -Eq 'DEVELOPMENT_TEAM = "?ABCDE12345"?;' ios/*.xcodeproj/project.pbxproj
 
   python:
     runs-on: ubuntu-latest
@@ -105,6 +159,13 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
+      # The release build plus the emulator system image overflow the runner's disk ("No space left on
+      # device" in run 36816700825), so drop preinstalled toolchains this job never uses.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:

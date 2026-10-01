@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 
 import numpy as np
 import onnx
@@ -11,13 +12,14 @@ from torch import nn
 
 from export import to_onnx, verify_onnx
 from export.provenance import SEEDED_INPUTS, TOLERANCE, ProvenanceError, entry_problems, sha256_of
-from export.specs import MODELS_DIR, OPSET, REQUIRED, SPECS
+from export.specs import MODELS_DIR, OPSET, SPECS
 from export.to_onnx import export_classifier, export_model, export_torch, source_model
 from export.verify_onnx import edge_cases, parity_entry, parity_report, seeded_inputs
 from tests.training_artifacts import fit_baseline, save_trained
 
 SEED = 11
 BASELINES = sorted(name for name, spec in SPECS.items() if spec.kind == "classifier")
+NETWORKS = sorted(name for name, spec in SPECS.items() if spec.kind == "torch")
 
 
 @pytest.fixture(scope="module")
@@ -35,7 +37,7 @@ def _verify(*args):
     verify_onnx.main([*map(str, args)])
 
 
-@pytest.mark.parametrize("name", REQUIRED)
+@pytest.mark.parametrize("name", NETWORKS)
 def test_parity_on_seeded_and_edge_inputs(exported, name):
     spec = SPECS[name]
     entry = parity_entry(spec, source_model(spec, None, SEED), exported / f"{spec.file_stem}.onnx", None)
@@ -52,13 +54,21 @@ def test_sqi_parity_windows_are_z_scored_red_only():
     assert np.allclose(window.std(axis=-1), 1, atol=1e-4)
 
 
-@pytest.mark.parametrize("name", REQUIRED)
+@pytest.mark.parametrize("name", NETWORKS)
 def test_onnx_file_is_within_its_size_budget(exported, name):
     spec = SPECS[name]
     assert (exported / f"{spec.file_stem}.onnx").stat().st_size < spec.size_budget_bytes
 
 
-@pytest.mark.parametrize("name", REQUIRED)
+@pytest.mark.parametrize("name", BASELINES)
+def test_oversized_baseline_is_refused_and_deleted(tmp_path, name):
+    spec = replace(SPECS[name], size_budget_bytes=100)
+    with pytest.raises(ValueError, match="limit is 100 "):
+        export_model(spec, fit_baseline(spec), tmp_path)
+    assert not (tmp_path / f"{spec.file_stem}.onnx").exists()
+
+
+@pytest.mark.parametrize("name", NETWORKS)
 def test_onnx_names_opset_and_batch_axis(exported, name):
     spec = SPECS[name]
     path = exported / f"{spec.file_stem}.onnx"
@@ -88,7 +98,7 @@ def test_temperature_is_folded_into_the_graph(tmp_path):
 def test_verify_cli_records_files_inputs_and_diffs(exported):
     _verify("--all", "--random-init", SEED, "--models-dir", exported, "--runs-dir", exported)
     report = json.loads((exported / "parity.json").read_text(encoding="utf-8"))
-    assert set(report["models"]) == set(REQUIRED)
+    assert set(report["models"]) == set(NETWORKS)
     for name, entry in report["models"].items():
         assert entry["onnxSha256"] == sha256_of(exported / f"{SPECS[name].file_stem}.onnx")
         assert entry["sourceSha256"] is None
@@ -208,7 +218,7 @@ def test_all_includes_trained_baselines(tmp_path):
     _export("--all", "--random-init", 1, "--runs-dir", tmp_path, "--out-dir", tmp_path)
     _verify("--all", "--random-init", 1, "--runs-dir", tmp_path, "--models-dir", tmp_path)
     report = json.loads((tmp_path / "parity.json").read_text(encoding="utf-8"))
-    assert set(report["models"]) == {*REQUIRED, "rhythm-lgbm"}
+    assert set(report["models"]) == {*NETWORKS, "rhythm-lgbm"}
     assert report["maxAbsDiff"] <= TOLERANCE
 
 

@@ -8,15 +8,33 @@ import onnx
 import onnxruntime
 import torch
 
-from export.provenance import check_parity, load_metrics, sha256_of, trained_source
-from export.specs import MODELS_DIR, RUNS_DIR, ModelSpec, inside_models_dir, release_specs
+from export.provenance import (
+    ALL_BAD_BASIS,
+    ProvenanceError,
+    check_parity,
+    check_threshold_bases,
+    load_metrics,
+    sha256_of,
+    threshold_approval,
+    trained_source,
+)
+from export.specs import (
+    MODELS_DIR,
+    RUNS_DIR,
+    SHIPPED,
+    ModelSpec,
+    ShipRuleError,
+    inside_models_dir,
+    release_specs,
+    shipped_per_family,
+)
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
 
 # Fixed wording from §11.2–11.4 and §11.11. Every number in a card comes from the training metrics file.
 CARD_TEXT = {
-    "sqi-finger": {
+    "sqi": {
         "intended_use": (
             "Accepts or rejects each 4-second fingertip window during capture, whatever the rhythm, so "
             "that only clean signal reaches heart-rate, rhythm, and pulse-shape analysis. Version 1 sees "
@@ -44,7 +62,7 @@ CARD_TEXT = {
             'check runs instead and the result card says "basic analysis."'
         ),
     },
-    "rhythm-net": {
+    "rhythm": {
         "intended_use": (
             "Classifies 32-interval windows of pulse intervals from a fingertip reading as sinus, AF-like, "
             "or other. Part of a screening prototype, not a diagnosis; no emergency decision depends on "
@@ -53,16 +71,16 @@ CARD_TEXT = {
         "data": (
             "Intervals from the MIT-BIH AF, Long-Term AF, and CinC 2017 databases (records labeled noisy "
             "excluded) and premature-beat episodes from MIT-BIH Arrhythmia (labeled other), made to look "
-            "like phone intervals with timing jitter estimated from BUT PPG, merged and split beats, and "
-            "dropped premature beats. MIMIC PERform AF is never used for training or tuning. Ectopic beats "
+            "like phone intervals with per-beat timing jitter (the training notes say how its σ was set), "
+            "merged and split beats, and dropped premature beats. MIMIC PERform AF is never used for "
+            "training or tuning. Ectopic beats "
             "in MIT-BIH Arrhythmia and Long-Term AF sinus stretches are labeled other, but the MIT-BIH AF "
             "beat files mark every beat normal, so its sinus episodes may still contain unmarked premature "
             "beats (some ectopy-as-sinus label noise)."
         ),
         "limitations": (
             "- Frequent premature beats make intervals irregular in every reading, so they can trigger "
-            "repeated false irregular results that the 2-of-3 rule does not catch. The false-AF rate on "
-            "augmented premature-beat sequences is reported under Development metrics.\n"
+            "repeated false irregular results that the 2-of-3 rule does not catch.\n"
             "- Trained on ECG intervals adapted to look like phone intervals, not on phone recordings."
         ),
         "abstain": (
@@ -71,7 +89,7 @@ CARD_TEXT = {
             'runs instead and the result card says "basic analysis."'
         ),
     },
-    "diabetes-net": {
+    "diabetes": {
         "intended_use": (
             "Estimates whether the averaged fingertip pulse shape matches a pattern research has linked to "
             "diabetes. It is not a diabetes test, a glucose reading, or an A1c. Full tier (60 fps) only. "
@@ -116,6 +134,8 @@ def manifest_entry(spec: ModelSpec, models_dir: Path, metrics: dict | None, comm
     path = models_dir / f"{spec.file_stem}.onnx"
     return {
         "name": spec.name,
+        "family": spec.family,
+        "ships": spec.ships,
         "version": spec.version,
         "file": path.name,
         "sha256": sha256_of(path),
@@ -161,30 +181,148 @@ def _development_section(metrics: dict | None) -> str:
     header = (
         f"Development-validation subjects: {development['subjects']}. Confidence intervals resample subjects."
     )
-    return f"{header}\n\n{_table(rows)}"
+    section = f"{header}\n\n{_table(rows)}"
+    if development.get("undefinedMetrics"):
+        undefined = ", ".join(development["undefinedMetrics"])
+        section += f"\n\nUndefined on dev-val (no estimate): {undefined}."
+    if development.get("byDataset"):
+        section += f"\n\nBy dataset, at the same threshold:\n\n{_table(development['byDataset'])}"
+    return section
 
 
-def _baseline_note(spec: ModelSpec) -> str:
-    if spec.baseline_of is None:
-        return ""
-    return (
-        f"\n\nThis file is a classical baseline for {spec.baseline_of}. It ships in place of the network if "
-        "it wins the ablation, and the app falls back to it if the network fails to load."
+def _ci(metric: dict) -> str:
+    return f"{metric['estimate']:.3f} (95% CI {metric['low']:.3f}-{metric['high']:.3f})"
+
+
+def _threshold_section(spec: ModelSpec, metrics: dict | None) -> str | None:
+    # ADR 0038 item 7: the owner needs the threshold's basis and both precisions side by side to decide
+    # H-024. Every number comes from the training metrics file.
+    basis = (metrics or {}).get("thresholdBasis")
+    if basis is None:
+        return None
+    approval = threshold_approval(spec, basis)
+    if basis == ALL_BAD_BASIS:
+        status = "every bad window, including quality-0 records, counted when τ was chosen (§11.2)"
+    elif approval:
+        status = f"approved by the owner ({approval})"
+    else:
+        status = "PROPOSED, awaiting owner (H-024). ADR 0038 item 7; nothing ships on this basis until then"
+    paragraphs = [f"Threshold basis: {basis}. Status: {status}."]
+    measured = metrics["development"]["metrics"]
+    if "cleanPrecision" in measured:
+        at_tau = [
+            f"- clean precision {_ci(measured['cleanPrecision'])} with only synthetic corruptions counted "
+            "as bad;",
+            f"- clean precision {_ci(measured['cleanPrecisionWithPoorQualityRecords'])} with quality-0 BUT "
+            "PPG windows also counted as bad;",
+        ]
+        if "poorQualityAccepted" in measured:
+            at_tau.append(f"- share of quality-0 windows accepted: {_ci(measured['poorQualityAccepted'])}.")
+        paragraphs.append(f"At τ_clean = {metrics['threshold']['clean']:.4f}:\n\n" + "\n".join(at_tau))
+    evidence = metrics.get("thresholdEvidence", {})
+    best = evidence.get("bestPrecisionAllBad")
+    if best:
+        reached = "some τ reaches" if evidence["anyTauReachesTargetAllBad"] else "no τ reaches"
+        paragraphs.append(
+            "With quality-0 counted as bad, the best precision any τ reaches while accepting at least "
+            f"{best['minCleanRecall']:.0%} of natural clean windows is {best['precision']:.3f} (clean "
+            f"recall {best['cleanRecall']:.3f}); {reached} 0.95."
+        )
+    if evidence.get("designIterations"):
+        paragraphs.append(
+            f"These numbers follow design iteration on the same {metrics['development']['subjects']} "
+            f"dev-val subjects ({'; '.join(evidence['designIterations'])}), so they are optimistic."
+        )
+    top = evidence.get("highestScoringPoorQuality")
+    if top:
+        paragraphs.append(
+            f"Hypothesis, not verified: the {top['windows']} highest-scoring quality-0 windows come from "
+            f"records {', '.join(top['records'])}; {top['acceptedAtTau']} of them are accepted at τ_clean, "
+            f"and their spectral-peak HR is a median {top['medianHrErrorBpm']:.1f} bpm from the record's "
+            "reference HR. A phone frame-timing fault in those recordings may explain this; it has not "
+            "been checked. The app's real frame timestamps (DSP-1) are expected to prevent such a fault, "
+            "but that has not been verified."
+        )
+    for split, counts in (metrics.get("labelCheck") or {}).items():
+        paragraphs.append(
+            f"Label check, {split}: {counts['removedRecords']} of {counts['records']} finger records "
+            "removed (CSV reference HR more than 5 bpm from the record's own .qrs beats); "
+            f"{counts['subjectsAffected']} of {counts['subjects']} subjects lost records, "
+            f"{counts['subjectsFullyRemoved']} lost all of them."
+        )
+    return "## Threshold\n\n" + "\n\n".join(paragraphs)
+
+
+def _ship_note(spec: ModelSpec, metrics: dict | None) -> str:
+    # ADR 0031: the app loads only the shipped model of each family; if it fails to load, the app runs
+    # the classical rule in code (§11.10 "basic analysis"), not another model file.
+    if spec.ships:
+        decision = (metrics or {}).get("shipDecision")
+        why = ""
+        if decision:
+            # Rendered from the training run's own decision; check_ship_decisions has already refused a
+            # decision that names another model.
+            difference = decision["networkMinusBestBaselineAuroc"]
+            why = (
+                f" The development ablation picked it ({decision['criterion']}; network minus "
+                f"{decision['bestBaseline']}: {difference['estimate']:.4f}, "
+                f"95% CI {difference['low']:.4f} to {difference['high']:.4f}), "
+                "so it ships per §11.3 (ADR 0031)."
+            )
+        return f"\n\nThis is the shipped {spec.family} model: the app loads it.{why}"
+    decision = (metrics or {}).get("shipDecision")
+    lost = (
+        f" On development subjects it did not beat {decision['ships']} ({decision['criterion']})."
+        if decision and decision["ships"] != spec.name
+        else ""
     )
+    return (
+        f"\n\nThis is an ablation model and does not ship; the app loads {SHIPPED[spec.family]} for the "
+        f"{spec.family} family (ADR 0031).{lost}"
+    )
+
+
+def _measured_limits(spec: ModelSpec, metrics: dict | None) -> str:
+    # §11.3 asks for the false-AF rate on premature beats to be stated, so the card prints the generated
+    # numbers next to the limitation rather than pointing elsewhere.
+    development = (metrics or {}).get("development") or {}
+    measured = development.get("metrics", {})
+    lines = []
+    false_af = measured.get("falseAfRatePrematureReadings")
+    if false_af:
+        sample = development.get("prematureBeatSet")
+        # Format 2 files (train.rhythm since PR #49) always record the sample size, so a missing one
+        # means a broken file; older files predate the field and render without it.
+        if sample is None and metrics.get("metricsFormat", 1) >= 2:
+            raise ProvenanceError(f"{spec.name} metrics lack development.prematureBeatSet")
+        size = f", {sample['subjects']} subjects, {sample['windows']} windows" if sample else ""
+        lines.append(
+            f"- False-AF rate on augmented premature-beat readings (dev-val{size}): {_ci(false_af)}."
+        )
+    abstain = measured.get("readingAbstainRate")
+    if abstain:
+        lines.append(
+            f"- Reading abstain rate (top probability below {spec.abstain_below}) on dev-val: {_ci(abstain)}."
+        )
+    return "".join(f"\n{line}" for line in lines)
 
 
 def model_card(spec: ModelSpec, metrics: dict | None) -> str:
     text = CARD_TEXT[spec.family]
+    role = f"shipped {spec.family} model" if spec.ships else "ablation model, not shipped"
     trained_on = ", ".join(metrics["trainedOn"]) if metrics else "no training run yet"
+    notes = "".join(f"\n- {note}" for note in (metrics or {}).get("notes", []))
+    training_notes = f"\n\nTraining notes:\n{notes}" if notes else ""
     ablation = (metrics or {}).get("ablation")
     calibration = (metrics or {}).get("calibration")
     sections = [
-        f"# {spec.name} {spec.version}",
+        f"# {spec.name} {spec.version} ({role})",
         "Lumen is a screening prototype, not a diagnosis.",
-        f"## Intended use\n\n{text['intended_use']}{_baseline_note(spec)}",
+        f"## Intended use\n\n{text['intended_use']}{_ship_note(spec, metrics)}",
         f"## Data\n\n{text['data']}\n\nTrained on: {trained_on}. Splits are by subject: no person appears in "
-        "both development-train and development-validation.",
+        "both development-train and development-validation." + training_notes,
         f"## Development metrics\n\n{_development_section(metrics)}",
+        *filter(None, [_threshold_section(spec, metrics)]),
         "## Ablation\n\nThe neural model ships only if it beats its classical baseline on held-out "
         "subjects.\n\n" + (_table(ablation) if ablation else NOT_MEASURED),
         "## Calibration\n\n"
@@ -194,16 +332,37 @@ def model_card(spec: ModelSpec, metrics: dict | None) -> str:
             else NOT_MEASURED
         ),
         f"## External test\n\nDataset: {spec.external_dataset}. {EXTERNAL_NOT_RUN}",
-        f"## Limitations\n\n{text['limitations']}",
+        f"## Limitations\n\n{text['limitations']}{_measured_limits(spec, metrics)}",
         f"## What the app shows when the model abstains\n\n{text['abstain']}",
     ]
     return "\n\n".join(sections) + "\n"
 
 
+def check_ship_decisions(specs: list[ModelSpec], metrics_by_name: dict[str, dict | None]) -> None:
+    # A training run's shipDecision must agree with the ships flags in export/specs.py. Which model
+    # ships is the owner's decision (ADR 0031), so a disagreement is never resolved here.
+    shipped = {spec.family: spec.name for spec in specs if spec.ships}
+    problems = sorted(
+        {
+            f"{spec.name}'s metrics pick {decision['ships']} for {spec.family}, but the specs ship "
+            f"{shipped.get(spec.family)}"
+            for spec in specs
+            if (decision := (metrics_by_name[spec.name] or {}).get("shipDecision"))
+            and decision["ships"] != shipped.get(spec.family)
+        }
+    )
+    if problems:
+        raise ShipRuleError(
+            "; ".join(problems) + ". The owner decides which model ships (ADR 0031): ask the owner "
+            "before changing ships in export/specs.py or retraining."
+        )
+
+
 def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> Path:
     commit = git_commit()
     date = datetime.now(UTC).date().isoformat()
-    specs = release_specs(runs_dir)
+    # Outside models/ the manifest may describe an untrained pipeline check, which includes every network.
+    specs = release_specs(runs_dir, untrained_networks=not require_metrics)
     metrics_by_name, source_shas = {}, {}
     for spec in specs:
         metrics = load_metrics(spec, runs_dir)
@@ -215,11 +374,15 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
         metrics_by_name[spec.name] = metrics
         source_shas[spec.name] = metrics["sourceSha256"] if metrics else None
     entries = [manifest_entry(spec, models_dir, metrics_by_name[spec.name], commit, date) for spec in specs]
-    # Checked before anything is written, so a failed check leaves no manifest or cards behind.
+    shipped_per_family(entries)
+    check_ship_decisions(specs, metrics_by_name)
+    check_threshold_bases(specs, metrics_by_name)
     check_parity(models_dir, entries, source_shas)
-    for spec in specs:
-        card = model_card(spec, metrics_by_name[spec.name])
-        (models_dir / f"{spec.file_stem}.md").write_text(card, encoding="utf-8")
+    # Every check, and every card render, happens before anything is written, so a failure leaves no
+    # manifest or cards behind.
+    cards = {spec.file_stem: model_card(spec, metrics_by_name[spec.name]) for spec in specs}
+    for stem, card in cards.items():
+        (models_dir / f"{stem}.md").write_text(card, encoding="utf-8")
     path = models_dir / "manifest.json"
     path.write_text(json.dumps({"models": entries}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return path

@@ -157,3 +157,16 @@ def test_feature_vector_fills_an_undefined_sample_entropy_with_the_upper_bound()
 def test_feature_vector_keeps_a_defined_sample_entropy():
     window = only_window([0.4 + 0.8 * u for u in park_miller(32, 29)])
     assert rhythm_feature_vector(window)[6] == window.sample_entropy
+
+
+# ADR 0024: the feature vector is always finite, so an interval must be a finite positive number of
+# seconds, whether or not it spans an artifact (red team).
+@pytest.mark.parametrize("bad_interval", [math.nan, math.inf, -math.inf, 0.0, -0.8])
+@pytest.mark.parametrize("spans_artifact", [False, True])
+def test_rejects_an_interval_that_is_not_finite_and_positive(bad_interval, spans_artifact):
+    intervals_s = [0.8] * 32
+    intervals_s[5] = bad_interval
+    spans = clean(32)
+    spans[5] = spans_artifact
+    with pytest.raises(ValueError, match="finite"):
+        rhythm_windows(intervals_s, spans, clean(33))

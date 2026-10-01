@@ -10,6 +10,32 @@ const BUNDLE_ID = 'io.github.shravanvasa2009.heartcheck';
 // written in Expo's config shape, and scripts/check-assets.mjs validates it in CI.
 const brand = brandSnippet.expo as ExpoConfig;
 
+// Free Apple ID ("Personal Team") builds on the partner's Mac (ADR 0034): a separate iOS bundle ID so the
+// free team never claims the real one, and lumen-capture drops the push entitlement free teams cannot sign.
+// Without a team ID, `expo run:ios` picks the team from the Mac's signing certificate and lets xcodebuild
+// fetch the profile (-allowProvisioningUpdates); a preset team makes it skip that flag.
+// Fails closed: a typo such as "true" must not quietly build the real bundle ID with a free team.
+const personalTeamFlag = process.env.LUMEN_IOS_PERSONAL_TEAM ?? '';
+if (!['', '0', '1'].includes(personalTeamFlag)) {
+  throw new Error(`LUMEN_IOS_PERSONAL_TEAM must be 1 (on) or 0 or unset (off); got "${personalTeamFlag}".`);
+}
+const personalTeam = personalTeamFlag === '1';
+const teamId = process.env.LUMEN_IOS_TEAM_ID || undefined;
+// Apple team IDs are 10 upper-case letters and digits.
+if (personalTeam && teamId !== undefined && !/^[A-Z0-9]{10}$/.test(teamId)) {
+  throw new Error(
+    `LUMEN_IOS_TEAM_ID must be your 10-character Apple team ID (got "${teamId}"); leave it unset to let expo run:ios pick the team.`,
+  );
+}
+let iosSigning: { bundleIdentifier: string; appleTeamId?: string } = { bundleIdentifier: BUNDLE_ID };
+if (personalTeam) {
+  iosSigning = { bundleIdentifier: `${BUNDLE_ID}.dev` };
+  if (teamId) {
+    iosSigning.appleTeamId = teamId;
+  }
+}
+const capturePlugin = './modules/lumen-capture/app.plugin';
+
 const config: ExpoConfig = {
   ...brand,
   name: APP_NAME,
@@ -18,9 +44,14 @@ const config: ExpoConfig = {
   owner: 'lumen-capp-team',
   version: '0.1.0',
   orientation: 'portrait',
-  ios: { ...brand.ios, bundleIdentifier: BUNDLE_ID, supportsTablet: false },
+  ios: { ...brand.ios, ...iosSigning, supportsTablet: false },
   android: { ...brand.android, package: BUNDLE_ID },
-  plugins: ['expo-router', 'expo-dev-client', ...(brand.plugins ?? []), './modules/lumen-capture/app.plugin'],
+  plugins: [
+    'expo-router',
+    'expo-dev-client',
+    ...(brand.plugins ?? []),
+    personalTeam ? [capturePlugin, { personalTeam: true }] : capturePlugin,
+  ],
   // No over-the-air updates: release builds make no network requests (PRIV-1).
   updates: { enabled: false },
   experiments: { typedRoutes: true },

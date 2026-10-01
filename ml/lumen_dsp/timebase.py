@@ -19,6 +19,10 @@ class Timebase:
 
 # DSP-1: capture-file columns (Appendix B) to seconds from capture start, with dropped-frame gaps.
 def build_timebase(samples: dict, stats: dict) -> Timebase:
+    # Checked before the int64 cast, which would turn NaN or infinity into an arbitrary integer.
+    for columns in (samples, stats):
+        if not np.all(np.isfinite(np.asarray(columns["tNs"], dtype=np.float64))):
+            raise ValueError("every timestamp must be finite")
     t_ns = np.asarray(samples["tNs"], dtype=np.int64)
     if len(t_ns) < 2:
         raise ValueError(f"need at least 2 frames, got {len(t_ns)}")

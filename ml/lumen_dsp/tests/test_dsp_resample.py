@@ -104,3 +104,34 @@ def test_drops_a_lone_frame_between_two_long_gaps():
     after = [lone + 0.3 + offset for offset in regular_offsets(60, 1)]
     timebase = timebase_of([*before, lone, *after], sine)
     assert len(resample_cubic(timebase.t_s, timebase.r, MODEL_RATE_HZ)) == 2
+
+
+# Same refusals as packages/core resampleCubic and scipy CubicSpline, checked before any segment is
+# skipped, so a bad frame in a lone-frame or empty-grid segment is not silently dropped.
+TIMES_S = np.array([0, 0.03, 0.06, 0.09, 0.12])
+CHANNEL = np.array([-0.6, -0.61, -0.6, -0.59, -0.6])
+
+
+@pytest.mark.parametrize(
+    ("times_s", "channel"),
+    [
+        (TIMES_S, np.array([-0.6, math.nan, -0.6, -0.59, -0.6])),
+        (TIMES_S, np.array([-0.6, -0.61, math.inf, -0.59, -0.6])),
+        (np.array([0, math.nan, 0.06, 0.09, 0.12]), CHANNEL),
+        (np.array([0, 0.03, 0.03, 0.09, 0.12]), CHANNEL),
+        (TIMES_S[::-1].copy(), CHANNEL),
+        (TIMES_S, CHANNEL[:3]),
+        # A 2-frame segment with no grid point and a lone frame after a long gap: both would be skipped.
+        (np.array([0.115, 0.11]), np.array([1.0, 2.0])),
+        (np.array([0, 0.03, 0.5]), np.array([-0.6, -0.6, math.nan])),
+    ],
+)
+def test_rejects_non_finite_unordered_or_misaligned_input(times_s, channel):
+    with pytest.raises(ValueError):
+        resample_cubic(times_s, channel, MODEL_RATE_HZ)
+
+
+def test_keeps_a_constant_exactly_constant():
+    timebase = timebase_of(jittered_offsets(30, 10, 0.002), lambda _t_s: 1.0)
+    (segment,) = resample_cubic(timebase.t_s, timebase.r, MODEL_RATE_HZ)
+    assert set(segment.values.tolist()) == {1.0}

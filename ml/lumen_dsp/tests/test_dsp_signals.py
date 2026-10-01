@@ -65,3 +65,12 @@ def test_sqi_input_needs_256_samples():
     pulse = np.sin(np.arange(255) / 9)
     with pytest.raises(ValueError):
         sqi_model_input(pulse)
+
+
+# A non-finite sample would make every z-score NaN; the window is refused like a flat one (red team).
+@pytest.mark.parametrize("bad_value", [math.nan, math.inf, -math.inf])
+def test_non_finite_window_has_no_z_score_and_no_sqi_input(bad_value):
+    window = np.sin(2 * math.pi * 1.2 * np.arange(256) / 64)
+    window[100] = bad_value
+    assert z_score_window(window) is None
+    assert sqi_model_input(window) is None

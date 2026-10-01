@@ -17,7 +17,9 @@ function resolveLanguage(languageTag: string | null | undefined): keyof typeof r
 }
 
 // Keys are flat dotted names from Appendix C, so nesting by "." is switched off. Resources are bundled,
-// so init finishes synchronously and no screen renders before strings exist.
+// so init finishes synchronously and no screen renders before strings exist. A rejection is not caught
+// here on purpose: React Native reports unhandled rejections (red box in development), and there is no
+// fallback that could recover from missing strings.
 void i18next.use(initReactI18next).init({
   resources,
   lng: resolveLanguage(getLocales()[0]?.languageTag),

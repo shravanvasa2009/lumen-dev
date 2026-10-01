@@ -3,7 +3,7 @@ import type { ExpoConfig } from 'expo/config';
 import brandSnippet from './app.config.brand.json';
 
 // The display name is swappable (spec §2); the bundle identifier is not after the first upload (ADR 0007).
-const APP_NAME = 'Lumen';
+export const APP_NAME = 'Lumen';
 const BUNDLE_ID = 'io.github.shravanvasa2009.heartcheck';
 
 // JSON imports widen literals ("automatic", plugin tuples) to plain strings and arrays; the snippet is

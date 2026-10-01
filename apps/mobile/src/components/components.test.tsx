@@ -28,8 +28,8 @@ describe.each([
     mockScheme = scheme;
   });
 
-  it('Screen pads by 20 and paints the themed background', async () => {
-    await render(
+  it('Screen pads by 20 and paints the themed background', () => {
+    render(
       <SafeAreaProvider initialMetrics={metrics}>
         <Screen>
           <AppText>inside</AppText>
@@ -43,8 +43,8 @@ describe.each([
     expect(style.padding).toBe(20);
   });
 
-  it('AppText applies the type scale and tone colour', async () => {
-    await render(
+  it('AppText applies the type scale and tone colour', () => {
+    render(
       <>
         <AppText variant="display">big</AppText>
         <AppText variant="caption" tone="textDim">
@@ -65,43 +65,43 @@ describe.each([
     });
   });
 
-  it('primary Button is 52 tall with the accent fill and calls onPress', async () => {
+  it('primary Button is 52 tall with the accent fill and calls onPress', () => {
     const onPress = jest.fn();
-    await render(<Button label="Start" onPress={onPress} />);
+    render(<Button label="Start" onPress={onPress} />);
     const button = screen.getByRole('button', { name: 'Start' });
     expect(StyleSheet.flatten(button.props.style)).toMatchObject({
       minHeight: 52,
       backgroundColor: colors.accentFill,
     });
-    await fireEvent.press(button);
+    fireEvent.press(button);
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
-  it('secondary Button keeps a 44 point target and an outline', async () => {
-    await render(<Button label="Later" variant="secondary" onPress={jest.fn()} />);
+  it('secondary Button keeps a 44 point target and an outline', () => {
+    render(<Button label="Later" variant="secondary" onPress={jest.fn()} />);
     expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Later' }).props.style)).toMatchObject({
       minHeight: 44,
       borderColor: colors.line2,
     });
   });
 
-  it('a disabled Button does not call onPress', async () => {
+  it('a disabled Button does not call onPress', () => {
     const onPress = jest.fn();
-    await render(<Button label="Wait" onPress={onPress} disabled />);
-    await fireEvent.press(screen.getByRole('button', { name: 'Wait' }));
+    render(<Button label="Wait" onPress={onPress} disabled />);
+    fireEvent.press(screen.getByRole('button', { name: 'Wait' }));
     expect(onPress).not.toHaveBeenCalled();
   });
 
-  it('ListRow shows its text and is a button only when pressable', async () => {
+  it('ListRow shows its text and is a button only when pressable', () => {
     const onPress = jest.fn();
-    await render(
+    render(
       <>
         <ListRow title="Phone" subtitle="Rated Full" onPress={onPress} />
         <ListRow title="Static" />
       </>,
     );
     expect(screen.getByText('Rated Full')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: /Phone/ }));
+    fireEvent.press(screen.getByRole('button', { name: /Phone/ }));
     expect(onPress).toHaveBeenCalledTimes(1);
     expect(screen.getAllByRole('button')).toHaveLength(1);
   });

@@ -1,5 +1,7 @@
 import { getLocales } from 'expo-localization';
 
+import { APP_NAME } from '../../app.config';
+
 import en from './en.json';
 import es from './es.json';
 
@@ -35,8 +37,8 @@ describe('en.json and es.json', () => {
   });
 
   it('keep the app name equal to APP_NAME in app.config.ts', () => {
-    expect(en['app.name']).toBe('Lumen');
-    expect(es['app.name']).toBe('Lumen');
+    expect(en['app.name']).toBe(APP_NAME);
+    expect(es['app.name']).toBe(APP_NAME);
   });
 });
 

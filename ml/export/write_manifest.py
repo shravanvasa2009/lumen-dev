@@ -8,7 +8,16 @@ import onnx
 import onnxruntime
 import torch
 
-from export.provenance import ProvenanceError, check_parity, load_metrics, sha256_of, trained_source
+from export.provenance import (
+    ALL_BAD_BASIS,
+    ProvenanceError,
+    check_parity,
+    check_threshold_bases,
+    load_metrics,
+    sha256_of,
+    threshold_approval,
+    trained_source,
+)
 from export.specs import (
     MODELS_DIR,
     RUNS_DIR,
@@ -173,9 +182,73 @@ def _development_section(metrics: dict | None) -> str:
         f"Development-validation subjects: {development['subjects']}. Confidence intervals resample subjects."
     )
     section = f"{header}\n\n{_table(rows)}"
+    if development.get("undefinedMetrics"):
+        undefined = ", ".join(development["undefinedMetrics"])
+        section += f"\n\nUndefined on dev-val (no estimate): {undefined}."
     if development.get("byDataset"):
         section += f"\n\nBy dataset, at the same threshold:\n\n{_table(development['byDataset'])}"
     return section
+
+
+def _ci(metric: dict) -> str:
+    return f"{metric['estimate']:.3f} (95% CI {metric['low']:.3f}-{metric['high']:.3f})"
+
+
+def _threshold_section(spec: ModelSpec, metrics: dict | None) -> str | None:
+    # ADR 0038 item 7: the owner needs the threshold's basis and both precisions side by side to decide
+    # H-024. Every number comes from the training metrics file.
+    basis = (metrics or {}).get("thresholdBasis")
+    if basis is None:
+        return None
+    approval = threshold_approval(spec, basis)
+    if basis == ALL_BAD_BASIS:
+        status = "every bad window, including quality-0 records, counted when τ was chosen (§11.2)"
+    elif approval:
+        status = f"approved by the owner ({approval})"
+    else:
+        status = "PROPOSED, awaiting owner (H-024). ADR 0038 item 7; nothing ships on this basis until then"
+    lines = [f"Threshold basis: {basis}. Status: {status}."]
+    measured = metrics["development"]["metrics"]
+    if "cleanPrecision" in measured:
+        lines += [
+            f"At τ_clean = {metrics['threshold']['clean']:.4f}:",
+            f"- clean precision {_ci(measured['cleanPrecision'])} with only synthetic corruptions counted "
+            "as bad;",
+            f"- clean precision {_ci(measured['cleanPrecisionWithPoorQualityRecords'])} with quality-0 BUT "
+            "PPG windows also counted as bad;",
+            f"- share of quality-0 windows accepted: {_ci(measured['poorQualityAccepted'])}.",
+        ]
+    evidence = metrics.get("thresholdEvidence", {})
+    best = evidence.get("bestPrecisionAllBad")
+    if best:
+        reached = "some τ reaches" if evidence["anyTauReachesTargetAllBad"] else "no τ reaches"
+        lines.append(
+            "With quality-0 counted as bad, the best precision any τ reaches while accepting at least "
+            f"{best['minCleanRecall']:.0%} of natural clean windows is {best['precision']:.3f} (clean "
+            f"recall {best['cleanRecall']:.3f}); {reached} 0.95."
+        )
+    if evidence.get("designIterations"):
+        lines.append(
+            f"These numbers follow design iteration on the same {metrics['development']['subjects']} "
+            f"dev-val subjects ({'; '.join(evidence['designIterations'])}), so they are optimistic."
+        )
+    top = evidence.get("highestScoringPoorQuality")
+    if top:
+        lines.append(
+            f"Hypothesis, not verified: the {top['windows']} highest-scoring quality-0 windows come from "
+            f"records {', '.join(top['records'])}, and their spectral-peak HR is a median "
+            f"{top['medianHrErrorBpm']:.1f} bpm from the reference although the pulses look clean. That "
+            "may be a phone frame-timing fault. The app's real frame timestamps (DSP-1) are expected to "
+            "prevent it, but that has not been verified."
+        )
+    for split, counts in (metrics.get("labelCheck") or {}).items():
+        lines.append(
+            f"Label check, {split}: {counts['removedRecords']} of {counts['records']} finger records "
+            "removed (CSV reference HR more than 5 bpm from the record's own .qrs beats); "
+            f"{counts['subjectsAffected']} subjects lost records, {counts['subjectsFullyRemoved']} lost "
+            "all of them."
+        )
+    return "## Threshold\n\n" + "\n".join(lines)
 
 
 def _ship_note(spec: ModelSpec, metrics: dict | None) -> str:
@@ -249,6 +322,7 @@ def model_card(spec: ModelSpec, metrics: dict | None) -> str:
         f"## Data\n\n{text['data']}\n\nTrained on: {trained_on}. Splits are by subject: no person appears in "
         "both development-train and development-validation." + training_notes,
         f"## Development metrics\n\n{_development_section(metrics)}",
+        *filter(None, [_threshold_section(spec, metrics)]),
         "## Ablation\n\nThe neural model ships only if it beats its classical baseline on held-out "
         "subjects.\n\n" + (_table(ablation) if ablation else NOT_MEASURED),
         "## Calibration\n\n"
@@ -302,6 +376,7 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
     entries = [manifest_entry(spec, models_dir, metrics_by_name[spec.name], commit, date) for spec in specs]
     shipped_per_family(entries)
     check_ship_decisions(specs, metrics_by_name)
+    check_threshold_bases(specs, metrics_by_name)
     check_parity(models_dir, entries, source_shas)
     # Every check, and every card render, happens before anything is written, so a failure leaves no
     # manifest or cards behind.

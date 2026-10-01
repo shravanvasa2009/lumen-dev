@@ -16,6 +16,11 @@ ML_ROOT = Path(__file__).resolve().parents[1]
 MODELS_DIR = ML_ROOT.parent / "models"
 # Training writes the source model (<stem>.pt or <stem>.pkl) and <stem>.json (metrics) here.
 RUNS_DIR = ML_ROOT / "runs"
+# A threshold basis other than "all-bad" (every bad window counted when τ is chosen) changes how a spec
+# threshold is met, so only the owner can accept it. Each entry records the owner's decision as
+# {model name: {"basis": ..., "decision": "<HUMAN_STEPS id and option>"}}. Empty until the owner answers
+# H-024 (ADR 0038); export.provenance.check_threshold_bases refuses to ship without it.
+OWNER_APPROVED_THRESHOLD_BASES: dict[str, dict[str, str]] = {}
 Family = Literal["rhythm", "sqi", "diabetes"]
 FAMILIES: tuple[Family, ...] = ("rhythm", "sqi", "diabetes")
 

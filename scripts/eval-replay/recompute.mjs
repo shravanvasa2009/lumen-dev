@@ -70,10 +70,14 @@ export function compareMetrics(primary, independent) {
       continue;
     }
     if (!sameCount(mine.phones, theirs.phones))
-      differences.push(`perTier.${tier}.phones: ${mine.phones} vs ${theirs.phones}`);
+      differences.push(
+        `perTier.${tier}.phones: ${JSON.stringify(mine.phones)} vs ${JSON.stringify(theirs.phones)}`,
+      );
     for (const key of ['hrMaeBpm', 'intervalMaeMs'])
       if (!sameValue(mine[key], theirs[key]))
-        differences.push(`perTier.${tier}.${key}: ${mine[key]} vs ${theirs[key]}`);
+        differences.push(
+          `perTier.${tier}.${key}: ${JSON.stringify(mine[key])} vs ${JSON.stringify(theirs[key])}`,
+        );
   }
   return { matches: differences.length === 0, differences };
 }

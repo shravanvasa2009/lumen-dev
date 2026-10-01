@@ -108,6 +108,14 @@ test('RMSSD skips differences next to an unusable beat', () => {
   assert.equal(rmssd([800, 2500], [true, false]), null);
 });
 
+test('the CI does not depend on the order the readings arrive in', () => {
+  const rows = ['P4', 'P1', 'P3', 'P2', 'P5', 'P1'].map((subject, i) => ({
+    subject,
+    value: [5, 1, 4, 2, 6, 3][i],
+  }));
+  assert.deepEqual(subjectBootstrap([...rows].reverse()), subjectBootstrap(rows));
+});
+
 test('every subject counts equally, and one subject has no interval', () => {
   const rows = [1, 1, 1, 1, 1].map((value) => ({ subject: 'P1', value })).concat({ subject: 'P2', value: 9 });
   const two = subjectBootstrap(rows);
@@ -322,7 +330,8 @@ test('VER-1: values may differ by one rounding step (0.01) and no more', () => {
   );
 });
 
-test('VER-1: results on opposite sides of the DSP-A line never match', () => {
+// One rounding step can still straddle a pass line (3.00 vs 3.01); anything wider can't count as a match.
+test('VER-1: results more than a rounding step apart across the DSP-A line do not match', () => {
   const below = metricsFixture();
   const above = metricsFixture();
   below.hr.maeBpm = 2.95;

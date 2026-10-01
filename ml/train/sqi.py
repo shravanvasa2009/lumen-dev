@@ -21,7 +21,7 @@ from torch import nn
 from datasets import paths
 from eval.bootstrap import cluster_bootstrap_ci
 from export.provenance import sha256_of
-from export.specs import ML_ROOT, RUNS_DIR, SPECS
+from export.specs import ML2_TARGET, ML_ROOT, RUNS_DIR, SPECS
 from lumen_dsp import config as dsp_config
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import butter_bandpass, filter_zero_phase
@@ -47,9 +47,8 @@ SPLITS_PATH = ML_ROOT / "splits" / "sqi.json"
 RHYTHM_SPLITS_PATH = ML_ROOT / "splits" / "rhythm.json"
 # §11.2: the threshold is where precision on "clean" is at least 0.95 on development subjects.
 TARGET_PRECISION = 0.95
-# ML-2: accepted windows have heart-rate error ≤ 5 bpm in ≥ 95% of cases.
+# ML-2: accepted windows have heart-rate error ≤ 5 bpm in ≥ 95% of cases (ML2_TARGET, export.specs).
 HR_TOLERANCE_BPM = 5.0
-ML2_TARGET = 0.95
 # ML-4: acceptance of AF windows within 5 percentage points of non-AF windows.
 ML4_MAX_GAP_PTS = 5.0
 # ADR 0028: fewer than 200 reference-clean windows in a group is "insufficient data".
@@ -58,9 +57,10 @@ BOOTSTRAP_RESAMPLES = 2000
 # Zero-padding 256 samples to 8192 puts spectral bins 0.47 bpm apart at 64 Hz.
 HR_FFT_POINTS = 8192
 RULE_FEATURES = ("skewness", "hrInRange")
-# ADR 0038 item 7, PROPOSED and not accepted: τ is chosen over natural clean windows and their synthetic
-# corruptions, with quality-0 records left out. The owner decides it in HUMAN_STEPS H-024; until
-# export/specs.py records that decision, export.provenance refuses to ship a model on this basis.
+# ADR 0038 item 7: τ is chosen over natural clean windows and their synthetic corruptions, with quality-0
+# records left out. The owner accepted it in HUMAN_STEPS H-024 option B only for SQI-Net as an
+# Experimental reject-only guard (export/specs.py), with the rule checks as the gate; export.provenance
+# refuses any other use. The owner re-decides after the M2 team captures.
 THRESHOLD_BASIS = "synthetic-bad-only"
 # Reporting only, for H-024: the best precision with quality-0 counted as bad is read over thresholds
 # that still accept at least this share of clean windows, since a cut at the top few windows says nothing.
@@ -453,7 +453,7 @@ def evaluate(
     scores: np.ndarray, dev_val: WindowSet, retimed_scores: np.ndarray, retimed: WindowSet, errors
 ) -> dict:
     is_clean = dev_val.labels == CLEAN
-    # THRESHOLD_BASIS (proposed, H-024): τ uses natural clean windows and their synthetic corruptions.
+    # THRESHOLD_BASIS (H-024 option B): τ uses natural clean windows and their synthetic corruptions.
     # Poor-quality records are trained on and reported, but left out of τ; ADR 0038's hypothesis, not
     # checked, is that some hold clean pulses at the wrong rate from a phone frame-timing fault.
     spec_set = dev_val.kinds != POOR_QUALITY
@@ -511,7 +511,8 @@ def evaluate(
 
 
 def threshold_evidence(scores: np.ndarray, dev_val: WindowSet, errors: np.ndarray, tau: float | None) -> dict:
-    # What the owner needs to decide H-024 (ADR 0038 item 7), all with quality-0 windows counted as bad.
+    # What the owner weighed for H-024 and re-decides on after M2 (ADR 0038 item 7), all with quality-0
+    # windows counted as bad.
     is_clean = dev_val.labels == CLEAN
     order = np.argsort(-scores, kind="stable")
     ordered, hits = scores[order], is_clean[order]
@@ -652,8 +653,10 @@ def training_notes(sets: WindowSets, decision: dict, evaluations: dict[str, dict
         + "; ".join(DESIGN_ITERATIONS)
         + ". A run that also gave natural clean windows half of the clean side failed the ML-4 proxy, so "
         "clean kinds stay equal (ADR 0028: the proxy informs training against the rhythm trap).",
-        f"Threshold basis {THRESHOLD_BASIS!r} is PROPOSED (ADR 0038 item 7), awaiting the owner's decision "
-        f"in H-024: τ is the lowest score with clean precision ≥ {TARGET_PRECISION} over dev-val natural "
+        f"Threshold basis {THRESHOLD_BASIS!r} (ADR 0038 item 7) is accepted by the owner in H-024 option B "
+        "only for an Experimental, reject-only guard: the rule checks (DSP-4, DSP-9) are the quality gate, "
+        "and the owner re-decides after the M2 team captures. "
+        f"τ is the lowest score with clean precision ≥ {TARGET_PRECISION} over dev-val natural "
         "clean windows and one synthetic corruption of each, checked by assert_precision on the same "
         "scores, with quality-0 records left out. With quality-0 counted as bad, "
         + ("some" if evidence["anyTauReachesTargetAllBad"] else "no")

@@ -18,11 +18,18 @@ interface CaptureMeta {
   torchLevel?: number;
 }
 
-// Appendix B "Capture receiver request"; polarRr is optional and Lab has no chest strap yet.
+// Strap RR intervals in ms, each stamped on the camera's tNs clock (order E.B polar-clock).
+export interface PolarRr {
+  tNs: number[];
+  rrMs: number[];
+}
+
+// Appendix B "Capture receiver request"; polarRr only when a chest strap was connected during the capture.
 export interface CaptureRequestBody {
   meta: CaptureMeta;
   samples: { tNs: number[]; r: number[]; g: number[]; b: number[] };
   stats: { tNs: number[]; spatialStdR: number[]; clipFrac: number[]; exposureNs: number[] };
+  polarRr?: PolarRr;
 }
 
 interface CaptureContext {
@@ -31,11 +38,12 @@ interface CaptureContext {
   summary: CaptureSummary;
   // The last 1 Hz Lab event; replayed recordings have none, so fps and torchLevel are then unknown.
   lab?: LabDiagnostics;
+  polarRr?: PolarRr;
 }
 
 export function captureRequestBody(
   batches: readonly SampleBatch[],
-  { appVersion, capabilities, summary, lab }: CaptureContext,
+  { appVersion, capabilities, summary, lab, polarRr }: CaptureContext,
 ): CaptureRequestBody {
   const samples = batches.flatMap((batch) => batch.samples);
   const stats = batches.flatMap((batch) => batch.stats);
@@ -63,5 +71,6 @@ export function captureRequestBody(
       clipFrac: stats.map((stat) => stat.clipFrac),
       exposureNs: stats.map((stat) => stat.exposureNs),
     },
+    ...(polarRr ? { polarRr } : {}),
   };
 }

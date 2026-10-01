@@ -35,6 +35,16 @@ if (personalTeam) {
   }
 }
 const capturePlugin = './modules/lumen-capture/app.plugin';
+// Lab mode's chest-strap reference (spec §9.5, ADR 0039). The H10 is found by its Heart Rate service, not by
+// location, and is only used in the foreground.
+const blePlugin: [string, Record<string, unknown>] = [
+  'react-native-ble-plx',
+  {
+    isBackgroundEnabled: false,
+    neverForLocation: true,
+    bluetoothAlwaysPermission: 'Used only in Lab mode to compare Lumen with a heart-rate chest strap.',
+  },
+];
 
 const config: ExpoConfig = {
   ...brand,
@@ -50,6 +60,7 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-dev-client',
     ...(brand.plugins ?? []),
+    blePlugin,
     personalTeam ? [capturePlugin, { personalTeam: true }] : capturePlugin,
   ],
   // No over-the-air updates: release builds make no network requests (PRIV-1).

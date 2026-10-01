@@ -24,7 +24,6 @@ export interface BreathingRate {
   intervalBrpm: number | null;
 }
 
-
 // Least-squares line removed, as scipy.signal.detrend(type='linear').
 function detrendLinear(values: Float64Array): Float64Array {
   const n = values.length;

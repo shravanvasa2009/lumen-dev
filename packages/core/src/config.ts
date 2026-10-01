@@ -16,6 +16,17 @@ export const DSP_CONFIG = {
     dcOrder: 2,
     modelWindowS: 4, // model inputs are z-scored per window of this length (SQI-Net: 256 samples at 64 Hz)
   },
+  // Spec initial values (§10 DSP-4): a frame is covered when all four hold. A frame failing only the clip
+  // limit is a "clipping" span, any other failure a "coverage" span (ADR 0041).
+  dsp4: {
+    minRedRatio: 2, // R / (G + B)
+    minRedMean: 0.3, // of full scale
+    maxSpatialStdR: 0.1,
+    maxClipFrac: 0.05,
+  },
+  dsp5: {
+    exposureChangeArtifactS: 1, // spec: an exposure change marks the following 1 s as artifact
+  },
   dsp6: {
     // Butterworth prototype order N as in scipy butter(N, ...): N = 4 is 8 poles. §10 DSP-6 says
     // "4th-order" for the HR band; reading that as N = 4 awaits owner confirmation (ADR 0018).
@@ -33,6 +44,9 @@ export const DSP_CONFIG = {
     beta: 0.02, // THR1 = MA_beat + beta · mean(squared signal)
     // The 64 Hz peak is refined on the 256 Hz morphology band within ± one 64 Hz sample.
     refineHalfWindowS: 0.015625,
+    // Not given by the spec (ADR 0041): shorter DSP-2 segments are not searched for beats. 2 s is three W2
+    // windows and at least one full beat at 40 bpm.
+    minSegmentS: 2,
   },
   dsp8: {
     // The beat foot is searched back from the peak over this span, never past the previous peak.
@@ -106,6 +120,35 @@ export const DSP_CONFIG = {
     sampleEntropyM: 2,
     sampleEntropyR: 0.2, // × the window's population SD
     minUsableIntervals: 40, // a reading needs this many intervals that do not span an artifact
+  },
+  // §10.1 decision rules (spec initial values) and §6.2 floors that are not a DSP metric's own.
+  rules: {
+    slowRestingBpm: 50, // HR below this
+    slowRestingAdjustedBpm: 40, // for athletes and people on a beta-blocker
+    fastRestingBpm: 100, // HR above this
+    restingMinCleanS: 30, // slow/fast resting and fast regular rhythm
+    fastRegularBpm: [130, 220],
+    fastRegularMaxNormalizedRmssd: 0.03, // strictly below
+    rhythmMinCleanS: 60, // irregular rhythm; also needs dsp15.minUsableIntervals
+    uncertainBelowTopProb: 0.6, // "Couldn't tell — retake"
+    possibleAfPositives: 2, // 2 of 3 readings within 24 h
+    possibleAfReadings: 3,
+    possibleAfWindowHours: 24,
+    diabetesMinReadings: 2, // Full Scans on different days
+    diabetesMinCleanS: 90, // §6.2, per reading
+    personalBandMinReadings: 7, // §7: the first 7 readings are "learning"
+    personalBandIqrs: 1.5, // band = median ± 1.5 IQR
+    // DSP-14 preconditions for pulseShape.available. track/dsp-shape (ADR 0030) adds a dsp14 block with
+    // minNormalBeats; these two move there when both branches meet.
+    pulseShapeMinNormalBeats: 20,
+    pulseShapeMinFps: 60,
+  },
+  // §7 confidence (ADR 0041; initial values, not given by the spec): the lowest of clean coverage, the
+  // SQI and tier caps, and for the rhythm card the calibrated top probability.
+  confidence: {
+    highCoverage: 0.9, // clean seconds / reading seconds
+    moderateCoverage: 0.7,
+    highTopProb: 0.8, // rhythm top probability; below rules.uncertainBelowTopProb it is low
   },
   // Lab-screen live HR (ADR 0027): the M0 proof's method and limits (§18), not DSP-11. The spectrum runs
   // on the dsp2.modelRateHz grid.

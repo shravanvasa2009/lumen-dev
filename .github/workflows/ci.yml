@@ -57,7 +57,13 @@ jobs:
       - name: Expo prebuild smoke test
         if: hashFiles('apps/mobile/app.config.ts') != ''
         working-directory: apps/mobile
-        run: npx expo prebuild --no-install --clean --platform android
+        # Expo skips iOS prebuild on Windows, so CI (Linux) is where the generated iOS project is checked.
+        # ios/*/ because the folder follows the swappable display name (spec §2).
+        run: |
+          npx expo prebuild --no-install --clean --platform all
+          grep -q NSCameraUsageDescription ios/*/Info.plist
+          grep -q NSCameraUsageDescription ios/*/Supporting/es.lproj/InfoPlist.strings
+          grep -q android.permission.CAMERA android/app/src/main/AndroidManifest.xml
 
   python:
     runs-on: ubuntu-latest

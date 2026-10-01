@@ -290,45 +290,89 @@ test('the CLI writes metrics.json and fails without captures', (t) => {
 });
 
 const metricsFixture = () => ({
-  hr: { maeBpm: 2.41, people: 10, readings: 30 },
-  intervals: { maeMs: 14.2 },
+  polarPairedCaptures: 30,
+  hr: { maeBpm: 2.41, ci95: [1.9, 2.95], people: 10, readings: 30, phones: 1 },
+  intervals: { maeMs: 14.2, ci95: [11.1, 17.6] },
   rmssd: { withinPct: 80, people: 10 },
-  resp: { maeBrpm: null },
+  resp: { maeBrpm: null, people: 0 },
   artifactCaptures: { total: 5, rejectedOrInconclusive: 5 },
   ux1: { firstReadings: 10, conclusive: 9 },
   ml5: { sinusReadings: 28, falseIrregular: 1 },
   perTier: [{ tier: 'full', phones: 1, hrMaeBpm: 2.41, intervalMaeMs: 14.2 }],
   recompute: { agent: null, matches: null },
 });
-
-test('VER-1: rounding differences match, a count difference or a missing value does not', () => {
+const differencesWith = (change) => {
   const independent = metricsFixture();
-  independent.hr.maeBpm = 2.44;
-  assert.deepEqual(compareMetrics(metricsFixture(), independent), { matches: true, differences: [] });
-  independent.ml5.falseIrregular = 2;
-  independent.resp.maeBrpm = 1.2;
-  independent.perTier.push({ tier: 'basic', phones: 1, hrMaeBpm: 3, intervalMaeMs: 20 });
-  assert.deepEqual(compareMetrics(metricsFixture(), independent).differences, [
-    'resp.maeBrpm: null vs 1.2',
-    'ml5.falseIrregular: 1 vs 2',
-    'perTier.basic.phones: undefined vs 1',
-    'perTier.basic.hrMaeBpm: undefined vs 3',
-    'perTier.basic.intervalMaeMs: undefined vs 20',
-  ]);
+  change(independent);
+  return compareMetrics(metricsFixture(), independent).differences;
+};
+
+test('VER-1: values may differ by one rounding step (0.01) and no more', () => {
+  assert.deepEqual(
+    differencesWith((m) => (m.hr.maeBpm = 2.42)),
+    [],
+  );
+  assert.deepEqual(
+    differencesWith((m) => (m.hr.maeBpm = 2.43)),
+    ['hr.maeBpm: 2.41 vs 2.43'],
+  );
+  assert.deepEqual(
+    differencesWith((m) => (m.intervals.ci95 = [11.1, 17.62])),
+    ['intervals.ci95: [11.1,17.6] vs [11.1,17.62]'],
+  );
 });
 
-test('VER-1: the CLI records the recompute and fails on a mismatch', (t) => {
+test('VER-1: results on opposite sides of the DSP-A line never match', () => {
+  const below = metricsFixture();
+  const above = metricsFixture();
+  below.hr.maeBpm = 2.95;
+  above.hr.maeBpm = 3.04;
+  assert.equal(compareMetrics(below, above).matches, false);
+});
+
+test('VER-1: counts must be equal integers, and nulls must be on both sides', () => {
+  assert.deepEqual(
+    differencesWith((m) => (m.hr.people = 10.05)),
+    ['hr.people: 10 vs 10.05'],
+  );
+  assert.deepEqual(
+    differencesWith((m) => (m.hr.maeBpm = '2.41')),
+    ['hr.maeBpm: 2.41 vs "2.41"'],
+  );
+  assert.deepEqual(
+    differencesWith((m) => {
+      m.polarPairedCaptures = 29;
+      m.hr.phones = 2;
+      m.resp.people = 1;
+      m.resp.maeBrpm = 1.2;
+    }),
+    [
+      'polarPairedCaptures: 30 vs 29',
+      'hr.phones: 1 vs 2',
+      'resp.people: 0 vs 1',
+      'resp.maeBrpm: null vs 1.2',
+    ],
+  );
+  assert.deepEqual(
+    differencesWith((m) => m.perTier.push({ tier: 'basic', phones: 1, hrMaeBpm: 3, intervalMaeMs: 20 })),
+    ['perTier.basic: only in the independent metrics'],
+  );
+});
+
+test('VER-1: the CLI records the recompute and fails on a mismatch or bad input', (t) => {
   const root = tempDir(t);
   const out = path.join(root, 'metrics.json');
   const independent = path.join(root, 'independent.json');
   fs.writeFileSync(out, JSON.stringify(metricsFixture()));
   fs.writeFileSync(independent, JSON.stringify(metricsFixture()));
-  const run = (...extra) =>
-    spawnSync(process.execPath, [CLI, '--recompute', independent, '--out', out, ...extra], {
-      encoding: 'utf8',
-    });
-  assert.equal(run().status, 1);
-  assert.equal(run('--agent', 'second-agent').status, 0);
+  const run = (...args) => spawnSync(process.execPath, [CLI, ...args, '--out', out], { encoding: 'utf8' });
+  assert.equal(run('--recompute', independent).status, 1);
+  assert.match(run('--agent', 'second-agent', '--recompute').stderr, /not found/);
+  assert.match(
+    run('--recompute', path.join(root, 'none.json'), '--agent', 'a').stderr,
+    /none\.json not found/,
+  );
+  assert.equal(run('--recompute', independent, '--agent', 'second-agent').status, 0);
   assert.deepEqual(JSON.parse(fs.readFileSync(out, 'utf8')).recompute, {
     agent: 'second-agent',
     matches: true,
@@ -336,10 +380,12 @@ test('VER-1: the CLI records the recompute and fails on a mismatch', (t) => {
   });
   fs.writeFileSync(
     independent,
-    JSON.stringify({ ...metricsFixture(), hr: { maeBpm: 3.1, people: 10, readings: 30 } }),
+    JSON.stringify({ ...metricsFixture(), hr: { ...metricsFixture().hr, maeBpm: 3.1 } }),
   );
-  const mismatch = run('--agent', 'second-agent');
+  const mismatch = run('--recompute', independent, '--agent', 'second-agent');
   assert.equal(mismatch.status, 1);
   assert.match(mismatch.stderr, /hr\.maeBpm: 2\.41 vs 3\.1/);
   assert.equal(JSON.parse(fs.readFileSync(out, 'utf8')).recompute.matches, false);
+  fs.writeFileSync(independent, '{}');
+  assert.match(run('--recompute', independent, '--agent', 'a').stderr, /no perTier list/);
 });

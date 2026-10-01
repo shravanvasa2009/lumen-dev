@@ -22,14 +22,20 @@ function fail(message) {
 
 const out = argument('--out', 'docs/validation/metrics.json');
 
+function readMetrics(file, hint) {
+  if (!file || !fs.existsSync(file)) fail(`${file ?? 'metrics file'} not found; ${hint}`);
+  const metrics = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!Array.isArray(metrics.perTier)) fail(`${file} is not an Appendix B metrics.json (no perTier list)`);
+  return metrics;
+}
+
 function recordRecompute(independentFile) {
   const agent = argument('--agent');
   if (!agent) fail('--recompute needs --agent <who recomputed it>');
-  if (!fs.existsSync(out)) fail(`${out} not found; run eval:replay on the captures first`);
-  const metrics = JSON.parse(fs.readFileSync(out, 'utf8'));
+  const metrics = readMetrics(out, 'run eval:replay on the captures first');
   const { matches, differences } = compareMetrics(
     metrics,
-    JSON.parse(fs.readFileSync(independentFile, 'utf8')),
+    readMetrics(independentFile, 'pass the second agent’s metrics.json to --recompute'),
   );
   fs.writeFileSync(
     out,
@@ -60,6 +66,6 @@ function replayCaptures(capturesDir) {
   );
 }
 
-const independent = argument('--recompute');
-if (independent) recordRecompute(independent);
+// --recompute with no file after it must not fall through to replay mode.
+if (process.argv.includes('--recompute')) recordRecompute(argument('--recompute'));
 else replayCaptures(argument('--captures', ''));

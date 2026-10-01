@@ -6,6 +6,7 @@ import pytest
 
 from datasets import vitaldb_cases
 from datasets.vitaldb_cases import (
+    HoldoutAccessError,
     HoldoutChangedError,
     eligible_cases,
     lock_holdout,
@@ -101,3 +102,18 @@ def test_case_files_are_the_selected_cases_with_listed_checksums(tmp_path):
 def test_case_missing_from_listing_raises(tmp_path):
     with pytest.raises(KeyError):
         vitaldb_cases.case_files([9], f"{'0' * 64} vital_files/0008.vital\n", tmp_path)
+
+
+def test_holdout_patients_are_refused():
+    split = {"holdout": [5, 9], "dev": [1, 2]}
+    vitaldb_cases.ensure_dev_only([1, 2], split)
+    with pytest.raises(HoldoutAccessError):
+        vitaldb_cases.ensure_dev_only([2, 9], split)
+
+
+def test_load_split_requires_the_locked_file(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        vitaldb_cases.load_split(tmp_path / "diabetes.json")
+    split = {"holdout": [3], "dev": [4]}
+    vitaldb_cases.write_or_check_split(split, tmp_path / "diabetes.json")
+    assert vitaldb_cases.load_split(tmp_path / "diabetes.json") == split

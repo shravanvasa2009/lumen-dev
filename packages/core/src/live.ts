@@ -94,6 +94,8 @@ class Session implements LiveSession {
   private nextTickS: number;
   private latestWindow: SqiWindow | null = null;
   private readonly coaching = new CoachingMachine();
+  // Highest true clean seconds so far, at the end of each batch: the displayed count (ADR 0042).
+  private shownClean = 0;
 
   constructor(config: LiveSessionConfig) {
     const { morphologyOrder, morphologyBandHz } = DSP_CONFIG.dsp6;
@@ -132,6 +134,7 @@ class Session implements LiveSession {
       previousNs = sample.tNs;
     });
     samples.forEach((sample, i) => this.addFrame(sample, stats[i]!));
+    this.shownClean = Math.max(this.shownClean, this.trueCleanSeconds());
   }
 
   private addFrame(sample: SampleBatch['samples'][number], stat: SampleBatch['stats'][number]): void {
@@ -281,8 +284,15 @@ class Session implements LiveSession {
     ].sort((x, y) => x.startS - y.startS);
   }
 
-  get cleanSeconds(): number {
+  // What analyzeReading will count: time not covered by any span. A late SQI rejection lowers it.
+  private trueCleanSeconds(): number {
     return cleanTime(0, this.latestS, this.rejectedSpans);
+  }
+
+  // The countdown never steps back (owner delegation, ADR 0042): after a late rejection it pauses until
+  // the true count catches up. Results use the true value, so nothing is overstated.
+  get cleanSeconds(): number {
+    return Math.max(this.shownClean, this.trueCleanSeconds());
   }
 
   get recentWaveform(): { tS: number[]; ppg: number[] } {

@@ -43,8 +43,8 @@
     "test:notifications": "node scripts/not-yet.mjs test:notifications",
     "test:widgets": "node scripts/not-yet.mjs test:widgets",
     "eval:replay": "node scripts/eval-replay.mjs",
-    "sync-models": "node scripts/not-yet.mjs sync-models",
-    "devices:table": "node scripts/not-yet.mjs devices:table",
+    "sync-models": "node scripts/sync-models.mjs",
+    "devices:table": "node scripts/devices-table.mjs",
     "e2e:android": "node scripts/e2e-android.mjs",
     "format": "prettier --write ."
   },

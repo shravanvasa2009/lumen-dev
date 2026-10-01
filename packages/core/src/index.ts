@@ -26,3 +26,5 @@ export type {
   RhythmMetric,
   RmssdMetric,
 } from './results';
+export { DSP_CONFIG } from './config';
+export { buildTimebase, type Timebase } from './timebase';

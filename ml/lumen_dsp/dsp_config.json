@@ -1,0 +1,10 @@
+{
+  "dsp1": {
+    "droppedFrameGapRatio": 1.5
+  },
+  "dsp2": {
+    "modelRateHz": 64,
+    "shapeRateHz": 256,
+    "maxGapS": 0.15
+  }
+}

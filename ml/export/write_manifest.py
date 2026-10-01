@@ -54,7 +54,10 @@ CARD_TEXT = {
             "Intervals from the MIT-BIH AF, Long-Term AF, and CinC 2017 databases (records labeled noisy "
             "excluded) and premature-beat episodes from MIT-BIH Arrhythmia (labeled other), made to look "
             "like phone intervals with timing jitter estimated from BUT PPG, merged and split beats, and "
-            "dropped premature beats. MIMIC PERform AF is never used for training or tuning."
+            "dropped premature beats. MIMIC PERform AF is never used for training or tuning. Ectopic beats "
+            "in MIT-BIH Arrhythmia and Long-Term AF sinus stretches are labeled other, but the MIT-BIH AF "
+            "beat files mark every beat normal, so its sinus episodes may still contain unmarked premature "
+            "beats (some ectopy-as-sinus label noise)."
         ),
         "limitations": (
             "- Frequent premature beats make intervals irregular in every reading, so they can trigger "

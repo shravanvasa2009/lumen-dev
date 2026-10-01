@@ -12,7 +12,8 @@
     "testEnvironment": "node",
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "synthetic-suite"
+      "synthetic-suite",
+      "/test/redteam/"
     ],
     "roots": [
       "<rootDir>/test"

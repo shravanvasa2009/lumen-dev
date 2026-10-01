@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
+import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
 
 export default function TabsLayout() {
@@ -15,10 +16,34 @@ export default function TabsLayout() {
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: t('tabs.home') }} />
-      <Tabs.Screen name="trends" options={{ title: t('tabs.trends') }} />
-      <Tabs.Screen name="learn" options={{ title: t('tabs.learn') }} />
-      <Tabs.Screen name="settings" options={{ title: t('tabs.settings') }} />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: t('tabs.home'),
+          tabBarIcon: ({ color, size }) => <Icon name="home" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="trends"
+        options={{
+          title: t('tabs.trends'),
+          tabBarIcon: ({ color, size }) => <Icon name="trends" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="learn"
+        options={{
+          title: t('tabs.learn'),
+          tabBarIcon: ({ color, size }) => <Icon name="learn" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: t('tabs.settings'),
+          tabBarIcon: ({ color, size }) => <Icon name="settings" size={size} color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

@@ -7,6 +7,7 @@ export default function HowToSitScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      headerless
       title={t('howToSit.title')}
       subtitle={t('howToSit.subtitle')}
       sections={[

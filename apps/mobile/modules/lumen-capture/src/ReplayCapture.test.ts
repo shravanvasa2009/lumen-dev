@@ -82,6 +82,15 @@ test('counts frames missing from gaps longer than 1.5x the median interval (DSP-
   });
 });
 
+test('stop rejects without a running capture, like the native modules (ADR 0029 Addendum)', async () => {
+  const capture = new ReplayCapture(syntheticRecording(10));
+  await expect(capture.stop()).rejects.toThrow('stop needs a running capture');
+  await capture.start({});
+  jest.advanceTimersByTime(5000);
+  await expect(capture.stop()).resolves.toMatchObject({ frames: 10 });
+  await expect(capture.stop()).rejects.toThrow('stop needs a running capture');
+});
+
 test('stops emitting once the recording runs out', async () => {
   const capture = new ReplayCapture(syntheticRecording(10));
   const { batches, statuses } = record(capture);

@@ -53,8 +53,8 @@ fun lensKind(focalLengthMm: Float?, sensorWidthMm: Float?, sensorHeightMm: Float
     }
 }
 
-// Spec §9.2: the highest rate the lens supports up to the requested one (60 fps on Android). Among ranges with the same
-// top rate the highest floor wins, so auto-exposure has the least room to slow the frame rate down.
+// Spec §9.2: the highest rate the lens supports up to the requested one (60 fps on Android). Among ranges
+// with the same top rate the highest floor wins, so auto-exposure has the least room to slow the frame rate.
 fun pickFpsRange(ranges: List<FpsRange>, wantFps: Int): FpsRange? {
     val allowed = ranges.filter { it.upper <= wantFps }
     if (allowed.isEmpty()) return ranges.minWithOrNull(compareBy<FpsRange> { it.upper }.thenByDescending { it.lower })

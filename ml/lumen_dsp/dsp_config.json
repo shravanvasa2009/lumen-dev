@@ -37,6 +37,7 @@
     "templateBeforePeakS": 0.2,
     "templateAfterPeakS": 0.1,
     "neighbours": 4,
+    "minNeighboursPerParity": 2,
     "earlyIntervalRatio": 0.85,
     "earlySmallAmplitudeRatio": 1.0
   },

@@ -33,13 +33,21 @@ function pointwise(windows: Float64Array[], combine: (column: number[]) => numbe
 
 const mean = (column: number[]) => column.reduce((sum, value) => sum + value, 0) / column.length;
 
-// 2 × count items around position p, without p itself: count on each side, and at either end the window
-// shifts inward so it keeps 2 × count items. An even, balanced window lets alternating rhythms (bigeminy,
-// trigeminy) represent every beat kind in the median (red-team v2, ADR 0025).
-function neighboursOf<T>(items: T[], p: number, count: number): T[] {
-  const start = Math.max(0, Math.min(p - count, items.length - 1 - 2 * count));
-  const end = Math.min(items.length, start + 2 * count + 1);
-  return [...items.slice(start, p), ...items.slice(p + 1, end)];
+// Reference items around position p (p excluded): the nearest `count` at odd offsets and the nearest
+// `count` at even offsets, nearer first and the earlier side first on ties. In the interior that is the
+// ±count window; near an edge it keeps both parities equal, so an alternating rhythm (bigeminy) stays
+// balanced. When one parity runs short both are cut to the shorter count; below `minimum` per parity
+// there is no reference (null) and the rule using it does not apply (ADR 0025).
+function balancedNeighbours<T>(items: T[], p: number, count: number, minimum: number): T[] | null {
+  const odd: T[] = [];
+  const even: T[] = [];
+  for (let distance = 1; distance < items.length; distance++) {
+    const side = distance % 2 === 1 ? odd : even;
+    for (const j of [p - distance, p + distance])
+      if (j >= 0 && j < items.length && side.length < count) side.push(items[j]!);
+  }
+  const perParity = Math.min(odd.length, even.length);
+  return perParity < minimum ? null : [...odd.slice(0, perParity), ...even.slice(0, perParity)];
 }
 
 /**
@@ -100,16 +108,15 @@ export function classifyBeats(
 
   // "Early" (H-016): the interval to the previous beat is short against the median of up to `neighbours`
   // intervals on each side, all between consecutive beats that are not "not a beat".
+  const references = <T>(items: T[], p: number) =>
+    balancedNeighbours(items, p, config.neighbours, config.minNeighboursPerParity);
   const kept = beats.flatMap((_, i) => (classes[i] !== 'not-a-beat' ? [i] : []));
-  const keptIntervals = kept.map((i, q) => (q === 0 ? null : beats[i]!.peakS - beats[kept[q - 1]!]!.peakS));
+  // Interval q ends at beat kept[q + 1].
+  const keptIntervals = kept.slice(1).map((i, q) => beats[i]!.peakS - beats[kept[q]!]!.peakS);
   const earlyBeats = new Set<number>();
-  kept.forEach((i, q) => {
-    const ownS = keptIntervals[q];
-    if (ownS == null) return;
-    const others = neighboursOf(keptIntervals, q, config.neighbours).filter(
-      (intervalS) => intervalS !== null,
-    );
-    if (ownS < config.earlyIntervalRatio * median(others)) earlyBeats.add(i);
+  keptIntervals.forEach((ownS, q) => {
+    const others = references(keptIntervals, q);
+    if (others && ownS < config.earlyIntervalRatio * median(others)) earlyBeats.add(kept[q + 1]!);
   });
 
   const candidates = beats.flatMap((_, i) => (classes[i] === 'normal' ? [i] : []));
@@ -124,11 +131,10 @@ export function classifyBeats(
     .slice(0, config.templateBeats);
   const normalWindows: Float64Array[] = [];
   candidates.forEach((i, p) => {
-    const reference = median(
-      neighboursOf(candidates, p, config.neighbours)
-        .filter(footSeen)
-        .map((j) => beats[j]!.amplitude),
-    );
+    // The amplitude references are the candidates with an observed foot, plus this beat to place it.
+    const pool = candidates.filter((j) => j === i || footSeen(j));
+    const others = references(pool, pool.indexOf(i));
+    const reference = others ? median(others.map((j) => beats[j]!.amplitude)) : NaN;
     const ratio = beats[i]!.amplitude / reference;
     const window = windows[p] ?? null;
     const template =
@@ -168,8 +174,9 @@ export function classifyBeats(
   });
   const longPauses = new Set<number>();
   cleanIntervals.forEach(({ end, lengthS }, q) => {
-    const reference = median(neighboursOf(cleanIntervals, q, config.neighbours).map((n) => n.lengthS));
-    if (lengthS >= config.longPauseRatio * reference) longPauses.add(end);
+    const others = references(cleanIntervals, q);
+    if (others && lengthS >= config.longPauseRatio * median(others.map((n) => n.lengthS)))
+      longPauses.add(end);
   });
 
   return beats.map((beat, i) => ({

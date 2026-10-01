@@ -285,3 +285,37 @@ describe('DSP-9 early and small', () => {
     expect(nearest(classify(beats, 30), beats[15]!.peakS).beatClass).toBe('normal');
   });
 });
+
+// Parity-balanced reference windows (ADR 0025): near a segment edge the references hold equal counts of
+// odd and even offsets from the beat, so an alternating rhythm stays balanced; under 2 + 2 there is no
+// reference, and the amplitude and long-pause rules do not apply to that beat.
+describe('DSP-9 balanced reference windows at segment edges', () => {
+  const flatBeats = (peaksS: number[], amplitudes: number[]): DetectedBeat[] =>
+    peaksS.map((peakS, i) => ({ peakS, onsetS: peakS - 0.1, maxUpslope: 1, amplitude: amplitudes[i]! }));
+  const flatSegment = (seconds: number) => ({ firstIndex: 0, values: new Float64Array(256 * seconds) });
+
+  it('flags no compensatory interval of a 12 s bigeminy segment as a long pause, edges included', () => {
+    const rrS = 60 / 75;
+    const peaksS: number[] = [];
+    const amplitudes: number[] = [];
+    for (let tS = 0.5; tS < 11.3; tS += 2 * rrS) {
+      peaksS.push(tS, tS + 0.6 * rrS);
+      amplitudes.push(1, 0.45);
+    }
+    const classified = classifyBeats(flatBeats(peaksS, amplitudes), flatSegment(12), []);
+    expect(classified.filter((beat) => beat.longPause)).toEqual([]);
+    expect(classified.filter((_, k) => k % 2 === 0).map((beat) => beat.beatClass)).toEqual(
+      classified.filter((_, k) => k % 2 === 0).map(() => 'normal'),
+    );
+  });
+
+  it('applies no amplitude or long-pause rule when fewer than 2 + 2 balanced references exist', () => {
+    const classified = classifyBeats(flatBeats([1, 2, 3, 5.5], [1, 0.3, 1, 1]), flatSegment(8), []);
+    expect(classified.map(({ beatClass, longPause }) => [beatClass, longPause])).toEqual([
+      ['normal', false],
+      ['normal', false],
+      ['normal', false],
+      ['normal', false],
+    ]);
+  });
+});

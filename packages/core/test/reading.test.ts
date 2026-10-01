@@ -71,6 +71,7 @@ const CONTEXT: ReadingContext = {
   restTimerDone: true,
   recordedAt: null,
   motionSpans: [],
+  coldHandsSpans: [],
   sqi: null,
   validationRhythmLabel: null,
 };
@@ -188,6 +189,15 @@ describe('analyzeReading acquisition spans', () => {
     expect(spans[0]!.endS).toBeCloseTo(21, 9);
     expect(analysis.cleanSeconds).toBeCloseTo(analysis.durationS - 1, 9);
     expect(analysis.lostSeconds).toEqual({ motion: 0, pressure: 0, coverage: 0, coldHands: 0 });
+  });
+
+  it('takes cold-hands pauses from the live session in native ns', () => {
+    const analysis = analyze(syntheticReading(), {
+      coldHandsSpans: [{ startNs: CLOCK_START_NS + 12e9, endNs: CLOCK_START_NS + 18e9 }],
+    });
+    expect(spansOf(analysis, 'coldHands')).toEqual([{ startS: 12, endS: 18, reason: 'coldHands' }]);
+    expect(analysis.lostSeconds.coldHands).toBeCloseTo(6, 9);
+    expect(analysis.cleanSeconds).toBeCloseTo(analysis.durationS - 6, 9);
   });
 
   it('takes motion spans from the caller in native ns', () => {

@@ -47,6 +47,7 @@ const CONTEXT: ReadingContext = {
   restTimerDone: true,
   recordedAt: { ms: NOW_MS, day: '2026-10-04' },
   motionSpans: [],
+  coldHandsSpans: [],
   sqi: null,
   validationRhythmLabel: null,
 };

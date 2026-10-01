@@ -70,6 +70,7 @@ function contextFromMeta(meta, samples, validationRhythmLabel) {
     recordedAt: null,
     // Captures carry no accelerometer data, and SQI-Net does not run in replay (ADR 0041).
     motionSpans: [],
+    coldHandsSpans: [],
     sqi: null,
     validationRhythmLabel,
   };

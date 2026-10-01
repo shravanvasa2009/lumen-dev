@@ -150,6 +150,33 @@ export const DSP_CONFIG = {
     moderateCoverage: 0.7,
     highTopProb: 0.8, // rhythm top probability; below rules.uncertainBelowTopProb it is low
   },
+  // LiveSession (§7 live checks, §9.3, ADR 0042). DSP-4/5 spans use dsp4 and dsp5, as the final analysis
+  // does, so the live counter and analyzeReading agree.
+  live: {
+    // Ring buffers hold the longest reading without wrapping: Deep HRV is 5 min (§7), plus a minute.
+    // Capacity = maxReadingS × capture fps × (1 + frameMargin); the margin absorbs timing jitter.
+    maxReadingS: 360,
+    frameMargin: 0.25,
+    waveformS: 6, // §9.3: the live waveform shows the last 6 s
+    sqiEveryS: 1, // §11.2: SQI-Net runs every 1 s on the last 4 s (dsp3.modelWindowS)
+    // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
+    // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
+    // about 0.01 g and a deliberate move several times 0.05 g.
+    motionRmsThreshold: 0.05,
+    // Initial. §7 "pressing too light / ambient leak: green channel rises". A covered frame (DSP-4 needs
+    // R ≥ 2 (G + B)) below this ratio gets coach.flat but is not rejected; flicker is not detected.
+    leakRedRatio: 2.5,
+    coldHandsAfterS: 10, // §7: perfusion index below the device floor after 10 s
+    // Live perfusion index = 100 × (max − min of the causal morphology band) / mean R over this window,
+    // checked once per sqiEveryS. Initial; the device floor comes from the device database (§7).
+    perfusionWindowS: 4,
+    defaultPerfusionFloorPct: 0.2, // initial floor for phones without a device-database entry
+    // Coaching hysteresis (initial): a condition must hold this long before its key shows, a shown key
+    // stays at least coachMinShowS, and it clears after its condition has been gone for coachExitS.
+    coachEnterS: 0.5,
+    coachMinShowS: 2,
+    coachExitS: 1,
+  },
   // Lab-screen live HR (ADR 0027): the M0 proof's method and limits (§18), not DSP-11. The spectrum runs
   // on the dsp2.modelRateHz grid.
   liveHr: {

@@ -188,6 +188,8 @@
   "mode.approxMinutes": "~{{count}} min",
   "precheck.title": "Antes de empezar",
   "precheck.rest": "Siéntate y relájate",
+  "precheck.restDone": "Listo cuando quieras",
+  "precheck.skip": "Omitir el reposo (la medición quedará marcada)",
   "precheck.lastHours": "En las últimas 2 horas...",
   "precheck.caffeine": "Cafeína",
   "precheck.exercise": "Ejercicio",

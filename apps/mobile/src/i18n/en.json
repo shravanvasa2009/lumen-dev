@@ -188,6 +188,8 @@
   "mode.approxMinutes": "~{{count}} min",
   "precheck.title": "Before you start",
   "precheck.rest": "Sit and relax",
+  "precheck.restDone": "Ready when you are",
+  "precheck.skip": "Skip rest (reading will be tagged)",
   "precheck.lastHours": "In the last 2 hours...",
   "precheck.caffeine": "Caffeine",
   "precheck.exercise": "Exercise",

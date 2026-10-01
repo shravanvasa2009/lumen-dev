@@ -650,8 +650,8 @@ def training_notes(sets: WindowSets, cap: int, seed: int, decision: dict) -> lis
         f"label, chosen as whole readings with seed {seed}. {len(sets.train.labels)} dev-train, "
         f"{len(sets.val.labels)} dev-val, and {len(sets.premature.labels)} premature-beat windows.",
         f"Augmentation (dev-train only): augment_intervals (§11.3). Jitter σ ~ U({low:.0f}, {high:.0f} ms) "
-        f"per reading. {high:.0f} ms is the robust per-beat SD of BUT PPG finger peaks vs ECG (worst case: "
-        "30 fps, includes pulse-transit variation). Real phone timestamps at M2 will refine it.",
+        "per reading, about the BUT PPG finger robust per-beat SD (38.4 ms; pooled 49.3 ms), ADR 0025. "
+        "Real phone timestamps at M2 will refine it.",
         "Augmented intervals outside the DSP-9 range count as artifact spans, and windows are cut around "
         "them as the app would.",
         "Atypical-beat fraction neutralized in v1: ECG-derived training values don't match the app's "
@@ -683,6 +683,8 @@ def training_notes(sets: WindowSets, cap: int, seed: int, decision: dict) -> lis
 def _metrics_file(source: Path, evaluation: dict, sets: WindowSets, shared: dict) -> dict:
     trained_on = sorted({subject.split(":")[0] for subject in sets.train.subjects})
     return {
+        # Format 2 always carries development.prematureBeatSet, which write_manifest then requires.
+        "metricsFormat": 2,
         "trainedOn": trained_on,
         "threshold": {"af": evaluation["tau"]},
         "development": {
@@ -690,6 +692,11 @@ def _metrics_file(source: Path, evaluation: dict, sets: WindowSets, shared: dict
             "metrics": evaluation["metrics"],
             "undefinedMetrics": evaluation["undefined"],
             "byDataset": evaluation["byDataset"],
+            # The card states the premature-beat false-AF rate with its sample size (§11.3).
+            "prematureBeatSet": {
+                "subjects": len(set(sets.premature.subjects.tolist())),
+                "windows": len(sets.premature.labels),
+            },
         },
         "sourceSha256": sha256_of(source),
         "featureOrder": list(FEATURE_NAMES),

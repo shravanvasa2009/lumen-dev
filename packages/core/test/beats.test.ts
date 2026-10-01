@@ -1,31 +1,14 @@
+import { DSP_CONFIG, elgendiPeaks, elgendiWindows, upstroke, type DetectedBeat } from '../src';
 import {
-  butterBandpass,
-  detectBeats,
-  DSP_CONFIG,
-  elgendiPeaks,
-  elgendiWindows,
-  filterZeroPhase,
-  tangentOnset,
-  type DetectedBeat,
-  type ResampledSegment,
-} from '../src';
-import { parkMillerUniforms, ppgWave, regularBeats, type SyntheticBeat } from './synthetic';
+  detect,
+  parkMillerUniforms,
+  regularBeats,
+  withPrematureBeats,
+  type SyntheticBeat,
+} from './synthetic';
 
-const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
-const { morphologyOrder, morphologyBandHz } = DSP_CONFIG.dsp6;
+const { shapeRateHz } = DSP_CONFIG.dsp2;
 const { beta } = DSP_CONFIG.dsp7;
-
-function morphologySegment(wave: number[], rateHz: number): ResampledSegment {
-  const sos = butterBandpass(morphologyOrder, morphologyBandHz[0]!, morphologyBandHz[1]!, rateHz);
-  return { firstIndex: 0, values: filterZeroPhase(sos, wave) };
-}
-
-function detect(beats: SyntheticBeat[], dicroticRatio: number, seconds: number): DetectedBeat[] {
-  return detectBeats(
-    morphologySegment(ppgWave(beats, dicroticRatio, seconds, modelRateHz), modelRateHz),
-    morphologySegment(ppgWave(beats, dicroticRatio, seconds, shapeRateHz), shapeRateHz),
-  );
-}
 
 // For each true beat, the detection nearest to it and how far away it is.
 function nearestErrors(detected: DetectedBeat[], beats: SyntheticBeat[]): number[] {
@@ -38,29 +21,6 @@ function detectionsAwayFrom(
   radiusS: number,
 ): DetectedBeat[] {
   return detected.filter((beat) => beats.every(({ peakS }) => Math.abs(beat.peakS - peakS) > radiusS));
-}
-
-// Premature beat k arrives after 0.6 RR at the given amplitude; the next beat follows after 1.4 RR
-// (a compensatory pause), so the rhythm stays in phase.
-function withPrematureBeats(
-  rrS: number,
-  seconds: number,
-  prematureAt: number[],
-  amplitude: number,
-): SyntheticBeat[] {
-  const beats: SyntheticBeat[] = [];
-  let peakS = 1;
-  for (let k = 0; peakS < seconds - 1.5; k++) {
-    if (prematureAt.includes(k)) {
-      peakS += 0.6 * rrS - rrS;
-      beats.push({ peakS, amplitude });
-      peakS += 1.4 * rrS;
-    } else {
-      beats.push({ peakS, amplitude: 1 });
-      peakS += rrS;
-    }
-  }
-  return beats;
 }
 
 describe('DSP-7 Elgendi beat detection', () => {
@@ -164,7 +124,24 @@ describe('DSP-8 onset (tangent at maximum upslope meets the preceding minimum)',
     const ramp = Array.from({ length: 300 }, (_, k) =>
       k <= 100 ? 0.2 : k <= 160 ? 0.2 + 0.01 * (k - 100) : 0.8 - 0.004 * (k - 160),
     );
-    expect(tangentOnset(ramp, 160, 0)).toBeCloseTo(100, 9);
+    expect(upstroke(ramp, 160, 0)?.onsetIndex).toBeCloseTo(100, 9);
+  });
+
+  it('reports the maximum upslope per sample and the preceding minimum it starts from', () => {
+    const valley = Array.from({ length: 200 }, (_, k) =>
+      k <= 50 ? 0.5 - 0.005 * k : k <= 120 ? 0.25 + 0.02 * (k - 50) : 1.65 - 0.01 * (k - 120),
+    );
+    const found = upstroke(valley, 120, 10)!;
+    expect(found.footIndex).toBe(50);
+    expect(found.maxUpslope).toBeCloseTo(0.02, 12);
+    expect(found.onsetIndex).toBeCloseTo(50, 9);
+  });
+
+  it('never searches before searchStart for the preceding minimum', () => {
+    const valley = Array.from({ length: 200 }, (_, k) =>
+      k <= 50 ? 0.5 - 0.005 * k : 0.25 + 0.02 * (k - 50),
+    );
+    expect(upstroke(valley, 120, 80)).toMatchObject({ footIndex: 80 });
   });
 
   it('is μ − 2σ for a Gaussian upstroke (tangent at the inflection μ − σ), within 0.5 ms', () => {
@@ -175,13 +152,13 @@ describe('DSP-8 onset (tangent at maximum upslope meets the preceding minimum)',
       Math.exp(-0.5 * ((k / shapeRateHz - muS) / sigmaS) ** 2),
     );
     const peak = Math.round(muS * shapeRateHz);
-    const onsetSample = tangentOnset(wave, peak, peak - Math.round(0.4 * shapeRateHz))!;
+    const onsetSample = upstroke(wave, peak, peak - Math.round(0.4 * shapeRateHz))!.onsetIndex;
     expect(Math.abs(onsetSample / shapeRateHz - (muS - 2 * sigmaS))).toBeLessThan(0.0005);
   });
 
   it('gives no onset when nothing rises before the peak', () => {
     const falling = Array.from({ length: 100 }, (_, k) => 1 - k / 100);
-    expect(tangentOnset(falling, 50, 0)).toBeNull();
+    expect(upstroke(falling, 50, 0)).toBeNull();
   });
 
   it('places each onset of a regular rhythm 50–250 ms before its peak', () => {

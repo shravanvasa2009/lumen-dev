@@ -71,6 +71,9 @@ LGBM_PARAMS = {
     "verbose": -1,
 }
 LGBM_EARLY_STOPPING_ROUNDS = 50
+# ln T bounds (T 0.05-20). Logits that carry no signal, or point the wrong way, keep lowering the NLL
+# as T grows, and an unbounded fit overflows to NaN; a bounded T keeps the probabilities finite.
+LOG_TEMPERATURE_BOUNDS = (-3.0, 3.0)
 
 log = logging.getLogger("train.rhythm")
 
@@ -342,14 +345,20 @@ def fit_temperature(model: RhythmNet, val: WindowSet) -> float:
     log_temperature = torch.zeros((), requires_grad=True)
     optimizer = torch.optim.LBFGS([log_temperature], lr=0.1, max_iter=200)
 
+    def bounded() -> torch.Tensor:
+        return log_temperature.clamp(*LOG_TEMPERATURE_BOUNDS).exp()
+
     def nll() -> torch.Tensor:
         optimizer.zero_grad()
-        loss = weighted_cross_entropy(logits / log_temperature.exp(), labels, weights)
+        loss = weighted_cross_entropy(logits / bounded(), labels, weights)
         loss.backward()
         return loss
 
     optimizer.step(nll)
-    return float(log_temperature.detach().exp())
+    temperature = float(bounded().detach())
+    if not math.isfinite(temperature):
+        raise ValueError(f"temperature scaling did not converge (T = {temperature})")
+    return temperature
 
 
 def network_probs(model: RhythmNet, windows: WindowSet) -> np.ndarray:
@@ -640,9 +649,9 @@ def training_notes(sets: WindowSets, cap: int, seed: int, decision: dict) -> lis
         f"Windows: DSP-15 windows from {READING_S:.0f} s readings; at most {cap} windows per subject and "
         f"label, chosen as whole readings with seed {seed}. {len(sets.train.labels)} dev-train, "
         f"{len(sets.val.labels)} dev-val, and {len(sets.premature.labels)} premature-beat windows.",
-        f"Augmentation (dev-train only): augment_intervals (§11.3) with timing jitter σ drawn per reading "
-        f"uniformly from {low:.0f}-{high:.0f} ms. This σ is an assumption, not a measurement; it is "
-        "replaced once BUT PPG timing jitter is estimated.",
+        f"Augmentation (dev-train only): augment_intervals (§11.3). Jitter σ ~ U({low:.0f}, {high:.0f} ms) "
+        f"per reading. {high:.0f} ms is the robust per-beat SD of BUT PPG finger peaks vs ECG (worst case: "
+        "30 fps, includes pulse-transit variation). Real phone timestamps at M2 will refine it.",
         "Augmented intervals outside the DSP-9 range count as artifact spans, and windows are cut around "
         "them as the app would.",
         "Atypical-beat fraction neutralized in v1: ECG-derived training values don't match the app's "

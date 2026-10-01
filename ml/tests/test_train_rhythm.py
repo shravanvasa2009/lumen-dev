@@ -181,6 +181,17 @@ def test_trained_network_ignores_the_neutralized_feature(tmp_path):
     assert torch.equal(neutral, phone_like)
 
 
+def test_temperature_stays_finite_for_a_confidently_wrong_model(tmp_path):
+    # Wrong logits keep lowering the NLL as T grows; unbounded, the fit overflowed to NaN.
+    train, val = small_training_sets()
+    config = TrainConfig(max_epochs=3, patience=10, batch_size=32)
+    model, _ = train_network(train, val, tmp_path, config, training_key("windows", config, 400))
+    wrong = val._replace(labels=(val.labels + 1) % len(LABELS))
+    temperature = rhythm.fit_temperature(model, wrong)
+    low, high = rhythm.LOG_TEMPERATURE_BOUNDS
+    assert np.exp(low) <= temperature <= np.exp(high) + 1e-6
+
+
 def test_checkpoints_are_picked_by_epoch_number(tmp_path):
     for epoch in (2, 999, 1000):
         (tmp_path / f"epoch-{epoch:03d}.pt").write_bytes(b"")

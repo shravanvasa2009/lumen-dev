@@ -59,6 +59,10 @@ function replayCaptures(capturesDir) {
       `eval:replay: skipped ${missing.length} folder(s) with no replay-result.json: ${missing.join(', ')}`,
     );
   if (captures.length === 0) fail('no processed captures; run tools/replay on them first');
+  for (const capture of captures.filter((each) => each.strapDropouts > 0))
+    console.warn(
+      `eval:replay: ${capture.folder}: ${capture.strapDropouts} strap dropout(s); only the longest unbroken stretch is used`,
+    );
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const metrics = computeMetrics(
     captures,

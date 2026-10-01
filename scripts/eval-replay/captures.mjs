@@ -48,25 +48,23 @@ function strapInsideCapture(folder, polar, span) {
   return inside;
 }
 
-// A Bluetooth dropout loses strap notifications, and with them whole beats: the next row's t_ns jumps by
-// more than its own RR explains. Beat times are running sums of intervals, so the lost time goes back in as
-// one filler interval, listed in polarGaps so it is never compared or used as a reference. 250 ms is below
-// the shortest usable RR (300 ms), so even one lost beat shows, and well above the tens of ms of bridge
-// delay left in the strap timestamps (order E.B polar-clock).
-const DROPOUT_MS = 250;
+// A Bluetooth dropout loses strap notifications, and with them whole beats. Beat times are running sums of
+// intervals, so every beat after a dropout would pair with the wrong heartbeat.
+// Rows are stamped per notification, earlier RRs in one stepped back by RR (order E.B polar-clock), so within
+// a notification t_ns steps by exactly its RR, and between two the step also carries the change in how long
+// after its last beat each arrived: up to one RR, at most 2000 ms for a usable strap beat, plus bridge delay.
+// Only a larger step is certainly lost beats, and how many is then unknown to within a beat, so no filler
+// can restore the timing: the longest unbroken stretch is kept and the rest dropped.
+const DROPOUT_MS = 2000 + 250;
 
-function strapIntervals(rows) {
-  const polarRrMs = [];
-  const polarGaps = [];
+function longestUnbrokenStretch(rows) {
+  const stretches = [[]];
   rows.forEach((row, i) => {
-    const unexplainedMs = i === 0 ? 0 : (row.t_ns - rows[i - 1].t_ns) / 1e6 - row.rr_ms;
-    if (unexplainedMs > DROPOUT_MS) {
-      polarGaps.push(polarRrMs.length);
-      polarRrMs.push(unexplainedMs);
-    }
-    polarRrMs.push(row.rr_ms);
+    if (i > 0 && (row.t_ns - rows[i - 1].t_ns) / 1e6 - row.rr_ms > DROPOUT_MS) stretches.push([]);
+    stretches.at(-1).push(row.rr_ms);
   });
-  return { polarRrMs, polarGaps };
+  const longest = stretches.reduce((best, stretch) => (stretch.length > best.length ? stretch : best));
+  return { polarRrMs: longest, strapDropouts: stretches.length - 1 };
 }
 
 function readCapture(folder) {
@@ -79,7 +77,9 @@ function readCapture(folder) {
     meta: JSON.parse(fs.readFileSync(path.join(folder, 'meta.json'), 'utf8')),
     reading: JSON.parse(fs.readFileSync(path.join(folder, RESULT), 'utf8')),
     phone: phone.map((row) => ({ ibiMs: row.ibi_ms, accepted: row.accepted === 1 })),
-    ...(polar ? strapIntervals(strapInsideCapture(folder, polar, span)) : { polarRrMs: null, polarGaps: [] }),
+    ...(polar
+      ? longestUnbrokenStretch(strapInsideCapture(folder, polar, span))
+      : { polarRrMs: null, strapDropouts: 0 }),
   };
 }
 

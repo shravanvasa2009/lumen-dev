@@ -527,48 +527,82 @@ test('the CLI writes evidence.json and the app copy only after a matching recomp
   assert.equal(fs.readFileSync(app, 'utf8'), fs.readFileSync(out, 'utf8'));
 });
 
-// Strap rows stamped on the camera clock as B's Lab sender does: each row ends rr_ms after the one before.
-function strapRows(intervalsMs, startNs = 1e9) {
-  let endNs = startNs;
-  return intervalsMs.map((rr) => {
-    endNs += rr * 1e6;
-    return { t_ns: Math.round(endNs), rr_ms: rr };
+// polar_rr.csv rows written the way B's Lab recorder stamps them (order E.B polar-clock): the strap notifies
+// about once a second with every RR since the last notification; the newest RR ends when the notification
+// arrives (delay after the beat, plus bridge delay), and earlier ones step back by RR.
+function strapRows(intervalsMs, { periodMs = 1000, bridgeMs = 30, lost = [] } = {}) {
+  const rows = [];
+  let beatMs = 0;
+  let pending = [];
+  let nextNotifyMs = periodMs;
+  intervalsMs.forEach((rr, i) => {
+    beatMs += rr;
+    while (beatMs > nextNotifyMs) {
+      if (pending.length && !lost.includes(Math.round(nextNotifyMs / periodMs))) {
+        let endNs = (nextNotifyMs + bridgeMs) * 1e6;
+        const stamped = [];
+        for (let k = pending.length - 1; k >= 0; k -= 1) {
+          stamped.unshift({ t_ns: Math.round(endNs), rr_ms: pending[k] });
+          endNs -= pending[k] * 1e6;
+        }
+        rows.push(...stamped);
+      }
+      pending = [];
+      nextNotifyMs += periodMs;
+    }
+    pending.push(rr);
   });
+  return rows;
 }
 
-test('a strap dropout becomes one unusable filler interval that keeps the elapsed time', (t) => {
+function readStrap(t, rows) {
   const root = tempDir(t);
   writeCaptureFolder(root, 'P1');
   const folder = path.join(root, 'P1');
-  const rr = sequence(30);
-  // Rows 10–12 never arrived; row 13's timestamp still carries their time, plus 20 ms of bridge delay.
-  const rows = strapRows(rr).filter((_, i) => i < 10 || i > 12);
-  rows.slice(10).forEach((row) => (row.t_ns += 20e6));
-  fs.writeFileSync(path.join(folder, 'samples.csv'), `t_ns,r,g,b\n0,0.5,0.1,0.1\n${60e9},0.5,0.1,0.1\n`);
+  fs.writeFileSync(path.join(folder, 'samples.csv'), `t_ns,r,g,b\n0,0.5,0.1,0.1\n${600e9},0.5,0.1,0.1\n`);
   fs.writeFileSync(
     path.join(folder, 'polar_rr.csv'),
     `t_ns,rr_ms\n${rows.map((row) => `${row.t_ns},${row.rr_ms}`).join('\n')}\n`,
   );
-  const [capture] = readCaptures(root).captures;
-  assert.deepEqual(capture.polarGaps, [10]);
-  assert.equal(capture.polarRrMs.length, 28);
-  assert.ok(Math.abs(capture.polarRrMs[10] - (rr[10] + rr[11] + rr[12] + 20)) < 1e-6);
-  assert.deepEqual(capture.polarRrMs.slice(11), rr.slice(13));
+  return readCaptures(root).captures[0];
+}
+
+test('notification timing alone is never taken for a strap dropout, even at slow heart rates', (t) => {
+  for (const rr of [sequence(90), sequence(60).map((value) => value * 1.9)]) {
+    const capture = readStrap(t, strapRows(rr));
+    assert.equal(capture.strapDropouts, 0);
+    assert.equal(capture.polarRrMs.length, rr.length - 1);
+  }
 });
 
-test('phone beats after a strap dropout still pair with their own heartbeats', () => {
-  const polar = sequence(60);
-  const phone = polar.slice(4, 54);
-  // Strap intervals 25–27 were lost; the filler keeps beat times, so phone interval p is still strap p + 4,
-  // shifted by the two intervals the filler replaced.
-  const withFiller = [...polar.slice(0, 25), polar[25] + polar[26] + polar[27], ...polar.slice(28)];
-  const alignment = alignIntervals(phone, withFiller, (_, q) => q !== 25);
-  assert.equal(alignment.lag, 4);
-  assert.equal(pairFor(alignment, 10), 14);
-  assert.equal(pairFor(alignment, 30), 32);
-  assert.equal(pairFor(alignment, 21), undefined);
-  assert.equal(
-    alignment.pairs.some(([, q]) => q === 25),
-    false,
+test('a strap dropout keeps only the longest unbroken stretch, so no beat pairs across it', (t) => {
+  const rr = sequence(90);
+  // Notifications 20–24 never arrived: about five seconds of beats are gone.
+  const rows = strapRows(rr, { lost: [20, 21, 22, 23, 24] });
+  const capture = readStrap(t, rows);
+  assert.equal(capture.strapDropouts, 1);
+  const afterGap = rows.findIndex((row, i) => i > 0 && row.t_ns - rows[i - 1].t_ns > 3e9);
+  assert.deepEqual(
+    capture.polarRrMs,
+    rows.slice(afterGap).map((row) => row.rr_ms),
   );
+});
+
+test('the CLI warns about captures with a strap dropout', (t) => {
+  const root = tempDir(t);
+  writeCaptureFolder(path.join(root, 'captures'), 'P1');
+  const folder = path.join(root, 'captures', 'P1');
+  fs.writeFileSync(path.join(folder, 'samples.csv'), `t_ns,r,g,b\n0,0.5,0.1,0.1\n${600e9},0.5,0.1,0.1\n`);
+  const rows = strapRows(sequence(90), { lost: [20, 21, 22, 23, 24] });
+  fs.writeFileSync(
+    path.join(folder, 'polar_rr.csv'),
+    `t_ns,rr_ms\n${rows.map((row) => `${row.t_ns},${row.rr_ms}`).join('\n')}\n`,
+  );
+  const run = spawnSync(
+    process.execPath,
+    [CLI, '--captures', path.join(root, 'captures'), '--out', path.join(root, 'metrics.json')],
+    { encoding: 'utf8' },
+  );
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stderr, /P1: 1 strap dropout\(s\); only the longest unbroken stretch is used/);
 });

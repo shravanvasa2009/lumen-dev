@@ -14,16 +14,11 @@ const round = (value) => (value == null ? null : Math.round(value * 100) / 100);
 const roundPair = (pair) => pair?.map(round) ?? null;
 const distinct = (values) => new Set(values).size;
 const subjectOf = (capture) => capture.meta.subject.code;
-// A dropout filler (captures.mjs) spans lost beats, so it is never a reference either.
-const polarUsable = (capture, q) =>
-  !capture.polarGaps?.includes(q) &&
-  capture.polarRrMs[q] >= POLAR_MIN_MS &&
-  capture.polarRrMs[q] <= POLAR_MAX_MS;
-const usableStrapIntervals = (capture) => capture.polarRrMs.filter((_, q) => polarUsable(capture, q));
+const polarUsable = (rr) => rr >= POLAR_MIN_MS && rr <= POLAR_MAX_MS;
 // result.uncertain still shows its numbers to the user, so it counts as conclusive.
 const isConclusive = (capture) =>
   capture.reading.inconclusive !== true && capture.reading.headlineKey !== 'result.inconclusive';
-const hasPolar = (capture) => capture.polarRrMs?.some((_, q) => polarUsable(capture, q));
+const hasPolar = (capture) => capture.polarRrMs?.some(polarUsable);
 // DSP-A is "at rest": no deliberate artifacts, no paced breathing, no standing test.
 const isRest = (capture) =>
   capture.meta.labels?.deliberateArtifact !== true &&
@@ -33,7 +28,7 @@ const isRest = (capture) =>
 function hrError(capture) {
   const phoneHr = capture.reading.metrics?.hr?.value;
   if (!hasPolar(capture) || phoneHr == null || !isConclusive(capture) || !isRest(capture)) return null;
-  return Math.abs(phoneHr - 60000 / mean(usableStrapIntervals(capture)));
+  return Math.abs(phoneHr - 60000 / mean(capture.polarRrMs.filter(polarUsable)));
 }
 
 function alignmentOf(capture) {
@@ -41,13 +36,13 @@ function alignmentOf(capture) {
   return alignIntervals(
     capture.phone.map((beat) => beat.ibiMs),
     capture.polarRrMs,
-    (p, q) => capture.phone[p].accepted && polarUsable(capture, q),
+    (p, q) => capture.phone[p].accepted && polarUsable(capture.polarRrMs[q]),
   );
 }
 
 // Only pairs where the phone kept the beat and the strap interval is in range are compared.
 function comparedPairs(capture, alignment) {
-  return alignment.pairs.filter(([p, q]) => capture.phone[p].accepted && polarUsable(capture, q));
+  return alignment.pairs.filter(([p, q]) => capture.phone[p].accepted && polarUsable(capture.polarRrMs[q]));
 }
 
 function intervalError(capture, alignment) {
@@ -60,12 +55,8 @@ function intervalError(capture, alignment) {
 function rmssdRelativeError(capture, alignment) {
   const shown = capture.reading.metrics?.rmssd?.value;
   if (shown == null || !alignment?.pairs.length) return null;
-  const [first, last] = [alignment.pairs[0][1], alignment.pairs.at(-1)[1]];
-  const segment = capture.polarRrMs.slice(first, last + 1);
-  const reference = rmssd(
-    segment,
-    segment.map((_, i) => polarUsable(capture, first + i)),
-  );
+  const segment = capture.polarRrMs.slice(alignment.pairs[0][1], alignment.pairs.at(-1)[1] + 1);
+  const reference = rmssd(segment, segment.map(polarUsable));
   if (!reference) return null;
   return Math.abs(shown - reference) / reference;
 }

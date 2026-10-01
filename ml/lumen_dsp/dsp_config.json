@@ -18,6 +18,29 @@
     "hrBandHz": [0.6, 3.5],
     "morphologyBandHz": [0.5, 8]
   },
+  "dsp7": {
+    "peakWindowS": 0.111,
+    "beatWindowS": 0.667,
+    "beta": 0.02,
+    "refineHalfWindowS": 0.015625
+  },
+  "dsp8": {
+    "minimumSearchS": 0.4
+  },
+  "dsp9": {
+    "notABeatUpslopeRatio": 0.15,
+    "artifactIntervalS": [0.25, 2.5],
+    "templateCorrelationMin": 0.85,
+    "amplitudeRatioRange": [0.5, 2.0],
+    "templateBeats": 10,
+    "longPauseRatio": 1.6,
+    "templateBeforePeakS": 0.2,
+    "templateAfterPeakS": 0.1,
+    "neighbours": 4,
+    "minNeighboursPerParity": 2,
+    "earlyIntervalRatio": 0.85,
+    "earlySmallAmplitudeRatio": 1.0
+  },
   "dsp14": {
     "minNormalBeats": 20,
     "beatSamples": 256,

@@ -97,6 +97,9 @@ jobs:
       - name: Golden parity, TypeScript vs Python (DSP-C)
         if: hashFiles('package-lock.json') != ''
         run: npm run golden:check
+      - name: Synthetic suite (DSP-D)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:synthetic
       - name: README tested-devices table matches devices.json
         if: hashFiles('package-lock.json') != ''
         run: npm run devices:table -- --check

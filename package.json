@@ -32,7 +32,7 @@
     "test": "node --test scripts/*.test.mjs && npm run test --workspaces --if-present",
     "test:changed": "npm run test --workspaces --if-present -- --onlyChanged",
     "deadcode": "knip",
-    "golden:check": "node scripts/not-yet.mjs golden:check",
+    "golden:check": "npm test -w @lumen/core -- golden && cd ml && uv run python -m lumen_dsp.golden --check",
     "test:synthetic": "node scripts/not-yet.mjs test:synthetic",
     "test:redteam": "node scripts/not-yet.mjs test:redteam",
     "test:routes": "npm run test:routes -w @lumen/mobile",

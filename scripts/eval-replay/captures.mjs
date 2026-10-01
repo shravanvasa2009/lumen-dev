@@ -61,10 +61,16 @@ function longestUnbrokenStretch(rows) {
   const stretches = [[]];
   rows.forEach((row, i) => {
     if (i > 0 && (row.t_ns - rows[i - 1].t_ns) / 1e6 - row.rr_ms > DROPOUT_MS) stretches.push([]);
-    stretches.at(-1).push(row.rr_ms);
+    stretches.at(-1).push(row);
   });
   const longest = stretches.reduce((best, stretch) => (stretch.length > best.length ? stretch : best));
-  return { polarRrMs: longest, strapDropouts: stretches.length - 1 };
+  // Where the kept stretch begins (its first interval's start), so alignment can start there too.
+  const first = longest[0];
+  return {
+    polarRrMs: longest.map((row) => row.rr_ms),
+    polarStartNs: first ? first.t_ns - first.rr_ms * 1e6 : null,
+    strapDropouts: stretches.length - 1,
+  };
 }
 
 function readCapture(folder) {
@@ -76,10 +82,10 @@ function readCapture(folder) {
     folder: path.basename(folder),
     meta: JSON.parse(fs.readFileSync(path.join(folder, 'meta.json'), 'utf8')),
     reading: JSON.parse(fs.readFileSync(path.join(folder, RESULT), 'utf8')),
-    phone: phone.map((row) => ({ ibiMs: row.ibi_ms, accepted: row.accepted === 1 })),
+    phone: phone.map((row) => ({ endNs: row.t_ns, ibiMs: row.ibi_ms, accepted: row.accepted === 1 })),
     ...(polar
       ? longestUnbrokenStretch(strapInsideCapture(folder, polar, span))
-      : { polarRrMs: null, strapDropouts: 0 }),
+      : { polarRrMs: null, polarStartNs: null, strapDropouts: 0 }),
   };
 }
 

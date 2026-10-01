@@ -606,3 +606,34 @@ test('the CLI warns about captures with a strap dropout', (t) => {
   assert.equal(run.status, 0, run.stderr);
   assert.match(run.stderr, /P1: 1 strap dropout\(s\); only the longest unbroken stretch is used/);
 });
+
+test('after a dropout, the kept later stretch still pairs each beat with its own heartbeat', (t) => {
+  const randomWalk = sequence(120);
+  // Paced breathing at 6.7 breaths/min repeats every 9 beats, so a sequence match alone can lock a whole
+  // breath off.
+  const paced = Array.from({ length: 120 }, (_, k) => 1000 + 80 * Math.sin((2 * Math.PI * k) / 9));
+  for (const rr of [randomWalk, paced]) {
+    const root = tempDir(t);
+    writeCaptureFolder(root, 'P1');
+    const folder = path.join(root, 'P1');
+    fs.writeFileSync(path.join(folder, 'samples.csv'), `t_ns,r,g,b\n0,0.5,0.1,0.1\n${600e9},0.5,0.1,0.1\n`);
+    let endMs = 0;
+    const phoneRows = rr.map((value, k) => {
+      endMs += value;
+      return `${Math.round(endMs * 1e6)},${value + (k % 2 ? -10 : 10)},1`;
+    });
+    fs.writeFileSync(
+      path.join(folder, 'replay-intervals.csv'),
+      `t_ns,ibi_ms,accepted\n${phoneRows.slice(1).join('\n')}\n`,
+    );
+    const rows = strapRows(rr, { lost: [12, 13, 14, 15, 16] });
+    fs.writeFileSync(
+      path.join(folder, 'polar_rr.csv'),
+      `t_ns,rr_ms\n${rows.map((row) => `${row.t_ns},${row.rr_ms}`).join('\n')}\n`,
+    );
+    const { captures } = readCaptures(root);
+    assert.equal(captures[0].strapDropouts, 1);
+    assert.ok(captures[0].polarStartNs > 15e9);
+    assert.equal(computeMetrics(captures, { commit: 'abc', date: '2026-10-20' }).intervals.maeMs, 10);
+  }
+});

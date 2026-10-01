@@ -31,13 +31,26 @@ function hrError(capture) {
   return Math.abs(phoneHr - 60000 / mean(capture.polarRrMs.filter(polarUsable)));
 }
 
+// Sequence alignment searches only ±10 beats, so when the strap data starts later in the reading (the
+// longest stretch after a dropout), alignment starts at the phone beat the shared clock puts there. The margin
+// covers the strap's notification delay (up to one RR) with room to spare.
+const START_MARGIN_BEATS = 5;
+
+function phoneBeatsBeforeStrap(capture) {
+  if (capture.polarStartNs == null) return 0;
+  const firstAfter = capture.phone.findIndex((beat) => beat.endNs > capture.polarStartNs);
+  return firstAfter === -1 ? 0 : Math.max(0, firstAfter - START_MARGIN_BEATS);
+}
+
 function alignmentOf(capture) {
   if (!hasPolar(capture) || !capture.phone.length || !isConclusive(capture)) return null;
-  return alignIntervals(
-    capture.phone.map((beat) => beat.ibiMs),
+  const skip = phoneBeatsBeforeStrap(capture);
+  const alignment = alignIntervals(
+    capture.phone.slice(skip).map((beat) => beat.ibiMs),
     capture.polarRrMs,
-    (p, q) => capture.phone[p].accepted && polarUsable(capture.polarRrMs[q]),
+    (p, q) => capture.phone[p + skip].accepted && polarUsable(capture.polarRrMs[q]),
   );
+  return alignment && { ...alignment, pairs: alignment.pairs.map(([p, q]) => [p + skip, q]) };
 }
 
 // Only pairs where the phone kept the beat and the strap interval is in range are compared.

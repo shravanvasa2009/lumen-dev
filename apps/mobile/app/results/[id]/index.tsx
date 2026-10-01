@@ -12,9 +12,9 @@ export default function ResultsScreen() {
     <RouteShell
       title={t('results.title')}
       sections={[
-        { heading: t('results.heartRhythm') },
-        { heading: t('results.heartRate') },
-        { heading: t('results.hrv') },
+        { heading: t('results.heartRhythm'), metric: 'rhythm' },
+        { heading: t('results.heartRate'), metric: 'hr' },
+        { heading: t('results.hrv'), metric: 'hrv' },
         { heading: t('results.experimental') },
       ]}
     >

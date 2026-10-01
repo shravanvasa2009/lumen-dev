@@ -8,9 +8,11 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "test": "jest --passWithNoTests",
-    "test:routes": "jest src/routes.test.tsx"
+    "test:routes": "jest src/routes.test.tsx",
+    "test:evidence": "jest src/evidence"
   },
   "dependencies": {
+    "@lumen/core": "0.1.0",
     "expo": "57.0.26",
     "expo-constants": "57.0.20",
     "expo-dev-client": "57.0.19",

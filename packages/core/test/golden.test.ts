@@ -21,10 +21,32 @@ const FILTER_TOLERANCE = 1e-6;
 // slopes; core: Thomas algorithm for second derivatives), so values agree to rounding: observed 3.3e-16 on
 // values near 0.6. 1e-12 leaves room for other machines and still catches any change of method.
 const RESAMPLE_TOLERANCE = 1e-12;
+// FILTER_TOLERANCE is the §10.2 gate; these tighter bounds hold the implementation to what it achieves,
+// so a regression in padding, initial conditions, or section pairing cannot hide under 1e-6. Observed:
+// coefficients ≤ 4.4e-16 (values up to 2, so 1e-15 × max(1, |c|)); band-pass zero-phase ≤ 7.0e-14 and
+// causal ≤ 9.9e-14; DC level ≤ 7.4e-13 (256 Hz, where the 0.3 Hz low-pass poles sit within 0.5% of z = 1
+// and rounding builds up). Outputs are absolute: the inputs are near 0.63, so 1e-12 is ~1.6e-12 relative.
+const COEFFICIENT_BOUND = 1e-15;
+const FILTER_OUTPUT_BOUND = 1e-12;
 
 function maxAbsDifference(actual: ArrayLike<number>, expected: number[]): number {
   expect(actual).toHaveLength(expected.length);
   return expected.reduce((worst, value, i) => Math.max(worst, Math.abs(actual[i]! - value)), 0);
+}
+
+function expectCoefficients(actual: number[], expected: number[]) {
+  expect(maxAbsDifference(actual, expected)).toBeLessThan(FILTER_TOLERANCE);
+  expected.forEach((value, i) =>
+    expect(Math.abs(actual[i]! - value)).toBeLessThanOrEqual(
+      COEFFICIENT_BOUND * Math.max(1, Math.abs(value)),
+    ),
+  );
+}
+
+function expectFilterOutput(actual: ArrayLike<number>, expected: number[]) {
+  const difference = maxAbsDifference(actual, expected);
+  expect(difference).toBeLessThan(FILTER_TOLERANCE);
+  expect(difference).toBeLessThan(FILTER_OUTPUT_BOUND);
 }
 
 const { samples: sampleColumns, stats: statColumns, expected } = timebaseGolden;
@@ -85,12 +107,10 @@ describe('DSP-C golden parity: DSP-6 filters', () => {
         band === 'hr' ? [hrOrder, hrBandHz] : [morphologyOrder, morphologyBandHz],
       );
       const designed = butterBandpass(order, bandHz[0]!, bandHz[1]!, rateHz);
-      expect(maxAbsDifference(designed.flat(), sos.flat())).toBeLessThan(FILTER_TOLERANCE);
+      expectCoefficients(designed.flat(), sos.flat());
       const input = goldenSegment(rateHz, firstIndex);
-      expect(maxAbsDifference(filterZeroPhase(designed, input), zeroPhase)).toBeLessThan(FILTER_TOLERANCE);
-      expect(maxAbsDifference(new CausalFilter(designed).filter(input), causal)).toBeLessThan(
-        FILTER_TOLERANCE,
-      );
+      expectFilterOutput(filterZeroPhase(designed, input), zeroPhase);
+      expectFilterOutput(new CausalFilter(designed).filter(input), causal);
     },
   );
 
@@ -99,11 +119,11 @@ describe('DSP-C golden parity: DSP-6 filters', () => {
     ({ rateHz, firstIndex, sos, dcLevel: expectedDc }) => {
       const { dcOrder, dcCutoffHz } = DSP_CONFIG.dsp3;
       const designed = butterLowpass(dcOrder, dcCutoffHz, rateHz);
-      expect(maxAbsDifference(designed.flat(), sos.flat())).toBeLessThan(FILTER_TOLERANCE);
+      expectCoefficients(designed.flat(), sos.flat());
       const red = resampleCubic(timebase.tS, timebase.r, rateHz).find(
         (segment) => segment.firstIndex === firstIndex,
       )!;
-      expect(maxAbsDifference(dcLevel(red.values, rateHz), expectedDc)).toBeLessThan(FILTER_TOLERANCE);
+      expectFilterOutput(dcLevel(red.values, rateHz), expectedDc);
     },
   );
 });

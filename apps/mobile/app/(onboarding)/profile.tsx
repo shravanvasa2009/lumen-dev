@@ -38,7 +38,7 @@ export default function ProfileScreen() {
   ];
   return (
     <OnboardingStep
-      step={3}
+      step={2}
       title={t('profile.title')}
       subtitle={t('profile.subtitle')}
       footer={<NavButton label={t('common.continue')} href="/phone-check" disabled={!ageValid} />}

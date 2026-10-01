@@ -63,7 +63,7 @@ export default function PhoneCheckScreen() {
   const passedCount = rows.filter((row) => row.passed).length;
   return (
     <OnboardingStep
-      step={4}
+      step={3}
       title={t('phoneCheck.title')}
       subtitle={t('phoneCheck.subtitle')}
       footer={<NavButton label={t('phoneCheck.next')} href="/placement" />}

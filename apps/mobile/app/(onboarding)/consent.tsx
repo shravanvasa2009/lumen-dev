@@ -17,7 +17,7 @@ export default function ConsentScreen() {
   const [understood, setUnderstood] = useState(false);
   return (
     <OnboardingStep
-      step={2}
+      step={1}
       title={t('consent.title')}
       footer={<NavButton label={t('common.continue')} href="/profile" disabled={!understood} />}
     >

@@ -2,6 +2,7 @@ import {
   AndroidConfig,
   createRunOncePlugin,
   withAndroidManifest,
+  withBaseMod,
   withInfoPlist,
   type ConfigPlugin,
 } from 'expo/config-plugins';
@@ -48,7 +49,31 @@ const withSpanishCameraPurpose: ConfigPlugin = (config) => {
   return config;
 };
 
-const withLumenCaptureOnce: ConfigPlugin = (config) => {
+type LumenCaptureProps = { personalTeam?: boolean } | void;
+
+// Free Apple ID teams cannot sign the push entitlement that expo-notifications adds (ADR 0034); local
+// reminders do not need it. Entitlements mods run newest first, so a plain withEntitlementsPlist mod here
+// would run before expo-notifications' (listed earlier in app.config.ts) and see its key re-added.
+// withBaseMod hands this mod the rest of the chain as nextMod, so the key is removed after every other
+// plugin has run, whatever the plugin order.
+const withoutPushEntitlement: ConfigPlugin = (config) =>
+  withBaseMod<Record<string, unknown>>(config, {
+    platform: 'ios',
+    mod: 'entitlements',
+    async action({ modRequest, ...chainConfig }) {
+      if (!modRequest.nextMod) {
+        throw new Error('lumen-capture: the entitlements mod chain has no provider.');
+      }
+      const entitlementsConfig = await modRequest.nextMod({ ...chainConfig, modRequest });
+      delete entitlementsConfig.modResults['aps-environment'];
+      return entitlementsConfig;
+    },
+  });
+
+const withLumenCaptureOnce: ConfigPlugin<LumenCaptureProps> = (config, props) => {
+  if (props?.personalTeam) {
+    config = withoutPushEntitlement(config);
+  }
   config = withInfoPlist(config, (plistConfig) => {
     plistConfig.modResults.NSCameraUsageDescription = cameraPurposeEn(plistConfig.name);
     return plistConfig;

@@ -4,7 +4,7 @@ import { useTheme } from '@/theme';
 
 type AppTextProps = TextProps & {
   variant?: 'display' | 'title' | 'headline' | 'body' | 'caption';
-  tone?: 'text' | 'textDim' | 'textFaint' | 'accent';
+  tone?: 'text' | 'textDim' | 'textFaint' | 'accent' | 'criticalText';
 };
 
 export function AppText({ variant = 'body', tone = 'text', style, ...textProps }: AppTextProps) {

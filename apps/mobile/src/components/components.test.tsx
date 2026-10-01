@@ -85,6 +85,22 @@ describe.each([
     });
   });
 
+  it('critical Button and critical text use the emergency red of the theme', () => {
+    render(
+      <>
+        <Button label="Call" variant="critical" onPress={jest.fn()} />
+        <AppText tone="criticalText">Alert</AppText>
+      </>,
+    );
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Call' }).props.style)).toMatchObject({
+      minHeight: 52,
+      backgroundColor: colors.criticalFill,
+    });
+    expect(StyleSheet.flatten(screen.getByText('Alert').props.style)).toMatchObject({
+      color: colors.criticalText,
+    });
+  });
+
   it('a disabled Button does not call onPress', () => {
     const onPress = jest.fn();
     render(<Button label="Wait" onPress={onPress} disabled />);

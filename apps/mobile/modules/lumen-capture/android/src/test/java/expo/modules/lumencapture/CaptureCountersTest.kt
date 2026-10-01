@@ -77,6 +77,29 @@ class CaptureCountersTest {
     }
 
     @Test
+    fun lockIntervalIsNominalUntilFiveIntervalsThenTheirMedian() {
+        val counters = CaptureCounters(INTERVAL_NS)
+        assertEquals(INTERVAL_NS.toDouble(), counters.lockIntervalNs(), 0.0)
+        for (i in 0 until 5) counters.frameAt(i * 100_000_000L)
+        assertEquals(INTERVAL_NS.toDouble(), counters.lockIntervalNs(), 0.0) // only 4 intervals so far
+        counters.frameAt(5 * 100_000_000L)
+        assertEquals(100_000_000.0, counters.lockIntervalNs(), 0.0)
+    }
+
+    @Test
+    fun lockIntervalUsesTheLastFiveIntervalsWhateverTheirAge() {
+        // 4 fps: fewer than 5 intervals ever end within 1 s, so a 1 s window would stay nominal (33 ms) and
+        // give a 1 s wait; the last 5 intervals give 250 ms and a 2.5 s wait (ADR 0029 addendum).
+        val counters = CaptureCounters(33_333_333L)
+        for (i in 0 until 7) counters.frameAt(i * 250_000_000L)
+        assertEquals(250_000_000.0, counters.lockIntervalNs(), 0.0)
+        assertEquals(2500L, lockWaitMs(counters.lockIntervalNs()))
+        // Older intervals drop out: after 5 faster ones, only those count.
+        for (i in 1..5) counters.frameAt(6 * 250_000_000L + i * 100_000_000L)
+        assertEquals(100_000_000.0, counters.lockIntervalNs(), 0.0)
+    }
+
+    @Test
     fun medianCountsIntervalsThatEndedInTheLastSecondLikeSwift() {
         // 6 fps against a 30 fps nominal interval: the 5 intervals ending in the last second already give a
         // median at the 6th frame, so only frames 1..5 count drops (4 each). Counting intervals between frames

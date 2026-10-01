@@ -28,6 +28,26 @@ class ExposurePlanTest {
     }
 
     @Test
+    fun lockWaitIsTenFrameIntervalsClampedToOneToThreeSeconds() {
+        assertEquals(1000L, lockWaitMs(1e9 / 30)) // 333 ms at 30 fps -> 1 s floor
+        assertEquals(1500L, lockWaitMs(150e6)) // about 6.7 fps -> 1.5 s
+        assertEquals(3000L, lockWaitMs(500e6)) // 2 fps -> 3 s cap
+    }
+
+    @Test
+    fun settleWaitCountsFromTheFirstFrameAndNeverDropsBelowTheLatency() {
+        val second = 1_000_000_000L
+        // No frame yet: the whole lock wait is still ahead.
+        assertEquals(1000L, settleWaitMs(lockWaitMs = 1000, firstFrameNs = null, nowNs = 5 * second))
+        // First frame 300 ms ago: 700 ms of the 1 s settle remain.
+        assertEquals(700L, settleWaitMs(lockWaitMs = 1000, firstFrameNs = 2 * second, nowNs = 2 * second + 300_000_000))
+        // Settled long ago: still wait 0.2 s for fresh frames, as in Swift.
+        assertEquals(200L, settleWaitMs(lockWaitMs = 1000, firstFrameNs = 0, nowNs = 10 * second))
+        // A slow camera stretches the settle (2.5 s lock wait, 1 s elapsed).
+        assertEquals(1500L, settleWaitMs(lockWaitMs = 2500, firstFrameNs = 0, nowNs = second))
+    }
+
+    @Test
     fun exposurePlanPrefersLongerDurationOverHigherIso() {
         val limits = ExposureLimits(minDurationNs = 1e4, maxDurationNs = 1e9 / 60, minIso = 50.0, maxIso = 3000.0)
         val current = ExposureSetting(durationNs = 4e6, iso = 100.0)

@@ -1,6 +1,7 @@
 package expo.modules.lumencapture
 
 import kotlin.math.pow
+import kotlin.math.roundToLong
 
 // DSP-5 (spec §10) and Appendix A: lock when the red mean is 0.55–0.80 of full scale unless the caller asks
 // otherwise.
@@ -32,6 +33,26 @@ fun exposureFactor(red: Double, target: ClosedFloatingPointRange<Double>): Doubl
     val middle = (target.start + target.endInclusive) / 2
     val wanted = (middle / red.coerceAtLeast(MIN_RED)).pow(GAMMA)
     return wanted.coerceIn(MIN_FACTOR, MAX_FACTOR)
+}
+
+// ADR 0029 addendum: waits inside lockExposure() (settings applied, fresh frames) are
+// clamp(10 x median measured frame interval, 1 s, 3 s), so a slow camera gets more time but never unbounded.
+private const val WAIT_FRAMES = 10
+private const val MIN_WAIT_MS = 1000L
+private const val MAX_WAIT_MS = 3000L
+
+fun lockWaitMs(medianIntervalNs: Double): Long =
+    (WAIT_FRAMES * medianIntervalNs / 1_000_000).roundToLong().coerceIn(MIN_WAIT_MS, MAX_WAIT_MS)
+
+// A changed exposure reaches the output a few frames late; 0.2 s covers that at 30-240 fps (as in Swift).
+const val EXPOSURE_LATENCY_MS = 200L
+
+// Wait before the first red reading of lockExposure(): the rest of the settle (the lock wait, at least the
+// spec's 1 s), counted from the first delivered frame, the closest Android point to Swift's startRunning(),
+// and never less than the exposure latency. With no frame yet, the whole wait is still ahead.
+fun settleWaitMs(lockWaitMs: Long, firstFrameNs: Long?, nowNs: Long): Long {
+    val elapsedMs = if (firstFrameNs == null) 0L else (nowNs - firstFrameNs) / 1_000_000
+    return maxOf(lockWaitMs - elapsedMs, EXPOSURE_LATENCY_MS)
 }
 
 // Scales total exposure (duration x ISO) by `factor` while keeping ISO as low as possible: the longest allowed

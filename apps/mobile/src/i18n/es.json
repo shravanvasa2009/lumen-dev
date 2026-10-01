@@ -65,7 +65,6 @@
   "howToSit.warm": "Manos calientes (frótalas si las sientes frías)",
   "rating.title": "Tu calificación de Lumen",
   "rating.subtitle": "Medida en este teléfono, con tu dedo",
-  "rating.unlocked": "Desbloqueado",
   "reminders.title": "Recordatorios",
   "reminders.subtitle": "Las mediciones a la misma hora cada día son las más fáciles de comparar. Lumen también puede recordarte las revisiones de seguimiento.",
   "reminders.localOnly": "Solo recordatorios locales. No se envía nada a ningún sitio y tu pantalla de bloqueo nunca muestra datos de salud.",
@@ -397,5 +396,6 @@
   "practice.progress": "{{done}} de {{total}} segundos estables",
   "practice.pending": "La práctica con la cámara aún no está conectada en esta versión, así que puedes continuar sin ella.",
   "howToSit.labelPhone": "teléfono a la altura del pecho",
-  "howToSit.labelElbow": "codo sobre la mesa"
+  "howToSit.labelElbow": "codo sobre la mesa",
+  "rating.pending": "Tu calificación se fija cuando la práctica mide qué tan bien el flash llega a tu dedo."
 }

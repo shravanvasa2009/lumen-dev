@@ -65,7 +65,6 @@
   "howToSit.warm": "Hands warm (rub them if they feel cold)",
   "rating.title": "Your Lumen rating",
   "rating.subtitle": "Measured on this phone, with your finger",
-  "rating.unlocked": "Unlocked",
   "reminders.title": "Reminders",
   "reminders.subtitle": "Readings at the same time each day are the easiest to compare. Lumen can also remind you about follow-up checks.",
   "reminders.localOnly": "Local reminders only. Nothing is sent anywhere, and your lock screen never shows health details.",
@@ -397,5 +396,6 @@
   "practice.progress": "{{done}} of {{total}} steady seconds",
   "practice.pending": "Camera practice isn't connected in this build yet, so you can continue without it.",
   "howToSit.labelPhone": "phone at chest height",
-  "howToSit.labelElbow": "elbow on the table"
+  "howToSit.labelElbow": "elbow on the table",
+  "rating.pending": "Your rating is set once practice measures how well your flash reaches your finger."
 }

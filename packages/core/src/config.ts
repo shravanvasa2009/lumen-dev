@@ -35,4 +35,17 @@ export const DSP_CONFIG = {
     sampleEntropyR: 0.2, // × the window's population SD
     minUsableIntervals: 40, // a reading needs this many intervals that do not span an artifact
   },
+  // Lab-screen live HR (ADR 0027): the M0 proof's method and limits (§18), not DSP-11. The spectrum runs
+  // on the dsp2.modelRateHz grid.
+  liveHr: {
+    windowS: 10, // analyse only the last 10 s of the input
+    // Longest gap-free (DSP-2) stretch needed: ≥ 5 pulse cycles at 40 bpm, and a 0.125 Hz bin spacing.
+    minSegmentS: 8,
+    detrendHalfWidthS: 1.5, // the proof subtracts a moving average over ±1.5 s
+    scanBandHz: [0.6, 3.5],
+    scanStepHz: 0.01,
+    minBpm: 40,
+    maxBpm: 180,
+    minSnrDb: 6, // peak power over the median power of the scanned bins
+  },
 };

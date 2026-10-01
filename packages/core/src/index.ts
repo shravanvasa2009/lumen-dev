@@ -30,6 +30,7 @@ export { DSP_CONFIG } from './config';
 export { buildTimebase, type Timebase } from './timebase';
 export { resampleCubic, type ResampledSegment } from './resample';
 export { dcLevel, fingerSignals, type FingerSignals } from './finger-signal';
+export { estimateLiveHeartRate } from './live-hr';
 export { butterBandpass, butterLowpass, CausalFilter, filterZeroPhase, type SosSection } from './filters';
 export {
   hasEnoughUsableIntervals,

@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import pickle
+import re
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -27,6 +28,8 @@ from export.provenance import sha256_of
 from export.specs import ML_ROOT, RUNS_DIR, SPECS
 from lumen_dsp import config as dsp_config
 from lumen_dsp import rhythm as dsp_rhythm
+from nets import blocks
+from nets import rhythm_net as rhythm_net_module
 from nets.rhythm_net import LABELS, RhythmNet
 from train import rhythm_windows
 from train.rhythm_windows import (
@@ -112,6 +115,21 @@ def windows_key(parquet: Path, splits: Path, cap: int, seed: int) -> str:
         Path(augment.__file__),
         Path(dsp_rhythm.__file__),
         dsp_config.CONFIG_PATH,
+    ):
+        digest.update(sha256_of(source).encode())
+    return digest.hexdigest()[:16]
+
+
+def training_key(windows: str, config: TrainConfig, cap: int) -> str:
+    # A checkpoint resumes only into the code, settings, and windows that wrote it. Anything else gets
+    # its own run folder, so a finished or half-finished run is never passed off as a new one.
+    settings = json.dumps({**config._asdict(), "cap": cap, "windows": windows}, sort_keys=True)
+    digest = hashlib.sha256(settings.encode())
+    for source in (
+        Path(__file__),
+        Path(rhythm_windows.__file__),
+        Path(rhythm_net_module.__file__),
+        Path(blocks.__file__),
     ):
         digest.update(sha256_of(source).encode())
     return digest.hexdigest()[:16]
@@ -225,8 +243,13 @@ def _snapshot(model: nn.Module) -> dict[str, torch.Tensor]:
 
 
 def latest_checkpoint(directory: Path) -> Path | None:
-    found = sorted(directory.glob("epoch-*.pt"))
-    return found[-1] if found else None
+    # By parsed epoch number: name order would put epoch-1000 before epoch-999.
+    numbered = [
+        (int(match.group(1)), path)
+        for path in directory.glob("epoch-*.pt")
+        if (match := re.fullmatch(r"epoch-(\d+)\.pt", path.name))
+    ]
+    return max(numbered)[1] if numbered else None
 
 
 def _save_checkpoint(directory: Path, state: dict) -> None:
@@ -238,7 +261,7 @@ def _save_checkpoint(directory: Path, state: dict) -> None:
 
 
 def train_network(
-    train: WindowSet, val: WindowSet, directory: Path, config: TrainConfig
+    train: WindowSet, val: WindowSet, directory: Path, config: TrainConfig, key: str
 ) -> tuple[RhythmNet, list[dict]]:
     directory.mkdir(parents=True, exist_ok=True)
     model = initial_model(train, config.seed)
@@ -254,6 +277,11 @@ def train_network(
     latest = latest_checkpoint(directory)
     if latest is not None:
         state = torch.load(latest, weights_only=True)
+        if state.get("key") != key:
+            raise ValueError(
+                f"{latest} was written by different code or settings (key {state.get('key')}, now {key}); "
+                "train into a new folder instead of resuming it"
+            )
         model.load_state_dict(state["model"])
         optimizer.load_state_dict(state["optimizer"])
         log.info("resuming after epoch %d from %s", state["epoch"], latest)
@@ -275,6 +303,7 @@ def train_network(
         val_loss = _weighted_loss(model, val)
         improved = val_loss < state["best_loss"]
         state = {
+            "key": key,
             "epoch": epoch,
             "model": _snapshot(model),
             "optimizer": optimizer.state_dict(),
@@ -385,12 +414,14 @@ def subject_units(scores: np.ndarray, windows: WindowSet) -> Units:
 
 def threshold_for_specificity(negative_scores: np.ndarray, target: float) -> float:
     # The lowest τ that calls at most (1 − target) of the negatives positive (score ≥ τ). Ties at the
-    # boundary fall below τ, so specificity is never under the target.
-    ordered = np.sort(np.asarray(negative_scores, dtype=float))[::-1]
+    # boundary fall below τ, so specificity is never under the target. τ is the next float32 above the
+    # boundary score: ONNX outputs and some baselines are float32, and NumPy 2 compares a float32 array
+    # with a Python float in float32 (NEP 50), which would round a float64 step back onto the boundary.
+    ordered = np.sort(np.asarray(negative_scores, dtype=np.float64))[::-1]
     allowed = math.floor((1 - target) * len(ordered) + 1e-9)
     if allowed >= len(ordered):
         raise ValueError(f"{len(ordered)} negatives cannot set a {target:.0%} specificity threshold")
-    return float(np.nextafter(ordered[allowed], np.inf))
+    return float(np.nextafter(np.float32(ordered[allowed]), np.float32(np.inf)))
 
 
 def auroc(is_af: np.ndarray, scores: np.ndarray) -> float:
@@ -437,9 +468,16 @@ def with_ci(units: Units, metric: Metric) -> dict:
 
 
 def evaluate(probs: np.ndarray, val: WindowSet, premature_probs: np.ndarray, premature: WindowSet) -> dict:
+    # Every model is scored in float64, as the app averages float32 outputs in JavaScript doubles.
+    probs, premature_probs = probs.astype(np.float64), premature_probs.astype(np.float64)
     scores = probs[:, AF]
     subjects = subject_units(scores, val)
     tau = threshold_for_specificity(subjects.scores[~subjects.is_af], TARGET_SPECIFICITY)
+    specificity = specificity_at(tau)(subjects.is_af, subjects.scores)
+    if specificity < TARGET_SPECIFICITY:
+        raise ValueError(
+            f"subject-level specificity {specificity:.4f} at τ_AF {tau} is below {TARGET_SPECIFICITY} (§10.1)"
+        )
     levels = {
         "window": Units(scores, val.labels == AF, val.subjects),
         "reading": reading_units(scores, val),
@@ -605,8 +643,12 @@ def training_notes(sets: WindowSets, cap: int, seed: int, decision: dict) -> lis
         "limit, not by accuracy.",
         f"Ship rule (§11.3, {decision['criterion']}): {decision['ships']} is the v1 rhythm model. Rhythm-Net "
         "and the logistic rule stay in the ablation table.",
+        f"Evaluation uses the same cap: dev-val is also limited to {cap} windows per subject and label, "
+        "chosen as whole readings, so long recordings count per person in every dev-val number.",
         "False AF on premature beats: augmented dev-val MIT-BIH Arrhythmia 'other' readings with at least "
-        "one premature beat, called AF when the mean P(AF) is at least τ_AF.",
+        "one premature beat, called AF when the mean P(AF) is at least τ_AF. The sample is small "
+        f"({len(set(sets.premature.subjects.tolist()))} subjects, {len(sets.premature.labels)} windows), "
+        "so its confidence interval is wide (§11.3 known failure mode).",
     ]
 
 
@@ -643,11 +685,12 @@ def main(argv: list[str] | None = None) -> None:
 
     episodes = load_episodes()
     assignment = json.loads(args.splits.read_text(encoding="utf-8"))["subjects"]
-    key = windows_key(paths.derived_dir() / "intervals.parquet", args.splits, args.cap, config.seed)
-    run_dir = args.runs_dir / NETWORK.file_stem / key
+    windows = windows_key(paths.derived_dir() / "intervals.parquet", args.splits, args.cap, config.seed)
+    run_dir = args.runs_dir / NETWORK.file_stem / windows
     sets = window_sets(episodes, assignment, run_dir, args.cap, config.seed)
+    key = training_key(windows, config, args.cap)
 
-    model, history = train_network(sets.train, sets.val, run_dir, config)
+    model, history = train_network(sets.train, sets.val, run_dir / f"train-{key}", config, key)
     raw_probs = network_probs(model, sets.val)
     temperature = fit_temperature(model, sets.val)
     with torch.no_grad():

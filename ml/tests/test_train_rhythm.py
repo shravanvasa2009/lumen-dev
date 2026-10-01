@@ -11,6 +11,10 @@ from export.specs import SPECS
 from nets.rhythm_net import LABELS
 from train import rhythm
 from train.rhythm import (
+    TARGET_SPECIFICITY,
+    evaluate,
+    latest_checkpoint,
+    training_key,
     TrainConfig,
     sample_weights,
     subject_units,
@@ -45,8 +49,19 @@ def test_threshold_keeps_specificity_at_the_target():
     negatives = np.linspace(0.0, 0.95, 20)
     tau = threshold_for_specificity(negatives, 0.95)
     assert np.mean(negatives < tau) == pytest.approx(0.95)
-    # The lowest such τ: anything lower calls a second negative positive.
-    assert np.mean(negatives < np.nextafter(tau, -np.inf)) < 0.95
+    # The lowest float32 τ: one float32 step lower calls a second negative positive.
+    assert np.mean(negatives < np.nextafter(np.float32(tau), np.float32(-np.inf))) < 0.95
+
+
+def test_threshold_holds_for_float32_scores_at_the_boundary():
+    # Logistic regression and ONNX give float32 probabilities. NumPy 2 compares a float32 array with a
+    # Python float in float32, so a τ one float64 step above a float32 score rounded back onto it and
+    # let a 50th of 986 negatives through (specificity 0.9493, the PR #30 review finding).
+    negatives = np.random.default_rng(5).random(986).astype(np.float32)
+    tau = threshold_for_specificity(negatives, TARGET_SPECIFICITY)
+    assert np.float32(tau) == tau
+    assert np.mean(negatives < tau) >= TARGET_SPECIFICITY
+    assert np.mean(negatives.astype(np.float64) < tau) >= TARGET_SPECIFICITY
 
 
 def test_threshold_with_few_negatives_calls_none_positive():
@@ -84,17 +99,101 @@ def test_subject_units_split_a_subject_into_af_and_non_af():
     np.testing.assert_allclose(units.scores, [0.2, 0.8, 0.4])
 
 
-def test_a_killed_run_resumes_to_the_same_weights(tmp_path):
+def small_training_sets():
     rows = [(index % 3, f"afdb:{index % 4}", index) for index in range(120)]
-    train, val = windows_for(rows), windows_for(rows[:30])
+    return windows_for(rows), windows_for(rows[:30])
+
+
+class KilledError(Exception):
+    pass
+
+
+def test_a_killed_run_resumes_to_the_same_weights(tmp_path, monkeypatch):
+    train, val = small_training_sets()
     config = TrainConfig(max_epochs=3, patience=10, batch_size=32)
-    train_network(train, val, tmp_path / "resumed", config._replace(max_epochs=1))
-    resumed, history = train_network(train, val, tmp_path / "resumed", config)
-    unbroken, _ = train_network(train, val, tmp_path / "unbroken", config)
+    key = training_key("windows", config, cap=400)
+    real_save = rhythm._save_checkpoint
+
+    def save_then_die(directory, state):
+        real_save(directory, state)
+        if state["epoch"] == 1:
+            raise KilledError
+
+    monkeypatch.setattr(rhythm, "_save_checkpoint", save_then_die)
+    with pytest.raises(KilledError):
+        train_network(train, val, tmp_path / "resumed", config, key)
+    monkeypatch.setattr(rhythm, "_save_checkpoint", real_save)
+    resumed, history = train_network(train, val, tmp_path / "resumed", config, key)
+    unbroken, _ = train_network(train, val, tmp_path / "unbroken", config, key)
     assert [entry["epoch"] for entry in history] == [1, 2, 3]
     assert len(list((tmp_path / "resumed").glob("epoch-*.pt"))) == 3
     for name, tensor in unbroken.state_dict().items():
         torch.testing.assert_close(resumed.state_dict()[name], tensor, rtol=0, atol=0)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"learning_rate": 3e-3}, {"patience": 2}, {"max_epochs": 4}, {"batch_size": 16}, {"seed": 7}],
+    ids=str,
+)
+def test_a_changed_setting_never_reuses_a_finished_run(tmp_path, change):
+    train, val = small_training_sets()
+    finished = TrainConfig(max_epochs=3, patience=10, batch_size=32)
+    changed = finished._replace(**change)
+    old_key, new_key = training_key("windows", finished, 400), training_key("windows", changed, 400)
+    assert old_key != new_key
+    train_network(train, val, tmp_path / old_key, finished, old_key)
+    # Pointed at the finished run's folder, the new settings are refused rather than resumed.
+    with pytest.raises(ValueError, match="different code or settings"):
+        train_network(train, val, tmp_path / old_key, changed, new_key)
+    _, history = train_network(train, val, tmp_path / new_key, changed, new_key)
+    # Trained from epoch 1 under the new key; whether the weights differ depends on the setting (a
+    # patience that never triggers trains the same model, legitimately).
+    assert history[0]["epoch"] == 1
+    checkpoints = sorted((tmp_path / new_key).glob("epoch-*.pt"))
+    assert checkpoints and all(torch.load(path, weights_only=True)["key"] == new_key for path in checkpoints)
+
+
+def test_training_key_covers_the_window_cap_and_the_windows():
+    config = TrainConfig()
+    assert training_key("windows", config, 400) != training_key("windows", config, 300)
+    assert training_key("windows", config, 400) != training_key("other-windows", config, 400)
+
+
+def test_checkpoints_are_picked_by_epoch_number(tmp_path):
+    for epoch in (2, 999, 1000):
+        (tmp_path / f"epoch-{epoch:03d}.pt").write_bytes(b"")
+    assert latest_checkpoint(tmp_path).name == "epoch-1000.pt"
+
+
+def evaluation_sets(count=200):
+    # Half the subjects have AF windows, every subject has non-AF windows; float32 probabilities like
+    # the logistic baseline's.
+    rng = np.random.default_rng(2)
+    rows = [
+        (label, f"cinc2017:{index}", 2 * index + (label == AF))
+        for index in range(count)
+        for label in (SINUS, AF)
+        if label != AF or index % 2 == 0
+    ]
+    windows = windows_for(rows)
+    probs = rng.dirichlet([1, 1, 1], size=len(rows)).astype(np.float32)
+    probs[windows.labels == AF, AF] += 0.3
+    premature = windows_for([(OTHER, "mitdb:1", 0), (OTHER, "mitdb:2", 1)])
+    return probs, windows, rng.dirichlet([1, 1, 1], size=2).astype(np.float32), premature
+
+
+def test_evaluate_keeps_subject_specificity_at_the_target_for_float32_probs(monkeypatch):
+    monkeypatch.setattr(rhythm, "BOOTSTRAP_RESAMPLES", 20)
+    evaluation = evaluate(*evaluation_sets())
+    assert evaluation["metrics"]["subjectSpecificity"]["estimate"] >= TARGET_SPECIFICITY
+
+
+def test_evaluate_refuses_a_threshold_below_the_target(monkeypatch):
+    monkeypatch.setattr(rhythm, "BOOTSTRAP_RESAMPLES", 20)
+    monkeypatch.setattr(rhythm, "threshold_for_specificity", lambda _scores, _target: 0.0)
+    with pytest.raises(ValueError, match="subject-level specificity"):
+        evaluate(*evaluation_sets())
 
 
 def synthetic_episodes(seed=0):
@@ -157,7 +256,10 @@ def test_training_writes_metrics_the_manifest_accepts(trained_run):
     assert {row["dataset"] for row in network["development"]["byDataset"]} == {"afdb", "cinc2017", "mitdb"}
     for key in ("subjectAuroc", "subjectSpecificity", "falseAfRatePrematureReadings"):
         assert key in network["development"]["metrics"] and key in lgbm["development"]["metrics"]
-    assert network["development"]["metrics"]["subjectSpecificity"]["estimate"] >= 0.95
+    for metrics in (network, lgbm):
+        assert metrics["development"]["metrics"]["subjectSpecificity"]["estimate"] >= TARGET_SPECIFICITY
+    for row in network["ablation"]:
+        assert float(row["subject specificity at τ_AF"].split()[0]) >= TARGET_SPECIFICITY
     state = torch.load(trained_run / "rhythm-net@1.0.0.pt", weights_only=True)
     assert float(state["temperature"]) == pytest.approx(network["calibration"]["temperature"])
 

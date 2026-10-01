@@ -54,6 +54,34 @@ jobs:
           npm run typecheck
           npm test
           npm run deadcode
+      # Gradle costs about 6 minutes cold, so it runs only when the Kotlin module changed. Base: the PR base,
+      # or the commit before the push (github.event.before); a missing base (new branch, manual run) runs it.
+      # https://docs.github.com/en/webhooks/webhook-events-and-payloads#push
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (GITHUB_OUTPUT)
+      - name: Did the Kotlin capture module change?
+        id: kotlin
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git rev-parse --verify --quiet "${BASE}^0" > /dev/null \
+            || git diff --name-only "$BASE" HEAD -- apps/mobile/modules/lumen-capture/android/ | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      # React Native's CMake configure step fails on JDK 25 (workspace ADR 0032), so Gradle runs on JDK 17.
+      - uses: actions/setup-java@v6.0.1
+        if: steps.kotlin.outputs.changed == 'true' && hashFiles('apps/mobile/app.config.ts') != ''
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: lumen-capture JUnit (CAP-1)
+        if: steps.kotlin.outputs.changed == 'true' && hashFiles('apps/mobile/app.config.ts') != ''
+        working-directory: apps/mobile
+        run: |
+          npx expo prebuild --no-install --platform android
+          cd android && ./gradlew :lumen-capture:testDebugUnitTest --console=plain
       - name: i18n keys match in English and Spanish (UI-2)
         if: hashFiles('package-lock.json') != ''
         run: npm run i18n:check
@@ -70,6 +98,9 @@ jobs:
       - name: README tested-devices table matches devices.json
         if: hashFiles('package-lock.json') != ''
         run: npm run devices:table -- --check
+      - name: Red-team suite (§16)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:redteam
       - name: Expo prebuild smoke test
         if: hashFiles('apps/mobile/app.config.ts') != ''
         working-directory: apps/mobile

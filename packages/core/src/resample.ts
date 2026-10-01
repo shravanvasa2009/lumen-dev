@@ -45,21 +45,29 @@ function splineOnGrid(x: Float64Array, y: Float64Array, rateHz: number): Resampl
   for (let k = 0; k < values.length; k++) {
     const t = (firstIndex + k) / rateHz;
     while (knot < x.length - 2 && t > x[knot + 1]!) knot++;
-    const x0 = x[knot]!;
-    const x1 = x[knot + 1]!;
-    const h = x1 - x0;
-    const toRight = x1 - t;
-    const fromLeft = t - x0;
+    const h = x[knot + 1]! - x[knot]!;
+    const dx = t - x[knot]!;
+    const m0 = m[knot]!;
+    const m1 = m[knot + 1]!;
+    const slope = (y[knot + 1]! - y[knot]!) / h;
+    // Power form in dx from the left knot, as scipy's PPoly evaluates: a constant has slope 0 and m = 0,
+    // so it comes out exactly as y0. A form weighting both knots rounds a flat signal into ~1e-16 noise.
     values[k] =
-      (m[knot]! * toRight ** 3 + m[knot + 1]! * fromLeft ** 3) / (6 * h) +
-      (y[knot]! / h - (m[knot]! * h) / 6) * toRight +
-      (y[knot + 1]! / h - (m[knot + 1]! * h) / 6) * fromLeft;
+      y[knot]! + dx * (slope - (h * (2 * m0 + m1)) / 6 + dx * (m0 / 2 + (dx * (m1 - m0)) / (6 * h)));
   }
   return { firstIndex, values };
 }
 
 /** DSP-2: natural cubic spline onto a uniform grid, split wherever frames are > 150 ms apart. */
 export function resampleCubic(tS: Float64Array, values: Float64Array, rateHz: number): ResampledSegment[] {
+  // scipy CubicSpline's refusals (§10.2 parity), on the whole input so a skipped segment hides nothing.
+  if (values.length !== tS.length) throw new RangeError(`${tS.length} times but ${values.length} values`);
+  for (let i = 0; i < tS.length; i++) {
+    if (!Number.isFinite(tS[i]!) || !Number.isFinite(values[i]!))
+      throw new RangeError(`frame ${i}: time and value must be finite`);
+    if (i > 0 && !(tS[i]! > tS[i - 1]!))
+      throw new RangeError(`times must strictly increase; frame ${i} does not`);
+  }
   const segments: ResampledSegment[] = [];
   let segmentStart = 0;
   for (let i = 1; i <= tS.length; i++) {

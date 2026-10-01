@@ -16,9 +16,12 @@ export function fingerSignals(timebase: Timebase): FingerSignals {
 }
 
 // Population SD (divide by n), sums in index order, so ml/lumen_dsp/signals.py gives the same doubles.
-/** DSP-3: z-score of one model-input window; null when all samples are equal (flat: nothing to score). */
+// A non-finite sample would make every z-score NaN; null (not a throw) lets the live pipeline treat the
+// window as rejected, as it does a flat one.
+/** DSP-3: z-score of one model-input window; null when flat (all samples equal) or any sample is not finite. */
 export function zScoreWindow(window: ArrayLike<number>): Float64Array | null {
   const values = Array.from(window);
+  if (!values.every(Number.isFinite)) return null;
   if (values.every((value) => value === values[0])) return null;
   let total = 0;
   for (const value of values) total += value;
@@ -29,7 +32,7 @@ export function zScoreWindow(window: ArrayLike<number>): Float64Array | null {
   return Float64Array.from(values, (value) => (value - mean) / sd);
 }
 
-/** DSP-3: SQI-Net v1 input (ADR 0023), 256 float32: the 4 s −R window, z-scored; null if all samples equal. */
+/** DSP-3: SQI-Net v1 input (ADR 0023), 256 float32: the 4 s −R window, z-scored; null if flat or not finite. */
 export function sqiModelInput(primary: ArrayLike<number>): Float32Array | null {
   const samples = DSP_CONFIG.dsp3.modelWindowS * DSP_CONFIG.dsp2.modelRateHz;
   if (primary.length !== samples)

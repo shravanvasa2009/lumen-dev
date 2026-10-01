@@ -2,14 +2,14 @@ import { Switch } from 'react-native';
 
 import { useTheme } from '@/theme';
 
-type PreferenceSwitchProps = {
+type ToggleProps = {
   label: string;
   value: boolean;
   onValueChange?: (value: boolean) => void;
   disabled?: boolean;
 };
 
-export function PreferenceSwitch({ label, value, onValueChange, disabled = false }: PreferenceSwitchProps) {
+export function Toggle({ label, value, onValueChange, disabled = false }: ToggleProps) {
   const { colors } = useTheme();
   return (
     <Switch

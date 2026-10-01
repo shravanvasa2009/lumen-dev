@@ -5,7 +5,7 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { RouteShell } from '@/components/RouteShell';
-import { ScoreGauge } from '@/settings/ScoreGauge';
+import { RatingGauge } from '@/settings/RatingGauge';
 import { useTheme } from '@/theme';
 
 // Point values of the four rating components (spec 5.1).
@@ -35,7 +35,7 @@ export default function PhoneRatingScreen() {
         </>
       }
     >
-      <ScoreGauge placeholder={t('phoneRating.noScore')} caption={t('phoneRating.notTested')} />
+      <RatingGauge placeholder={t('phoneRating.noScore')} caption={t('phoneRating.notTested')} />
       <AppText tone="textDim" style={styles.tip}>
         {t('phoneRating.notTestedBody')}
       </AppText>

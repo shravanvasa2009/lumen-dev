@@ -20,7 +20,7 @@ function pointAt(degrees: number) {
 const ringPath = `M ${pointAt(START_DEGREES)} A ${RADIUS} ${RADIUS} 0 1 1 ${pointAt(END_DEGREES)}`;
 
 // Draws the empty ring: no score exists until the phone check has run on this phone.
-export function ScoreGauge({ placeholder, caption }: { placeholder: string; caption: string }) {
+export function RatingGauge({ placeholder, caption }: { placeholder: string; caption: string }) {
   const { colors } = useTheme();
   return (
     <View style={styles.gauge}>

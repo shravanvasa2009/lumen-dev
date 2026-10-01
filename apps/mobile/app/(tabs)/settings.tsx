@@ -8,7 +8,7 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
-import { PreferenceSwitch } from '@/settings/PreferenceSwitch';
+import { Toggle } from '@/settings/Toggle';
 import { usePreferences } from '@/settings/preferences';
 
 // Seven quick taps open Lab mode; a pause longer than this starts the count over.
@@ -86,7 +86,7 @@ export default function SettingsScreen() {
       <Card flush>
         <ListRow
           title={t('settings.healthSync')}
-          trailing={<PreferenceSwitch label={t('settings.healthSync')} value={false} disabled />}
+          trailing={<Toggle label={t('settings.healthSync')} value={false} disabled />}
         />
         {renderRows(accuracyRows)}
       </Card>

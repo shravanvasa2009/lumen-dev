@@ -4,7 +4,7 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
-import { PreferenceSwitch } from '@/settings/PreferenceSwitch';
+import { Toggle } from '@/settings/Toggle';
 import { setPreference, usePreferences } from '@/settings/preferences';
 import { SectionLabel } from '@/settings/SectionLabel';
 
@@ -34,11 +34,7 @@ export default function NotificationsScreen() {
             subtitle={subtitle}
             last={index === reminders.length - 1}
             trailing={
-              <PreferenceSwitch
-                label={title}
-                value={preferences[key]}
-                onValueChange={(on) => setPreference(key, on)}
-              />
+              <Toggle label={title} value={preferences[key]} onValueChange={(on) => setPreference(key, on)} />
             }
           />
         ))}
@@ -60,7 +56,7 @@ export default function NotificationsScreen() {
           title={t('notifications.hideValues')}
           last
           trailing={
-            <PreferenceSwitch
+            <Toggle
               label={t('notifications.hideValues')}
               value={preferences.hideWidgetValues}
               onValueChange={(on) => setPreference('hideWidgetValues', on)}

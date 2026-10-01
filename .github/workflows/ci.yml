@@ -1,0 +1,92 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Scope guard (rear camera only)
+        run: node scripts/scope-guard.mjs
+      - name: Privacy check
+        run: node scripts/priv-check.mjs
+      - name: Style check
+        run: node scripts/check-style.mjs
+      - name: Contrast (UI-3)
+        run: node scripts/check-contrast.mjs
+      - name: Lock-screen and notification copy (WID-2)
+        run: node scripts/check-notification-copy.mjs
+      - name: Diabetes wording
+        run: node scripts/check-diabetes-copy.mjs
+      - name: Brand (BRAND-1)
+        run: |
+          node scripts/check-logo.mjs
+          node scripts/check-assets.mjs
+      - name: Commit messages
+        if: github.event_name == 'pull_request'
+        run: |
+          for sha in $(git rev-list ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}); do
+            git log -1 --format=%B "$sha" > /tmp/commit-msg
+            node scripts/check-commit-msg.mjs /tmp/commit-msg
+          done
+      - name: Install
+        if: hashFiles('package-lock.json') != ''
+        run: npm ci
+      - name: Lint, types, tests, parity, dead code
+        if: hashFiles('package-lock.json') != ''
+        run: |
+          npm run lint --if-present
+          npm run typecheck --if-present
+          npm test --if-present
+          npm run golden:check --if-present
+          npm run test:notifications --if-present
+          npm run test:widgets --if-present
+          npm run deadcode --if-present
+      - name: Expo prebuild smoke test
+        if: hashFiles('apps/mobile/app.config.ts') != ''
+        working-directory: apps/mobile
+        run: npx expo prebuild --no-install --clean --platform android
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up uv
+        if: hashFiles('ml/pyproject.toml') != ''
+        uses: astral-sh/setup-uv@v5 # VERIFY: current major version
+      - name: Tests and lint
+        if: hashFiles('ml/pyproject.toml') != ''
+        working-directory: ml
+        run: |
+          uv sync
+          uv run ruff check .
+          uv run pytest
+
+  e2e-android:
+    # UI flows in Replay mode on an Android emulator (Maestro). Track E finalizes the build step.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        if: hashFiles('apps/mobile/.maestro/**') != ''
+        run: npm ci
+      - name: Build, boot emulator, run Maestro flows
+        if: hashFiles('apps/mobile/.maestro/**') != ''
+        uses: reactivecircus/android-emulator-runner@v2 # VERIFY: current version and inputs
+        with:
+          api-level: 34
+          script: npm run e2e:android

@@ -1,0 +1,14 @@
+{
+  "en": {
+    "dm.flag.title": "Pattern linked to diabetes",
+    "dm.flag.body": "Your pulse shape matches a pattern research has linked to diabetes. This is not a diabetes test. Ask a doctor or clinic for an A1c blood test.",
+    "dm.experimental": "Experimental: pulse pattern linked to diabetes in research. Not a diabetes test.",
+    "dm.needsFull": "Needs a phone that films at 60 frames per second."
+  },
+  "es": {
+    "dm.flag.title": "Patrón relacionado con la diabetes",
+    "dm.flag.body": "La forma de tu pulso coincide con un patrón que la investigación ha relacionado con la diabetes. Esto no es una prueba de diabetes. Pide a un médico o clínica una prueba de sangre A1c.",
+    "dm.experimental": "Experimental: patrón del pulso relacionado con la diabetes en investigaciones. No es una prueba de diabetes.",
+    "dm.needsFull": "Requiere un teléfono que grabe a 60 cuadros por segundo."
+  }
+}

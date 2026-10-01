@@ -1,0 +1,31 @@
+{
+  "name": "lumen",
+  "private": true,
+  "description": "Phone pulse measurement with the rear camera and flash; screening prototype, not a diagnosis.",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "tools/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "lumen": {
+    "bootstrapped": false
+  },
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "proof": "node scripts/proof/index.mjs",
+    "verify:fast": "node scripts/verify-fast.mjs",
+    "scope-guard": "node scripts/scope-guard.mjs",
+    "priv-check": "node scripts/priv-check.mjs",
+    "check:style": "node scripts/check-style.mjs",
+    "check:commit": "node scripts/check-commit-msg.mjs",
+    "receiver": "node tools/capture-receiver/server.mjs",
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "check:notification-copy": "node scripts/check-notification-copy.mjs",
+    "check:diabetes-copy": "node scripts/check-diabetes-copy.mjs",
+    "check:logo": "node scripts/check-logo.mjs",
+    "check:assets": "node scripts/check-assets.mjs"
+  }
+}

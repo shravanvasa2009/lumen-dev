@@ -1,0 +1,57 @@
+{
+  "commit": null,
+  "date": null,
+  "metrics": {
+    "hr": {
+      "label": "experimental",
+      "reference": "Polar H10",
+      "maeBpm": null,
+      "ci95": null,
+      "people": null,
+      "phones": null,
+      "criterion": "DSP-A",
+      "passed": false
+    },
+    "rhythm": {
+      "label": "experimental",
+      "dataset": "MIMIC PERform AF",
+      "subjects": 35,
+      "sensitivity": null,
+      "specificity": null,
+      "ci95": null,
+      "criterion": "ML-1",
+      "passed": false
+    },
+    "hrv": {
+      "label": "experimental",
+      "reference": "Polar H10",
+      "withinPct": null,
+      "people": null,
+      "criterion": "DSP-B",
+      "passed": false
+    },
+    "resp": {
+      "label": "experimental",
+      "reference": "metronome",
+      "maeBrpm": null,
+      "people": null,
+      "criterion": "RESP-1",
+      "passed": false
+    },
+    "diabetes": {
+      "label": "experimental",
+      "dataset": "PPG-BP (external)",
+      "auroc": null,
+      "sensitivity": null,
+      "specificity": null,
+      "ci95": null,
+      "ppvNpv": null,
+      "criterion": "ML-6",
+      "passed": false
+    },
+    "extraBeats": {
+      "label": "experimental",
+      "passed": false
+    }
+  }
+}

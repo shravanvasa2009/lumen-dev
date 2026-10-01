@@ -1,0 +1,30 @@
+{
+  "en": {
+    "notif.daily": "Time for your 90-second Lumen check.",
+    "notif.confirm": "A follow-up check is due.",
+    "notif.followup": "Did you get a chance to see a doctor?",
+    "notif.standing": "Stand-test reading due now.",
+    "notif.retest": "Quick phone re-test recommended.",
+    "widget.lock.upToDate": "Lumen · Up to date",
+    "widget.lock.checkAgain": "Lumen · Check again tonight",
+    "widget.lock.nextCheck": "Lumen: next check {{time}}",
+    "widget.status.doctor": "Doctor visit suggested",
+    "live.standing.title": "Standing test",
+    "live.standing.next": "Next reading in {{countdown}}",
+    "live.standing.tap": "Tap to measure"
+  },
+  "es": {
+    "notif.daily": "Es hora de tu revisión de Lumen de 90 segundos.",
+    "notif.confirm": "Toca una revisión de seguimiento.",
+    "notif.followup": "¿Pudiste ver a un médico?",
+    "notif.standing": "Toca la medición de la prueba de pie.",
+    "notif.retest": "Se recomienda volver a probar tu teléfono.",
+    "widget.lock.upToDate": "Lumen · Al día",
+    "widget.lock.checkAgain": "Lumen · Revisa de nuevo esta noche",
+    "widget.lock.nextCheck": "Lumen: próxima revisión {{time}}",
+    "widget.status.doctor": "Se sugiere ver a un médico",
+    "live.standing.title": "Prueba de pie",
+    "live.standing.next": "Próxima medición en {{countdown}}",
+    "live.standing.tap": "Toca para medir"
+  }
+}

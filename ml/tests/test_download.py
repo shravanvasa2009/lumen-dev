@@ -1,5 +1,6 @@
 import hashlib
 import json
+import sys
 
 import pytest
 import requests
@@ -197,10 +198,24 @@ def test_physionet_checksum_mismatch_raises_without_marker(data_dir):
     assert not download.is_complete(dataset)
 
 
-@pytest.mark.parametrize("listed", ["../escape.hea", "/abs.hea", "C:/abs.hea"])
+@pytest.mark.parametrize("listed", ["../escape.hea", "/abs.hea", "sub/../../escape.hea"])
 def test_physionet_refuses_paths_outside_dataset_dir(data_dir, listed):
     with pytest.raises(UnsafeListingError):
         fetch_dataset(physionet_dataset(), physionet_server(f"{'0' * 64} {listed}\n"))
+
+
+# Backslashes and drive letters are only separators on Windows, the owner's OS.
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows path semantics")
+@pytest.mark.parametrize("listed", ["..\\escape.hea", "C:/abs.hea", "sub\\..\\..\\escape.hea"])
+def test_physionet_refuses_windows_paths_outside_dataset_dir(data_dir, listed):
+    with pytest.raises(UnsafeListingError):
+        fetch_dataset(physionet_dataset(), physionet_server(f"{'0' * 64} {listed}\n"))
+
+
+def test_physionet_binary_mode_star_is_not_part_of_the_name(data_dir):
+    dataset = physionet_dataset()
+    fetch_dataset(dataset, physionet_server(f"{hashlib.sha256(HEADER).hexdigest()} *04015.hea\n"))
+    assert (dataset.local_dir / "04015.hea").read_bytes() == HEADER
 
 
 @pytest.fixture

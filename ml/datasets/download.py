@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from collections.abc import Sequence
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import requests
 
@@ -120,9 +120,11 @@ def physionet_listing(dataset: Dataset, session: requests.Session) -> list[Remot
     for line in listing.splitlines():
         if not line.strip():
             continue
-        sha256, relative = line.split(maxsplit=1)
-        listed = PurePosixPath(relative)
-        if listed.is_absolute() or ".." in listed.parts or ":" in relative:
+        sha256, listed = line.split(maxsplit=1)
+        # sha256sum's binary mode writes "<sha> *<path>"; the star is a flag, not part of the name.
+        relative = listed.removeprefix("*")
+        # Checked on the resolved local path, so Windows separators ("..\x") and drive letters are caught.
+        if not (dataset.local_dir / relative).resolve().is_relative_to(dataset.local_dir.resolve()):
             raise UnsafeListingError(f"{dataset.key}: SHA256SUMS.txt lists {relative!r} outside the dataset")
         remotes.append(RemoteFile(url=f"{base}/{relative}", sha256=sha256, filename=relative))
     return remotes

@@ -1,5 +1,6 @@
 import type { FrameStat, Sample } from './capture';
 import { DSP_CONFIG } from './config';
+import { median } from './median';
 
 export interface Timebase {
   startNs: number;
@@ -10,13 +11,6 @@ export interface Timebase {
   exposureNs: Float64Array;
   medianFrameIntervalS: number;
   droppedGapStarts: number[]; // index of the frame before each dropped-frame gap
-}
-
-// Matches numpy.median: the mean of the two middle values for an even count.
-function median(values: Float64Array): number {
-  const sorted = Float64Array.from(values).sort();
-  const middle = sorted.length >> 1;
-  return sorted.length % 2 === 1 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
 }
 
 // DSP-1's time axis alone, for callers that have samples but no frame stats (live HR).

@@ -38,3 +38,13 @@ export {
   rhythmWindows,
   type RhythmWindow,
 } from './rhythm-features';
+export {
+  detectBeats,
+  elgendiPeaks,
+  elgendiWindows,
+  upstroke,
+  type DetectedBeat,
+  type Upstroke,
+} from './beats';
+export { classifyBeats } from './beat-classes';
+export { ensembleBeat, savgolFilter, type PulseShape, type WaveLabels } from './pulse-shape';

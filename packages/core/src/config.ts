@@ -26,6 +26,68 @@ export const DSP_CONFIG = {
     hrBandHz: [0.6, 3.5],
     morphologyBandHz: [0.5, 8],
   },
+  // Elgendi et al. 2013 (PLoS ONE, doi:10.1371/journal.pone.0076585), run on the 64 Hz morphology band.
+  dsp7: {
+    peakWindowS: 0.111, // W1 for MA_peak; also the minimum block width (THR2)
+    beatWindowS: 0.667, // W2 for MA_beat
+    beta: 0.02, // THR1 = MA_beat + beta · mean(squared signal)
+    // The 64 Hz peak is refined on the 256 Hz morphology band within ± one 64 Hz sample.
+    refineHalfWindowS: 0.015625,
+  },
+  dsp8: {
+    // The beat foot is searched back from the peak over this span, never past the previous peak.
+    minimumSearchS: 0.4,
+  },
+  dsp9: {
+    // Not a beat when its maximum upslope < this × the median upslope. Owner decision H-016 (ADR 0025):
+    // 0.15, not the spec's 0.3, which removed small premature beats riding on the previous beat's
+    // falling side. A foot-level dicrotic rule was tried and withdrawn because it removed real beats
+    // on BUT PPG (ADR 0025).
+    notABeatUpslopeRatio: 0.15,
+    // Spec values (§10 DSP-9).
+    artifactIntervalS: [0.25, 2.5], // an interval outside this range makes its ending beat an artifact
+    templateCorrelationMin: 0.85, // atypical below this Pearson correlation with the template
+    amplitudeRatioRange: [0.5, 2.0], // atypical outside this × the running median amplitude
+    templateBeats: 10, // the template is the mean of the last this-many normal beats
+    longPauseRatio: 1.6, // long pause when an interval ≥ this × the median of its neighbours
+    // Not given by the spec (initial, ADR 0025). The template window spans the foot (onsets fall 50–250
+    // ms before the peak) and the top of the systolic wave; at 0.3 s it is shorter than the interval at
+    // 150 bpm, so the next upstroke rarely enters it.
+    templateBeforePeakS: 0.2,
+    templateAfterPeakS: 0.1,
+    // Running median of amplitude, the early-beat interval reference, and the long-pause reference: the
+    // nearest `neighbours` items at odd and at even offsets from the beat (itself excluded), so alternating
+    // rhythms (bigeminy) stay balanced, at segment edges too (red-team v2, ADR 0025).
+    neighbours: 4,
+    // Fewer than this many references per parity: no reference, so that beat gets no amplitude, early, or
+    // long-pause judgement (ADR 0025).
+    minNeighboursPerParity: 2,
+    // Owner decision H-016 (ADR 0025), proposed for §10 DSP-9. "Early and small" is atypical (kept): an
+    // interval < earlyIntervalRatio × the median of up to `neighbours` intervals on each side (intervals
+    // between consecutive candidates that are not "not a beat") AND an amplitude < earlySmallAmplitudeRatio
+    // × the running median. Same-shape premature beats at 0.5–0.7 × amplitude were otherwise normal.
+    earlyIntervalRatio: 0.85,
+    earlySmallAmplitudeRatio: 1.0,
+  },
+  // Pulse-shape view and diabetes-net's averaged beat (ADR 0030).
+  dsp14: {
+    minNormalBeats: 20,
+    // Each beat (onset to next onset) is resampled to this many samples, so the average is one period
+    // long whatever the heart rate: diabetes-net's [1, 1, 256] input.
+    beatSamples: 256,
+    // The window starts this fraction of a period before the onset, so the a-wave sits clear of the
+    // Savitzky–Golay edge fit.
+    leadFraction: 0.1,
+    // a–e are searched from the window start to onset + this fraction of the period. Ejection lasts about
+    // 35–55% of the period from rest to 150 bpm; at 0.6, e sat at 177 of 179 samples at 72 bpm on the
+    // synthetic model, so 0.7 leaves margin. Initial value.
+    systoleFraction: 0.7,
+    // A beat longer than this × the median period of the normal beats most likely hides a missed onset.
+    maxPeriodRatio: 1.5,
+    savgolWindow: 9,
+    savgolOrder: 3,
+    minFps: 60,
+  },
   dsp15: {
     // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).
     windowIntervals: 32,

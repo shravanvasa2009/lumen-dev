@@ -8,7 +8,7 @@
     "tools/*"
   ],
   "engines": {
-    "node": ">=22.13"
+    "node": ">=22.18"
   },
   "lumen": {
     "bootstrapped": true
@@ -33,7 +33,7 @@
     "test:changed": "npm run test --workspaces --if-present -- --onlyChanged --maxWorkers=8",
     "deadcode": "knip",
     "golden:check": "npm test -w @lumen/core -- golden",
-    "test:synthetic": "node scripts/not-yet.mjs test:synthetic",
+    "test:synthetic": "npm test -w @lumen/core -- synthetic-suite --testPathIgnorePatterns=/node_modules/",
     "test:redteam": "npm test -w @lumen/core -- /test/redteam/ --testPathIgnorePatterns=/node_modules/",
     "test:routes": "npm run test:routes -w @lumen/mobile",
     "test:fallback": "node scripts/not-yet.mjs test:fallback",

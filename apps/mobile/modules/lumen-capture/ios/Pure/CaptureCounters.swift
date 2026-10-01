@@ -23,6 +23,7 @@ struct CaptureCounters {
   private var lastFrameNs: Int64?
   private var recentFrameNs: [Int64] = []
   private var recentIntervals: [(endNs: Int64, ns: Double)] = []
+  private var lastFiveIntervals: [Double] = []
   private var samples: [[String: Double]] = []
   private var stats: [[String: Double]] = []
   private var latestSinceStatus: FrameReduction?
@@ -51,6 +52,10 @@ struct CaptureCounters {
         dropped += Int((gap / reference).rounded()) - 1
       }
       recentIntervals.append((endNs: tNs, ns: gap))
+      lastFiveIntervals.append(gap)
+      if lastFiveIntervals.count > 5 {
+        lastFiveIntervals.removeFirst()
+      }
     }
     lastFrameNs = tNs
     frames += 1
@@ -114,12 +119,19 @@ struct CaptureCounters {
   }
 
   // Median of the intervals in the 1 s window as of the newest frame, or the nominal interval while fewer than 5
-  // exist. Also sizes the waits inside lockExposure (ADR 0029 Addendum).
+  // exist (DSP-1).
   var medianIntervalNs: Double {
     guard recentIntervals.count >= Self.minIntervalsForMedian else { return nominalIntervalNs }
     let sorted = recentIntervals.map { $0.ns }.sorted()
     let middle = sorted.count / 2
     return sorted.count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
+  }
+
+  // ADR 0029 Addendum: sizes the waits inside lockExposure. The last 5 intervals however old, so the waits also
+  // scale below 5 fps; the nominal interval until 5 exist.
+  var lastFiveMedianIntervalNs: Double {
+    guard lastFiveIntervals.count == 5 else { return nominalIntervalNs }
+    return lastFiveIntervals.sorted()[2]
   }
 
   // The median as of `tNs`, before that frame's own interval joins the window.

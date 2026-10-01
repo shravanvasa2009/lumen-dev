@@ -82,6 +82,18 @@ final class CaptureCountersTests: XCTestCase {
     XCTAssertEqual(counters.medianIntervalNs, 1e9 / 30, accuracy: 1)
   }
 
+  // ADR 0029: the lockExposure waits use the median of the last 5 intervals however old, so they also scale below
+  // 5 fps, where the 1 s window never holds 5 intervals (4 fps here).
+  func testLastFiveMedianIgnoresAgeAndIsNominalUntilFiveIntervals() {
+    var counters = CaptureCounters(nominalIntervalNs: 1e9 / 30)
+    for index in 0..<5 { add(&counters, at: ns(index, fps: 4)) }
+    XCTAssertEqual(counters.lastFiveMedianIntervalNs, 1e9 / 30)
+    add(&counters, at: ns(5, fps: 4))
+    XCTAssertEqual(counters.lastFiveMedianIntervalNs, 2.5e8, accuracy: 1)
+    XCTAssertEqual(counters.medianIntervalNs, 1e9 / 30)
+    XCTAssertEqual(lockWaitS(medianIntervalNs: counters.lastFiveMedianIntervalNs), 2.5, accuracy: 1e-6)
+  }
+
   func testFpsCountsFramesInTheLastSecondAndFallsToZeroWhenFramesStop() {
     var counters = CaptureCounters(nominalIntervalNs: 1e9 / 30)
     for index in 0..<60 { add(&counters, at: ns(index, fps: 30)) }

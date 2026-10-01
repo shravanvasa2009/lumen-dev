@@ -384,7 +384,7 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     }
     locking = true
     let steering = Steering(device: device, generation: generation, steps: 0, completion: completion)
-    // Spec §4.2 step 3 lets auto-exposure settle for 1 s; the Addendum stretches that with slow frame rates.
+    // Spec §4.2 step 3 lets auto-exposure settle for 1 s; ADR 0029 stretches that with slow frame rates.
     let elapsedS = Double(clockNowNs() - startedNs) / 1e9
     measureRed(steering, after: max(lockWait() - elapsedS, Self.exposureLatencyS))
   }
@@ -407,7 +407,7 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
   }
 
   private func lockWait() -> Double {
-    lockWaitS(medianIntervalNs: frameQueue.sync { counters.medianIntervalNs })
+    lockWaitS(medianIntervalNs: frameQueue.sync { counters.lastFiveMedianIntervalNs })
   }
 
   private func pollRed(_ steering: Steering, framesBefore: Int, deadline: Date) {

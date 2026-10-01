@@ -25,8 +25,13 @@ export default function LockScreenPreviewScreen() {
   const { spacing, radius } = useTheme();
   const lockText = lockscreenStrings(i18n.language);
   const upToDate = lockTextLines(lockText['widget.lock.upToDate']);
+  // The big timer on the right is the countdown, so only the words before it are shown here.
+  const nextReading = lockText['live.standing.next'].replace('{{countdown}}', '').trim();
   return (
     <RouteShell title={t('lockScreen.title')}>
+      <AppText variant="caption" tone="textDim">
+        {t('lockScreen.sample')}
+      </AppText>
       <View
         style={{
           backgroundColor: wallpaper.surface2,
@@ -61,7 +66,7 @@ export default function LockScreenPreviewScreen() {
             </AppText>
           </View>
           <View style={styles.spread}>
-            <AppText style={{ color: wallpaper.text }}>{t('lockScreen.nextReading')}</AppText>
+            <AppText style={{ color: wallpaper.text }}>{nextReading}</AppText>
             <AppText variant="display" style={{ color: wallpaper.accent }}>
               {SAMPLE_COUNTDOWN}
             </AppText>
@@ -71,13 +76,13 @@ export default function LockScreenPreviewScreen() {
               style={{
                 width: `${SAMPLE_PROGRESS * 100}%`,
                 height: '100%',
-                borderRadius: 3,
+                borderRadius: radius.pill,
                 backgroundColor: wallpaper.accentFill,
               }}
             />
           </View>
           <AppText variant="caption" style={{ color: wallpaper.textDim }}>
-            {t('lockScreen.tap')}
+            {lockText['live.standing.tap']}
           </AppText>
         </View>
         <View

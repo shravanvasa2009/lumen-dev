@@ -31,6 +31,9 @@ export default function WidgetsScreen() {
   const inline = lockText['widget.lock.nextCheck'].replace('{{time}}', t('widgets.sampleTime'));
   return (
     <RouteShell title={t('widgets.title')}>
+      <AppText variant="caption" tone="textDim">
+        {t('widgets.sample')}
+      </AppText>
       <SectionLabel>{t('widgets.iphoneHome')}</SectionLabel>
       <View style={{ flexDirection: 'row', gap: spacing.lg }}>
         <SmallWidgetPreview
@@ -63,9 +66,6 @@ export default function WidgetsScreen() {
       <AppText tone="textDim">{t('widgets.inline', { text: inline })}</AppText>
       <SectionLabel>{t('widgets.android')}</SectionLabel>
       <AppText tone="textDim">{t('widgets.androidBody')}</AppText>
-      <AppText variant="caption" tone="textFaint">
-        {t('widgets.sample')}
-      </AppText>
       <NavButton
         label={t('widgets.lockScreenLink')}
         href="/settings/widgets/lock-screen"

@@ -23,7 +23,7 @@ export function HomePreview({ scheme, measureLabel, caption }: HomePreviewProps)
     borderWidth: 1,
   };
   return (
-    <View style={styles.preview}>
+    <View style={[styles.preview, { gap: spacing.sm }]}>
       <View
         style={{
           width: WIDTH,
@@ -56,7 +56,7 @@ export function HomePreview({ scheme, measureLabel, caption }: HomePreviewProps)
 }
 
 const styles = StyleSheet.create({
-  preview: { alignItems: 'center', gap: 8 },
+  preview: { alignItems: 'center' },
   measure: {
     alignSelf: 'center',
     borderRadius: MEASURE_SIZE / 2,

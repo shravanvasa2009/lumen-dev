@@ -4,21 +4,13 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
-import { Toggle } from '@/settings/Toggle';
-import { setPreference, usePreferences } from '@/settings/preferences';
 import { SectionLabel } from '@/settings/SectionLabel';
-
-type Reminder = {
-  key: 'daily' | 'followUp' | 'doctor' | 'standing' | 'retest';
-  title: string;
-  subtitle?: string;
-};
+import { Toggle } from '@/settings/Toggle';
 
 export default function NotificationsScreen() {
   const { t } = useTranslation();
-  const preferences = usePreferences();
-  const reminders: readonly Reminder[] = [
-    { key: 'daily', title: t('notifications.daily'), subtitle: t('notifications.dailyTime') },
+  const reminders = [
+    { key: 'daily', title: t('notifications.daily') },
     { key: 'followUp', title: t('notifications.followUp'), subtitle: t('notifications.followUpHint') },
     { key: 'doctor', title: t('notifications.doctor'), subtitle: t('notifications.doctorHint') },
     { key: 'standing', title: t('notifications.standing') },
@@ -26,6 +18,7 @@ export default function NotificationsScreen() {
   ];
   return (
     <RouteShell title={t('notifications.title')}>
+      <AppText tone="textDim">{t('notifications.notActive')}</AppText>
       <Card flush>
         {reminders.map(({ key, title, subtitle }, index) => (
           <ListRow
@@ -33,9 +26,7 @@ export default function NotificationsScreen() {
             title={title}
             subtitle={subtitle}
             last={index === reminders.length - 1}
-            trailing={
-              <Toggle label={title} value={preferences[key]} onValueChange={(on) => setPreference(key, on)} />
-            }
+            trailing={<Toggle label={title} value={false} disabled />}
           />
         ))}
       </Card>
@@ -55,13 +46,7 @@ export default function NotificationsScreen() {
         <ListRow
           title={t('notifications.hideValues')}
           last
-          trailing={
-            <Toggle
-              label={t('notifications.hideValues')}
-              value={preferences.hideWidgetValues}
-              onValueChange={(on) => setPreference('hideWidgetValues', on)}
-            />
-          }
+          trailing={<Toggle label={t('notifications.hideValues')} value={false} disabled />}
         />
       </Card>
       <AppText variant="caption" tone="textDim">

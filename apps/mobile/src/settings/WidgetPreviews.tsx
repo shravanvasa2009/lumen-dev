@@ -11,6 +11,9 @@ const SMALL_SIZE = 160;
 const MARK_SIZE = 34;
 const DOT_SIZE = 10;
 const LOCK_CIRCLE_SIZE = 64;
+// Sizes that mimic OS widget buttons; they are previews, not touch targets, so control.minTarget does not apply.
+const PILL_MIN_HEIGHT = 32;
+const BUTTON_COLUMN_WIDTH = 132;
 
 function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
   const { colors, radius, spacing } = useTheme();
@@ -19,7 +22,7 @@ function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
       style={{
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 32,
+        minHeight: PILL_MIN_HEIGHT,
         paddingHorizontal: spacing.md,
         borderRadius: radius.pill,
         borderWidth: 1,
@@ -38,14 +41,14 @@ function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
 }
 
 function WidgetFrame({ children, width }: { children: ReactNode; width?: number }) {
-  const { colors, spacing } = useTheme();
+  const { colors, radius, spacing } = useTheme();
   return (
     <View
       style={{
         width,
         padding: spacing.lg,
         gap: spacing.xs,
-        borderRadius: 24,
+        borderRadius: radius.sheet,
         borderWidth: 1,
         borderColor: colors.line,
         backgroundColor: colors.surface,
@@ -64,9 +67,9 @@ export function SmallWidgetPreview({ status, detail, action }: SmallWidgetProps)
     <WidgetFrame width={SMALL_SIZE}>
       <View style={styles.spread}>
         <LumenMark size={MARK_SIZE} color={colors.accentFill} />
-        <View style={[styles.dot, { backgroundColor: colors.accentFill }]} />
+        <View style={[styles.dot, { backgroundColor: colors.accentFill, marginTop: spacing.xs }]} />
       </View>
-      <View style={{ marginTop: spacing.sm, gap: 2 }}>
+      <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
         <AppText variant="headline">{status}</AppText>
         <AppText variant="caption" tone="textDim">
           {detail}
@@ -95,7 +98,7 @@ export function MediumWidgetPreview({ name, reading, unit, status, checkNow, ful
           <LumenMark size={MARK_SIZE} color={colors.accentFill} />
           <AppText tone="textDim">{name}</AppText>
         </View>
-        <View style={{ gap: spacing.sm, width: 132 }}>
+        <View style={{ gap: spacing.sm, width: BUTTON_COLUMN_WIDTH }}>
           <PreviewPill label={checkNow} filled />
           <PreviewPill label={fullScan} filled={false} />
         </View>
@@ -127,7 +130,7 @@ export function LockCirclePreview({ scheme }: { scheme?: Scheme }) {
 type LockRectangleProps = { name: string; status: string; scheme?: Scheme };
 
 export function LockRectanglePreview({ name, status, scheme }: LockRectangleProps) {
-  const { colors: themeColors, spacing } = useTheme();
+  const { colors: themeColors, radius, spacing } = useTheme();
   const colors = scheme ? tokens[scheme] : themeColors;
   return (
     <View
@@ -136,7 +139,7 @@ export function LockRectanglePreview({ name, status, scheme }: LockRectangleProp
         justifyContent: 'center',
         height: LOCK_CIRCLE_SIZE,
         paddingHorizontal: spacing.lg,
-        borderRadius: 18,
+        borderRadius: radius.card,
         backgroundColor: colors.surface3,
         borderColor: colors.line,
         borderWidth: 1,
@@ -156,7 +159,7 @@ const styles = StyleSheet.create({
   spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   logoRow: { flexDirection: 'row', alignItems: 'center' },
   readingRow: { flexDirection: 'row', alignItems: 'baseline' },
-  dot: { width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2, marginTop: 4 },
+  dot: { width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2 },
   lockCircle: {
     width: LOCK_CIRCLE_SIZE,
     height: LOCK_CIRCLE_SIZE,

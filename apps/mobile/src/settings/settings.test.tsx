@@ -18,8 +18,6 @@ beforeEach(() => {
   act(() => {
     setPreference('appearance', 'system');
     setPreference('hideWidgetValues', false);
-    for (const key of ['daily', 'followUp', 'doctor', 'standing', 'retest'] as const)
-      setPreference(key, true);
   });
 });
 
@@ -35,7 +33,11 @@ describe('Settings tab', () => {
       expect(screen.getByRole('button', { name: new RegExp(en[key]) })).toBeOnTheScreen();
     }
     expect(screen.queryByRole('button', { name: new RegExp(en['settings.delete']) })).toBeNull();
-    expect(screen.getAllByText(en['settings.comingSoon'])).toHaveLength(3);
+    expect(screen.getAllByText(en['settings.comingSoon'])).toHaveLength(5);
+    expect(screen.queryByRole('button', { name: new RegExp(en['settings.demoMode']) })).toBeNull();
+    expect(screen.queryByText(/8:00/)).toBeNull();
+    const reminders = screen.getByRole('button', { name: new RegExp(en['notifications.title']) });
+    expect(within(reminders).getByText(en['settings.notActiveYet'])).toBeOnTheScreen();
     expect(screen.getByRole('switch', { name: en['settings.healthSync'] })).toBeDisabled();
   });
 
@@ -91,6 +93,7 @@ describe('Appearance', () => {
   it('previews both looks for System and one look for a chosen theme', () => {
     renderRouter(appDirectory, { initialUrl: '/settings/appearance' });
     expect(screen.getAllByText(en['home.measure'])).toHaveLength(2);
+    expect(screen.getByText(en['appearance.followingBody'])).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('radio', { name: en['appearance.dark'] }));
     expect(screen.getByRole('radio', { name: en['appearance.dark'] })).toBeChecked();
     expect(screen.getAllByText(en['home.measure'])).toHaveLength(1);
@@ -108,34 +111,30 @@ describe('Appearance', () => {
 });
 
 describe('Notifications', () => {
-  it('has a switch per reminder type, all on by default, and the quiet hours', () => {
+  it('says nothing is active yet and shows every reminder switch disabled', () => {
     renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
+    expect(screen.getByText(en['notifications.notActive'])).toBeOnTheScreen();
     for (const key of [
       'notifications.daily',
       'notifications.followUp',
       'notifications.doctor',
       'notifications.standing',
       'notifications.retest',
+      'notifications.hideValues',
     ] as const) {
-      expect(screen.getByRole('switch', { name: en[key] })).toBeChecked();
+      const reminder = screen.getByRole('switch', { name: en[key] });
+      expect(reminder).toBeDisabled();
+      expect(reminder).not.toBeChecked();
     }
     expect(screen.getByText(en['notifications.quietStart'])).toBeOnTheScreen();
-    expect(screen.getByText(en['notifications.quietEnd'])).toBeOnTheScreen();
     expect(screen.getByText(en['notifications.limit'])).toBeOnTheScreen();
-  });
-
-  it('flips a switch and keeps Hide values off until it is turned on', () => {
-    renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
-    const hide = screen.getByRole('switch', { name: en['notifications.hideValues'] });
-    expect(hide).not.toBeChecked();
-    fireEvent(hide, 'valueChange', true);
-    expect(screen.getByRole('switch', { name: en['notifications.hideValues'] })).toBeChecked();
   });
 });
 
 describe('Widget gallery', () => {
   it('previews the home and lock-screen widgets with steps for each platform', () => {
     renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.getByText(en['widgets.sample'])).toBeOnTheScreen();
     expect(screen.getByText(en['widgets.howToAdd'])).toBeOnTheScreen();
     expect(screen.getByText(en['widgets.androidBody'])).toBeOnTheScreen();
     expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
@@ -158,8 +157,8 @@ describe('Widget gallery', () => {
 describe('Lock-screen previews', () => {
   it('shows the standing timer and a reminder with no health details', () => {
     renderRouter(appDirectory, { initialUrl: '/settings/widgets/lock-screen' });
-    expect(screen.getByText(en['lockScreen.nextReading'])).toBeOnTheScreen();
-    expect(screen.getByText(en['lockScreen.tap'])).toBeOnTheScreen();
+    expect(screen.getByText(lockscreenStrings('en')['live.standing.tap'])).toBeOnTheScreen();
+    expect(screen.getByText(en['lockScreen.sample'])).toBeOnTheScreen();
     expect(screen.getByLabelText(en['lockScreen.timer'])).toBeOnTheScreen();
     expect(screen.getByLabelText(en['lockScreen.reminder'])).toBeOnTheScreen();
     expect(screen.getByText(lockscreenStrings('en')['notif.confirm'])).toBeOnTheScreen();

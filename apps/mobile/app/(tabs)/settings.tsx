@@ -20,7 +20,7 @@ type SettingsRow = { title: string; value?: string; href?: Href };
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { appearance, daily } = usePreferences();
+  const { appearance } = usePreferences();
   const versionTaps = useRef({ count: 0, at: 0 });
 
   const appearanceNames = {
@@ -32,13 +32,11 @@ export default function SettingsScreen() {
     { title: t('settings.profile'), href: '/profile' },
     {
       title: t('notifications.title'),
-      value: daily
-        ? t('settings.notificationsDaily', { time: t('notifications.dailyTime') })
-        : t('settings.notificationsOff'),
+      value: t('settings.notActiveYet'),
       href: '/settings/notifications',
     },
     { title: t('appearance.title'), value: appearanceNames[appearance], href: '/settings/appearance' },
-    { title: t('settings.language'), value: t('settings.languageName') },
+    { title: t('settings.language') },
   ];
   const accuracyRows: readonly SettingsRow[] = [
     { title: t('settings.accuracy'), href: '/settings/accuracy' },
@@ -47,7 +45,7 @@ export default function SettingsScreen() {
     { title: t('settings.phone'), value: t('settings.phoneNotTested'), href: '/settings/phone' },
     { title: t('settings.widgets'), href: '/settings/widgets' },
     { title: t('settings.replayTutorial'), href: '/welcome' },
-    { title: t('settings.demoMode'), href: '/results/demo' },
+    { title: t('settings.demoMode') },
   ];
   const dataRows: readonly SettingsRow[] = [
     { title: t('settings.export') },

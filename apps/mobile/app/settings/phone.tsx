@@ -16,7 +16,7 @@ const MAX_TIMING = 20;
 
 export default function PhoneRatingScreen() {
   const { t } = useTranslation();
-  const { colors, spacing } = useTheme();
+  const { colors, radius, spacing } = useTheme();
   const components = [
     { name: t('phoneRating.frameRate'), max: MAX_FRAME_RATE },
     { name: t('phoneRating.coupling'), max: MAX_COUPLING },
@@ -42,13 +42,13 @@ export default function PhoneRatingScreen() {
       <Card>
         {components.map(({ name, max }) => (
           <View key={name} style={{ gap: spacing.xs, paddingVertical: spacing.xs }}>
-            <View style={styles.line}>
+            <View style={[styles.line, { gap: spacing.md }]}>
               <AppText style={styles.name}>{name}</AppText>
               <AppText variant="headline" tone="textDim">
                 {t('phoneRating.points', { max })}
               </AppText>
             </View>
-            <View style={[styles.track, { backgroundColor: colors.surface3 }]} />
+            <View style={[styles.track, { backgroundColor: colors.surface3, borderRadius: radius.pill }]} />
           </View>
         ))}
       </Card>
@@ -58,7 +58,7 @@ export default function PhoneRatingScreen() {
 
 const styles = StyleSheet.create({
   tip: { textAlign: 'center' },
-  line: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
+  line: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   name: { flex: 1 },
-  track: { height: 6, borderRadius: 3 },
+  track: { height: 6 },
 });

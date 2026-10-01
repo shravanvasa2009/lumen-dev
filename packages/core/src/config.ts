@@ -9,4 +9,15 @@ export const DSP_CONFIG = {
     shapeRateHz: 256, // onsets, waveform shape
     maxGapS: 0.15, // never interpolate across a longer gap
   },
+  dsp3: {
+    dcCutoffHz: 0.3, // DC for the perfusion index keeps only what is below this
+    // The spec gives no order. 2 (zero-phase, so 4 in effect) leaves 6% of the pulse at 36 bpm (0.6 Hz) in
+    // the DC, about 0.06% of DC for a 1% pulse, with less ringing at baseline steps than a higher order.
+    dcOrder: 2,
+  },
+  dsp6: {
+    order: 4, // Butterworth prototype order N, as in scipy butter(N, ...): 8 poles per band-pass (ADR 0018)
+    hrBandHz: [0.6, 3.5],
+    morphologyBandHz: [0.5, 8],
+  },
 };

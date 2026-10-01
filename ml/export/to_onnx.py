@@ -162,7 +162,15 @@ def export_model(spec: ModelSpec, source: SourceModel, out_dir: Path) -> Path:
             f"{spec.name} was fitted on {source.n_features_in_} features; the spec says {shape[1]}"
         )
     (output_name,) = spec.outputs
-    return export_classifier(source, input_name, output_name, Path(out_dir) / f"{spec.file_stem}.onnx")
+    path = export_classifier(source, input_name, output_name, Path(out_dir) / f"{spec.file_stem}.onnx")
+    # §11.9: networks are small by construction, but a tree model's size depends on what training fitted.
+    # An oversized file is deleted so it can never be bundled.
+    size = path.stat().st_size
+    if size >= spec.size_budget_bytes:
+        path.unlink()
+        limit = spec.size_budget_bytes
+        raise ValueError(f"{spec.name} exports to {size} bytes; its limit is {limit} (§11.9)")
+    return path
 
 
 def main(argv: list[str] | None = None) -> None:

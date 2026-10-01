@@ -22,6 +22,8 @@ import {
 
 // §10.2 synthetic signals and the DSP-D criteria, through the full path from camera frames to classes.
 const CASE_TIMEOUT_MS = 300_000;
+// A dicrotic family must produce at least this many double detections for its removal ratio to count.
+const MIN_DOUBLE_DETECTIONS = 20;
 const summary: string[] = [];
 const percent = (part: number, whole: number) =>
   whole === 0 ? 'n/a' : `${((100 * part) / whole).toFixed(1)}%`;
@@ -305,7 +307,12 @@ describe.each([
     }, CASE_TIMEOUT_MS);
 
     it('removes ≥ 95% of double detections as not-a-beat', () => {
-      expect(doubles === 0 ? 1 : removed / doubles).toBeGreaterThanOrEqual(0.95);
+      // Without enough double detections the ratio says nothing; that is a generator failure, not a pass.
+      if (doubles < MIN_DOUBLE_DETECTIONS)
+        throw new Error(
+          `${family}: only ${doubles} double detections (need ${MIN_DOUBLE_DETECTIONS}); the generator does not exercise the criterion`,
+        );
+      expect(removed / doubles).toBeGreaterThanOrEqual(0.95);
     });
 
     it('keeps the true beats', () => {

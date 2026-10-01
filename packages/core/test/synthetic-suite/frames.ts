@@ -56,11 +56,13 @@ export const runoff =
 // 1973;24:244-255, doi:10.1177/000331977302400407), from a clear notch (class 1) to none (class 4). The
 // systolic-to-diastolic peak time spans 0.15-0.35 s, the range of the stiffness-index examples in
 // Millasseau et al. (Clin Sci 2002;103:371-377, doi:10.1042/cs1030371): 147 ms at age 60, 270 ms at 45,
-// 346 ms at 29. Other ranges are chosen to cover the classes, not fitted to recordings.
+// 346 ms at 29. Other ranges are chosen to cover the classes and to give DSP-D at least 20 double
+// detections (decay 0.08-0.35 s, hump 0.1-0.8); physiologicalShape's 0.75 cap still bounds the result.
+// They are not fitted to recordings.
 export function fingerPulseShape(random: Draws): PulseShape {
   return runoff(
-    random.uniform(0.15, 0.35),
-    random.uniform(0.1, 0.6),
+    random.uniform(0.08, 0.35),
+    random.uniform(0.1, 0.8),
     random.uniform(0.15, 0.35),
     random.uniform(0.03, 0.08),
     random.uniform(0.05, 0.08),

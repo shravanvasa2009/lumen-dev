@@ -29,7 +29,7 @@
   },
   "dsp9": {
     "notABeatUpslopeRatio": 0.15,
-    "intervalRangeS": [0.25, 2.5],
+    "artifactIntervalS": [0.25, 2.5],
     "templateCorrelationMin": 0.85,
     "amplitudeRatioRange": [0.5, 2.0],
     "templateBeats": 10,
@@ -38,9 +38,7 @@
     "templateAfterPeakS": 0.1,
     "neighbours": 5,
     "earlyIntervalRatio": 0.85,
-    "earlySmallAmplitudeRatio": 1.0,
-    "dicroticWindowS": 0.5,
-    "dicroticFootRise": 0.2
+    "earlySmallAmplitudeRatio": 1.0
   },
   "dsp15": {
     "windowIntervals": 32,

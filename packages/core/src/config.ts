@@ -41,10 +41,11 @@ export const DSP_CONFIG = {
   dsp9: {
     // Not a beat when its maximum upslope < this × the median upslope. Owner decision H-016 (ADR 0025):
     // 0.15, not the spec's 0.3, which removed small premature beats riding on the previous beat's
-    // falling side; the dicrotic rule below takes over removing dicrotic double detections.
+    // falling side. A foot-level dicrotic rule was tried and withdrawn: on BUT PPG it removed 3-5% of
+    // real beats.
     notABeatUpslopeRatio: 0.15,
     // Spec values (§10 DSP-9).
-    intervalRangeS: [0.25, 2.5], // an interval outside this range makes its ending beat an artifact
+    artifactIntervalS: [0.25, 2.5], // an interval outside this range makes its ending beat an artifact
     templateCorrelationMin: 0.85, // atypical below this Pearson correlation with the template
     amplitudeRatioRange: [0.5, 2.0], // atypical outside this × the running median amplitude
     templateBeats: 10, // the template is the mean of the last this-many normal beats
@@ -63,11 +64,6 @@ export const DSP_CONFIG = {
     // × the running median. Same-shape premature beats at 0.5–0.7 × amplitude were otherwise normal.
     earlyIntervalRatio: 0.85,
     earlySmallAmplitudeRatio: 1.0,
-    // Dicrotic rule (H-016): not a beat when a candidate comes within dicroticWindowS after the previous
-    // beat, its foot stays above that beat's foot + dicroticFootRise × its amplitude (no return to
-    // baseline), and it is smaller. A premature beat whose foot returns to baseline is never removed.
-    dicroticWindowS: 0.5,
-    dicroticFootRise: 0.2,
   },
   dsp15: {
     // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).

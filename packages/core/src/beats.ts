@@ -7,7 +7,6 @@ export interface DetectedBeat {
   onsetS: number | null; // null when nothing rises between the preceding minimum and the peak
   maxUpslope: number; // per second, between the preceding minimum and the peak (DSP-9 "not a beat")
   amplitude: number; // peak minus the preceding minimum
-  footValue: number; // the preceding minimum (the peak itself when nothing rises); for the DSP-9 dicrotic rule
 }
 
 export interface Upstroke {
@@ -118,7 +117,6 @@ export function detectBeats(model: ResampledSegment, shape: ResampledSegment): D
       onsetS: found ? toSeconds(found.onsetIndex) : null,
       maxUpslope: found ? found.maxUpslope * shapeRateHz : 0,
       amplitude: found ? wave[peak]! - wave[found.footIndex]! : 0,
-      footValue: found ? wave[found.footIndex]! : wave[peak]!,
     });
     previousPeak = peak;
   }

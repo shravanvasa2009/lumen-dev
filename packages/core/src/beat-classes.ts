@@ -49,7 +49,7 @@ export function classifyBeats(
 ): ClassifiedBeat[] {
   const config = DSP_CONFIG.dsp9;
   const { shapeRateHz } = DSP_CONFIG.dsp2;
-  const [shortestS, longestS] = config.intervalRangeS as [number, number];
+  const [shortestS, longestS] = config.artifactIntervalS as [number, number];
   const [smallest, largest] = config.amplitudeRatioRange as [number, number];
   const overlapsSpan = (startS: number, endS: number) =>
     rejectedSpans.some((span) => span.startS <= endS && span.endS >= startS);
@@ -59,21 +59,6 @@ export function classifyBeats(
   const classes: BeatClass[] = beats.map((beat) =>
     beat.maxUpslope < upslopeFloor ? 'not-a-beat' : 'normal',
   );
-
-  // Dicrotic rule (H-016): a smaller candidate soon after the previous beat whose foot never returned
-  // to baseline rides on that beat's falling side. The previous beat is the last one not removed.
-  let priorBeat: number | null = null;
-  beats.forEach((beat, i) => {
-    if (classes[i] === 'not-a-beat') return;
-    const prior = priorBeat === null ? null : beats[priorBeat]!;
-    const ridesOnPrior =
-      prior !== null &&
-      beat.peakS - prior.peakS <= config.dicroticWindowS &&
-      beat.footValue > prior.footValue + config.dicroticFootRise * prior.amplitude &&
-      beat.amplitude < prior.amplitude;
-    if (ridesOnPrior) classes[i] = 'not-a-beat';
-    else priorBeat = i;
-  });
 
   // Intervals run between consecutive beats that are not "not a beat"; the first beat has none.
   const previousBeat: (number | null)[] = [];

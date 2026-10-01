@@ -370,5 +370,17 @@
   "language.en": "English",
   "language.es": "Español",
   "language.label": "Language",
-  "onboarding.step": "Step {{step}} of {{total}}"
+  "onboarding.step": "Step {{step}} of {{total}}",
+  "profile.age": "Age",
+  "profile.ageMin": "13+",
+  "profile.agePlaceholder": "Enter age",
+  "profile.ageTooYoung": "Lumen is for ages 13 and up.",
+  "profile.sex": "Sex",
+  "profile.female": "Female",
+  "profile.male": "Male",
+  "profile.preferNot": "Prefer not",
+  "profile.betaBlocker": "I take a beta-blocker",
+  "profile.pacemaker": "I have a pacemaker",
+  "profile.afibReported": "A doctor told me I have AFib",
+  "profile.athlete": "I'm an endurance athlete"
 }

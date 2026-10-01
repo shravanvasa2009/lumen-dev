@@ -128,8 +128,9 @@ describe('navigation', () => {
   it('walks the onboarding chain from welcome to Home', () => {
     followButtons('/welcome', [['welcome.getStarted', 'consent.title']]);
     fireEvent.press(screen.getByRole('checkbox', { name: en['consent.understand'] }));
+    pressThrough([['common.continue', 'profile.title']]);
+    fireEvent.changeText(screen.getByLabelText(en['profile.age']), '42');
     pressThrough([
-      ['common.continue', 'profile.title'],
       ['common.continue', 'phoneCheck.title'],
       ['phoneCheck.next', 'placement.title'],
       ['placement.start', 'practice.title'],

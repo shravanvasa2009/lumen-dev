@@ -370,5 +370,17 @@
   "language.en": "English",
   "language.es": "Español",
   "language.label": "Idioma",
-  "onboarding.step": "Paso {{step}} de {{total}}"
+  "onboarding.step": "Paso {{step}} de {{total}}",
+  "profile.age": "Edad",
+  "profile.ageMin": "13+",
+  "profile.agePlaceholder": "Tu edad",
+  "profile.ageTooYoung": "Lumen es para personas de 13 años en adelante.",
+  "profile.sex": "Sexo",
+  "profile.female": "Mujer",
+  "profile.male": "Hombre",
+  "profile.preferNot": "Prefiero no decirlo",
+  "profile.betaBlocker": "Tomo un betabloqueador",
+  "profile.pacemaker": "Tengo un marcapasos",
+  "profile.afibReported": "Un médico me dijo que tengo fibrilación auricular",
+  "profile.athlete": "Soy deportista de resistencia"
 }

@@ -46,3 +46,4 @@ export {
   type DetectedBeat,
   type Upstroke,
 } from './beats';
+export { classifyBeats } from './beat-classes';

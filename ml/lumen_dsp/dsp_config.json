@@ -27,6 +27,17 @@
   "dsp8": {
     "minimumSearchS": 0.4
   },
+  "dsp9": {
+    "notABeatUpslopeRatio": 0.3,
+    "intervalRangeS": [0.25, 2.5],
+    "templateCorrelationMin": 0.85,
+    "amplitudeRatioRange": [0.5, 2.0],
+    "templateBeats": 10,
+    "longPauseRatio": 1.6,
+    "templateBeforePeakS": 0.2,
+    "templateAfterPeakS": 0.1,
+    "neighbours": 5
+  },
   "dsp15": {
     "windowIntervals": 32,
     "windowStep": 16,

@@ -38,6 +38,23 @@ export const DSP_CONFIG = {
     // The beat foot is searched back from the peak over this span, never past the previous peak.
     minimumSearchS: 0.4,
   },
+  dsp9: {
+    // Spec values (§10 DSP-9).
+    notABeatUpslopeRatio: 0.3, // not a beat when its maximum upslope < this × the median upslope
+    intervalRangeS: [0.25, 2.5], // an interval outside this range makes its ending beat an artifact
+    templateCorrelationMin: 0.85, // atypical below this Pearson correlation with the template
+    amplitudeRatioRange: [0.5, 2.0], // atypical outside this × the running median amplitude
+    templateBeats: 10, // the template is the mean of the last this-many normal beats
+    longPauseRatio: 1.6, // long pause when an interval ≥ this × the median of its neighbours
+    // Not given by the spec (initial, ADR 0025). The template window spans the foot (onsets fall 50–250
+    // ms before the peak) and the top of the systolic wave; at 0.3 s it is shorter than the interval at
+    // 150 bpm, so the next upstroke rarely enters it.
+    templateBeforePeakS: 0.2,
+    templateAfterPeakS: 0.1,
+    // Running median of amplitude, and the long-pause reference: up to this many usable neighbours on
+    // each side, excluding the beat (or interval) itself.
+    neighbours: 5,
+  },
   dsp15: {
     // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).
     windowIntervals: 32,

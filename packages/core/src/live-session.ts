@@ -6,7 +6,7 @@ export type BeatClass = 'not-a-beat' | 'artifact' | 'atypical' | 'normal';
 // Times are seconds from capture start (DSP-1).
 export interface ClassifiedBeat {
   peakS: number;
-  onsetS: number;
+  onsetS: number | null; // DSP-8; null when nothing rises before the peak (then it is not a beat)
   beatClass: BeatClass;
   longPause: boolean; // DSP-9 long pause on the interval ending at this beat: kept for rhythm, not HRV
 }

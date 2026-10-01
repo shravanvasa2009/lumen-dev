@@ -76,6 +76,15 @@ def verify_file(path: Path, remote: RemoteFile) -> None:
             raise ChecksumMismatchError(f"{path.name}: sha256 {actual_sha}, expected {remote.sha256}")
 
 
+def request_file(remote: RemoteFile, headers: dict[str, str], session: requests.Session) -> requests.Response:
+    response = session.get(remote.url, headers=headers, stream=True, timeout=TIMEOUT_SECONDS)
+    if response.status_code != 404 or remote.fallback_url is None:
+        return response
+    response.close()
+    log.warning("%s is missing at %s; fetching it from %s", remote.name, remote.url, remote.fallback_url)
+    return session.get(remote.fallback_url, headers=headers, stream=True, timeout=TIMEOUT_SECONDS)
+
+
 def stream_file(remote: RemoteFile, target: Path, session: requests.Session) -> None:
     if target.exists():
         verify_file(target, remote)
@@ -87,7 +96,7 @@ def stream_file(remote: RemoteFile, target: Path, session: requests.Session) -> 
     have = partial.stat().st_size if partial.exists() else 0
     if remote.size is None or have < remote.size:
         headers = {"Range": f"bytes={have}-"} if have else {}
-        with session.get(remote.url, headers=headers, stream=True, timeout=TIMEOUT_SECONDS) as response:
+        with request_file(remote, headers, session) as response:
             # 416 on a resume means the partial file already holds every byte; verification decides.
             if not (have and response.status_code == 416):
                 response.raise_for_status()
@@ -116,10 +125,16 @@ def physionet_listing(dataset: Dataset, session: requests.Session) -> list[Remot
     with session.get(f"{base}/SHA256SUMS.txt", timeout=TIMEOUT_SECONDS) as response:
         response.raise_for_status()
         listing = b"".join(response.iter_content(chunk_size=CHUNK_BYTES)).decode("utf-8")
-    return parse_sha256sums(listing, base, dataset.local_dir)
+    # The AWS mirror omits a few non-signal files (ltafdb's tables.shtml), so physionet.org backs it up.
+    fallback = None
+    if dataset.physionet_base != registry.PHYSIONET_ORG:
+        fallback = f"{registry.PHYSIONET_ORG}/{dataset.physionet_slug}/{dataset.physionet_version}"
+    return parse_sha256sums(listing, base, dataset.local_dir, fallback)
 
 
-def parse_sha256sums(listing: str, base_url: str, local_dir: Path) -> list[RemoteFile]:
+def parse_sha256sums(
+    listing: str, base_url: str, local_dir: Path, fallback_base: str | None = None
+) -> list[RemoteFile]:
     remotes = []
     for line in listing.splitlines():
         if not line.strip():
@@ -130,7 +145,10 @@ def parse_sha256sums(listing: str, base_url: str, local_dir: Path) -> list[Remot
         # Checked on the resolved local path, so Windows separators ("..\x") and drive letters are caught.
         if not (local_dir / relative).resolve().is_relative_to(local_dir.resolve()):
             raise UnsafeListingError(f"SHA256SUMS.txt lists {relative!r} outside {local_dir}")
-        remotes.append(RemoteFile(url=f"{base_url}/{relative}", sha256=sha256, filename=relative))
+        fallback = f"{fallback_base}/{relative}" if fallback_base else None
+        remotes.append(
+            RemoteFile(url=f"{base_url}/{relative}", sha256=sha256, filename=relative, fallback_url=fallback)
+        )
     return remotes
 
 

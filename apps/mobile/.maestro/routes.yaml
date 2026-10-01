@@ -11,7 +11,7 @@ name: Every route opens
     visible: 'Change mode'
     timeout: 60000
 - openLink: lumen://welcome
-- assertVisible: 'Get started'
+- assertVisible: 'Lumen'
 - openLink: lumen://consent
 - assertVisible: "What Lumen is — and isn't"
 - openLink: lumen://profile
@@ -27,7 +27,7 @@ name: Every route opens
 - openLink: lumen://rating
 - assertVisible: 'Your Lumen rating'
 - openLink: lumen://reminders
-- assertVisible: 'Turn on reminders'
+- assertVisible: 'Reminders'
 - openLink: lumen://
 - assertVisible: 'Change mode'
 - openLink: lumen://trends

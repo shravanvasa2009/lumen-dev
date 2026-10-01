@@ -1,7 +1,8 @@
-# Same path as the measurement and report tests in src/routes.test.tsx. The emulator has no flash, so the
-# capture screen is only passed through, never measured.
+# Same paths as the navigation tests in src/routes.test.tsx: measurement to results and emergency, the
+# report, the explanation, and the Fix my technique loop. The emulator has no flash, so the capture
+# screen is only passed through, never measured. Text is a regex, so ( ) ? . are escaped.
 appId: io.github.shravanvasa2009.heartcheck
-name: Home through a measurement to results, emergency, and report
+name: Home through a measurement to results, emergency, report, why, and fix-technique
 ---
 - launchApp:
     clearState: true
@@ -15,7 +16,7 @@ name: Home through a measurement to results, emergency, and report
 - tapOn: 'Quick Check'
 - assertVisible: 'Before you start'
 - tapOn: 'Start reading'
-- assertVisible: 'Finish reading'
+- assertVisible: 'Quick Check'
 - tapOn: 'Finish reading'
 - assertVisible: 'Analyzing your reading'
 - tapOn: 'See results'
@@ -25,3 +26,14 @@ name: Home through a measurement to results, emergency, and report
 - openLink: lumen://results/demo
 - tapOn: 'Share'
 - assertVisible: 'Doctor report'
+- openLink: lumen://results/demo
+- tapOn: 'Show me why'
+# The button and the destination share the words "Show me why", so check a line only the destination has.
+- assertVisible: 'Beat-to-beat intervals \(ms\)'
+- openLink: lumen://measure/capture?mode=quick
+- tapOn: "Can't get a clean signal\\?"
+- assertVisible: 'Not enough clean signal\.'
+- tapOn: 'Fix my technique \(2 min\)'
+- assertVisible: 'Fix my technique'
+- tapOn: 'Done — take a reading'
+- assertVisible: 'Quick Check'

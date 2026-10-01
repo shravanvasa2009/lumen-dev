@@ -38,12 +38,18 @@ function maestroCommand() {
   process.exit(1);
 }
 
+const maestro = maestroCommand();
+
 if (spawnSync('adb', ['get-state'], { stdio: 'ignore', shell: isWindows }).status !== 0) {
   console.error('e2e:android: no emulator or device. Start Pixel_10_Pro_XL (or any emulator) first.');
   process.exit(1);
 }
 
-if (!fs.existsSync(RELEASE_APK) || process.argv.includes('--rebuild')) {
+if (fs.existsSync(RELEASE_APK) && !process.argv.includes('--rebuild')) {
+  console.log(
+    `Reusing ${RELEASE_APK} (${fs.statSync(RELEASE_APK).mtime.toISOString()}); pass --rebuild after changes.`,
+  );
+} else {
   if (!fs.existsSync(ANDROID)) runOrExit('npx', ['expo', 'prebuild', '-p', 'android'], { cwd: MOBILE });
   runOrExit(
     isWindows ? 'gradlew.bat' : './gradlew',
@@ -56,7 +62,7 @@ if (!fs.existsSync(RELEASE_APK) || process.argv.includes('--rebuild')) {
 
 runOrExit('adb', ['install', '-r', RELEASE_APK]);
 // Java 17 reads files in the system code page (cp1252 on Windows), which turns the flows' em dashes into '?'.
-const status = run(maestroCommand(), ['test', FLOWS], {
+const status = run(maestro, ['test', FLOWS], {
   env: { ...process.env, JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8' },
 });
 

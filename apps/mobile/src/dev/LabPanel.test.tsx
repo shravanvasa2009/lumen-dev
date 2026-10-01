@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import en from '@/i18n/en.json';
 import tokens from '@/theme/tokens.json';
 
-import { ReplayCapture, type RecordedCapture } from '../../modules/lumen-capture/src';
+import { ReplayCapture, type LabDiagnostics, type RecordedCapture } from '../../modules/lumen-capture/src';
 
 import { LabPanel } from './LabPanel';
 
@@ -190,7 +190,7 @@ test('shows the thermal state from the status event', async () => {
 });
 
 test('keeps Send disabled until a capture is recorded and the receiver is filled in', async () => {
-  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
   typeReceiver('10.0.2.2:8787', 'abc123');
   expect(screen.getByRole('button', { name: en['lab.send'] })).toBeDisabled();
 });
@@ -209,3 +209,269 @@ test.each([
     expect(drawn).not.toContain(colors.pulse);
   },
 );
+
+async function renderWithPhone(replay: ReplayCapture) {
+  render(<LabPanel capture={replay} />);
+  // Lets the capabilities request resolve so the lens and torch choices appear.
+  await act(async () => undefined);
+}
+
+const lensLabel = fill(en['lab.lensOption'], { kind: en['lab.lensWide'], id: 'synthetic-wide', fps: 50 });
+
+test('starts with the chosen lens, target fps, and torch level', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  const start = jest.spyOn(replay, 'start');
+  await renderWithPhone(replay);
+  expect(screen.getByText(fill(en['lab.phone'], { model: 'synthetic-phone', os: '0' }))).toBeOnTheScreen();
+
+  await press(lensLabel);
+  await press(fill(en['lab.fpsTarget'], { fps: 60 }));
+  await press(fill(en['lab.torchLevel'], { level: 0.5 }));
+  await press(en['lab.start']);
+
+  expect(start).toHaveBeenCalledWith({ lensId: 'synthetic-wide', targetFps: 60, torchLevel: 0.5 });
+});
+
+test('the default start leaves lens and fps to native and turns the torch on full', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  const start = jest.spyOn(replay, 'start');
+  await renderWithPhone(replay);
+  await press(en['lab.start']);
+  expect(start).toHaveBeenCalledWith({ torchLevel: 1 });
+});
+
+test('locks exposure 1 s after start by default and says when the lock finished', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  const lock = jest.spyOn(replay, 'lockExposure');
+  await renderWithPhone(replay);
+  await press(en['lab.start']);
+
+  await act(async () => {
+    jest.advanceTimersByTime(999);
+  });
+  expect(lock).not.toHaveBeenCalled();
+  await act(async () => {
+    jest.advanceTimersByTime(1);
+  });
+  expect(lock).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(en['lab.lockDone'])).toBeOnTheScreen();
+});
+
+test('with auto-lock off, only the Lock exposure button locks', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  const lock = jest.spyOn(replay, 'lockExposure');
+  await renderWithPhone(replay);
+  await press(en['lab.autoLockOn']);
+  await press(en['lab.start']);
+  await act(async () => {
+    jest.advanceTimersByTime(2000);
+  });
+  expect(lock).not.toHaveBeenCalled();
+
+  await press(en['lab.lockExposure']);
+  expect(lock).toHaveBeenCalledTimes(1);
+});
+
+test('stopping before 1 s cancels the auto-lock', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  const lock = jest.spyOn(replay, 'lockExposure');
+  await renderWithPhone(replay);
+  await press(en['lab.start']);
+  await press(en['lab.stop']);
+  await act(async () => {
+    jest.advanceTimersByTime(2000);
+  });
+  expect(lock).not.toHaveBeenCalled();
+});
+
+test('shows why a lock failed', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  jest.spyOn(replay, 'lockExposure').mockRejectedValue(new Error('No capture is running'));
+  await renderWithPhone(replay);
+  await press(en['lab.start']);
+  await act(async () => {
+    jest.advanceTimersByTime(1000);
+  });
+  expect(screen.getByText(fill(en['lab.failed'], { reason: 'No capture is running' }))).toBeOnTheScreen();
+  expect(screen.queryByText(en['lab.lockDone'])).toBeNull();
+});
+
+test('changes the torch on the running capture, but only stores the level before start', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  const setTorch = jest.spyOn(replay, 'setTorch');
+  await renderWithPhone(replay);
+  await press(fill(en['lab.torchLevel'], { level: 0.25 }));
+  expect(setTorch).not.toHaveBeenCalled();
+
+  await press(en['lab.start']);
+  await press(en['lab.torchOff']);
+  expect(setTorch).toHaveBeenCalledWith(0);
+});
+
+test('locks the lens, fps, and auto-lock choices while running, and Lock exposure while stopped', async () => {
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
+  const button = (label: string) => screen.getByRole('button', { name: label });
+  expect(button(en['lab.lockExposure'])).toBeDisabled();
+  expect(button(lensLabel)).toBeEnabled();
+
+  await press(en['lab.start']);
+  expect(button(lensLabel)).toBeDisabled();
+  expect(button(en['lab.lensDefault'])).toBeDisabled();
+  expect(button(en['lab.fpsDefault'])).toBeDisabled();
+  expect(button(en['lab.autoLockOn'])).toBeDisabled();
+  expect(button(en['lab.torchOff'])).toBeEnabled();
+  expect(button(en['lab.lockExposure'])).toBeEnabled();
+});
+
+test('offers only on and off when the torch has no levels, and marks a lens without a torch', async () => {
+  const recording = syntheticRecording();
+  recording.capabilities = {
+    ...recording.capabilities,
+    rearLenses: [
+      ...recording.capabilities.rearLenses,
+      { id: 'synthetic-ultra', kind: 'ultrawide', maxFps: 30, torchUsable: false },
+    ],
+    torch: { available: true, levels: false },
+  };
+  const replay = new ReplayCapture(recording);
+  const start = jest.spyOn(replay, 'start');
+  await renderWithPhone(replay);
+  expect(
+    screen.getByText(
+      fill(en['lab.lensOptionNoTorch'], { kind: en['lab.lensUltrawide'], id: 'synthetic-ultra', fps: 30 }),
+    ),
+  ).toBeOnTheScreen();
+  expect(screen.queryByText(fill(en['lab.torchLevel'], { level: 0.5 }))).toBeNull();
+
+  await press(en['lab.torchOff']);
+  await press(en['lab.torchOn']);
+  await press(en['lab.start']);
+  expect(start).toHaveBeenCalledWith({ torchLevel: 1 });
+});
+
+test('shows the lens, format, and target fps native reports in the lab event', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  const listen = jest.spyOn(replay, 'addListener');
+  await renderWithPhone(replay);
+  await press(en['lab.start']);
+  const onLab = listen.mock.calls.find(([event]) => event === 'lab')?.[1] as (d: LabDiagnostics) => void;
+  await act(async () => {
+    onLab({
+      lensId: 'synthetic-wide',
+      formatWidth: 1920,
+      formatHeight: 1080,
+      targetFps: 60,
+      frameWorkMsMean: 1.2,
+      frameWorkMsMax: 3.4,
+      iso: 50,
+      exposureNs: 8e6,
+      torchOn: true,
+      torchLevel: 0.5,
+      locked: { exposure: true, whiteBalance: true, focus: true },
+    });
+  });
+  expect(
+    screen.getByText(
+      fill(en['lab.diagFormat'], { lens: 'synthetic-wide', width: 1920, height: 1080, fps: 60 }),
+    ),
+  ).toBeOnTheScreen();
+});
+
+function withUltrawideWithoutTorch(): RecordedCapture {
+  const recording = syntheticRecording();
+  recording.capabilities = {
+    ...recording.capabilities,
+    rearLenses: [
+      ...recording.capabilities.rearLenses,
+      { id: 'synthetic-ultra', kind: 'ultrawide', maxFps: 240, torchUsable: false },
+    ],
+  };
+  return recording;
+}
+
+const ultraLabel = fill(en['lab.lensOptionNoTorch'], {
+  kind: en['lab.lensUltrawide'],
+  id: 'synthetic-ultra',
+  fps: 240,
+});
+
+test('marks the chosen options as selected, starting from the defaults', async () => {
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
+  const button = (label: string) => screen.getByRole('button', { name: label });
+  expect(button(en['lab.lensDefault'])).toBeSelected();
+  expect(button(en['lab.fpsDefault'])).toBeSelected();
+  expect(button(fill(en['lab.torchLevel'], { level: 1 }))).toBeSelected();
+  expect(button(lensLabel)).not.toBeSelected();
+
+  await press(lensLabel);
+  expect(button(lensLabel)).toBeSelected();
+  expect(button(en['lab.lensDefault'])).not.toBeSelected();
+});
+
+test('offers the picked lens maximum only once a lens is picked, and sends it as targetFps', async () => {
+  const replay = new ReplayCapture(withUltrawideWithoutTorch());
+  const start = jest.spyOn(replay, 'start');
+  await renderWithPhone(replay);
+  const lensMax = fill(en['lab.fpsLensMax'], { fps: 240 });
+  expect(screen.queryByRole('button', { name: lensMax })).toBeNull();
+
+  await press(ultraLabel);
+  await press(lensMax);
+  await press(en['lab.start']);
+  expect(start).toHaveBeenCalledWith({ lensId: 'synthetic-ultra', targetFps: 240, torchLevel: 0 });
+});
+
+test('going back to the default lens drops the lens-max choice', async () => {
+  const replay = new ReplayCapture(withUltrawideWithoutTorch());
+  const start = jest.spyOn(replay, 'start');
+  await renderWithPhone(replay);
+  await press(lensLabel);
+  await press(fill(en['lab.fpsLensMax'], { fps: 50 }));
+  await press(en['lab.lensDefault']);
+
+  expect(screen.queryByRole('button', { name: fill(en['lab.fpsLensMax'], { fps: 50 }) })).toBeNull();
+  expect(screen.getByRole('button', { name: en['lab.fpsDefault'] })).toBeSelected();
+  await press(en['lab.start']);
+  expect(start).toHaveBeenCalledWith({ torchLevel: 1 });
+});
+
+test('picking a lens without a torch turns the torch choice off, so start() is not rejected', async () => {
+  const replay = new ReplayCapture(withUltrawideWithoutTorch());
+  const start = jest.spyOn(replay, 'start');
+  await renderWithPhone(replay);
+  await press(ultraLabel);
+  expect(screen.getByRole('button', { name: en['lab.torchOff'] })).toBeSelected();
+  await press(en['lab.start']);
+  expect(start).toHaveBeenCalledWith({ lensId: 'synthetic-ultra', torchLevel: 0 });
+});
+
+test('a manual lock before 1 s replaces the auto-lock instead of locking twice', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  const lock = jest.spyOn(replay, 'lockExposure');
+  await renderWithPhone(replay);
+  await press(en['lab.start']);
+  await press(en['lab.lockExposure']);
+  await act(async () => {
+    jest.advanceTimersByTime(2000);
+  });
+  expect(lock).toHaveBeenCalledTimes(1);
+});
+
+test('a new lock clears the previous error', async () => {
+  const replay = new ReplayCapture(syntheticRecording());
+  jest
+    .spyOn(replay, 'lockExposure')
+    .mockRejectedValueOnce(new Error('Exposure did not settle'))
+    .mockResolvedValue(undefined);
+  await renderWithPhone(replay);
+  await press(en['lab.start']);
+  await act(async () => {
+    jest.advanceTimersByTime(1000);
+  });
+  const failed = fill(en['lab.failed'], { reason: 'Exposure did not settle' });
+  expect(screen.getByText(failed)).toBeOnTheScreen();
+
+  await press(en['lab.lockExposure']);
+  expect(screen.queryByText(failed)).toBeNull();
+  expect(screen.getByText(en['lab.lockDone'])).toBeOnTheScreen();
+});

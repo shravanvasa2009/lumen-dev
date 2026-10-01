@@ -8,7 +8,7 @@ from datasets import download, registry
 from datasets.download import (
     ChecksumMismatchError,
     ExternalNotApprovedError,
-    PhysioNetVersionError,
+    UnsafeListingError,
     fetch_dataset,
 )
 from datasets.registry import Dataset, RemoteFile
@@ -162,25 +162,45 @@ def test_changed_registry_entry_downloads_again(data_dir):
     assert len(renamed.requests) == 1
 
 
-def test_physionet_uses_wfdb_into_dataset_dir(data_dir, monkeypatch):
-    calls = []
-    monkeypatch.setattr(download.wfdb.io.download, "get_version", lambda slug: "1.0.0")
-    monkeypatch.setattr(download.wfdb, "dl_database", lambda *args, **kwargs: calls.append((args, kwargs)))
+SUMS_URL = "https://physionet.org/files/afdb/1.0.0/SHA256SUMS.txt"
+HEADER = b"record header"
+SIGNAL = b"signal samples" * 50
+
+
+def physionet_server(sums: str) -> FakeServer:
+    return FakeServer(
+        {
+            SUMS_URL: sums.encode(),
+            "https://physionet.org/files/afdb/1.0.0/04015.hea": HEADER,
+            "https://physionet.org/files/afdb/1.0.0/sub/04015.dat": SIGNAL,
+        }
+    )
+
+
+def test_physionet_fetches_every_listed_file_and_verifies_sha256(data_dir):
+    sums = (
+        f"{hashlib.sha256(HEADER).hexdigest()} 04015.hea\n"
+        f"{hashlib.sha256(SIGNAL).hexdigest()} sub/04015.dat\n"
+    )
     dataset = physionet_dataset()
-    fetch_dataset(dataset, NoNetwork())
-    assert calls == [(("afdb", str(data_dir / "open" / "demo-pn")), {"overwrite": False})]
+    fetch_dataset(dataset, physionet_server(sums))
+    assert (dataset.local_dir / "04015.hea").read_bytes() == HEADER
+    assert (dataset.local_dir / "sub" / "04015.dat").read_bytes() == SIGNAL
     assert download.is_complete(dataset)
 
 
-def test_physionet_version_mismatch_raises_before_download(data_dir, monkeypatch):
-    monkeypatch.setattr(download.wfdb.io.download, "get_version", lambda slug: "1.0.1")
+def test_physionet_checksum_mismatch_raises_without_marker(data_dir):
+    sums = f"{'0' * 64} 04015.hea\n"
+    dataset = physionet_dataset()
+    with pytest.raises(ChecksumMismatchError):
+        fetch_dataset(dataset, physionet_server(sums))
+    assert not download.is_complete(dataset)
 
-    def forbidden(*args, **kwargs):
-        raise AssertionError("dl_database must not run")
 
-    monkeypatch.setattr(download.wfdb, "dl_database", forbidden)
-    with pytest.raises(PhysioNetVersionError):
-        fetch_dataset(physionet_dataset(), NoNetwork())
+@pytest.mark.parametrize("listed", ["../escape.hea", "/abs.hea", "C:/abs.hea"])
+def test_physionet_refuses_paths_outside_dataset_dir(data_dir, listed):
+    with pytest.raises(UnsafeListingError):
+        fetch_dataset(physionet_dataset(), physionet_server(f"{'0' * 64} {listed}\n"))
 
 
 @pytest.fixture

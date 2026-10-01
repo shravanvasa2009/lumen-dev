@@ -61,5 +61,5 @@ class Dataset:
         return parent / self.key
 
 
-# Filled in from the researcher's license and URL check (ADR 0010); nothing is listed until verified.
+# An entry is added only after its license and URLs are checked (workspace ADR 0013).
 DATASETS: tuple[Dataset, ...] = ()

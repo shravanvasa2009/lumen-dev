@@ -4,16 +4,15 @@ import json
 import logging
 import os
 from collections.abc import Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import requests
-import wfdb
-import wfdb.io.download
 
 from datasets import registry
 from datasets.registry import Dataset, RemoteFile
 
 MARKER_NAME = ".lumen-download.json"
+PHYSIONET_FILES = "https://physionet.org/files"
 CHUNK_BYTES = 1 << 20
 # (connect, read) seconds; read is per chunk, not per file.
 TIMEOUT_SECONDS = (10, 60)
@@ -25,7 +24,7 @@ class ChecksumMismatchError(Exception):
     pass
 
 
-class PhysioNetVersionError(Exception):
+class UnsafeListingError(Exception):
     pass
 
 
@@ -80,8 +79,9 @@ def verify_file(path: Path, remote: RemoteFile) -> None:
 def stream_file(remote: RemoteFile, target: Path, session: requests.Session) -> None:
     if target.exists():
         verify_file(target, remote)
-        log.info("%s already present and verified", target.name)
+        log.info("%s already present", target.name)
         return
+    target.parent.mkdir(parents=True, exist_ok=True)
 
     partial = target.with_name(target.name + ".part")
     have = partial.stat().st_size if partial.exists() else 0
@@ -108,30 +108,35 @@ def stream_file(remote: RemoteFile, target: Path, session: requests.Session) -> 
     partial.replace(target)
 
 
-def fetch_physionet(dataset: Dataset) -> None:
-    # wfdb.dl_database has no version argument: it always fetches the latest release. Refuse to run
-    # when that is not the version the license review covered.
-    latest = wfdb.io.download.get_version(dataset.physionet_slug)
-    if latest != dataset.physionet_version:
-        raise PhysioNetVersionError(
-            f"{dataset.key}: PhysioNet serves {dataset.physionet_slug} {latest}, "
-            f"registry pins {dataset.physionet_version}"
-        )
-    # With overwrite=False, wfdb skips same-size files and resumes smaller ones.
-    wfdb.dl_database(dataset.physionet_slug, str(dataset.local_dir), overwrite=False)
+# Each PhysioNet release publishes SHA256SUMS.txt listing every file it contains. Using it as the file
+# list fetches label CSVs that wfdb.dl_database skips, pins the release through the versioned URL, and
+# lets every file be checked by sha256 rather than size alone.
+def physionet_listing(dataset: Dataset, session: requests.Session) -> list[RemoteFile]:
+    base = f"{PHYSIONET_FILES}/{dataset.physionet_slug}/{dataset.physionet_version}"
+    with session.get(f"{base}/SHA256SUMS.txt", timeout=TIMEOUT_SECONDS) as response:
+        response.raise_for_status()
+        listing = b"".join(response.iter_content(chunk_size=CHUNK_BYTES)).decode("utf-8")
+    remotes = []
+    for line in listing.splitlines():
+        if not line.strip():
+            continue
+        sha256, relative = line.split(maxsplit=1)
+        listed = PurePosixPath(relative)
+        if listed.is_absolute() or ".." in listed.parts or ":" in relative:
+            raise UnsafeListingError(f"{dataset.key}: SHA256SUMS.txt lists {relative!r} outside the dataset")
+        remotes.append(RemoteFile(url=f"{base}/{relative}", sha256=sha256, filename=relative))
+    return remotes
 
 
 def fetch_dataset(dataset: Dataset, session: requests.Session) -> None:
     if is_complete(dataset):
-        log.info("%s: already downloaded and verified, skipping", dataset.key)
+        log.info("%s: completed earlier with the same registry entry, skipping", dataset.key)
         return
     dataset.local_dir.mkdir(parents=True, exist_ok=True)
     log.info("%s: downloading into %s", dataset.key, dataset.local_dir)
-    if dataset.method == "physionet":
-        fetch_physionet(dataset)
-    else:
-        for remote in dataset.files:
-            stream_file(remote, dataset.local_dir / remote.name, session)
+    remotes = physionet_listing(dataset, session) if dataset.method == "physionet" else dataset.files
+    for remote in remotes:
+        stream_file(remote, dataset.local_dir / remote.name, session)
     write_marker(dataset)
 
 
@@ -158,7 +163,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--only", nargs="+", metavar="KEY", help="limit to these dataset keys")
     args = parser.parse_args(argv)
 
-    # External test sets are seen once per model version; the owner approves that through need-human.
+    # A deliberate speed bump, not access control: the owner approves each external test through
+    # need-human, and only then does a session set this variable.
     if args.external and os.environ.get("LUMEN_EXTERNAL_APPROVED") != "1":
         raise ExternalNotApprovedError(
             "external test sets need the owner's approval: set LUMEN_EXTERNAL_APPROVED=1 after need-human"

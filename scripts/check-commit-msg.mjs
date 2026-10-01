@@ -25,7 +25,11 @@ const BODY_LINE_LIMIT = 100;
 // Same exemption as commitlint's max-line-length: a line containing a URL may run long.
 const URL_IN_LINE = /\bhttps?:\/\/\S+/;
 
-export function commitMessageProblems(message) {
+// Git appends the diff below this line when committing with --verbose; commitlint stops reading here.
+const SCISSORS_LINE = /^# -{24} >8 -{24}\r?$/m;
+
+export function commitMessageProblems(fullMessage) {
+  const message = fullMessage.split(SCISSORS_LINE)[0];
   const subject = message.split(/\r?\n/)[0].trim();
   const problems = [];
   if (!new RegExp(`^(${TYPES})(\\([a-z0-9-]+\\))?: \\S`).test(subject))

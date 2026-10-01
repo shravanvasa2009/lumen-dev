@@ -22,3 +22,10 @@ test('allows a long body line that contains a URL, like commitlint', () => {
 test('ignores git comment lines', () => {
   assert.deepEqual(commitMessageProblems(`${subject}\n\n# ${'a'.repeat(120)}`), []);
 });
+
+test('stops reading at the git scissors line', () => {
+  const scissors = `# ${'-'.repeat(24)} >8 ${'-'.repeat(24)}`;
+  const diffLine = `+${'a'.repeat(150)}`;
+  assert.deepEqual(commitMessageProblems(`${subject}\n\n${scissors}\n${diffLine}`), []);
+  assert.equal(commitMessageProblems(`${subject}\n\n${diffLine}\n${scissors}`).length, 1);
+});

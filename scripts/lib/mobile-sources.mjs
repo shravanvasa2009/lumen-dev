@@ -16,7 +16,12 @@ export function mobileSourceFiles(extensions) {
         found.push(full);
     }
   };
-  MOBILE_SOURCE_DIRS.filter((dir) => fs.existsSync(dir)).forEach(visit);
+  for (const dir of MOBILE_SOURCE_DIRS) {
+    if (!fs.existsSync(dir)) throw new Error(`${dir} not found; run this from the repo root`);
+    visit(dir);
+  }
+  if (found.length === 0)
+    throw new Error(`no ${extensions.join('/')} files found under ${MOBILE_SOURCE_DIRS.join(', ')}`);
   return found.sort();
 }
 

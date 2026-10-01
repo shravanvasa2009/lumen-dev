@@ -20,6 +20,7 @@ const VISIBLE_NAMES = new Set([
   'placeholder',
   'accessibilityLabel',
   'accessibilityHint',
+  'aria-label',
   'headerTitle',
   'tabBarLabel',
 ]);
@@ -70,6 +71,17 @@ function findHardCodedText(fileName, text) {
       const literal = literalWithWords(node.expression);
       if (literal) report(literal, 'string literal passed as a JSX child');
     }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.expression.getText(sourceFile) === 'Alert' &&
+      node.expression.name.text === 'alert'
+    ) {
+      for (const argument of node.arguments.slice(0, 2)) {
+        const literal = literalWithWords(argument);
+        if (literal) report(literal, 'string literal passed to Alert.alert');
+      }
+    }
     const target = visibleProp(node);
     if (target) {
       const literal = literalWithWords(target.value);
@@ -80,13 +92,35 @@ function findHardCodedText(fileName, text) {
 }
 
 const CONDITIONS = String.raw`(?:afib|a-fib|atrial fibrillation|psvt|pots|diabetes|diabetic|tachycardia|arrhythmia)`;
-const CONDICIONES = String.raw`(?:fibrilaci[oó]n|afib|psvt|pots|diabetes|diab[eé]tic[oa]|taquicardia|arritmia)`;
+const CONDICIONES = String.raw`(?:fibrilaci[oó]n(?: auricular)?|afib|psvt|pots|diabetes|diab[eé]tic[oa]|taquicardia|arritmia)`;
 const NOT_NEGATED = String.raw`(?<!\b(?:not|never|nor|no|n't|nunca)\s)`;
 const COPY_RULES = [
   { pattern: /\byou have\b|\byou've got\b/i, why: '"you have" is banned in all copy' },
   {
     pattern: new RegExp(
       String.raw`\b(?:you are|you're|this is|it is|it's|that is|this means you have)\s+(?:(?:a|an|the)\s+)?${CONDITIONS}\b`,
+      'i',
+    ),
+    why: 'states a condition as fact',
+  },
+  {
+    pattern: new RegExp(String.raw`\b${CONDITIONS}\s+(?:detected|found|confirmed|present)\b`, 'i'),
+    why: 'states a condition as fact',
+  },
+  {
+    pattern: new RegExp(
+      String.raw`\b(?:your|the)\s+(?:rhythm|pulse|heart rate|heartbeat|result|reading)\s+(?:is|shows|means)\s+(?:(?:a|an)\s+)?${CONDITIONS}\b`,
+      'i',
+    ),
+    why: 'states a condition as fact',
+  },
+  {
+    pattern: new RegExp(String.raw`\b${CONDICIONES}\s+(?:detectad[oa]|confirmad[oa])\b`, 'i'),
+    why: 'states a condition as fact',
+  },
+  {
+    pattern: new RegExp(
+      String.raw`\b(?:tu|su)\s+(?:ritmo|pulso|resultado|lectura|medici[oó]n)\s+(?:es|muestra|indica)\s+(?:(?:un|una)\s+)?${CONDICIONES}\b`,
       'i',
     ),
     why: 'states a condition as fact',
@@ -122,6 +156,10 @@ const MUST_FAIL = [
   'You are diagnosed with POTS.',
   'This is AFib.',
   'Diagnosis of diabetes confirmed.',
+  'AFib detected.',
+  'Your rhythm is AFib.',
+  'Tu ritmo es fibrilación auricular.',
+  'Fibrilación auricular detectada.',
   'Tienes fibrilación auricular.',
   'Usted tiene diabetes.',
   'Tienes taquicardia.',
@@ -133,6 +171,8 @@ const MUST_PASS = [
   'This is not a diabetes test.',
   "Lumen can't diagnose any condition.",
   'Irregular rhythm consistent with possible AFib.',
+  'Irregular rhythm detected — please retake.',
+  'What is AFib?',
   'Un teléfono que ya tienes.',
   'El teléfono que ya tienes en tu bolsillo.',
   '¿Tienes ahora dolor de pecho, desmayo o mucha falta de aire?',
@@ -149,6 +189,8 @@ const SOURCE_MUST_FAIL = [
   '<Input placeholder={`Name`} />',
   '<View accessibilityLabel="Close" />',
   "const options = { title: 'Home' };",
+  '<View aria-label="Close" />',
+  "Alert.alert('Saved', 'Done');",
 ];
 const SOURCE_MUST_PASS = [
   "<Text>{t('a.b')}</Text>",
@@ -156,6 +198,7 @@ const SOURCE_MUST_PASS = [
   '<Text>{count} · {unit}</Text>',
   '<View testID="close-button" accessibilityRole="button" />',
   "const options = { title: t('a.b') };",
+  "Alert.alert(t('a.b'), t('a.c'));",
 ];
 
 function selfTest() {

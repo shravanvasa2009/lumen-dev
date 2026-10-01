@@ -10,7 +10,6 @@ type ListRowProps = {
   title: string;
   subtitle?: string;
   trailing?: ReactNode;
-  // The last row of a grouped card has no divider under it.
   last?: boolean;
   chevron?: boolean;
   onPress?: () => void;

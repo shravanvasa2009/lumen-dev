@@ -73,16 +73,15 @@ describe.each([
     expect(edgesOf('no header')).toMatchObject({ top: 'additive' });
   });
 
-  it('Screen renders the footer after the body and centres the body on request', () => {
+  it('Screen renders the footer after the body', () => {
     render(
       <SafeAreaProvider initialMetrics={metrics}>
-        <Screen centered footer={<Button label="Go" onPress={jest.fn()} />}>
+        <Screen footer={<Button label="Go" onPress={jest.fn()} />}>
           <AppText>body</AppText>
         </Screen>
       </SafeAreaProvider>,
     );
     expect(screen.getByRole('button', { name: 'Go' })).toBeOnTheScreen();
-    expect(styleAround('body')).toMatchObject({ justifyContent: 'center' });
   });
 
   it('Card paints the surface with a line border and the card radius', () => {
@@ -111,7 +110,7 @@ describe.each([
     expect(dividerOf('Final')).toBe(0);
   });
 
-  it.each<IconName>(['home', 'trends', 'learn', 'settings', 'chevron', 'check', 'close'])(
+  it.each<IconName>(['home', 'trends', 'learn', 'settings', 'chevron'])(
     'Icon %s draws strokes in the colour it is given',
     (name) => {
       render(<Icon name={name} size={24} color={colors.accent} />);

@@ -181,7 +181,6 @@
   "safety.yes": "Sí",
   "safety.no": "No",
   "safety.yesOpens": "Si respondes «Sí», se abre la guía de emergencia.",
-  "why.title": "Muéstrame por qué",
   "why.intervals": "Intervalos entre latidos (ms)",
   "why.poincare": "Gráfico de Poincaré",
   "why.yours": "El tuyo",
@@ -341,5 +340,13 @@
   "confidence.high": "confianza alta",
   "confidence.moderate": "confianza moderada",
   "confidence.low": "confianza baja",
-  "safety.dismiss": "Cerrar"
+  "safety.dismiss": "Cerrar",
+  "why.titleIrregular": "¿Por qué “irregular”?",
+  "why.titleRegular": "¿Por qué “regular”?",
+  "why.beat": "latido",
+  "why.intervalsChart": "Gráfico de líneas con {{beats}} intervalos entre latidos",
+  "why.explainIrregular": "Tus intervalos cambiaron sin un patrón que se repita.",
+  "why.explainRegular": "Tus intervalos se mantuvieron parecidos de un latido al siguiente.",
+  "why.rhythmCheck": "Revisión de ritmo con IA",
+  "why.extraBeatsNote": "{{rate}} por minuto · los latidos extra frecuentes también pueden parecer irregulares"
 }

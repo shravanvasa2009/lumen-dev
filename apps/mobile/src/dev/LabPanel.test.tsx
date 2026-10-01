@@ -475,3 +475,43 @@ test('a new lock clears the previous error', async () => {
   expect(screen.queryByText(failed)).toBeNull();
   expect(screen.getByText(en['lab.lockDone'])).toBeOnTheScreen();
 });
+
+// SYNTHETIC: 12 s of a clean 1.2 Hz (72 bpm) sine in red at 30 fps, long enough for core's 8 s segment.
+function pulseRecording(): RecordedCapture {
+  const recording = syntheticRecording();
+  const tNs = Array.from({ length: 360 }, (_, i) => 1e12 + (i * 1e9) / 30);
+  recording.samples = {
+    tNs,
+    r: tNs.map((_, i) => 0.6 + 0.01 * Math.sin(2 * Math.PI * 1.2 * (i / 30))),
+    g: tNs.map(() => 0.1),
+    b: tNs.map(() => 0.1),
+  };
+  delete recording.stats;
+  return recording;
+}
+
+async function playFor(recording: RecordedCapture, ms: number) {
+  render(<LabPanel capture={new ReplayCapture(recording)} />);
+  await press(en['lab.start']);
+  await act(async () => {
+    jest.advanceTimersByTime(ms);
+  });
+}
+
+test('shows the live heart rate and SNR from @lumen/core once 10 s of pulse have arrived', async () => {
+  await playFor(pulseRecording(), 12500);
+  expect(screen.getByText(/^Live heart rate \(Lab only\): 72 bpm · SNR \d+\.\d dB$/)).toBeOnTheScreen();
+});
+
+test('shows a dash while core has no estimate', async () => {
+  await playFor(syntheticRecording(), 2500);
+  expect(screen.getByText(en['lab.liveHrNone'])).toBeOnTheScreen();
+});
+
+test('shows the RangeError for repeated timestamps instead of a number', async () => {
+  const recording = pulseRecording();
+  recording.samples.tNs[300] = recording.samples.tNs[299]!;
+  await playFor(recording, 12500);
+  expect(screen.getByText(en['lab.liveHrNone'])).toBeOnTheScreen();
+  expect(screen.getByText(new RegExp(`^${en['lab.liveHrError'].split('{{')[0]}`))).toBeOnTheScreen();
+});

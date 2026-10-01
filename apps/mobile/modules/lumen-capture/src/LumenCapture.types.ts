@@ -22,8 +22,8 @@ export interface CaptureStatus {
   fingerCovered: boolean;
   motionRms: number;
   thermal: 'nominal' | 'fair' | 'serious' | 'critical';
-  fps: number;
-  droppedFrac: number;
+  fps: number; // frames received over the last 1 s
+  droppedFrac: number; // dropped / (received + dropped) since start(), matching CAP-1's whole-capture limit
 }
 export interface LensInfo {
   id: string;

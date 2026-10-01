@@ -16,7 +16,8 @@ const BANNED: { platform: 'ios' | 'android'; api: RegExp }[] = [
   { platform: 'ios', api: /\bUIImageWriteToSavedPhotosAlbum\b/ },
   { platform: 'ios', api: /\bCGImageDestination\w*/ },
   { platform: 'ios', api: /\.(jpegData|pngData|heicData)\s*\(/ },
-  { platform: 'ios', api: /\.write\s*\(\s*to:/ },
+  { platform: 'ios', api: /\bwrite\s*\(\s*to(File)?:/ },
+  { platform: 'ios', api: /\bwriteToFile\b/ },
   { platform: 'ios', api: /\bFileManager\b/ },
   { platform: 'ios', api: /\bFileHandle\b/ },
   { platform: 'android', api: /\bImageCapture\b/ },
@@ -28,15 +29,23 @@ const BANNED: { platform: 'ios' | 'android'; api: RegExp }[] = [
   { platform: 'android', api: /\bopenFileOutput\b/ },
   { platform: 'android', api: /\.compress\s*\(/ },
   { platform: 'android', api: /\.(writeBytes|writeText)\s*\(/ },
-  { platform: 'android', api: /\bjava\.io\.File\b/ },
+  { platform: 'android', api: /\bFileWriter\b/ },
+  { platform: 'android', api: /\bRandomAccessFile\b/ },
+  { platform: 'android', api: /\bjava\.nio\.file\b/ },
+  { platform: 'android', api: /\bjava\.io\.(File\b|\*)/ },
+  // Bare File( catches files opened after a wildcard java.io import.
+  { platform: 'android', api: /\bFile\s*\(/ },
+  { platform: 'android', api: /\.(outputStream|bufferedWriter|printWriter)\s*\(/ },
 ];
 
+// Build output and dependencies hold generated or third-party code, not this module's sources.
+const SKIP_DIRS = new Set(['build', '.cxx', '.gradle', 'Pods', 'DerivedData']);
 const SOURCE = { ios: /\.(swift|m|mm)$/, android: /\.(kt|java)$/ };
 
 function sourceFiles(dir: string, pattern: RegExp): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full, pattern);
+    if (entry.isDirectory()) return SKIP_DIRS.has(entry.name) ? [] : sourceFiles(full, pattern);
     return pattern.test(entry.name) ? [full] : [];
   });
 }
@@ -67,9 +76,23 @@ test.each(['ios', 'android'] as const)(
   },
 );
 
-test('the scan catches a frame writer', () => {
-  expect(violations('ios', 'probe.swift', 'let output = AVCaptureMovieFileOutput()')).toHaveLength(1);
-  expect(
-    violations('android', 'Probe.kt', 'FileOutputStream(file).use { bitmap.compress(fmt, 90, it) }'),
-  ).toHaveLength(2);
+test.each([
+  ['ios', 'let output = AVCaptureMovieFileOutput()'],
+  ['ios', 'try frame.write(to: url)'],
+  ['ios', 'try csv.write(toFile: path, atomically: true, encoding: .utf8)'],
+  ['ios', '(frame as NSData).writeToFile(path, atomically: true)'],
+  ['android', 'FileOutputStream(target).use { bitmap.compress(format, 90, it) }'],
+  ['android', 'FileWriter(target).use { it.write(csv) }'],
+  ['android', 'RandomAccessFile(target, "rw").write(bytes)'],
+  ['android', 'import java.nio.file.Files'],
+  ['android', 'import java.io.*'],
+  ['android', 'val target = File(dir, "frame.raw")'],
+  ['android', 'target.outputStream().write(bytes)'],
+] as const)('the scan flags a %s file writer: %s', (platform, line) => {
+  expect(violations(platform, 'probe', line).length).toBeGreaterThan(0);
+});
+
+test('the scan leaves in-memory frame math alone', () => {
+  expect(violations('ios', 'probe', 'let meanR = Float(sumR) / Float(count)')).toEqual([]);
+  expect(violations('android', 'probe', 'val meanR = sumR.toFloat() / count')).toEqual([]);
 });

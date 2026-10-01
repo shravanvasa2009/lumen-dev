@@ -114,6 +114,12 @@ test('reports the camera permission as granted, since a recording needs no camer
   expect(await capture.requestPermission()).toEqual(granted);
 });
 
+test('rejects recordings whose timestamps do not advance', () => {
+  const frozen = syntheticRecording(10);
+  frozen.samples.tNs = frozen.samples.tNs.map(() => START_NS);
+  expect(() => new ReplayCapture(frozen)).toThrow(/median frame interval is 0/);
+});
+
 test('rejects recordings whose columns differ in length', () => {
   const broken = syntheticRecording(10);
   broken.samples.r.pop();

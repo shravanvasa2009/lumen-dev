@@ -15,10 +15,13 @@ export interface Draws {
   normal(): number;
 }
 
-// Deterministic draws from the shared Park–Miller stream, so every case reproduces from its seed.
+// Deterministic draws from the shared Park–Miller stream, so every case reproduces from its seed. The
+// first outputs are dropped: output k is 16807^k · seed mod (2³¹ − 1), so for consecutive seeds the first
+// one is nearly the same (16807 · seed / (2³¹ − 1)) and would pin each case's first parameter.
+const WARM_UP_DRAWS = 4;
 export function draws(seed: number, count = 100_000): Draws {
-  const uniforms = parkMillerUniforms(count, seed);
-  let next = 0;
+  const uniforms = parkMillerUniforms(count + WARM_UP_DRAWS, seed);
+  let next = WARM_UP_DRAWS;
   const take = () => {
     if (next >= uniforms.length) throw new RangeError(`seed ${seed}: more than ${count} draws`);
     return uniforms[next++]!;
@@ -62,6 +65,37 @@ export function fingerPulseShape(random: Draws): PulseShape {
     random.uniform(0.03, 0.08),
     random.uniform(0.05, 0.08),
   );
+}
+
+// Diastolic to systolic peak ratio of a raw (unfiltered) pulse; 0 when no distinct diastolic peak follows
+// a notch (Dawber classes 3 and 4).
+export function diastolicPeakRatio(shape: PulseShape): number {
+  let systolic = -Infinity;
+  for (let tS = -0.05; tS <= 0.05; tS += 0.001) systolic = Math.max(systolic, shape(tS));
+  let notchS: number | null = null;
+  for (let tS = 0.02, previous = shape(0.01); tS < 0.7; tS += 0.001) {
+    const value = shape(tS);
+    if (value > previous) {
+      notchS = tS;
+      break;
+    }
+    previous = value;
+  }
+  if (notchS === null) return 0;
+  let diastolic = -Infinity;
+  for (let tS = notchS; tS < 0.7; tS += 0.001) diastolic = Math.max(diastolic, shape(tS));
+  return diastolic / systolic;
+}
+
+// Physiological cap: the diastolic peak of raw finger PPG is 64 ± 3% of the systolic peak in healthy
+// young men (Millasseau et al., Clin Sci 2002;103:371-377, doi:10.1042/cs1030371), so shapes above 0.75
+// are drawn again.
+export function physiologicalShape(random: Draws, draw: (random: Draws) => PulseShape): PulseShape {
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const shape = draw(random);
+    if (diastolicPeakRatio(shape) <= 0.75) return shape;
+  }
+  throw new RangeError('no pulse shape within the diastolic/systolic cap in 1000 draws');
 }
 
 // One breath cycle at 0.2–0.3 Hz (12–18 breaths/min at rest); +1 at mid-inspiration.

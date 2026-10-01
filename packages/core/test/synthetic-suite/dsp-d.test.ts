@@ -7,6 +7,7 @@ import {
   draws,
   fingerPulseShape,
   matchBeats,
+  physiologicalShape,
   pulseOf,
   runoff,
   sinusBeats,
@@ -257,7 +258,7 @@ function dicroticDetections(analysis: Analysis, truth: SyntheticBeat[]): Classif
 
 describe.each([
   {
-    family: 'separate dicrotic wave (two Gaussians, ratio 0.6–1.0)',
+    family: 'separate dicrotic wave (two Gaussians, ratio 0.6–1.0 drawn, ≤ 0.75 kept)',
     shapeFor: (random: Draws) =>
       twoGaussian(random.uniform(0.6, 1), random.uniform(0.25, 0.35), random.uniform(0.06, 0.1)),
   },
@@ -285,7 +286,7 @@ describe.each([
     beforeAll(() => {
       for (let c = 0; c < 30; c++) {
         const random = draws(7000 + c);
-        const shape = shapeFor(random);
+        const shape = physiologicalShape(random, shapeFor);
         const breath = breathing(random);
         const truth = breathingSinus(random, c, random.uniform(55, 100), 40, breath);
         const analysis = analyse(

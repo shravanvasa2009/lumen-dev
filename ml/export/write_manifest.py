@@ -53,8 +53,9 @@ CARD_TEXT = {
         "data": (
             "Intervals from the MIT-BIH AF, Long-Term AF, and CinC 2017 databases (records labeled noisy "
             "excluded) and premature-beat episodes from MIT-BIH Arrhythmia (labeled other), made to look "
-            "like phone intervals with timing jitter estimated from BUT PPG, merged and split beats, and "
-            "dropped premature beats. MIMIC PERform AF is never used for training or tuning. Ectopic beats "
+            "like phone intervals with per-beat timing jitter (the training notes say how its σ was set), "
+            "merged and split beats, and dropped premature beats. MIMIC PERform AF is never used for "
+            "training or tuning. Ectopic beats "
             "in MIT-BIH Arrhythmia and Long-Term AF sinus stretches are labeled other, but the MIT-BIH AF "
             "beat files mark every beat normal, so its sinus episodes may still contain unmarked premature "
             "beats (some ectopy-as-sinus label noise)."
@@ -161,7 +162,10 @@ def _development_section(metrics: dict | None) -> str:
     header = (
         f"Development-validation subjects: {development['subjects']}. Confidence intervals resample subjects."
     )
-    return f"{header}\n\n{_table(rows)}"
+    section = f"{header}\n\n{_table(rows)}"
+    if development.get("byDataset"):
+        section += f"\n\nBy dataset, at the same threshold:\n\n{_table(development['byDataset'])}"
+    return section
 
 
 def _baseline_note(spec: ModelSpec) -> str:
@@ -176,6 +180,8 @@ def _baseline_note(spec: ModelSpec) -> str:
 def model_card(spec: ModelSpec, metrics: dict | None) -> str:
     text = CARD_TEXT[spec.family]
     trained_on = ", ".join(metrics["trainedOn"]) if metrics else "no training run yet"
+    notes = "".join(f"\n- {note}" for note in (metrics or {}).get("notes", []))
+    training_notes = f"\n\nTraining notes:\n{notes}" if notes else ""
     ablation = (metrics or {}).get("ablation")
     calibration = (metrics or {}).get("calibration")
     sections = [
@@ -183,7 +189,7 @@ def model_card(spec: ModelSpec, metrics: dict | None) -> str:
         "Lumen is a screening prototype, not a diagnosis.",
         f"## Intended use\n\n{text['intended_use']}{_baseline_note(spec)}",
         f"## Data\n\n{text['data']}\n\nTrained on: {trained_on}. Splits are by subject: no person appears in "
-        "both development-train and development-validation.",
+        "both development-train and development-validation." + training_notes,
         f"## Development metrics\n\n{_development_section(metrics)}",
         "## Ablation\n\nThe neural model ships only if it beats its classical baseline on held-out "
         "subjects.\n\n" + (_table(ablation) if ablation else NOT_MEASURED),

@@ -30,7 +30,11 @@ if (captures.length === 0) {
 }
 
 const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-const metrics = computeMetrics(captures, { commit, date: new Date().toISOString().slice(0, 10) });
+const metrics = computeMetrics(
+  captures,
+  { commit, date: new Date().toISOString().slice(0, 10) },
+  console.log,
+);
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, `${JSON.stringify(metrics, null, 2)}\n`);
 console.log(

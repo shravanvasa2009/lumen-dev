@@ -1,11 +1,14 @@
-// Statistics for eval:replay (spec §22). Every confidence interval resamples subjects, never readings
-// or windows (§22.1: a window-level split leaks subject identity and narrows the interval falsely).
+// Statistics for eval:replay (spec §22, workspace ADR 0037). Every subject counts equally: a metric is the
+// mean of per-subject means, and its 95% CI resamples whole subjects, never readings or windows (§22.1).
 
 export const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
 
-export function rmssd(intervalsMs) {
-  const squares = intervalsMs.slice(1).map((value, i) => (value - intervalsMs[i]) ** 2);
-  return Math.sqrt(mean(squares));
+// RMSSD from successive differences where both neighbours are usable; null when none are.
+export function rmssd(intervalsMs, usable = intervalsMs.map(() => true)) {
+  const squares = [];
+  for (let i = 1; i < intervalsMs.length; i += 1)
+    if (usable[i] && usable[i - 1]) squares.push((intervalsMs[i] - intervalsMs[i - 1]) ** 2);
+  return squares.length ? Math.sqrt(mean(squares)) : null;
 }
 
 // Seeded so the second agent's recompute (VER-1) and every rerun give the same interval.
@@ -30,25 +33,24 @@ function percentile(sorted, fraction) {
   return sorted[below] + (sorted[above] - sorted[below]) * (position - below);
 }
 
-// rows: [{ subject, value }]. The point estimate is the mean over rows; the 95% CI comes from
-// resampling whole subjects with replacement and taking the 2.5th and 97.5th percentiles.
+// rows: [{ subject, value }]. One subject gives a value but no interval: there is nothing to resample.
 export function subjectBootstrap(rows) {
   if (rows.length === 0) return { value: null, ci95: null };
   const bySubject = new Map();
   for (const row of rows) bySubject.set(row.subject, [...(bySubject.get(row.subject) ?? []), row.value]);
-  const subjects = [...bySubject.values()];
+  const subjectMeans = [...bySubject.values()].map(mean);
+  if (subjectMeans.length < 2) return { value: subjectMeans[0], ci95: null };
   const random = mulberry32(BOOTSTRAP_SEED);
   const estimates = [];
-  for (let i = 0; i < BOOTSTRAP_ITERATIONS; i += 1) {
-    const drawn = Array.from(
-      { length: subjects.length },
-      () => subjects[Math.floor(random() * subjects.length)],
+  for (let i = 0; i < BOOTSTRAP_ITERATIONS; i += 1)
+    estimates.push(
+      mean(
+        Array.from(
+          { length: subjectMeans.length },
+          () => subjectMeans[Math.floor(random() * subjectMeans.length)],
+        ),
+      ),
     );
-    estimates.push(mean(drawn.flat()));
-  }
   estimates.sort((a, b) => a - b);
-  return {
-    value: mean(rows.map((row) => row.value)),
-    ci95: [percentile(estimates, 0.025), percentile(estimates, 0.975)],
-  };
+  return { value: mean(subjectMeans), ci95: [percentile(estimates, 0.025), percentile(estimates, 0.975)] };
 }

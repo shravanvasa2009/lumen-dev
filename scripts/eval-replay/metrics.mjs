@@ -1,87 +1,125 @@
 import { alignIntervals } from './align.mjs';
 import { mean, rmssd, subjectBootstrap } from './stats.mjs';
 
+// Rules from workspace ADR 0037.
 // DSP-B: RMSSD agreement is judged only on phones whose rear camera runs at 60 fps or faster.
 const RMSSD_MIN_FPS = 60;
 const RMSSD_TOLERANCE = 0.1;
+// Strap intervals outside 30–200 bpm are strap artifacts, never a reference.
+const POLAR_MIN_MS = 300;
+const POLAR_MAX_MS = 2000;
 
 const round = (value) => (value == null ? null : Math.round(value * 100) / 100);
 const roundPair = (pair) => pair?.map(round) ?? null;
 const distinct = (values) => new Set(values).size;
 const subjectOf = (capture) => capture.meta.subject.code;
+const polarUsable = (rr) => rr >= POLAR_MIN_MS && rr <= POLAR_MAX_MS;
+// result.uncertain still shows its numbers to the user, so it counts as conclusive.
 const isConclusive = (capture) =>
   capture.reading.inconclusive !== true && capture.reading.headlineKey !== 'result.inconclusive';
+const hasPolar = (capture) => capture.polarRrMs?.some(polarUsable);
+// DSP-A is "at rest": no deliberate artifacts, no paced breathing, no standing test.
+const isRest = (capture) =>
+  capture.meta.labels?.deliberateArtifact !== true &&
+  capture.meta.labels?.pacedBrpm == null &&
+  capture.meta.mode !== 'standing';
 
 function hrError(capture) {
   const phoneHr = capture.reading.metrics?.hr?.value;
-  if (!capture.polarRrMs?.length || phoneHr == null || !isConclusive(capture)) return null;
-  return Math.abs(phoneHr - 60000 / mean(capture.polarRrMs));
+  if (!hasPolar(capture) || phoneHr == null || !isConclusive(capture) || !isRest(capture)) return null;
+  return Math.abs(phoneHr - 60000 / mean(capture.polarRrMs.filter(polarUsable)));
 }
 
-function aligned(capture) {
-  if (!capture.polarRrMs?.length || !capture.phoneRrMs?.length || !isConclusive(capture)) return null;
-  return alignIntervals(capture.phoneRrMs, capture.polarRrMs);
-}
-
-function intervalError(capture) {
-  const pair = aligned(capture);
-  return pair && mean(pair.phone.map((value, i) => Math.abs(value - pair.polar[i])));
-}
-
-function summarize(captures, errorOf) {
-  const rows = captures
-    .map((capture) => ({ capture, value: errorOf(capture) }))
-    .filter((row) => row.value != null);
-  const { value, ci95 } = subjectBootstrap(
-    rows.map((row) => ({ subject: subjectOf(row.capture), value: row.value })),
+function alignmentOf(capture) {
+  if (!hasPolar(capture) || !capture.phone.length || !isConclusive(capture)) return null;
+  return alignIntervals(
+    capture.phone.map((beat) => beat.ibiMs),
+    capture.polarRrMs,
+    (p, q) => capture.phone[p].accepted && polarUsable(capture.polarRrMs[q]),
   );
-  return { value, ci95, rows };
 }
 
-export function computeMetrics(captures, { commit, date }) {
-  const hr = summarize(captures, hrError);
-  const intervals = summarize(captures, intervalError);
+// Only pairs where the phone kept the beat and the strap interval is in range are compared.
+function comparedPairs(capture, alignment) {
+  return alignment.pairs.filter(([p, q]) => capture.phone[p].accepted && polarUsable(capture.polarRrMs[q]));
+}
 
-  const rmssdRows = captures
-    .filter((capture) => capture.meta.fps >= RMSSD_MIN_FPS)
-    .map((capture) => ({ capture, pair: aligned(capture) }))
-    .filter((row) => row.pair);
-  const withinTolerance = rmssdRows.filter(({ pair }) => {
-    const reference = rmssd(pair.polar);
-    return Math.abs(rmssd(pair.phone) - reference) / reference <= RMSSD_TOLERANCE;
+function intervalError(capture, alignment) {
+  const pairs = alignment && comparedPairs(capture, alignment);
+  if (!pairs?.length) return null;
+  return mean(pairs.map(([p, q]) => Math.abs(capture.phone[p].ibiMs - capture.polarRrMs[q])));
+}
+
+// The app's own RMSSD against the strap's RMSSD over the matched segment (DSP-B checks what the card shows).
+function rmssdWithinTolerance(capture, alignment) {
+  const shown = capture.reading.metrics?.rmssd?.value;
+  if (shown == null || !alignment) return null;
+  const segment = capture.polarRrMs.slice(alignment.pairs[0][1], alignment.pairs.at(-1)[1] + 1);
+  const reference = rmssd(segment, segment.map(polarUsable));
+  if (!reference) return null;
+  return Math.abs(shown - reference) / reference <= RMSSD_TOLERANCE;
+}
+
+function summarize(rows) {
+  const kept = rows.filter((row) => row.value != null);
+  const { value, ci95 } = subjectBootstrap(
+    kept.map((row) => ({ subject: subjectOf(row.capture), value: row.value })),
+  );
+  return { value, ci95, rows: kept };
+}
+
+export function computeMetrics(captures, { commit, date }, log = () => {}) {
+  const aligned = captures.map((capture) => {
+    const alignment = alignmentOf(capture);
+    if (alignment)
+      log(`${capture.folder}: lag ${alignment.lag} beats, r ${alignment.correlation.toFixed(3)}`);
+    else if (hasPolar(capture) && isConclusive(capture))
+      log(`${capture.folder}: phone and strap did not align`);
+    return { capture, alignment };
   });
 
-  const resp = summarize(captures, (capture) => {
-    const paced = capture.meta.labels?.pacedBrpm;
-    const measured = capture.reading.metrics?.resp?.value;
-    return paced == null || measured == null || !isConclusive(capture) ? null : Math.abs(measured - paced);
-  });
+  const hr = summarize(captures.map((capture) => ({ capture, value: hrError(capture) })));
+  const intervals = summarize(
+    aligned.map(({ capture, alignment }) => ({ capture, value: intervalError(capture, alignment) })),
+  );
+  const rmssdRows = aligned
+    .filter(({ capture }) => capture.meta.fps >= RMSSD_MIN_FPS)
+    .map(({ capture, alignment }) => ({ capture, within: rmssdWithinTolerance(capture, alignment) }))
+    .filter((row) => row.within != null);
+  const resp = summarize(
+    captures.map((capture) => {
+      const paced = capture.meta.labels?.pacedBrpm;
+      const measured = capture.reading.metrics?.resp?.value;
+      const usable = paced != null && measured != null && isConclusive(capture);
+      return { capture, value: usable ? Math.abs(measured - paced) : null };
+    }),
+  );
 
   const artifacts = captures.filter((capture) => capture.meta.labels?.deliberateArtifact === true);
   const firstReadings = captures.filter((capture) => capture.meta.labels?.firstReading === true);
-  // ML-5: a reading counts as Polar-confirmed sinus only when the strap was recording and the label says sinus.
   const sinus = captures.filter(
-    (capture) =>
-      capture.meta.labels?.rhythm === 'sinus' && capture.polarRrMs?.length && isConclusive(capture),
+    (capture) => capture.meta.labels?.rhythm === 'sinus' && hasPolar(capture) && isConclusive(capture),
   );
 
   const tiers = [...new Set(captures.map((capture) => capture.meta.rating?.tier).filter(Boolean))].sort();
   const perTier = tiers.map((tier) => {
-    const inTier = captures.filter((capture) => capture.meta.rating?.tier === tier);
-    const hrErrors = inTier.map(hrError).filter((value) => value != null);
-    const intervalErrors = inTier.map(intervalError).filter((value) => value != null);
+    const inTier = aligned.filter(({ capture }) => capture.meta.rating?.tier === tier);
+    const tierHr = summarize(inTier.map(({ capture }) => ({ capture, value: hrError(capture) })));
+    const tierIntervals = summarize(
+      inTier.map(({ capture, alignment }) => ({ capture, value: intervalError(capture, alignment) })),
+    );
     return {
       tier,
-      phones: distinct(inTier.map((capture) => capture.meta.modelId)),
-      hrMaeBpm: round(hrErrors.length ? mean(hrErrors) : null),
-      intervalMaeMs: round(intervalErrors.length ? mean(intervalErrors) : null),
+      phones: distinct(inTier.map(({ capture }) => capture.meta.modelId)),
+      hrMaeBpm: round(tierHr.value),
+      intervalMaeMs: round(tierIntervals.value),
     };
   });
 
   return {
     commit,
     date,
-    polarPairedCaptures: captures.filter((capture) => capture.polarRrMs?.length).length,
+    polarPairedCaptures: captures.filter(hasPolar).length,
     hr: {
       maeBpm: round(hr.value),
       ci95: roundPair(hr.ci95),
@@ -91,7 +129,9 @@ export function computeMetrics(captures, { commit, date }) {
     },
     intervals: { maeMs: round(intervals.value), ci95: roundPair(intervals.ci95) },
     rmssd: {
-      withinPct: round(rmssdRows.length ? (100 * withinTolerance.length) / rmssdRows.length : null),
+      withinPct: round(
+        rmssdRows.length ? (100 * rmssdRows.filter((row) => row.within).length) / rmssdRows.length : null,
+      ),
       people: distinct(rmssdRows.map((row) => subjectOf(row.capture))),
     },
     resp: { maeBrpm: round(resp.value), people: distinct(resp.rows.map((row) => subjectOf(row.capture))) },

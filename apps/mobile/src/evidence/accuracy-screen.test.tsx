@@ -12,8 +12,23 @@ jest.mock('../../assets/evidence.json', () => ({
   commit: null,
   date: null,
   metrics: {
-    hr: { label: 'checked', passed: true },
-    rhythm: { label: 'public-data', passed: true },
+    hr: {
+      label: 'checked',
+      passed: true,
+      reference: 'Polar H10',
+      maeBpm: 1.6,
+      ci95: [1.2, 2.1],
+      people: 12,
+      phones: 5,
+    },
+    rhythm: {
+      label: 'public-data',
+      passed: true,
+      dataset: 'MIMIC PERform AF',
+      subjects: 35,
+      sensitivity: 0.89,
+      specificity: 0.94,
+    },
     hrv: { label: 'experimental', passed: false },
     resp: { label: 'checked', passed: false },
     diabetes: { label: 'public-data', passed: false },
@@ -42,4 +57,17 @@ it('EVID-1: shows one badge per metric with the label the file supports', () => 
   ]);
   expect(screen.getByText(en['accuracy.diabetes'])).toBeTruthy();
   expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(4);
+});
+
+it('EVID-1: shows measured figures only for the metrics that passed', () => {
+  render(
+    <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+      <AccuracyScreen />
+    </SafeAreaProvider>,
+  );
+  expect(screen.getByText('Average error 1.6 bpm')).toBeTruthy();
+  expect(screen.getByText('95% CI: 1.2–2.1 bpm')).toBeTruthy();
+  expect(screen.getByText('Sensitivity 89% · specificity 94%')).toBeTruthy();
+  expect(screen.getByText(en['prototype.banner'])).toBeTruthy();
+  expect(screen.queryByText(/Evidence file/)).toBeNull();
 });

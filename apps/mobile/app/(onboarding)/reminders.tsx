@@ -12,7 +12,7 @@ import { OnboardingStep } from '@/components/OnboardingStep';
 import { SwitchRow } from '@/components/SwitchRow';
 import { useTheme } from '@/theme';
 
-// Spec §8.2 step 9: the daily time starts at 8:00 am.
+// Spec §8.2 step 9: the daily time starts at 8:00 am and the daily check starts off.
 const DEFAULT_HOUR = 8;
 const HOURS_PER_DAY = 24;
 
@@ -24,7 +24,7 @@ export default function RemindersScreen() {
   const { spacing } = useTheme();
   const [hour, setHour] = useState(DEFAULT_HOUR);
   const [enabled, setEnabled] = useState<Record<Reminder, boolean>>({
-    daily: true,
+    daily: false,
     followUp: true,
     doctor: true,
   });

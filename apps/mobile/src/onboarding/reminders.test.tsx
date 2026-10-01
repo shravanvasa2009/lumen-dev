@@ -17,10 +17,12 @@ jest.setTimeout(30_000);
 describe('reminders', () => {
   beforeEach(() => askPermission.mockReset());
 
-  it('starts at 8:00 AM with three reminders on', () => {
+  // Spec §8.2 step 9: the daily check stays off until the person turns it on.
+  it('starts at 8:00 AM with the daily check off and follow-ups on', () => {
     renderRouter('./app', { initialUrl: '/reminders' });
     expect(screen.getByLabelText(/8:00/)).toBeOnTheScreen();
-    for (const key of ['notifications.daily', 'notifications.followUp', 'notifications.doctor'] as const)
+    expect(screen.getByRole('switch', { name: en['notifications.daily'] })).not.toBeChecked();
+    for (const key of ['notifications.followUp', 'notifications.doctor'] as const)
       expect(screen.getByRole('switch', { name: en[key] })).toBeChecked();
     expect(screen.getByText(en['reminders.localOnly'])).toBeOnTheScreen();
   });

@@ -7,7 +7,7 @@ import { useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Screen } from './Screen';
 
-export const ONBOARDING_STEPS = 9;
+const ONBOARDING_STEPS = 9;
 const SEGMENT_HEIGHT = 4;
 
 type OnboardingStepProps = {

@@ -34,7 +34,7 @@ export function FingerPreview({ detected }: { detected: boolean }) {
   );
 }
 
-// Weak to Strong coupling bar. The marker is drawn only once a live signal drives it.
+// Weak to Strong coupling bar; it has no marker until capture drives it (A1 group 4).
 export function SignalMeter() {
   const { colors } = useTheme();
   return (

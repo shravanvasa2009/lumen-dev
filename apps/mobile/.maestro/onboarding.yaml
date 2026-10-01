@@ -15,7 +15,7 @@ name: Onboarding from welcome to Home
 - tapOn: 'I understand Lumen is a screening tool, not a diagnosis.'
 - tapOn: 'Continue'
 - assertVisible: 'About you'
-- tapOn: 'Age'
+- tapOn: 'Enter age'
 - inputText: '42'
 - hideKeyboard
 - tapOn: 'Continue'

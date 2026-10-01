@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from nets.standardize import Standardize
+from nets.blocks import Standardize
 
 INTERVALS = 64
 FEATURES = 8

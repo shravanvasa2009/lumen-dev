@@ -14,7 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from torch import nn
 
 from export.specs import MODELS_DIR, OPSET, RUNS_DIR, SPECS, ModelSpec
-from nets.standardize import Standardize
+from nets.blocks import Standardize
 
 # ai.onnx.ml 3 ships with default-domain opset 17 in ONNX 1.12 (https://onnx.ai/onnx/repo-docs/Versioning.html).
 ML_OPSET = 3

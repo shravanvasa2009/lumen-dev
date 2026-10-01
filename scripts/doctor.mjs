@@ -10,8 +10,8 @@ const version = (cmd, args = ['--version']) => run(cmd, args);
 
 const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
 add(
-  `Node ${process.versions.node} (22.13 or newer, required by Expo SDK 57)`,
-  nodeMajor > 22 || (nodeMajor === 22 && nodeMinor >= 13),
+  `Node ${process.versions.node} (22.18 or newer: tools/replay needs built-in type stripping)`,
+  nodeMajor > 22 || (nodeMajor === 22 && nodeMinor >= 18),
   'Install the current LTS from https://nodejs.org',
 );
 add('npm', version('npm').code === 0, 'npm ships with Node; reinstall Node LTS');

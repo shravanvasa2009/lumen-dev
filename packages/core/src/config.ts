@@ -25,4 +25,14 @@ export const DSP_CONFIG = {
     hrBandHz: [0.6, 3.5],
     morphologyBandHz: [0.5, 8],
   },
+  dsp15: {
+    // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).
+    windowIntervals: 32,
+    windowStep: 16, // 50% overlap
+    histogramBins: 16, // equal-width bins over the window's min..max, for the Shannon entropy
+    pnnThresholdS: 0.05, // pNN50: successive differences strictly greater than 50 ms
+    sampleEntropyM: 2,
+    sampleEntropyR: 0.2, // × the window's population SD
+    minUsableIntervals: 40, // a reading needs this many intervals that do not span an artifact
+  },
 };

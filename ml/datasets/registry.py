@@ -28,6 +28,8 @@ class RemoteFile:
     size: int | None = None
     # Figshare download URLs end in a numeric id, so the saved name can be set explicitly.
     filename: str | None = None
+    # Tried only when url answers 404; the bytes are verified against the same sha256 or size.
+    fallback_url: str | None = None
 
     @property
     def name(self) -> str:

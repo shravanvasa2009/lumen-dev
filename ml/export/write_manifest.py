@@ -151,6 +151,9 @@ def manifest_entry(spec: ModelSpec, models_dir: Path, metrics: dict | None, comm
         "abstainBelow": spec.abstain_below,
         "externalTest": {"dataset": spec.external_dataset, **dict.fromkeys(spec.external_fields)},
         "trainedOn": metrics["trainedOn"] if metrics else [],
+        # Copied verbatim so evidence.json can carry dev-val numbers §11.3 asks the app to show (the
+        # premature-beat false-AF rate); ml/runs is not in the repo, so the manifest is their only source.
+        "development": metrics["development"] if metrics else None,
         "opset": default_opset(path),
         "toolchain": {
             "torch": torch.__version__,

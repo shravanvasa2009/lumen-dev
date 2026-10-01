@@ -1,0 +1,27 @@
+# Same path as the measurement and report tests in src/routes.test.tsx. The emulator has no flash, so the
+# capture screen is only passed through, never measured.
+appId: io.github.shravanvasa2009.heartcheck
+name: Home through a measurement to results, emergency, and report
+---
+- launchApp:
+    clearState: true
+# launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
+- extendedWaitUntil:
+    visible: 'Change mode'
+    timeout: 60000
+- openLink: lumen://
+- tapOn: 'Measure'
+- assertVisible: 'Choose a mode'
+- tapOn: 'Quick Check'
+- assertVisible: 'Before you start'
+- tapOn: 'Start reading'
+- assertVisible: 'Finish reading'
+- tapOn: 'Finish reading'
+- assertVisible: 'Analyzing your reading'
+- tapOn: 'See results'
+- assertVisible: 'Results'
+- tapOn: 'Yes'
+- assertVisible: 'Get help now'
+- openLink: lumen://results/demo
+- tapOn: 'Share'
+- assertVisible: 'Doctor report'

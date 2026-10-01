@@ -9,6 +9,7 @@ import numpy as np
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import CausalFilter, butter_bandpass, butter_lowpass, filter_zero_phase
 from lumen_dsp.resample import resample_cubic
+from lumen_dsp.rhythm import RhythmWindow, has_enough_usable_intervals, rhythm_feature_vector, rhythm_windows
 from lumen_dsp.signals import dc_level, finger_signals, sqi_model_input
 from lumen_dsp.timebase import build_timebase
 
@@ -18,8 +19,9 @@ PARK_MILLER_MODULUS = 2_147_483_647
 CLOCK_START_NS = 5_000_000_000_000
 FPS = 60
 SECONDS = 9
-# The regeneration check allows this much float drift: libm results (tan, exp, sin) can differ by an ulp
-# between operating systems, so bytes are compared only for the structure and integers.
+# The regeneration check allows float drift of CHECK_TOLERANCE × max(1, |value|): libm results (tan, exp,
+# sin, log) can differ by an ulp between operating systems. Structure, integers, booleans, and nulls must
+# match exactly.
 CHECK_TOLERANCE = 1e-12
 
 
@@ -156,6 +158,7 @@ def golden_files() -> dict[str, dict]:
         },
         "filters.json": {"bandPass": filters, "dcLevel": dc},
         "zscore.json": zscore_windows(timebase, primary),
+        "rhythm.json": rhythm_vectors(),
     }
 
 
@@ -179,6 +182,80 @@ def zscore_windows(timebase, primary: np.ndarray) -> dict:
     return {"windowSamples": samples, "windows": windows}
 
 
+def sinus_intervals(count: int, seed: int) -> list[float]:
+    # 70 bpm with breathing-linked variation (one cycle per 4.5 beats) and 4 ms of jitter.
+    noise = park_miller_uniforms(count, seed)
+    return [0.85 + 0.03 * math.sin(2 * math.pi * k / 4.5) + 0.004 * (noise[k] - 0.5) for k in range(count)]
+
+
+def interval_cases() -> list[dict]:
+    regular = sinus_intervals(80, seed=11)
+    af_like = [0.4 + 0.8 * u for u in park_miller_uniforms(80, seed=4242)]
+
+    premature = sinus_intervals(80, seed=12)
+    premature_beats = [False] * 81
+    for k in (20, 50):
+        # A premature beat ends interval k early; a compensatory pause follows. Beat k + 1 is atypical.
+        premature[k], premature[k + 1] = 0.55, 1.15
+        premature_beats[k + 1] = True
+
+    gaps = [False] * 100
+    gaps[40] = gaps[41] = True
+    usable_39 = [False] * 41
+    usable_39[3] = usable_39[7] = True
+    usable_40 = [False] * 41
+    usable_40[0] = True
+
+    def case(name, intervals, spans=None, atypical=None):
+        return {
+            "name": name,
+            "intervalsS": intervals,
+            "spansArtifact": spans or [False] * len(intervals),
+            "atypicalBeats": atypical or [False] * (len(intervals) + 1),
+        }
+
+    return [
+        case("regular-sinus", regular),
+        case("af-like", af_like),
+        case("sinus-premature", premature, atypical=premature_beats),
+        case("artifact-gaps", sinus_intervals(100, seed=13), spans=gaps),
+        case("usable-39", sinus_intervals(41, seed=14), spans=usable_39),
+        case("usable-40", sinus_intervals(41, seed=15), spans=usable_40),
+        # Seed 1: no length-3 template matches, so SampEn is undefined and the feature vector fills it.
+        case("sampen-undefined", [0.4 + 0.8 * u for u in park_miller_uniforms(32, seed=1)]),
+        # Every x[i] + x[i + 1] is equal, so SD2 is exactly 0.
+        case("alternating", [0.8 if k % 2 == 0 else 1.0 for k in range(32)]),
+    ]
+
+
+def window_json(window: RhythmWindow) -> dict:
+    return {
+        "startInterval": window.start_interval,
+        "intervalsS": window.intervals_s,
+        "normalizedRmssd": window.normalized_rmssd,
+        "shannonEntropyBits": window.shannon_entropy_bits,
+        "turningPointRatio": window.turning_point_ratio,
+        "sd1S": window.sd1_s,
+        "sd2S": window.sd2_s,
+        "pnn50": window.pnn50,
+        "sampleEntropy": window.sample_entropy,
+        "atypicalFraction": window.atypical_fraction,
+        "featureVector": rhythm_feature_vector(window),
+    }
+
+
+def rhythm_vectors() -> dict:
+    cases = []
+    for case in interval_cases():
+        windows = rhythm_windows(case["intervalsS"], case["spansArtifact"], case["atypicalBeats"])
+        expected = {
+            "hasEnoughUsableIntervals": has_enough_usable_intervals(case["spansArtifact"]),
+            "windows": [window_json(window) for window in windows],
+        }
+        cases.append({**case, "expected": expected})
+    return {"cases": cases}
+
+
 def serialize(content: dict) -> str:
     # Compact, key order as built, shortest round-trip floats (Python repr), trailing newline.
     return json.dumps(content, separators=(",", ":"), allow_nan=False) + "\n"
@@ -197,11 +274,15 @@ def drift(expected, actual, path: str) -> list[str]:
             for i, pair in enumerate(zip(expected, actual, strict=True))
             for problem in drift(*pair, f"{path}[{i}]")
         ]
-    if isinstance(expected, float) or isinstance(actual, float):
-        if abs(expected - actual) > CHECK_TOLERANCE:
+    if isinstance(expected, float) and isinstance(actual, float):
+        if abs(expected - actual) > CHECK_TOLERANCE * max(1.0, abs(expected), abs(actual)):
             return [f"{path}: {actual} != {expected}"]
         return []
-    return [] if expected == actual else [f"{path}: {actual!r} != {expected!r}"]
+    return (
+        []
+        if expected == actual and type(expected) is type(actual)
+        else [f"{path}: {actual!r} != {expected!r}"]
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

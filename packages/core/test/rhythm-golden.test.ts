@@ -1,7 +1,7 @@
 import { hasEnoughUsableIntervals, rhythmFeatureVector, rhythmWindows, type RhythmWindow } from '../src';
 import rhythmGolden from './golden/rhythm.json';
 
-// §10.2: rhythm features match ml/lumen_dsp (python -m lumen_dsp.golden_rhythm) within 1e-4 relative.
+// §10.2: rhythm features match ml/lumen_dsp (python -m lumen_dsp.golden) within 1e-4 relative.
 // An expected 0 must be exactly 0; window positions, intervals, flags, and nulls must match exactly.
 // The Rhythm-Net feature vector (8 values, sample entropy filled per ADR 0024) is held to the same rule.
 const RELATIVE_TOLERANCE = 1e-4;

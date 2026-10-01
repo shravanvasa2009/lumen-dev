@@ -1,15 +1,15 @@
 import json
 import math
 
-from lumen_dsp.golden_rhythm import CHECK_TOLERANCE, golden_rhythm, main, serialize
+from lumen_dsp.golden import CHECK_TOLERANCE, main, rhythm_vectors, serialize
 
 
 def cases_by_name():
-    return {case["name"]: case for case in golden_rhythm()["cases"]}
+    return {case["name"]: case for case in rhythm_vectors()["cases"]}
 
 
 def test_generation_is_deterministic():
-    assert serialize(golden_rhythm()) == serialize(golden_rhythm())
+    assert serialize(rhythm_vectors()) == serialize(rhythm_vectors())
 
 
 def test_cases_cover_the_required_situations():
@@ -35,28 +35,34 @@ def test_cases_cover_the_required_situations():
     assert af_entropy > sinus_entropy
 
 
-def test_check_passes_on_a_fresh_file_and_fails_on_real_drift(tmp_path):
-    target = tmp_path / "rhythm.json"
-    assert main(["--out", str(target)]) == 0
-    assert main(["--out", str(target), "--check"]) == 0
+def test_check_covers_rhythm_json(tmp_path):
+    assert main(["--out", str(tmp_path)]) == 0
+    assert main(["--out", str(tmp_path), "--check"]) == 0
 
+    target = tmp_path / "rhythm.json"
     content = json.loads(target.read_text(encoding="utf-8"))
     window = content["cases"][0]["expected"]["windows"][0]
     window["normalizedRmssd"] *= 1 + CHECK_TOLERANCE / 10
     target.write_text(json.dumps(content), encoding="utf-8")
-    assert main(["--out", str(target), "--check"]) == 0
+    assert main(["--out", str(tmp_path), "--check"]) == 0
 
     window["normalizedRmssd"] *= 1 + 1e-9
     target.write_text(json.dumps(content), encoding="utf-8")
-    assert main(["--out", str(target), "--check"]) == 1
+    assert main(["--out", str(tmp_path), "--check"]) == 1
 
 
-def test_check_fails_when_the_file_is_missing(tmp_path):
-    assert main(["--out", str(tmp_path / "rhythm.json"), "--check"]) == 1
+def test_check_fails_when_a_null_becomes_a_number(tmp_path):
+    assert main(["--out", str(tmp_path)]) == 0
+    target = tmp_path / "rhythm.json"
+    content = json.loads(target.read_text(encoding="utf-8"))
+    undefined = next(case for case in content["cases"] if case["name"] == "sampen-undefined")
+    undefined["expected"]["windows"][0]["sampleEntropy"] = 0.0
+    target.write_text(json.dumps(content), encoding="utf-8")
+    assert main(["--out", str(tmp_path), "--check"]) == 1
 
 
 def test_every_window_carries_its_8_feature_vector():
-    for case in golden_rhythm()["cases"]:
+    for case in rhythm_vectors()["cases"]:
         for window in case["expected"]["windows"]:
             assert len(window["featureVector"]) == 8
             assert all(isinstance(value, float) and math.isfinite(value) for value in window["featureVector"])

@@ -16,5 +16,14 @@
     "morphologyOrder": 2,
     "hrBandHz": [0.6, 3.5],
     "morphologyBandHz": [0.5, 8]
+  },
+  "dsp15": {
+    "windowIntervals": 32,
+    "windowStep": 16,
+    "histogramBins": 16,
+    "pnnThresholdS": 0.05,
+    "sampleEntropyM": 2,
+    "sampleEntropyR": 0.2,
+    "minUsableIntervals": 40
   }
 }

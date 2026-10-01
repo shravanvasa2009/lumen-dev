@@ -32,7 +32,7 @@ export function LanguageToggle() {
             key={code}
             accessibilityRole="radio"
             accessibilityLabel={name}
-            accessibilityState={{ selected }}
+            accessibilityState={{ checked: selected }}
             onPress={() => void i18n.changeLanguage(code)}
             style={[
               styles.choice,

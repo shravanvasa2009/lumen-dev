@@ -40,6 +40,7 @@ describe('lesson detail', () => {
     expect(screen.getByText(en['learn.rhythmExtraBeatsNote'])).toBeOnTheScreen();
     expect(screen.getByText(en['learn.rhythmAbstainLabel'])).toBeOnTheScreen();
     expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(2);
-    expect(screen.queryByText(new RegExp('In testing, about'))).toBeNull();
+    expect(screen.queryByText(new RegExp('In development testing on recordings'))).toBeNull();
+    expect(screen.queryByText(new RegExp('^Source:'))).toBeNull();
   });
 });

@@ -50,4 +50,14 @@ describe('Learn tab', () => {
     fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.careFinder']) }));
     expect(open).toHaveBeenCalledWith('https://findahealthcenter.hrsa.gov');
   });
+
+  it('shows a line when the health-center link cannot be opened', async () => {
+    jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('no browser'));
+    renderRouter(appDirectory, { initialUrl: '/learn' });
+    expect(screen.queryByText(en['learn.careFinderFailed'])).toBeNull();
+    await act(async () =>
+      fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.careFinder']) })),
+    );
+    expect(screen.getByText(en['learn.careFinderFailed'])).toBeOnTheScreen();
+  });
 });

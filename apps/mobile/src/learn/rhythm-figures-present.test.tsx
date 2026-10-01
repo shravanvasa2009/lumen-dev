@@ -14,6 +14,7 @@ jest.mock('../../assets/evidence.json', () => ({
       passed: false,
       falseAfRatePrematureReadings: { estimate: 0.3, ci95: [0.09, 0.61] },
       readingAbstainRate: 0.12,
+      source: 'development validation (augmented premature-beat set)',
     },
   },
 }));
@@ -23,4 +24,13 @@ it('shows both rhythm figures from evidence.json as percentages', () => {
   expect(screen.getByText(en['learn.rhythmFalseAf'].replace('{{rate}}', '30%'))).toBeOnTheScreen();
   expect(screen.getByText(en['learn.rhythmAbstain'].replace('{{rate}}', '12%'))).toBeOnTheScreen();
   expect(screen.queryByText(en['evidence.notTested'])).toBeNull();
+});
+
+it('shows the source next to the figures', () => {
+  renderRouter('./app', { initialUrl: '/learn/how-the-rhythm-check-works' });
+  expect(
+    screen.getByText(
+      en['learn.rhythmSource'].replace('{{source}}', 'development validation (augmented premature-beat set)'),
+    ),
+  ).toBeOnTheScreen();
 });

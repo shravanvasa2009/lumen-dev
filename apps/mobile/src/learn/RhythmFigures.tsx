@@ -8,7 +8,8 @@ import { bundledRhythmFigures } from './rhythmEvidence';
 
 export function RhythmFigures() {
   const { t, i18n } = useTranslation();
-  const { falseAfRate, readingAbstainRate } = bundledRhythmFigures;
+  const { falseAfRate, readingAbstainRate, source } = bundledRhythmFigures;
+  const figuresShown = falseAfRate !== null || readingAbstainRate !== null;
   return (
     <Card>
       {falseAfRate === null ? (
@@ -29,6 +30,11 @@ export function RhythmFigures() {
           {t('learn.rhythmAbstain', { rate: formatPercent(readingAbstainRate, i18n.language) })}
         </AppText>
       )}
+      {figuresShown ? (
+        <AppText variant="caption" tone="textDim">
+          {source === null ? t('learn.rhythmSourceFallback') : t('learn.rhythmSource', { source })}
+        </AppText>
+      ) : null}
     </Card>
   );
 }

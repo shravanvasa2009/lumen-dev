@@ -14,6 +14,8 @@ type LessonRowProps = {
   onPress: () => void;
 };
 
+// No theme token fits: radius.card is 16 and the control sizes are 44 and 52, and the mockup tile is 48 with
+// a 12 corner.
 const TILE_SIZE = 48;
 const TILE_RADIUS = 12;
 

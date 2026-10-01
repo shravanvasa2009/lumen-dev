@@ -17,7 +17,7 @@ describe('readRhythmFigures', () => {
     ],
     ['an estimate that is missing', fileWith({ falseAfRatePrematureReadings: { ci95: [0.1, 0.2] } })],
   ])('%s reads as untested', (_name, file) => {
-    expect(readRhythmFigures(file)).toEqual({ falseAfRate: null, readingAbstainRate: null });
+    expect(readRhythmFigures(file)).toEqual({ falseAfRate: null, readingAbstainRate: null, source: null });
   });
 
   it('reads a bare rate and an estimate with its interval', () => {
@@ -28,13 +28,20 @@ describe('readRhythmFigures', () => {
           readingAbstainRate: 0.08,
         }),
       ),
-    ).toEqual({ falseAfRate: 0.25, readingAbstainRate: 0.08 });
+    ).toEqual({ falseAfRate: 0.25, readingAbstainRate: 0.08, source: null });
   });
 
   it('reads one figure when the other is absent', () => {
     expect(readRhythmFigures(fileWith({ falseAfRatePrematureReadings: 0.4 }))).toEqual({
       falseAfRate: 0.4,
       readingAbstainRate: null,
+      source: null,
     });
+  });
+
+  it('reads the source line, and ignores a blank one', () => {
+    const source = 'development validation (augmented premature-beat set)';
+    expect(readRhythmFigures(fileWith({ source })).source).toBe(source);
+    expect(readRhythmFigures(fileWith({ source: ' ' })).source).toBeNull();
   });
 });

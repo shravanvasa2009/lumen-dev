@@ -35,8 +35,8 @@ export function readEvidence(file: unknown): Record<EvidenceMetric, MetricEviden
   >;
 }
 
-// The raw record of one metric, for screens that show its figures. Whether those figures may be shown is
-// still decided by readEvidence.
+// The raw record of one metric, for screens that show its figures. It applies no gating: each caller decides
+// whether its figures depend on the label (readEvidence) or not (rhythm explainer figures).
 export function metricRecord(file: unknown, metric: EvidenceMetric): Record<string, unknown> {
   const metrics = isRecord(file) && isRecord(file.metrics) ? file.metrics : {};
   const record = metrics[metric];

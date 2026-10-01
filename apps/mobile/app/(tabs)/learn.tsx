@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -16,6 +17,7 @@ const CARE_FINDER_URL = 'https://findahealthcenter.hrsa.gov';
 export default function LearnScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const [careFinderFailed, setCareFinderFailed] = useState(false);
   const { spacing } = useTheme();
   return (
     <Screen headerless>
@@ -42,9 +44,10 @@ export default function LearnScreen() {
             tone="accent"
             title={t('learn.careFinder')}
             subtitle={t('learn.careFinderHint')}
-            onPress={() => void Linking.openURL(CARE_FINDER_URL)}
+            onPress={() => Linking.openURL(CARE_FINDER_URL).catch(() => setCareFinderFailed(true))}
           />
         </Card>
+        {careFinderFailed ? <AppText tone="textDim">{t('learn.careFinderFailed')}</AppText> : null}
         <AppText variant="caption" tone="textDim">
           {t('learn.offline')}
         </AppText>

@@ -7,6 +7,8 @@ export type RhythmFigures = {
   falseAfRate: number | null;
   // Share of readings the rhythm check declined to call.
   readingAbstainRate: number | null;
+  // Where the figures come from, as written in evidence.json; null when the file does not say.
+  source: string | null;
 };
 
 // The file may hold a bare rate or `{ estimate, ci95 }`. Anything that is not a share between 0 and 1 is
@@ -16,11 +18,14 @@ function rateFrom(value: unknown): number | null {
   return typeof rate === 'number' && Number.isFinite(rate) && rate >= 0 && rate <= 1 ? rate : null;
 }
 
+// Not gated by `passed`: spec 11.3 requires stating the development false-AF rate regardless (ADR 0020
+// addendum), while the rhythm label stays gated by readEvidence.
 export function readRhythmFigures(file: unknown): RhythmFigures {
   const rhythm = metricRecord(file, 'rhythm');
   return {
     falseAfRate: rateFrom(rhythm.falseAfRatePrematureReadings),
     readingAbstainRate: rateFrom(rhythm.readingAbstainRate),
+    source: typeof rhythm.source === 'string' && rhythm.source.trim() !== '' ? rhythm.source : null,
   };
 }
 

@@ -417,6 +417,7 @@ test('ADR 0044: DSP-A passes at 3 bpm or less with at least 10 people', () => {
   assert.equal(passesWith((m) => (m.hr.maeBpm = 3.01)).hr, false);
   assert.equal(passesWith((m) => (m.hr.people = 9)).hr, false);
   assert.equal(passesWith((m) => (m.hr.maeBpm = null)).hr, false);
+  assert.equal(passesWith((m) => (m.hr.ci95 = null)).hr, false);
 });
 
 test('ADR 0044: DSP-B needs interval MAE ≤ 25 ms, median RMSSD error ≤ 10% and 10 people', () => {
@@ -427,6 +428,7 @@ test('ADR 0044: DSP-B needs interval MAE ≤ 25 ms, median RMSSD error ≤ 10% a
   assert.equal(passesWith((m) => (m.rmssd.medianErrorPct = 10.01)).hrv, false);
   assert.equal(passesWith((m) => (m.rmssd.medianErrorPct = null)).hrv, false);
   assert.equal(passesWith((m) => (m.rmssd.people = 9)).hrv, false);
+  assert.equal(passesWith((m) => (m.intervals.ci95 = null)).hrv, false);
 });
 
 test('ADR 0044: RESP-1 needs MAE strictly below 2 breaths/min and 10 people', () => {

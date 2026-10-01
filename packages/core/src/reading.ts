@@ -3,6 +3,7 @@ import { classifyBeats } from './beat-classes';
 import { breathingRate, type BreathingRate } from './breathing';
 import type { FrameStat, Sample } from './capture';
 import { DSP_CONFIG } from './config';
+import { frameProblem } from './contact';
 import { butterBandpass, filterZeroPhase } from './filters';
 import { fingerSignals } from './finger-signal';
 import type { RejectedSpan, RejectionReason } from './live-session';
@@ -38,6 +39,7 @@ export interface ReadingContext {
   restTimerDone: boolean; // §10.1 resting rules
   recordedAt: { ms: number; day: string } | null; // epoch ms and local calendar day, for history rules
   motionSpans: NsSpan[]; // accelerometer RMS above the app's threshold (§7)
+  coldHandsSpans: NsSpan[]; // live perfusion index under the device floor: the reading paused (§7)
   sqi: SqiScores | null; // null when SQI-Net did not run
   // Validation only (replay --rhythm-from-label, ADR 0041): a labelled rhythm that stands in for the
   // rhythm class in the DSP-12 gate when no rhythm model ran. It never makes a rhythm card. The app
@@ -70,17 +72,6 @@ export interface ReadingAnalysis {
   rhythmWindows: RhythmWindow[];
   rhythmFeatures: number[][]; // rhythmFeatureVector per window: the Rhythm-Net / LightGBM input
   enoughRhythmIntervals: boolean;
-}
-
-// DSP-4 per frame: null when covered, otherwise the reason it is not.
-function frameProblem(sample: Sample, stat: FrameStat): RejectionReason | null {
-  const { minRedRatio, minRedMean, maxSpatialStdR, maxClipFrac } = DSP_CONFIG.dsp4;
-  const covered =
-    sample.r >= minRedRatio * (sample.g + sample.b) &&
-    sample.r >= minRedMean &&
-    stat.spatialStdR <= maxSpatialStdR;
-  if (!covered) return 'coverage';
-  return stat.clipFrac > maxClipFrac ? 'clipping' : null;
 }
 
 // A run of failing frames spans from its first frame to the next frame (the last frame ends the reading).
@@ -121,11 +112,10 @@ function exposureSpans(timebase: Timebase): RejectedSpan[] {
 
 function callerSpans(context: ReadingContext, startNs: number): RejectedSpan[] {
   const seconds = (tNs: number) => (tNs - startNs) / 1e9;
-  const motion = context.motionSpans.map((span): RejectedSpan => ({
-    startS: seconds(span.startNs),
-    endS: seconds(span.endNs),
-    reason: 'motion',
-  }));
+  const fromNs = (spans: NsSpan[], reason: RejectionReason) =>
+    spans.map((span): RejectedSpan => ({ startS: seconds(span.startNs), endS: seconds(span.endNs), reason }));
+  const motion = fromNs(context.motionSpans, 'motion');
+  const coldHands = fromNs(context.coldHandsSpans, 'coldHands');
   const windowS = DSP_CONFIG.dsp3.modelWindowS;
   const { sqi } = context;
   const quality = (sqi?.windows ?? [])
@@ -135,12 +125,12 @@ function callerSpans(context: ReadingContext, startNs: number): RejectedSpan[] {
       endS: seconds(window.endNs),
       reason: 'quality',
     }));
-  return [...motion, ...quality];
+  return [...motion, ...coldHands, ...quality];
 }
 
 function lostSecondsOf(spans: RejectedSpan[], durationS: number): LostSeconds {
   // §7 coaching causes. Clipping is the saturated DC of pressing too hard; quality and exposure spans are
-  // not coaching causes. Cold hands is not detected yet (ADR 0041).
+  // not coaching causes. Cold-hands pauses come from the live session (ADR 0042).
   const lost = (reasons: RejectionReason[]) =>
     durationS -
     cleanSeconds(
@@ -152,7 +142,7 @@ function lostSecondsOf(spans: RejectedSpan[], durationS: number): LostSeconds {
     motion: lost(['motion']),
     pressure: lost(['clipping']),
     coverage: lost(['coverage']),
-    coldHands: 0,
+    coldHands: lost(['coldHands']),
   };
 }
 

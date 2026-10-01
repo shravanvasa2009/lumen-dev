@@ -83,3 +83,4 @@ export {
   type Profile,
   type RhythmOutputs,
 } from './reading-result';
+export { createLiveSession, type LiveSessionConfig } from './live';

@@ -54,10 +54,14 @@ TARGET_SPECIFICITY = 0.95
 PREVALENCES = (0.01, 0.05, 0.10)
 RELIABILITY_BINS = 10
 BOOTSTRAP_RESAMPLES = 2000
+# Both tree settings come from the §11.9 file limit (500 KB), not from accuracy. Of num_leaves 7-12, 9
+# gave the largest ONNX file under 450 KB on development data (early stopping at 220 rounds, 426 KB;
+# the default 31 leaves gave 1.13 MB). The round cap keeps the worst case under the limit when early
+# stopping does not trigger: 240 rounds x 3 classes x ~650 bytes per 9-leaf tree is about 470 KB.
 LGBM_PARAMS = {
-    "n_estimators": 2000,
+    "n_estimators": 240,
     "learning_rate": 0.05,
-    "num_leaves": 31,
+    "num_leaves": 9,
     "deterministic": True,
     "force_row_wise": True,
     "verbose": -1,
@@ -575,8 +579,10 @@ def ship_decision(evaluations: dict[str, dict], scores: dict[str, np.ndarray], v
     }
 
 
-def training_notes(sets: WindowSets, cap: int, seed: int) -> list[str]:
+def training_notes(sets: WindowSets, cap: int, seed: int, decision: dict) -> list[str]:
     low, high = JITTER_SD_RANGE_MS
+    val_subjects = set(sets.val.subjects.tolist())
+    cinc_subjects = sum(1 for subject in val_subjects if subject.startswith("cinc2017:"))
     return [
         f"Windows: DSP-15 windows from {READING_S:.0f} s readings; at most {cap} windows per subject and "
         f"label, chosen as whole readings with seed {seed}. {len(sets.train.labels)} dev-train, "
@@ -591,8 +597,14 @@ def training_notes(sets: WindowSets, cap: int, seed: int) -> list[str]:
         "subject equal weight within a dataset and label.",
         "Subject-level scores average P(AF) over a subject's windows, separately for its AF and non-AF "
         "windows. CinC 2017 has no subject IDs, so each recording counts as a subject.",
-        "Early stopping, temperature scaling, and τ_AF all use dev-val, so dev-val numbers are "
-        "optimistic. The external test is the unbiased check.",
+        "Dev-val numbers are optimistic: early stopping, temperature scaling, and τ_AF were all chosen on "
+        "dev-val. The external test is the unbiased check.",
+        f"CinC 2017 makes up {cinc_subjects} of the {len(val_subjects)} dev-val subjects, so it dominates "
+        "the subject-level numbers and τ_AF; the by-dataset table shows each source alone.",
+        f"LightGBM tree settings (num_leaves {LGBM_PARAMS['num_leaves']}) were set by the §11.9 500 KB file "
+        "limit, not by accuracy.",
+        f"Ship rule (§11.3, {decision['criterion']}): {decision['ships']} is the v1 rhythm model. Rhythm-Net "
+        "and the logistic rule stay in the ablation table.",
         "False AF on premature beats: augmented dev-val MIT-BIH Arrhythmia 'other' readings with at least "
         "one premature beat, called AF when the mean P(AF) is at least τ_AF.",
     ]
@@ -665,7 +677,7 @@ def main(argv: list[str] | None = None) -> None:
     shared = {
         "ablation": ablation_rows(evaluations),
         "shipDecision": decision,
-        "notes": training_notes(sets, args.cap, config.seed),
+        "notes": training_notes(sets, args.cap, config.seed, decision),
         # This process only; a resumed run's earlier epochs are timed in networkEpochs.
         "processSeconds": time.perf_counter() - started,
         "networkEpochs": history,

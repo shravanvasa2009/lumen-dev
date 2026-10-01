@@ -20,7 +20,7 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   ios: { ...brand.ios, bundleIdentifier: BUNDLE_ID, supportsTablet: false },
   android: { ...brand.android, package: BUNDLE_ID },
-  plugins: ['expo-router', 'expo-dev-client', ...(brand.plugins ?? [])],
+  plugins: ['expo-router', 'expo-dev-client', ...(brand.plugins ?? []), './modules/lumen-capture/app.plugin'],
   // No over-the-air updates: release builds make no network requests (PRIV-1).
   updates: { enabled: false },
   experiments: { typedRoutes: true },

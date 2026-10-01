@@ -29,7 +29,7 @@
     "check:assets": "node scripts/check-assets.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -p apps/mobile --noEmit",
-    "test": "npm run test --workspaces --if-present",
+    "test": "node --test scripts/*.test.mjs && npm run test --workspaces --if-present",
     "test:changed": "npm run test --workspaces --if-present -- --onlyChanged",
     "deadcode": "knip",
     "golden:check": "node scripts/not-yet.mjs golden:check",

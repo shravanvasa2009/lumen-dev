@@ -64,6 +64,8 @@ export class ReplayCapture implements LumenCaptureModule {
   private batchesSent = 0;
   private dropped = 0;
   private lensId?: string;
+  // Stays true after the recording runs out, like a stalled camera, until stop().
+  private running = false;
 
   constructor(recording: RecordedCapture) {
     this.capabilities = recording.capabilities;
@@ -97,13 +99,17 @@ export class ReplayCapture implements LumenCaptureModule {
     this.batchesSent = 0;
     this.dropped = 0;
     this.lensId = config.lensId ?? this.capabilities.rearLenses[0]?.id;
+    this.running = true;
     this.timers = [
       setInterval(() => this.emitBatch(), BATCH_MS),
       setInterval(() => this.emitStatus(), STATUS_MS),
     ];
   }
 
+  // Rejects without a running capture, as the native modules do (ADR 0029 Addendum).
   async stop(): Promise<CaptureSummary> {
+    if (!this.running) throw new Error('stop needs a running capture');
+    this.running = false;
     this.clearTimers();
     const firstNs = this.sampleRows[0]?.tNs ?? 0;
     return {

@@ -107,7 +107,7 @@ describe('DSP-15 features, known answers', () => {
     expect([window.sd1S, window.sd2S]).toEqual([0, 0]);
   });
 
-  it('ties are not turning points, and pNN50 counts only differences strictly over 50 ms', () => {
+  it('ties are not turning points, and pNN50 matches its count of differences over 50 ms', () => {
     // 0.80, 0.80, 0.85, 0.80, 0.85, …: differences 0, then ±0.05 exactly (as computed in doubles).
     const intervals = [0.8, ...Array.from({ length: 31 }, (_, k) => (k % 2 === 0 ? 0.8 : 0.85))];
     const window = onlyWindow(intervals);

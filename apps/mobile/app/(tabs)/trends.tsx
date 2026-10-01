@@ -6,6 +6,7 @@ export default function TrendsScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      tabRoot
       title={t('trends.title')}
       sections={[
         { heading: t('trends.restingHr') },

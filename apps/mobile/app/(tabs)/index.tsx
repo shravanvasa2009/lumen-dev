@@ -7,6 +7,7 @@ export default function HomeScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      tabRoot
       title={t('tabs.home')}
       subtitle={t('app.tagline')}
       sections={[

@@ -95,6 +95,17 @@ describe.each([
   });
 });
 
+describe('tab bar', () => {
+  it('draws an icon on each of the four tabs', () => {
+    mockScheme = 'dark';
+    renderRouter(appDirectory, { initialUrl: '/' });
+    for (const label of ['tabs.home', 'tabs.trends', 'tabs.learn', 'tabs.settings'] as const) {
+      const tab = screen.getByLabelText(new RegExp(`^${en[label]}, tab`));
+      expect(tab.findAll((node) => String(node.type) === 'RNSVGSvgView')).not.toHaveLength(0);
+    }
+  });
+});
+
 describe('navigation', () => {
   beforeEach(() => {
     mockScheme = 'dark';

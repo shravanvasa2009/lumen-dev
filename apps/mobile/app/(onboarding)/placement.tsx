@@ -7,6 +7,7 @@ export default function PlacementScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      headerless
       title={t('placement.title')}
       subtitle={t('placement.flashOutsideBump')}
       sections={[

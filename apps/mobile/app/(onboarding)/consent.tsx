@@ -7,6 +7,7 @@ export default function ConsentScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      headerless
       title={t('consent.title')}
       subtitle={t('consent.core')}
       sections={[

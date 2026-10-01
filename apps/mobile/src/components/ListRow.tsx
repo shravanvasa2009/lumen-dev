@@ -4,15 +4,18 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from '@/theme';
 
 import { AppText } from './AppText';
+import { Icon } from './Icon';
 
 type ListRowProps = {
   title: string;
   subtitle?: string;
   trailing?: ReactNode;
+  last?: boolean;
+  chevron?: boolean;
   onPress?: () => void;
 };
 
-export function ListRow({ title, subtitle, trailing, onPress }: ListRowProps) {
+export function ListRow({ title, subtitle, trailing, last = false, chevron = false, onPress }: ListRowProps) {
   const { colors, spacing, control } = useTheme();
   return (
     <Pressable
@@ -24,8 +27,10 @@ export function ListRow({ title, subtitle, trailing, onPress }: ListRowProps) {
         {
           minHeight: control.minTarget,
           paddingVertical: spacing.md,
+          paddingHorizontal: spacing.lg,
           gap: spacing.md,
           borderBottomColor: colors.line,
+          borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
         },
       ]}
     >
@@ -38,11 +43,12 @@ export function ListRow({ title, subtitle, trailing, onPress }: ListRowProps) {
         ) : null}
       </View>
       {trailing}
+      {chevron ? <Icon name="chevron" size={control.chevronSize} color={colors.textFaint} /> : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: 'row', alignItems: 'center' },
   text: { flex: 1 },
 });

@@ -1,5 +1,9 @@
 import { DSP_CONFIG } from './config';
 
+// Timestamps are whole ns, so a gap within half a ns of the limit equals it; differences of times in
+// seconds carry ~1e-16 s rounding that would otherwise split some gaps of exactly 150 ms.
+const HALF_NS_S = 0.5e-9;
+
 export interface ResampledSegment {
   firstIndex: number; // sample k is at (firstIndex + k) / rate seconds from capture start
   values: Float64Array;
@@ -31,6 +35,7 @@ function naturalSecondDerivatives(x: Float64Array, y: Float64Array): Float64Arra
 function splineOnGrid(x: Float64Array, y: Float64Array, rateHz: number): ResampledSegment | null {
   // Grid times are k / rate from capture start, so every segment and channel shares one grid. Python
   // must use the same expressions (ceil(x0·rate), floor(xn·rate)) to land on the same indices.
+  // Times are k / rate (divide, never step 1/rate): Python must use np.arange(first, last + 1) / rate.
   const firstIndex = Math.ceil(x[0]! * rateHz);
   const lastIndex = Math.floor(x[x.length - 1]! * rateHz);
   if (lastIndex < firstIndex) return null;
@@ -58,7 +63,7 @@ export function resampleCubic(tS: Float64Array, values: Float64Array, rateHz: nu
   const segments: ResampledSegment[] = [];
   let segmentStart = 0;
   for (let i = 1; i <= tS.length; i++) {
-    const endsSegment = i === tS.length || tS[i]! - tS[i - 1]! > DSP_CONFIG.dsp2.maxGapS;
+    const endsSegment = i === tS.length || tS[i]! - tS[i - 1]! > DSP_CONFIG.dsp2.maxGapS + HALF_NS_S;
     if (!endsSegment) continue;
     // A lone frame between two long gaps cannot carry a spline and is left out.
     if (i - segmentStart >= 2) {

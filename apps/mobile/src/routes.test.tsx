@@ -133,7 +133,7 @@ describe('navigation', () => {
     ]);
   });
 
-  it('walks Home through a measurement to results and the emergency screen', () => {
+  it('walks Home through a measurement to results', () => {
     followButtons('/', [['home.measure', 'mode.title']]);
     fireEvent.press(screen.getByText(en['mode.quick']));
     expect(screen.getByRole('header', { name: en['precheck.title'] })).toBeOnTheScreen();
@@ -142,8 +142,10 @@ describe('navigation', () => {
     fireEvent.press(screen.getByRole('button', { name: en['capture.finish'] }));
     fireEvent.press(screen.getByRole('button', { name: en['processing.seeResults'] }));
     expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
-    expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
+  });
+
+  it('opens the emergency screen from the safety sheet of a flagged result', () => {
+    followButtons('/results/demo-flag', [['safety.yes', 'emergency.title']]);
   });
 
   it('opens the report from results', () => {

@@ -33,7 +33,7 @@ function hrError(capture) {
 
 // Sequence alignment searches only ±10 beats, so when the strap data starts later in the reading (the
 // longest stretch after a dropout), alignment starts at the phone beat the shared clock puts there. The margin
-// covers the strap's notification delay (up to one RR) with room to spare.
+// covers the strap's notification delay (under its ~1 s notification period) with room to spare.
 const START_MARGIN_BEATS = 5;
 
 function phoneBeatsBeforeStrap(capture) {

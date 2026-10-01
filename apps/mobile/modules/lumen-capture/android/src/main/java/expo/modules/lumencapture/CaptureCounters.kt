@@ -12,8 +12,9 @@ data class FrameWorkMs(val mean: Double, val max: Double)
 
 private const val ONE_SECOND_NS = 1_000_000_000L
 
-// DSP-1 (ADR 0029, corrected 2026-10-01): a gap longer than 1.5x the median interval of the last 1 s hides
-// round(gap / median) - 1 frames; the nominal interval stands in until 5 intervals exist.
+// DSP-1 (ADR 0029, corrected 2026-10-01): a gap longer than 1.5x the median interval hides
+// round(gap / median) - 1 frames. As in the Swift module, the median covers the intervals that ended in the
+// 1 s before the frame; the nominal interval stands in until 5 exist.
 private const val DROP_GAP_FACTOR = 1.5
 private const val MIN_MEDIAN_INTERVALS = 5
 
@@ -26,7 +27,9 @@ private const val OVEREXPOSED_FOR_NS = 500_000_000L
 class CaptureCounters(private val nominalIntervalNs: Long) {
     private val pending = ArrayList<CapturedFrame>()
     private val arrivalsNs = ArrayDeque<Long>()
-    private val recentFrameNs = ArrayDeque<Long>()
+    private var lastFrameNs: Long? = null
+    private val intervalEndsNs = ArrayDeque<Long>()
+    private val intervalsNs = ArrayDeque<Long>()
     private var newestSinceStatus: FrameNumbers? = null
     private var workCount = 0
     private var workSumNs = 0L
@@ -110,14 +113,18 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
     }
 
     private fun countDropped(tNs: Long) {
-        val previous = recentFrameNs.lastOrNull()
-        while (recentFrameNs.isNotEmpty() && tNs - recentFrameNs.first() >= ONE_SECOND_NS) recentFrameNs.removeFirst()
-        if (previous != null) {
-            val intervalNs = medianIntervalNs(recentFrameNs) ?: nominalIntervalNs.toDouble()
-            val gapNs = (tNs - previous).toDouble()
-            if (gapNs > DROP_GAP_FACTOR * intervalNs) dropped += (gapNs / intervalNs).roundToLong() - 1
+        val previous = lastFrameNs
+        lastFrameNs = tNs
+        if (previous == null) return
+        while (intervalEndsNs.isNotEmpty() && intervalEndsNs.first() <= tNs - ONE_SECOND_NS) {
+            intervalEndsNs.removeFirst()
+            intervalsNs.removeFirst()
         }
-        recentFrameNs.addLast(tNs)
+        val referenceNs = medianIntervalNs(intervalsNs) ?: nominalIntervalNs.toDouble()
+        val gapNs = tNs - previous
+        if (gapNs > DROP_GAP_FACTOR * referenceNs) dropped += (gapNs / referenceNs).roundToLong() - 1
+        intervalEndsNs.addLast(tNs)
+        intervalsNs.addLast(gapNs)
     }
 
     private fun watchOverexposure(red: Double, tNs: Long): Boolean {
@@ -172,9 +179,9 @@ class ExposureLog(private val capacity: Int = 32) {
     }
 }
 
-// Median of the intervals between the given frame times, or null with fewer than 5 intervals.
-fun medianIntervalNs(frameNs: Collection<Long>): Double? {
-    val intervals = frameNs.zipWithNext { a, b -> b - a }.sorted()
+// Median of the given frame intervals, or null with fewer than 5.
+fun medianIntervalNs(intervalsNs: Collection<Long>): Double? {
+    val intervals = intervalsNs.sorted()
     if (intervals.size < MIN_MEDIAN_INTERVALS) return null
     val middle = intervals.size / 2
     return if (intervals.size % 2 == 1) intervals[middle].toDouble() else (intervals[middle - 1] + intervals[middle]) / 2.0

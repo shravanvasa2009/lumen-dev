@@ -26,12 +26,14 @@ import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.CameraState
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Observer
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ExecutionException
@@ -42,6 +44,7 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -94,6 +97,8 @@ private const val FRESH_FRAMES = 3
 private const val FRESH_FRAME_WAIT_MS = 1000L
 private const val FRESH_FRAME_POLL_MS = 20L
 private const val REQUEST_TIMEOUT_MS = 1000L
+private const val ANALYZER_DRAIN_MS = 100L
+private const val FAILURE_LOG_EVERY = 100
 
 // One running capture: CameraX ImageAnalysis on a rear lens with Camera2 interop for frame rate,
 // stabilization, exposure and locks (spec §9.2). Frames are reduced to numbers on the analyzer thread and
@@ -127,6 +132,9 @@ class CameraSession(
 
     @Volatile private var torchLevel = 0.0
 
+    // The level the caller asked for, restored whenever the camera reopens (ADR 0029 addendum).
+    @Volatile private var requestedTorch = settings.torchLevel
+
     @Volatile private var running = false
 
     // One lockExposure() at a time; a second call while one steers rejects (as in the Swift module).
@@ -139,6 +147,23 @@ class CameraSession(
     private var provider: ProcessCameraProvider? = null
     private var analysis: ImageAnalysis? = null
     private var stopped = false // main thread only
+    private var seenOpen = false // main thread only
+    private var reopened = false // main thread only
+    private val analysisFailures = AtomicInteger(0)
+
+    // CameraX 1.6.2 resets its torch control when the use cases detach (lifecycle STOP), so the camera
+    // reopens dark after the app returns from the background (PR #47 review, javap on camera-camera2 1.6.2).
+    // Swift restores the torch after an interruption the same way.
+    private val cameraStateObserver =
+        Observer<CameraState> { state ->
+            if (state.type == CameraState.Type.OPEN) {
+                if (reopened) restoreAfterReopen()
+                seenOpen = true
+                reopened = false
+            } else if (seenOpen) {
+                reopened = true
+            }
+        }
 
     // On failure the caller still calls stop(), which releases whatever was set up.
     fun start(owner: LifecycleOwner, done: (Throwable?) -> Unit) {
@@ -150,7 +175,7 @@ class CameraSession(
                 done(it)
                 return@addListener
             }
-            applyTorch(settings.torchLevel, done)
+            setTorch(settings.torchLevel, done)
         }, mainExecutor)
     }
 
@@ -186,7 +211,9 @@ class CameraSession(
                 .build()
         startedNs = frameClockNs()
         startedRealtimeNs = SystemClock.elapsedRealtimeNanos()
-        camera = cameraProvider.bindToLifecycle(owner, selector, useCase)
+        val bound = cameraProvider.bindToLifecycle(owner, selector, useCase)
+        camera = bound
+        bound.cameraInfo.cameraState.observe(owner, cameraStateObserver)
         provider = cameraProvider
         analysis = useCase
         running = true
@@ -198,24 +225,26 @@ class CameraSession(
         if (settings.labEvents) events.postDelayed(::emitLab, LAB_MS)
     }
 
+    // Main thread. The last samples batch goes out before this returns, so stop() loses no frame (as in Swift).
     fun stop(): SessionSummary {
         stopped = true
         running = false
+        camera?.cameraInfo?.cameraState?.removeObserver(cameraStateObserver)
         analysis?.let { useCase ->
             useCase.clearAnalyzer()
             provider?.unbind(useCase)
         }
         sensorManager?.unregisterListener(motionListener)
         events.removeCallbacksAndMessages(null)
-        events.post { emitBatchNow() }
         analyzerThread.shutdown()
+        // A frame still in analyze() takes well under 1 ms (Lab frame work), so this bound is generous.
+        analyzerThread.awaitTermination(ANALYZER_DRAIN_MS, TimeUnit.MILLISECONDS)
+        emitBatchNow()
         // Interrupts a lockExposure() that is waiting for frames, so its promise rejects.
         exposureThread.shutdownNow()
         eventThread.quitSafely()
         return SessionSummary(startedNs, frameClockNs(), lens.id, counters.frames, counters.dropped)
     }
-
-    fun setTorch(level: Double, done: (Throwable?) -> Unit) = applyTorch(level, done)
 
     // Runs on the exposure thread so stop() never waits for it; stop() interrupts it and the promise rejects.
     fun lockExposure(done: (Throwable?) -> Unit) {
@@ -230,7 +259,18 @@ class CameraSession(
     // Frame timestamps use the sensor's clock (SENSOR_INFO_TIMESTAMP_SOURCE), so the summary does too.
     private fun frameClockNs(): Long = if (lens.realtimeTimestamps) SystemClock.elapsedRealtimeNanos() else System.nanoTime()
 
+    // A throw here would escape CameraX's analyzer executor and crash the app, so a failed frame is counted,
+    // logged, and skipped; the skipped frame then shows up as a dropped frame.
     private fun analyze(image: ImageProxy) {
+        try {
+            reduceAndCount(image)
+        } catch (e: RuntimeException) {
+            val failures = analysisFailures.incrementAndGet()
+            if (failures == 1 || failures % FAILURE_LOG_EVERY == 0) Log.e(TAG, "Frame reduction failed ($failures so far)", e)
+        }
+    }
+
+    private fun reduceAndCount(image: ImageProxy) {
         image.use {
             val workStart = System.nanoTime()
             val plane = it.planes[0]
@@ -245,13 +285,26 @@ class CameraSession(
                     SystemClock.elapsedRealtimeNanos(),
                     workNs,
                 )
-            if (overexposed) {
-                try {
-                    exposureThread.execute(::relieveOverexposure)
-                } catch (e: RejectedExecutionException) {
-                    // stop() shut the exposure thread while this frame was in flight; there is nothing to relieve.
-                    Log.i(TAG, "Overexposure ignored after stop", e)
-                }
+            if (overexposed) onExposureThread(::relieveOverexposure)
+        }
+    }
+
+    private fun onExposureThread(task: () -> Unit) {
+        try {
+            exposureThread.execute(task)
+        } catch (e: RejectedExecutionException) {
+            // stop() already shut the exposure thread; a stopped capture has nothing left to adjust.
+            Log.i(TAG, "Exposure task skipped after stop", e)
+        }
+    }
+
+    // Main thread, when the camera is OPEN again after an interruption.
+    private fun restoreAfterReopen() {
+        setTorch(requestedTorch) { failure -> failure?.let { Log.e(TAG, "Restoring the torch failed", it) } }
+        // Camera2 interop options should survive a reopen; re-sending the held exposure and locks is cheap.
+        onExposureThread {
+            if (added != RequestState()) {
+                runCatching { applyRequest(added) }.onFailure { Log.e(TAG, "Restoring the exposure lock failed", it) }
             }
         }
     }
@@ -261,25 +314,27 @@ class CameraSession(
     private fun lockOnExposureThread() {
         check(running) { "lockExposure needs a running capture" }
         val elapsedNs = SystemClock.elapsedRealtimeNanos() - startedRealtimeNs
-        if (elapsedNs < SETTLE_NS) Thread.sleep((SETTLE_NS - elapsedNs) / 1_000_000)
+        val settleLeftMs = ((SETTLE_NS - elapsedNs) / 1_000_000).coerceAtLeast(0)
         val manual = lens.manualExposure
         if (manual != null) {
-            steerExposure(manual)
-        } else if (lens.exposureLock) {
-            applyRequest(added.copy(aeLock = true))
+            // As in Swift: the first reading comes after max(rest of the 1 s settle, 0.2 s).
+            steerExposure(manual, firstWaitMs = maxOf(settleLeftMs, EXPOSURE_LATENCY_MS))
+        } else {
+            Thread.sleep(settleLeftMs)
+            if (lens.exposureLock) applyRequest(added.copy(aeLock = true))
         }
         val focusDistance = if (lens.focusLock && !lens.fixedFocus) latest?.focusDistance else null
         applyRequest(added.copy(awbLock = lens.whiteBalanceLock, focusDistance = focusDistance))
         counters.armOverexposureWatch()
     }
 
-    private fun steerExposure(manual: ManualExposureRange) {
+    private fun steerExposure(manual: ManualExposureRange, firstWaitMs: Long) {
         var steps = 0
-        var red = freshRed()
+        var red = freshRed(firstWaitMs)
         while (red !in settings.exposureTarget && steps < MAX_EXPOSURE_STEPS) {
             scaleExposure(manual, exposureFactor(red, settings.exposureTarget))
             steps++
-            red = freshRed()
+            red = freshRed(EXPOSURE_LATENCY_MS)
         }
         // Already inside the target: hold the camera's own exposure as a manual one.
         if (added.manual == null) scaleExposure(manual, 1.0)
@@ -311,9 +366,9 @@ class CameraSession(
     }
 
     // The red mean of a frame taken after the latest exposure change.
-    private fun freshRed(): Double {
+    private fun freshRed(waitMs: Long): Double {
         val before = counters.frames
-        Thread.sleep(EXPOSURE_LATENCY_MS)
+        Thread.sleep(waitMs)
         val deadline = SystemClock.elapsedRealtime() + FRESH_FRAME_WAIT_MS
         while (SystemClock.elapsedRealtime() < deadline) {
             val red = counters.lastRed
@@ -357,27 +412,27 @@ class CameraSession(
             override fun onCaptureCompleted(
                 session: CameraCaptureSession,
                 request: CaptureRequest,
-                result: TotalCaptureResult,
+                captureResult: TotalCaptureResult,
             ) {
-                val exposureNs = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: 0L
-                result.get(CaptureResult.SENSOR_TIMESTAMP)?.let { exposureLog.record(it, exposureNs) }
-                val afState = result.get(CaptureResult.CONTROL_AF_STATE)
+                val exposureNs = captureResult.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: 0L
+                captureResult.get(CaptureResult.SENSOR_TIMESTAMP)?.let { exposureLog.record(it, exposureNs) }
+                val afState = captureResult.get(CaptureResult.CONTROL_AF_STATE)
                 latest =
                     ResultSnapshot(
-                        iso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: 0,
+                        iso = captureResult.get(CaptureResult.SENSOR_SENSITIVITY) ?: 0,
                         exposureNs = exposureNs,
-                        torchOn = result.get(CaptureResult.FLASH_MODE) == CaptureResult.FLASH_MODE_TORCH,
+                        torchOn = captureResult.get(CaptureResult.FLASH_MODE) == CaptureResult.FLASH_MODE_TORCH,
                         // A manual exposure (AE off) is held as firmly as an AE lock.
                         aeLocked =
-                            result.get(CaptureResult.CONTROL_AE_MODE) == CaptureResult.CONTROL_AE_MODE_OFF ||
-                                result.get(CaptureResult.CONTROL_AE_STATE) == CaptureResult.CONTROL_AE_STATE_LOCKED,
-                        awbLocked = result.get(CaptureResult.CONTROL_AWB_STATE) == CaptureResult.CONTROL_AWB_STATE_LOCKED,
+                            captureResult.get(CaptureResult.CONTROL_AE_MODE) == CaptureResult.CONTROL_AE_MODE_OFF ||
+                                captureResult.get(CaptureResult.CONTROL_AE_STATE) == CaptureResult.CONTROL_AE_STATE_LOCKED,
+                        awbLocked = captureResult.get(CaptureResult.CONTROL_AWB_STATE) == CaptureResult.CONTROL_AWB_STATE_LOCKED,
                         afLocked =
                             lens.fixedFocus ||
-                                result.get(CaptureResult.CONTROL_AF_MODE) == CaptureResult.CONTROL_AF_MODE_OFF ||
+                                captureResult.get(CaptureResult.CONTROL_AF_MODE) == CaptureResult.CONTROL_AF_MODE_OFF ||
                                 afState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED ||
                                 afState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED,
-                        focusDistance = result.get(CaptureResult.LENS_FOCUS_DISTANCE),
+                        focusDistance = captureResult.get(CaptureResult.LENS_FOCUS_DISTANCE),
                     )
             }
         }
@@ -466,19 +521,20 @@ class CameraSession(
         events.postDelayed(::emitLab, LAB_MS)
     }
 
-    private fun applyTorch(level: Double, done: (Throwable?) -> Unit) {
+    fun setTorch(level: Double, done: (Throwable?) -> Unit) {
+        requestedTorch = level
         val active = camera ?: return done(IllegalStateException("camera is not running"))
         val control = active.cameraControl
-        val info = active.cameraInfo
-        if (!info.hasFlashUnit()) {
+        val cameraInfo = active.cameraInfo
+        if (!cameraInfo.hasFlashUnit()) {
             return done(if (level > 0) UnsupportedOperationException("this lens has no torch") else null)
         }
         control.enableTorch(level > 0).whenDone { failure ->
-            if (failure != null || level <= 0 || !info.isTorchStrengthSupported) {
+            if (failure != null || level <= 0 || !cameraInfo.isTorchStrengthSupported) {
                 if (failure == null) torchLevel = if (level > 0) 1.0 else 0.0
                 return@whenDone done(failure)
             }
-            val maxLevel = info.maxTorchStrengthLevel
+            val maxLevel = cameraInfo.maxTorchStrengthLevel
             val strength = (level * maxLevel).roundToInt().coerceIn(1, maxLevel)
             control.setTorchStrengthLevel(strength).whenDone { strengthFailure ->
                 if (strengthFailure == null) torchLevel = strength.toDouble() / maxLevel

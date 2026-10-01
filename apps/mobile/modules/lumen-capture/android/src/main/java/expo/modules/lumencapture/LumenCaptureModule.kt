@@ -61,7 +61,7 @@ class LumenCaptureModule : Module() {
             }.runOnQueue(Queues.MAIN)
 
             AsyncFunction("stop") { promise: Promise ->
-                val running = session ?: return@AsyncFunction promise.reject(NOT_RUNNING, "stop needs a running capture", null)
+                val running = session ?: return@AsyncFunction promise.reject(CAPTURE_ERROR, "stop needs a running capture", null)
                 session = null
                 val summary = running.stop()
                 promise.resolve(
@@ -76,13 +76,13 @@ class LumenCaptureModule : Module() {
             }.runOnQueue(Queues.MAIN)
 
             AsyncFunction("setTorch") { level: Double, promise: Promise ->
-                val running = session ?: return@AsyncFunction promise.reject(NOT_RUNNING, "setTorch() needs a running capture", null)
-                running.setTorch(level.coerceIn(0.0, 1.0)) { failure -> settle(promise, TORCH_FAILED, failure) }
+                val running = session ?: return@AsyncFunction promise.reject(CAPTURE_ERROR, "setTorch() needs a running capture", null)
+                running.setTorch(level.coerceIn(0.0, 1.0)) { failure -> settle(promise, failure) }
             }.runOnQueue(Queues.MAIN)
 
             AsyncFunction("lockExposure") { promise: Promise ->
-                val running = session ?: return@AsyncFunction promise.reject(NOT_RUNNING, "lockExposure() needs a running capture", null)
-                running.lockExposure { failure -> settle(promise, LOCK_FAILED, failure) }
+                val running = session ?: return@AsyncFunction promise.reject(CAPTURE_ERROR, "lockExposure() needs a running capture", null)
+                running.lockExposure { failure -> settle(promise, failure) }
             }.runOnQueue(Queues.MAIN)
 
             // CameraX unbinding must happen on the main thread.
@@ -94,31 +94,36 @@ class LumenCaptureModule : Module() {
         }
 
     private fun startSession(config: CaptureConfig, promise: Promise) {
-        if (session != null) return promise.reject(ALREADY_RUNNING, "a capture is already running; call stop() first", null)
+        // ADR 0029 addendum: start() while running stops the old capture (its last batch goes out) and starts
+        // again with the new config, as Swift and ReplayCapture do.
+        session?.let {
+            session = null
+            it.stop()
+        }
         if (context.checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            return promise.reject(NO_PERMISSION, "camera permission is not granted", null)
+            return promise.reject(CAPTURE_ERROR, "camera permission is not granted", null)
         }
         val owner =
             appContext.currentActivity as? LifecycleOwner
-                ?: return promise.reject(NO_ACTIVITY, "no foreground activity to run the camera in", null)
+                ?: return promise.reject(CAPTURE_ERROR, "no foreground activity to run the camera in", null)
         val lenses = lenses()
         val lens =
-            config.lensId?.let { id -> lenses.find { it.id == id } ?: return promise.reject(BAD_CONFIG, "no rear lens with id $id", null) }
+            config.lensId?.let { id -> lenses.find { it.id == id } ?: return promise.reject(CAPTURE_ERROR, "no rear lens with id $id", null) }
                 ?: defaultLens(lenses)
-                ?: return promise.reject(NO_CAMERA, "this phone reports no usable rear camera", null)
+                ?: return promise.reject(CAPTURE_ERROR, "this phone reports no usable rear camera", null)
         // ADR 0029 addendum: an explicit targetFps is clamped, never rejected; 0 or less counts as omitted.
         val wantFps = config.targetFps?.takeIf { it > 0 }?.roundToInt()?.coerceIn(1, ANDROID_MAX_FPS) ?: ANDROID_MAX_FPS
         val fps =
             pickFpsRange(lens.fpsRanges, wantFps)
-                ?: return promise.reject(NO_CAMERA, "lens ${lens.id} reports no frame-rate ranges", null)
+                ?: return promise.reject(CAPTURE_ERROR, "lens ${lens.id} reports no frame-rate ranges", null)
         // ADR 0029 addendum: without torchLevel the torch is on at level 1; 0 is ambient mode (spec §4.4).
         val torchLevel = (config.torchLevel ?: 1.0).coerceIn(0.0, 1.0)
         if (torchLevel > 0 && !lens.torchUsable) {
-            return promise.reject(NO_TORCH, "the ${lens.kind} lens has no usable torch; start with torchLevel 0", null)
+            return promise.reject(CAPTURE_ERROR, "the ${lens.kind} lens has no usable torch; start with torchLevel 0", null)
         }
         val exposureTarget =
             exposureWindow(config.exposureTarget)
-                ?: return promise.reject(BAD_CONFIG, "exposureTarget must be two increasing values within 0..1", null)
+                ?: return promise.reject(CAPTURE_ERROR, "exposureTarget must be two increasing values within 0..1", null)
         val started =
             CameraSession(context, SessionSettings(lens, fps, torchLevel, exposureTarget, BuildConfig.DEBUG)) { name, body ->
                 sendEvent(name, body)
@@ -129,12 +134,12 @@ class LumenCaptureModule : Module() {
                 if (session === started) session = null
                 started.stop()
             }
-            settle(promise, START_FAILED, failure)
+            settle(promise, failure)
         }
     }
 
-    private fun settle(promise: Promise, code: String, failure: Throwable?) {
-        if (failure == null) promise.resolve(null) else promise.reject(code, failure.message ?: failure.toString(), failure)
+    private fun settle(promise: Promise, failure: Throwable?) {
+        if (failure == null) promise.resolve(null) else promise.reject(CAPTURE_ERROR, failure.message ?: failure.toString(), failure)
     }
 }
 
@@ -155,20 +160,13 @@ private fun describeCapabilities(lenses: List<RearLens>): Map<String, Any?> {
         "torch" to mapOf("available" to lenses.any { it.torchUsable }, "levels" to lenses.any { it.torchLevels }),
         "locks" to
             mapOf(
-                "exposure" to (main?.exposureLock ?: false),
+                // lockExposure() holds a manual exposure where the lens allows it, else an AE lock (as Swift).
+                "exposure" to (main != null && (main.manualExposure != null || main.exposureLock)),
                 "whiteBalance" to (main?.whiteBalanceLock ?: false),
                 "focus" to (main?.focusLock ?: false),
             ),
     )
 }
 
-private const val ALREADY_RUNNING = "E_ALREADY_RUNNING"
-private const val NOT_RUNNING = "E_NOT_RUNNING"
-private const val NO_PERMISSION = "E_NO_PERMISSION"
-private const val NO_ACTIVITY = "E_NO_ACTIVITY"
-private const val NO_CAMERA = "E_NO_CAMERA"
-private const val BAD_CONFIG = "E_BAD_CONFIG"
-private const val NO_TORCH = "E_NO_TORCH"
-private const val START_FAILED = "E_START_FAILED"
-private const val TORCH_FAILED = "E_TORCH_FAILED"
-private const val LOCK_FAILED = "E_LOCK_FAILED"
+// ADR 0029 addendum: every rejection uses this one code with a plain message, as in Swift; JS never branches on it.
+private const val CAPTURE_ERROR = "ERR_LUMEN_CAPTURE"

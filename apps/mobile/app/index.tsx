@@ -1,14 +1,14 @@
 import { Stack } from 'expo-router';
-import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { themeFor } from '@/theme';
+import { useTheme } from '@/theme';
 
 export default function HomeScreen() {
-  const theme = themeFor(useColorScheme());
+  const { colors } = useTheme();
   return (
-    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Lumen' }} />
-      <Text style={[styles.title, { color: theme.text }]}>Lumen</Text>
+      <Text style={[styles.title, { color: colors.text }]}>Lumen</Text>
     </View>
   );
 }

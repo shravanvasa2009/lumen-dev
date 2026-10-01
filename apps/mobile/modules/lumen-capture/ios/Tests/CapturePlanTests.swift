@@ -3,12 +3,18 @@ import XCTest
 @testable import LumenCapturePure
 
 final class CapturePlanTests: XCTestCase {
-  // ADR 0029: with no requested rate, the lens maximum capped at 240 fps (spec §9.2).
-  func testTargetFpsDefaultsToTheLensMaximumCappedAt240() {
-    XCTAssertEqual(resolveTargetFps(requested: nil, lensMaxFps: 240), 240)
+  // ADR 0029: with no requested rate, the lens maximum capped at 120 fps (keeps a 100 ms batch near the ~2 KB of
+  // spec §9.3); a requested rate is honoured up to the lens maximum and 240 fps (spec §9.2).
+  func testTargetFpsDefaultsToTheLensMaximumCappedAt120() {
+    XCTAssertEqual(resolveTargetFps(requested: nil, lensMaxFps: 240), 120)
     XCTAssertEqual(resolveTargetFps(requested: nil, lensMaxFps: 60), 60)
-    XCTAssertEqual(resolveTargetFps(requested: nil, lensMaxFps: 480), 240)
+    XCTAssertEqual(resolveTargetFps(requested: 0, lensMaxFps: 240), 120)
     XCTAssertEqual(resolveTargetFps(requested: 0, lensMaxFps: 60), 60)
+  }
+
+  func testRequestedFpsIsHonouredUpTo240() {
+    XCTAssertEqual(resolveTargetFps(requested: 240, lensMaxFps: 240), 240)
+    XCTAssertEqual(resolveTargetFps(requested: 240, lensMaxFps: 480), 240)
     XCTAssertEqual(resolveTargetFps(requested: 30, lensMaxFps: 240), 30)
     XCTAssertEqual(resolveTargetFps(requested: 120, lensMaxFps: 60), 60)
   }

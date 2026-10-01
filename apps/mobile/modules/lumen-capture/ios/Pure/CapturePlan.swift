@@ -6,13 +6,14 @@ struct FormatCandidate {
   let maxFps: Double
 }
 
-// Spec §9.2 caps capture at 240 fps; ADR 0029 uses the lens maximum when the caller names no rate.
+// Spec §9.2 caps capture at 240 fps. With no requested rate, ADR 0029 uses the lens maximum up to 120 fps, so a
+// 100 ms samples batch (12 frames) stays near the ~2 KB of spec §9.3.
 let maxCaptureFps = 240.0
+let defaultMaxCaptureFps = 120.0
 
 func resolveTargetFps(requested: Double?, lensMaxFps: Double) -> Double {
-  let ceiling = min(lensMaxFps, maxCaptureFps)
-  guard let requested, requested > 0 else { return ceiling }
-  return min(requested, ceiling)
+  guard let requested, requested > 0 else { return min(lensMaxFps, defaultMaxCaptureFps) }
+  return min(requested, lensMaxFps, maxCaptureFps)
 }
 
 // Spec §9.2: the lowest-resolution format that reaches the target rate. Ranges such as 59.94 fps count as 60, so

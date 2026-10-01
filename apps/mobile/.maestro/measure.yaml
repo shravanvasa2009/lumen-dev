@@ -32,8 +32,8 @@ name: Home through a measurement to results, emergency, report, why, and fix-tec
 - assertVisible: 'Doctor report'
 - openLink: lumen://results/demo
 - tapOn: 'Show me why'
-# The button and the destination share the words "Show me why", so check a line only the destination has.
-- assertVisible: 'Beat-to-beat intervals \(ms\)'
+# The destination's title; the curly quotes around "regular" are matched with dots.
+- assertVisible: 'Why .regular.\?'
 - openLink: lumen://measure/capture?mode=quick
 - tapOn: "Can't get a clean signal\\?"
 - assertVisible: 'Not enough clean signal\.'

@@ -12,6 +12,9 @@ const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file
 
 function shippedEntries(manifest, errors) {
   const entries = [];
+  for (const model of manifest.models ?? [])
+    if (model.ships === true && !FAMILIES.includes(model.family))
+      errors.push(`${model.name} ships but has unknown family ${JSON.stringify(model.family)}`);
   for (const family of FAMILIES) {
     const shipped = (manifest.models ?? []).filter(
       (model) => model.family === family && model.ships === true,
@@ -32,6 +35,10 @@ export function syncModels({ root, check = false }) {
   const errors = [];
   const entries = shippedEntries(JSON.parse(fs.readFileSync(manifestFile, 'utf8')), errors);
   for (const entry of entries) {
+    if (path.basename(String(entry.file)) !== entry.file || !entry.file.endsWith('.onnx')) {
+      errors.push(`${entry.name} file ${JSON.stringify(entry.file)} must be a bare .onnx file name`);
+      continue;
+    }
     const file = path.join(source, entry.file);
     if (!fs.existsSync(file)) errors.push(`${entry.file} missing from models/`);
     else if (sha256(file) !== entry.sha256) errors.push(`${entry.file} sha256 does not match the manifest`);

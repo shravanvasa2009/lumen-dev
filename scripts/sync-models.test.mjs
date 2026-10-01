@@ -9,8 +9,23 @@ import { syncModels } from './sync-models.mjs';
 const APP = path.join('apps', 'mobile', 'assets', 'models');
 const digest = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 
-function makeRepo(mutate = () => {}) {
+const roots = [];
+test.after(() => roots.forEach((root) => fs.rmSync(root, { recursive: true, force: true })));
+
+function tempRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-models-'));
+  roots.push(root);
+  return root;
+}
+
+function snapshot(dir) {
+  return fs.existsSync(dir)
+    ? fs.readdirSync(dir).map((name) => [name, fs.readFileSync(path.join(dir, name)).toString('hex')])
+    : null;
+}
+
+function makeRepo(mutate = () => {}) {
+  const root = tempRoot();
   fs.mkdirSync(path.join(root, 'models'));
   const models = [
     ['rhythm-lgbm', 'rhythm', true],
@@ -29,7 +44,9 @@ function makeRepo(mutate = () => {}) {
 
 test('copies only shipped models and writes the manifest subset', () => {
   const root = makeRepo();
+  const manifestBefore = fs.readFileSync(path.join(root, 'models', 'manifest.json'));
   const { errors, copied } = syncModels({ root });
+  assert.deepEqual(fs.readFileSync(path.join(root, 'models', 'manifest.json')), manifestBefore);
   assert.deepEqual(errors, []);
   assert.deepEqual(copied.sort(), [
     'diabetes-net@1.0.0.onnx',
@@ -76,7 +93,7 @@ test('fails when a shipped file is missing', () => {
 });
 
 test('fails when the manifest is missing', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-models-'));
+  const root = tempRoot();
   assert.deepEqual(syncModels({ root }).errors, ['models/manifest.json not found']);
 });
 
@@ -90,4 +107,32 @@ test('--check reports a missing, stale, or extra app copy', () => {
   assert.equal(errors.length, 2);
   assert.match(errors.join('\n'), /sqi-net@1.0.0.onnx is missing or stale/);
   assert.match(errors.join('\n'), /rhythm-net@1.0.0.onnx is not a shipped model/);
+});
+
+test('a failed sync leaves an existing app copy byte-for-byte unchanged', () => {
+  const root = makeRepo();
+  syncModels({ root });
+  fs.writeFileSync(path.join(root, APP, 'extra@1.0.0.onnx'), 'extra');
+  fs.writeFileSync(path.join(root, 'models', 'sqi-net@1.0.0.onnx'), 'changed after the manifest');
+  const before = snapshot(path.join(root, APP));
+  assert.match(syncModels({ root }).errors[0], /sqi-net@1.0.0.onnx sha256 does not match/);
+  assert.deepEqual(snapshot(path.join(root, APP)), before);
+});
+
+test('rejects a file name with a path or the wrong extension before writing', () => {
+  for (const file of ['../escape.onnx', 'sub/model.onnx', 'model.bin']) {
+    const root = makeRepo((models) => {
+      models[0].file = file;
+    });
+    assert.match(syncModels({ root }).errors[0], /must be a bare .onnx file name/);
+    assert.ok(!fs.existsSync(path.join(root, APP)));
+  }
+});
+
+test('names a shipped entry whose family is unknown', () => {
+  const root = makeRepo((models) => {
+    models[1].family = 'ecg';
+    models[1].ships = true;
+  });
+  assert.match(syncModels({ root }).errors.join(', '), /rhythm-net ships but has unknown family "ecg"/);
 });

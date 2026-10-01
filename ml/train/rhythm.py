@@ -683,6 +683,8 @@ def training_notes(sets: WindowSets, cap: int, seed: int, decision: dict) -> lis
 def _metrics_file(source: Path, evaluation: dict, sets: WindowSets, shared: dict) -> dict:
     trained_on = sorted({subject.split(":")[0] for subject in sets.train.subjects})
     return {
+        # Format 2 always carries development.prematureBeatSet, which write_manifest then requires.
+        "metricsFormat": 2,
         "trainedOn": trained_on,
         "threshold": {"af": evaluation["tau"]},
         "development": {

@@ -26,7 +26,19 @@ CARD_HEADINGS = [
 
 NETWORKS = sorted(name for name, spec in SPECS.items() if spec.kind == "torch")
 
+
+def ship_decision(ships):
+    return {
+        "criterion": "subject-level AUROC for AF vs not on dev-val",
+        "bestBaseline": "rhythm-lgbm",
+        "networkMinusBestBaselineAuroc": {"estimate": -0.0006, "low": -0.0161, "high": 0.0156},
+        "ships": ships,
+    }
+
+
 RHYTHM_EXTRAS = {
+    "metricsFormat": 2,
+    "shipDecision": ship_decision("rhythm-lgbm"),
     "ablation": [{"model": "rhythm-net", "auroc": 0.5}, {"model": "lightgbm", "auroc": 0.25}],
     "calibration": {"method": "temperature scaling", "temperature": 1.5},
     "notes": ["Jitter sigma is an assumption."],
@@ -74,7 +86,7 @@ def trained(tmp_path):
     for seed, name in enumerate(NETWORKS):
         extras = RHYTHM_EXTRAS if name == "rhythm-net" else {}
         save_trained(SPECS[name], runs_dir, source_model(SPECS[name], None, seed), extras)
-    save_trained(SPECS["rhythm-lgbm"], runs_dir, fit_baseline(SPECS["rhythm-lgbm"]))
+    save_trained(SPECS["rhythm-lgbm"], runs_dir, fit_baseline(SPECS["rhythm-lgbm"]), RHYTHM_EXTRAS)
     _release(models_dir, runs_dir)
     return models_dir, runs_dir
 
@@ -205,6 +217,64 @@ def _assert_refused(models_dir, runs_dir, error, match):
     with pytest.raises(error, match=match):
         _run(write_manifest, "--models-dir", models_dir, "--runs-dir", runs_dir)
     assert not (models_dir / "manifest.json").exists()
+    assert not list(models_dir.glob("*.md"))
+
+
+def test_shipped_card_renders_the_ship_reason_from_the_metrics(trained):
+    models_dir, runs_dir = trained
+    entries = _manifest(models_dir, runs_dir)
+    shipped_card = (models_dir / entries["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
+    assert (
+        "The development ablation picked it (subject-level AUROC for AF vs not on dev-val; network minus "
+        "rhythm-lgbm: -0.0006, 95% CI -0.0161 to 0.0156), so it ships per §11.3 (ADR 0031)." in shipped_card
+    )
+
+
+def test_refuses_when_the_metrics_pick_another_shipped_model(trained):
+    models_dir, runs_dir = trained
+    spec = SPECS["rhythm-net"]
+    save_trained(
+        spec,
+        runs_dir,
+        source_model(spec, None, 0),
+        {**RHYTHM_EXTRAS, "shipDecision": ship_decision("rhythm-net")},
+    )
+    _assert_refused(models_dir, runs_dir, ShipRuleError, r"rhythm-net.*owner decides.*ADR 0031")
+
+
+def test_ship_decision_guard_covers_every_family(trained):
+    models_dir, runs_dir = trained
+    spec = SPECS["sqi-finger"]
+    decision = {**ship_decision("sqi-baseline"), "bestBaseline": "sqi-baseline"}
+    save_trained(spec, runs_dir, source_model(spec, None, 0), {"shipDecision": decision})
+    _assert_refused(models_dir, runs_dir, ShipRuleError, "sqi-baseline.*sqi-finger")
+
+
+def test_new_metrics_files_must_carry_the_premature_beat_counts(trained):
+    models_dir, runs_dir = trained
+    development = {
+        key: value for key, value in RHYTHM_EXTRAS["development"].items() if key != "prematureBeatSet"
+    }
+    save_trained(
+        SPECS["rhythm-lgbm"],
+        runs_dir,
+        fit_baseline(SPECS["rhythm-lgbm"]),
+        {**RHYTHM_EXTRAS, "development": development},
+    )
+    _assert_refused(models_dir, runs_dir, ProvenanceError, "prematureBeatSet")
+
+
+def test_older_metrics_files_without_the_counts_still_render(trained):
+    models_dir, runs_dir = trained
+    development = {
+        key: value for key, value in RHYTHM_EXTRAS["development"].items() if key != "prematureBeatSet"
+    }
+    older = {key: value for key, value in RHYTHM_EXTRAS.items() if key != "metricsFormat"}
+    lgbm = SPECS["rhythm-lgbm"]
+    save_trained(lgbm, runs_dir, fit_baseline(lgbm), {**older, "development": development})
+    _release(models_dir, runs_dir)
+    card = (models_dir / _manifest(models_dir, runs_dir)["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
+    assert "premature-beat readings (dev-val): 0.301 (95% CI 0.085-0.612)." in card
 
 
 def test_refuses_without_parity_json(untrained):

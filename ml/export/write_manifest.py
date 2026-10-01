@@ -8,12 +8,13 @@ import onnx
 import onnxruntime
 import torch
 
-from export.provenance import check_parity, load_metrics, sha256_of, trained_source
+from export.provenance import ProvenanceError, check_parity, load_metrics, sha256_of, trained_source
 from export.specs import (
     MODELS_DIR,
     RUNS_DIR,
     SHIPPED,
     ModelSpec,
+    ShipRuleError,
     inside_models_dir,
     release_specs,
     shipped_per_family,
@@ -181,12 +182,18 @@ def _ship_note(spec: ModelSpec, metrics: dict | None) -> str:
     # ADR 0031: the app loads only the shipped model of each family; if it fails to load, the app runs
     # the classical rule in code (§11.10 "basic analysis"), not another model file.
     if spec.ships:
-        why = (
-            " It is a classical model; the neural network did not beat it on development subjects, so "
-            "it ships per §11.3 (ADR 0031) and the network is kept as the ablation model."
-            if spec.kind == "classifier"
-            else ""
-        )
+        decision = (metrics or {}).get("shipDecision")
+        why = ""
+        if decision:
+            # Rendered from the training run's own decision; check_ship_decisions has already refused a
+            # decision that names another model.
+            difference = decision["networkMinusBestBaselineAuroc"]
+            why = (
+                f" The development ablation picked it ({decision['criterion']}; network minus "
+                f"{decision['bestBaseline']}: {difference['estimate']:.4f}, "
+                f"95% CI {difference['low']:.4f} to {difference['high']:.4f}), "
+                "so it ships per §11.3 (ADR 0031)."
+            )
         return f"\n\nThis is the shipped {spec.family} model: the app loads it.{why}"
     decision = (metrics or {}).get("shipDecision")
     lost = (
@@ -209,6 +216,10 @@ def _measured_limits(spec: ModelSpec, metrics: dict | None) -> str:
     false_af = measured.get("falseAfRatePrematureReadings")
     if false_af:
         sample = development.get("prematureBeatSet")
+        # Format 2 files (train.rhythm since PR #49) always record the sample size, so a missing one
+        # means a broken file; older files predate the field and render without it.
+        if sample is None and metrics.get("metricsFormat", 1) >= 2:
+            raise ProvenanceError(f"{spec.name} metrics lack development.prematureBeatSet")
         size = f", {sample['subjects']} subjects, {sample['windows']} windows" if sample else ""
         lines.append(
             f"- False-AF rate on augmented premature-beat readings (dev-val{size}): "
@@ -253,6 +264,26 @@ def model_card(spec: ModelSpec, metrics: dict | None) -> str:
     return "\n\n".join(sections) + "\n"
 
 
+def check_ship_decisions(specs: list[ModelSpec], metrics_by_name: dict[str, dict | None]) -> None:
+    # A training run's shipDecision must agree with the ships flags in export/specs.py. Which model
+    # ships is the owner's decision (ADR 0031), so a disagreement is never resolved here.
+    shipped = {spec.family: spec.name for spec in specs if spec.ships}
+    problems = sorted(
+        {
+            f"{spec.name}'s metrics pick {decision['ships']} for {spec.family}, but the specs ship "
+            f"{shipped.get(spec.family)}"
+            for spec in specs
+            if (decision := (metrics_by_name[spec.name] or {}).get("shipDecision"))
+            and decision["ships"] != shipped.get(spec.family)
+        }
+    )
+    if problems:
+        raise ShipRuleError(
+            "; ".join(problems) + ". The owner decides which model ships (ADR 0031): ask the owner "
+            "before changing ships in export/specs.py or retraining."
+        )
+
+
 def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> Path:
     commit = git_commit()
     date = datetime.now(UTC).date().isoformat()
@@ -270,12 +301,13 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
         source_shas[spec.name] = metrics["sourceSha256"] if metrics else None
     entries = [manifest_entry(spec, models_dir, metrics_by_name[spec.name], commit, date) for spec in specs]
     shipped_per_family(entries)
-    # The ship rule above and parity are checked before anything is written, so a failure leaves no
-    # manifest or cards behind.
+    check_ship_decisions(specs, metrics_by_name)
     check_parity(models_dir, entries, source_shas)
-    for spec in specs:
-        card = model_card(spec, metrics_by_name[spec.name])
-        (models_dir / f"{spec.file_stem}.md").write_text(card, encoding="utf-8")
+    # Every check, and every card render, happens before anything is written, so a failure leaves no
+    # manifest or cards behind.
+    cards = {spec.file_stem: model_card(spec, metrics_by_name[spec.name]) for spec in specs}
+    for stem, card in cards.items():
+        (models_dir / f"{stem}.md").write_text(card, encoding="utf-8")
     path = models_dir / "manifest.json"
     path.write_text(json.dumps({"models": entries}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return path

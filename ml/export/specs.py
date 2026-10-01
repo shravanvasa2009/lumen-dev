@@ -10,6 +10,7 @@ from nets.rhythm_net import FEATURES, INTERVALS, LABELS, RhythmNet
 from nets.sqi_net import CHANNELS, WINDOW, SqiNet
 
 OPSET = 17
+SQI_RULE_FEATURES = 2
 ML_ROOT = Path(__file__).resolve().parents[1]
 # The repo-root models/ folder the app bundles and scripts/proof/m3.mjs reads.
 MODELS_DIR = ML_ROOT.parent / "models"
@@ -94,12 +95,15 @@ _DIABETES = ModelSpec(
     external_fields=("subjects", "auroc", "sensitivity", "specificity", "ci95", "ppvNpv", "floorMet"),
     size_budget_bytes=300 * 1024,
 )
-# §11.3 and §11.4 baselines on the networks' feature inputs, with the same output names, so the app can
+# §11.1–11.4 baselines on the networks' feature inputs, with the same output names, so the app can
 # swap one in without code changes. The rhythm logistic rule is not here yet: §11.1 gives it three
-# named features, and DSP-15 has not fixed which feature columns they are.
+# named features, and DSP-15 has not fixed which feature columns they are. sqi-rule is §11.1's rule SQI
+# without the acquisition checks, which need camera frames: a logistic regression on the window's
+# skewness and whether its spectral-peak heart rate is in range (train/sqi.py, RULE_FEATURES).
 _BASELINES = tuple(
     replace(network, name=name, kind="classifier", build=None, inputs=inputs, baseline_of=network.name)
     for network, name, inputs in (
+        (_SQI, "sqi-rule", {"features": [1, SQI_RULE_FEATURES]}),
         (_RHYTHM, "rhythm-lgbm", {"features": [1, FEATURES]}),
         (_DIABETES, "diabetes-lgbm", {"shapeFeatures": [1, SHAPE_FEATURES]}),
         (_DIABETES, "diabetes-logistic", {"shapeFeatures": [1, SHAPE_FEATURES]}),

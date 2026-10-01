@@ -54,6 +54,16 @@ jobs:
           npm run typecheck
           npm test
           npm run deadcode
+      - name: i18n keys match in English and Spanish (UI-2)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run i18n:check
+      - name: No hard-coded user-facing strings (UI-2, SAFE-1)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run lint:strings
+      # npm test already runs this; a separate step makes EVID-1 visible in the CI summary.
+      - name: Evidence labels (EVID-1)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:evidence
       - name: Expo prebuild smoke test
         if: hashFiles('apps/mobile/app.config.ts') != ''
         working-directory: apps/mobile

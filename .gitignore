@@ -8,9 +8,10 @@ coverage/
 *.tsbuildinfo
 .proof/
 
-# Generated native projects (Expo Continuous Native Generation)
-ios/
-android/
+# Generated native projects (Expo Continuous Native Generation); anchored so modules/*/ios and
+# modules/*/android, which hold hand-written native code, stay tracked.
+/apps/mobile/ios/
+/apps/mobile/android/
 
 # Secrets and signing material
 .env

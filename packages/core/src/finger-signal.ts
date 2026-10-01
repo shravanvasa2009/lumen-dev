@@ -15,6 +15,36 @@ export function fingerSignals(timebase: Timebase): FingerSignals {
   };
 }
 
+// Population SD (divide by n), sums in index order, so ml/lumen_dsp/signals.py gives the same doubles.
+/** DSP-3: z-score of one model-input window; null when the window is flat (SD 0), as nothing can be scored. */
+export function zScoreWindow(window: ArrayLike<number>): Float64Array | null {
+  const values = Array.from(window);
+  if (values.every((value) => value === values[0])) return null;
+  let total = 0;
+  for (const value of values) total += value;
+  const mean = total / values.length;
+  let squares = 0;
+  for (const value of values) squares += (value - mean) ** 2;
+  const sd = Math.sqrt(squares / values.length);
+  return Float64Array.from(values, (value) => (value - mean) / sd);
+}
+
+/** DSP-3: SQI-Net input (§11), channel-major [2, 256] float32: z-scored primary (−R), then secondary (−G). */
+export function sqiModelInput(primary: ArrayLike<number>, secondary: ArrayLike<number>): Float32Array | null {
+  const samples = DSP_CONFIG.dsp3.modelWindowS * DSP_CONFIG.dsp2.modelRateHz;
+  if (primary.length !== samples || secondary.length !== samples)
+    throw new RangeError(
+      `SQI windows need ${samples} samples per channel, got ${primary.length} and ${secondary.length}`,
+    );
+  const scoredPrimary = zScoreWindow(primary);
+  const scoredSecondary = zScoreWindow(secondary);
+  if (!scoredPrimary || !scoredSecondary) return null;
+  const input = new Float32Array(2 * samples);
+  input.set(scoredPrimary, 0);
+  input.set(scoredSecondary, samples);
+  return input;
+}
+
 /** DSP-3: DC level (zero-phase Butterworth low-pass below 0.3 Hz) of a uniformly sampled channel. */
 export function dcLevel(channel: ArrayLike<number>, rateHz: number): Float64Array {
   const { dcOrder, dcCutoffHz } = DSP_CONFIG.dsp3;

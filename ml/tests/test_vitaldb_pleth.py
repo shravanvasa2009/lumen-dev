@@ -15,8 +15,8 @@ from train.vitaldb_pleth import (
     PlethRecord,
     extract_case,
     read_pleth,
+    morphology_band,
     select_segments,
-    shape_band,
     window_reject_reason,
 )
 
@@ -102,15 +102,15 @@ def test_noise_without_a_pulse_is_rejected():
     assert window_reject_reason(noise) == "aperiodic"
 
 
-def test_shape_band_is_256_hz_and_band_limited():
+def test_morphology_band_at_256_hz_is_band_limited():
     seconds = SEGMENT_S
     t_s = np.arange(seconds * PLETH_RATE_HZ) / PLETH_RATE_HZ
     pulse = np.sin(2 * np.pi * 1.2 * t_s)
     drift = 5 * np.sin(2 * np.pi * 0.05 * t_s)
     hum = np.sin(2 * np.pi * 20 * t_s)
     codes = np.round(500 + 60 * (pulse + drift + hum)).astype(np.int16)
-    band = shape_band(codes, GAIN, OFFSET)
     rate = DSP_CONFIG["dsp2"]["shapeRateHz"]
+    band = morphology_band(codes, GAIN, OFFSET, rate)
     assert band.first_index == 0
     assert len(band.values) == seconds * rate
     spectrum = np.abs(np.fft.rfft(band.values[rate * 10 : -rate * 10]))
@@ -123,10 +123,10 @@ def test_shape_band_is_256_hz_and_band_limited():
     assert power_near(20) < 0.05 * power_near(1.2)
 
 
-def test_shape_band_skips_missing_samples():
+def test_morphology_band_skips_missing_samples():
     codes = pulse_codes(SEGMENT_S)
     codes[3000:3040] = MISSING_CODE
-    band = shape_band(codes, GAIN, OFFSET)
+    band = morphology_band(codes, GAIN, OFFSET, DSP_CONFIG["dsp2"]["shapeRateHz"])
     assert np.all(np.isfinite(band.values))
     assert len(band.values) == SEGMENT_S * DSP_CONFIG["dsp2"]["shapeRateHz"]
 
@@ -232,10 +232,11 @@ def test_dev_case_files_refuse_a_holdout_patient(tmp_path):
     assert vitaldb_pleth.dev_case_files({101: 1}, split, tmp_path) == [(101, 1, tmp_path / "0101.vital")]
 
 
-def test_load_segments_gives_the_shape_band(tmp_path):
+def test_load_segments_gives_both_dsp2_bands(tmp_path):
     vital = tmp_path / "0007.vital"
     write_vital(vital, pulse_codes(SEGMENT_S + 5))
     extract_case(7, 70, vital, tmp_path)
-    segments = vitaldb_pleth.load_shape_segments(7, tmp_path)
-    assert len(segments) == 1
-    assert len(segments[0].values) == SEGMENT_S * DSP_CONFIG["dsp2"]["shapeRateHz"]
+    segments = vitaldb_pleth.load_segments(7, tmp_path)
+    assert len(segments) == 1 and segments[0].start_s == 0.0
+    assert len(segments[0].model.values) == SEGMENT_S * DSP_CONFIG["dsp2"]["modelRateHz"]
+    assert len(segments[0].shape.values) == SEGMENT_S * DSP_CONFIG["dsp2"]["shapeRateHz"]

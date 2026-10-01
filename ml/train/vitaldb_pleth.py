@@ -102,10 +102,17 @@ def read_pleth(path: Path | str) -> PlethRecord | None:
     return PlethRecord.from_values(values, track.gain, track.offset)
 
 
-# §11.4 domain shift: DSP-2 resampling to 256 Hz, then the DSP-6 0.5-8 Hz morphology band.
-def shape_band(codes: np.ndarray, gain: float, offset: float) -> ResampledSegment:
+@dataclass(frozen=True)
+class SegmentBands:
+    start_s: float  # from the start of the case's recording
+    model: ResampledSegment  # DSP-7's 64 Hz input
+    shape: ResampledSegment  # 256 Hz: DSP-7 refinement, DSP-8 onsets, DSP-9 templates, DSP-14
+
+
+# §11.4 domain shift: DSP-2 resampling (64 or 256 Hz), then the DSP-6 0.5-8 Hz morphology band, the
+# chain the app runs on camera frames.
+def morphology_band(codes: np.ndarray, gain: float, offset: float, rate: int) -> ResampledSegment:
     present = np.flatnonzero(codes != MISSING_CODE)
-    rate = DSP_CONFIG["dsp2"]["shapeRateHz"]
     segments = resample_cubic(present / PLETH_RATE_HZ, codes[present] * gain + offset, rate)
     if len(segments) != 1:
         raise ValueError(f"PLETH window splits into {len(segments)} segments at gaps over DSP-2's limit")
@@ -140,8 +147,8 @@ def window_reject_reason(codes: np.ndarray) -> str | None:
     if _longest_run(np.diff(present) == 0) + 1 > FLAT_RUN_S * PLETH_RATE_HZ:
         return "flat"
     # The offset only shifts the signal, so the checks below run on codes.
-    band = shape_band(codes, 1.0, 0.0).values
     rate = DSP_CONFIG["dsp2"]["shapeRateHz"]
+    band = morphology_band(codes, 1.0, 0.0, rate).values
     block = AMPLITUDE_BLOCK_S * rate
     blocks = band[: len(band) // block * block].reshape(-1, block)
     amplitude = np.percentile(blocks, 95, axis=1) - np.percentile(blocks, 5, axis=1)
@@ -174,7 +181,7 @@ def select_segments(codes: np.ndarray, limit: int) -> tuple[list[int], dict[str,
     return starts, dict(rejections)
 
 
-def _write_atomic(path: Path, write) -> None:
+def write_atomic(path: Path, write) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     partial = path.with_name(path.name + ".partial")
     with partial.open("wb") as handle:
@@ -214,7 +221,7 @@ def extract_case(caseid: int, subjectid: int, vital_path: Path, out_dir: Path) -
             "startS": start_s,
         }
         if starts:
-            _write_atomic(
+            write_atomic(
                 _segments_path(caseid, out_dir),
                 lambda handle: np.savez_compressed(
                     handle,
@@ -226,14 +233,22 @@ def extract_case(caseid: int, subjectid: int, vital_path: Path, out_dir: Path) -
             )
     status["seconds"] = round(time.perf_counter() - started, 2)
     # The status file is written last, so its presence means the case finished.
-    _write_atomic(status_path, lambda handle: handle.write(json.dumps(status, indent=1).encode("utf-8")))
+    write_atomic(status_path, lambda handle: handle.write(json.dumps(status, indent=1).encode("utf-8")))
     return status
 
 
-def load_shape_segments(caseid: int, out_dir: Path) -> list[ResampledSegment]:
+def load_segments(caseid: int, out_dir: Path) -> list[SegmentBands]:
     cached = np.load(_segments_path(caseid, out_dir))
     gain, offset = float(cached["gain"]), float(cached["offset"])
-    return [shape_band(codes, gain, offset) for codes in cached["codes"]]
+    dsp2 = DSP_CONFIG["dsp2"]
+    return [
+        SegmentBands(
+            start_s=float(start_s),
+            model=morphology_band(codes, gain, offset, dsp2["modelRateHz"]),
+            shape=morphology_band(codes, gain, offset, dsp2["shapeRateHz"]),
+        )
+        for codes, start_s in zip(cached["codes"], cached["start_s"], strict=True)
+    ]
 
 
 def dev_case_files(

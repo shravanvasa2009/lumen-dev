@@ -60,9 +60,11 @@ if (root && gh.code === 0) {
   }
 }
 // Prefer the global eas command (HUMAN_STEPS installs it globally); fall back to a local eas-cli.
+// Run from the Expo app: outside an Expo project, eas writes a stub app.json into the working directory.
+const mobileDir = root ? path.join(root, 'apps', 'mobile') : undefined;
 const easCmd = (args) => {
-  const global = run('eas', args);
-  return global.missing ? run('npx', ['--no-install', 'eas-cli', ...args]) : global;
+  const global = run('eas', args, { cwd: mobileDir });
+  return global.missing ? run('npx', ['--no-install', 'eas-cli', ...args], { cwd: mobileDir }) : global;
 };
 const eas = easCmd(['whoami']);
 add('EAS CLI logged in', eas.code === 0, 'Run: npm install -g eas-cli, then: eas login');

@@ -16,7 +16,6 @@ export default function WelcomeScreen() {
   return (
     <Screen
       headerless
-      centered
       footer={
         <>
           <NavButton label={t('welcome.getStarted')} href="/consent" />
@@ -28,7 +27,7 @@ export default function WelcomeScreen() {
         </>
       }
     >
-      <View style={{ alignItems: 'center', gap: spacing.lg }}>
+      <View style={[styles.centeredBody, { gap: spacing.lg }]}>
         <LumenLockup width={LOCKUP_WIDTH} />
         <AppText accessibilityRole="header" style={styles.screenReaderOnly}>
           {t('app.name')}
@@ -44,6 +43,7 @@ export default function WelcomeScreen() {
 // The lockup is a drawing, so the app name is also given to screen readers as the screen heading.
 const styles = StyleSheet.create({
   screenReaderOnly: { position: 'absolute', width: 1, height: 1, overflow: 'hidden' },
+  centeredBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   centeredText: { textAlign: 'center' },
   tagline: { fontWeight: '400' },
 });

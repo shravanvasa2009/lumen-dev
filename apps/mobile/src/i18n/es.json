@@ -6,7 +6,6 @@
   "tabs.trends": "Tendencias",
   "tabs.learn": "Aprender",
   "tabs.settings": "Ajustes",
-  "consent.core": "Lumen es una herramienta de detección, no un diagnóstico.",
   "prototype.banner": "Prototipo de detección: no es un diagnóstico ni está aprobado por la FDA.",
   "result.notChecked": "No se revisó: presión arterial, oxígeno en la sangre ni infarto.",
   "result.inconclusive": "No hubo suficiente señal limpia.",
@@ -370,5 +369,6 @@
   "followUp.whatToAskBody": "Un electrocardiograma por el resultado del ritmo. Una prueba de sangre A1c por el patrón relacionado con la diabetes. Lleva tu informe de Lumen.",
   "language.en": "English",
   "language.es": "Español",
-  "language.label": "Idioma"
+  "language.label": "Idioma",
+  "onboarding.step": "Paso {{step}} de {{total}}"
 }

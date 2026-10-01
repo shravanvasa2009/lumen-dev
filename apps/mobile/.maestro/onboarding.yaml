@@ -12,6 +12,7 @@ name: Onboarding from welcome to Home
 - assertVisible: 'Get started'
 - tapOn: 'Get started'
 - assertVisible: "What Lumen is — and isn't"
+- tapOn: 'I understand Lumen is a screening tool, not a diagnosis.'
 - tapOn: 'Continue'
 - assertVisible: 'About you'
 - tapOn: 'Continue'

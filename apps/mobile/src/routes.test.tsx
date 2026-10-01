@@ -111,17 +111,24 @@ describe('navigation', () => {
     mockScheme = 'dark';
   });
 
-  function followButtons(startUrl: string, steps: readonly (readonly [keyof typeof en, keyof typeof en])[]) {
-    renderRouter(appDirectory, { initialUrl: startUrl });
+  type Step = readonly [keyof typeof en, keyof typeof en];
+
+  function pressThrough(steps: readonly Step[]) {
     for (const [button, nextTitle] of steps) {
       fireEvent.press(screen.getByRole('button', { name: en[button] }));
       expect(screen.getByRole('header', { name: en[nextTitle] })).toBeOnTheScreen();
     }
   }
 
+  function followButtons(startUrl: string, steps: readonly Step[]) {
+    renderRouter(appDirectory, { initialUrl: startUrl });
+    pressThrough(steps);
+  }
+
   it('walks the onboarding chain from welcome to Home', () => {
-    followButtons('/welcome', [
-      ['welcome.getStarted', 'consent.title'],
+    followButtons('/welcome', [['welcome.getStarted', 'consent.title']]);
+    fireEvent.press(screen.getByRole('checkbox', { name: en['consent.understand'] }));
+    pressThrough([
       ['common.continue', 'profile.title'],
       ['common.continue', 'phoneCheck.title'],
       ['phoneCheck.next', 'placement.title'],

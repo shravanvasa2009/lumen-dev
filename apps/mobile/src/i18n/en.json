@@ -6,7 +6,6 @@
   "tabs.trends": "Trends",
   "tabs.learn": "Learn",
   "tabs.settings": "Settings",
-  "consent.core": "Lumen is a screening tool, not a diagnosis.",
   "prototype.banner": "Screening prototype — not a diagnosis, not FDA-cleared.",
   "result.notChecked": "Not checked: blood pressure, blood oxygen, heart attack.",
   "result.inconclusive": "Not enough clean signal.",
@@ -370,5 +369,6 @@
   "followUp.whatToAskBody": "An ECG for the rhythm result. An A1c blood test for the diabetes pattern. Bring your Lumen report.",
   "language.en": "English",
   "language.es": "Español",
-  "language.label": "Language"
+  "language.label": "Language",
+  "onboarding.step": "Step {{step}} of {{total}}"
 }

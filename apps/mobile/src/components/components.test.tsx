@@ -110,7 +110,7 @@ describe.each([
     expect(dividerOf('Final')).toBe(0);
   });
 
-  it.each<IconName>(['home', 'trends', 'learn', 'settings', 'chevron'])(
+  it.each<IconName>(['home', 'trends', 'learn', 'settings', 'chevron', 'check', 'close', 'warning'])(
     'Icon %s draws strokes in the colour it is given',
     (name) => {
       render(<Icon name={name} size={24} color={colors.accent} />);

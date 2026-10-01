@@ -78,16 +78,29 @@ describe('live heart rate for the Lab screen (M0 proof method)', () => {
     const estimate = estimateLiveHeartRate(samples);
     expect(estimate).not.toBeNull();
     expect(Math.abs(estimate!.bpm - 72)).toBeLessThanOrEqual(1);
-    expect(estimate!.snrDb).toBeGreaterThanOrEqual(6);
+    expect(estimate!.snrDb).toBeGreaterThanOrEqual(DSP_CONFIG.liveHr.minSnrDb);
   });
 
-  it('uses only the last 10 s of a longer input', () => {
+  it('uses exactly the samples from the last 10 s of a longer input', () => {
     const fast = pulseRed(120);
     const slow = pulseRed(72);
     const samples = samplesAt(jitteredOffsets(30, 30, SAMPLE_JITTER_S), (tS) =>
       tS < 20 ? fast(tS) : slow(tS),
     );
-    expect(Math.abs(estimateLiveHeartRate(samples)!.bpm - 72)).toBeLessThanOrEqual(1);
+    const lastNs = samples[samples.length - 1]!.tNs;
+    const lastWindow = samples.filter((sample) => sample.tNs >= lastNs - DSP_CONFIG.liveHr.windowS * 1e9);
+    const estimate = estimateLiveHeartRate(samples)!;
+    // Same samples in, same numbers out: any older frame in the analysis would change bpm or SNR.
+    expect(estimate).toEqual(estimateLiveHeartRate(lastWindow));
+    expect(Math.abs(estimate.bpm - 72)).toBeLessThanOrEqual(1);
+  });
+
+  it('throws RangeError when timestamps do not strictly increase (ADR 0027: callers catch it)', () => {
+    const samples = samplesAt(regularOffsets(30, 10), pulseRed(72));
+    const repeated = [...samples.slice(0, 200), samples[199]!, ...samples.slice(200)];
+    const swapped = [...samples.slice(0, 200), samples[201]!, samples[200]!, ...samples.slice(202)];
+    expect(() => estimateLiveHeartRate(repeated)).toThrow(RangeError);
+    expect(() => estimateLiveHeartRate(swapped)).toThrow(RangeError);
   });
 
   it('returns null without enough data or without any pulse', () => {
@@ -133,8 +146,8 @@ describe('live heart rate for the Lab screen (M0 proof method)', () => {
     expect(estimate.snrDb).toBeCloseTo(reference.snrDb, 9);
   });
 
-  // §9.3 allows < 5 ms of JS per 100 ms batch; this runs once a second, so holding one call to the same
-  // 5 ms is conservative. The median ignores garbage-collection pauses on a shared CI runner.
+  // Regression guard, not a budget proof: §9.3's < 5 ms of JS is per 100 ms batch and shared by all live
+  // work, and this call is only part of it. The median ignores garbage-collection pauses on CI runners.
   it('takes under 5 ms per call (median) on 10 s at 60 fps', () => {
     const samples = samplesAt(jitteredOffsets(60, 10, SAMPLE_JITTER_S), pulseRed(72));
     for (let call = 0; call < 20; call++) estimateLiveHeartRate(samples);

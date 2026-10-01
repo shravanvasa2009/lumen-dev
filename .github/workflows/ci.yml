@@ -54,6 +54,16 @@ jobs:
           npm run typecheck
           npm test
           npm run deadcode
+      - name: i18n keys match in English and Spanish (UI-2)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run i18n:check
+      - name: No hard-coded user-facing strings (UI-2, SAFE-1)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run lint:strings
+      # npm test already runs this; a separate step makes EVID-1 visible in the CI summary.
+      - name: Evidence labels (EVID-1)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:evidence
       - name: Golden parity, TypeScript vs Python (DSP-C)
         if: hashFiles('package-lock.json') != ''
         run: npm run golden:check
@@ -91,7 +101,7 @@ jobs:
         run: uv run python -m lumen_dsp.golden --check
 
   e2e-android:
-    # UI flows in Replay mode on an Android emulator (Maestro). Track E finalizes the build step.
+    # UI flows on an Android emulator (Maestro) against a release APK; nothing here uses the camera.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -99,12 +109,35 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # React Native's Android build supports JDK 17; newer JDKs break the CMake configure step.
+      - uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Install
-        if: hashFiles('apps/mobile/.maestro/**') != ''
         run: npm ci
-      - name: Build, boot emulator, run Maestro flows
-        if: hashFiles('apps/mobile/.maestro/**') != ''
-        uses: reactivecircus/android-emulator-runner@v2 # VERIFY: current version and inputs
+      - name: Install Maestro CLI
+        env:
+          MAESTRO_VERSION: 2.11.0
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      # Built before the emulator boots so the emulator isn't competing with Gradle for memory.
+      - name: Build release APK
+        working-directory: apps/mobile
+        run: |
+          npx expo prebuild -p android --no-install
+          cd android && ./gradlew app:assembleRelease -PreactNativeArchitectures=x86_64
+      # Snippet from the android-emulator-runner README; the emulator needs KVM to boot in reasonable time.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Boot emulator and run Maestro flows
+        uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 34
+          arch: x86_64
+          target: google_apis
           script: npm run e2e:android

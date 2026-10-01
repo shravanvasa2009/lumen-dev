@@ -58,7 +58,7 @@ export const DSP_CONFIG = {
   // Lab-screen live HR (ADR 0027): the M0 proof's method and limits (§18), not DSP-11. The spectrum runs
   // on the dsp2.modelRateHz grid.
   liveHr: {
-    windowS: 10, // analyse only the last 10 s of the input
+    windowS: 10,
     // Longest gap-free (DSP-2) stretch needed: ≥ 5 pulse cycles at 40 bpm, and a 0.125 Hz bin spacing.
     minSegmentS: 8,
     detrendHalfWidthS: 1.5, // the proof subtracts a moving average over ±1.5 s

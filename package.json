@@ -33,7 +33,7 @@
     "test:changed": "npm run test --workspaces --if-present -- --onlyChanged",
     "deadcode": "knip",
     "golden:check": "npm test -w @lumen/core -- golden",
-    "test:synthetic": "npm test -w @lumen/core -- synthetic-suite",
+    "test:synthetic": "npm test -w @lumen/core -- synthetic-suite --testPathIgnorePatterns=/node_modules/",
     "test:redteam": "node scripts/not-yet.mjs test:redteam",
     "test:routes": "npm run test:routes -w @lumen/mobile",
     "test:fallback": "node scripts/not-yet.mjs test:fallback",

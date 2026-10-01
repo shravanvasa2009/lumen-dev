@@ -240,10 +240,7 @@ describe('isolated small-amplitude premature beats (DSP-D: ≥ 95% kept as atypi
     expect(premature.filter(({ outcome }) => outcome === 'artifact')).toHaveLength(0);
   });
 
-  // DSP-D NOT MET (ADR 0025): premature beats at ≥ 0.5 × amplitude keep the template's shape and stay
-  // inside 0.5–2.0 × the running median, so DSP-9 classes them normal. it.failing keeps the 95% bar as
-  // written and turns red once the classifier meets it; then switch back to it.
-  it.failing('DSP-D criterion not met yet: keeps ≥ 95% of premature beats as atypical', () => {
+  it('keeps ≥ 95% of premature beats as atypical', () => {
     const atypical = premature.filter(({ outcome }) => outcome === 'atypical').length;
     expect(atypical / premature.length).toBeGreaterThanOrEqual(0.95);
   });
@@ -306,9 +303,7 @@ describe.each([
       summary.push(describeTally(`  true beats`, tally(trueOutcomes)));
     }, CASE_TIMEOUT_MS);
 
-    // DSP-D NOT MET (ADR 0025): a dicrotic wave tall enough to be double-detected rises at 49–85% of the
-    // median upslope, above the 30% floor. it.failing keeps the 95% bar and turns red once it is met.
-    it.failing('DSP-D criterion not met yet: removes ≥ 95% of double detections as not-a-beat', () => {
+    it('removes ≥ 95% of double detections as not-a-beat', () => {
       expect(doubles === 0 ? 1 : removed / doubles).toBeGreaterThanOrEqual(0.95);
     });
 

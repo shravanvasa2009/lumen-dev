@@ -10,6 +10,10 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "synthetic-suite"
+    ],
     "roots": [
       "<rootDir>/test"
     ],

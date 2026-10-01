@@ -9,6 +9,7 @@ const body: CaptureRequestBody = {
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
+  jest.useRealTimers();
   globalThis.fetch = realFetch;
 });
 
@@ -27,6 +28,7 @@ test('posts the body with the token header and returns the folder the receiver c
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-lumen-token': 'abc123' },
     body: JSON.stringify(body),
+    signal: expect.objectContaining({ aborted: false }),
   });
 });
 
@@ -60,4 +62,17 @@ test('passes a network failure through to the caller', async () => {
     throw new TypeError('Network request failed');
   });
   await expect(sendCapture('10.0.2.2:8787', 't', body)).rejects.toThrow('Network request failed');
+});
+
+test('gives up with a clear message when the receiver never answers', async () => {
+  jest.useFakeTimers();
+  globalThis.fetch = jest.fn(
+    (_url: string, init: { signal: AbortSignal }) =>
+      new Promise<Response>((_resolve, reject) =>
+        init.signal.addEventListener('abort', () => reject(new Error('Aborted'))),
+      ),
+  ) as unknown as typeof fetch;
+  const sent = sendCapture('192.168.1.99:8787', 't', body);
+  jest.advanceTimersByTime(30_000);
+  await expect(sent).rejects.toThrow('no reply from the receiver within 30 s');
 });

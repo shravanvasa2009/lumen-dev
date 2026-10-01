@@ -70,6 +70,9 @@ jobs:
       - name: README tested-devices table matches devices.json
         if: hashFiles('package-lock.json') != ''
         run: npm run devices:table -- --check
+      - name: Red-team suite (§16)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:redteam
       - name: Expo prebuild smoke test
         if: hashFiles('apps/mobile/app.config.ts') != ''
         working-directory: apps/mobile

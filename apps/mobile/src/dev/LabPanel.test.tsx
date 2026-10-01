@@ -515,3 +515,33 @@ test('shows the RangeError for repeated timestamps instead of a number', async (
   expect(screen.getByText(en['lab.liveHrNone'])).toBeOnTheScreen();
   expect(screen.getByText(new RegExp(`^${en['lab.liveHrError'].split('{{')[0]}`))).toBeOnTheScreen();
 });
+
+test('with no torch on the phone, the torch starts Off and only Off can be chosen (ADR 0029)', async () => {
+  const recording = syntheticRecording();
+  recording.capabilities = {
+    ...recording.capabilities,
+    rearLenses: [{ id: 'synthetic-wide', kind: 'wide', maxFps: 50, torchUsable: false }],
+    torch: { available: false, levels: false },
+  };
+  const replay = new ReplayCapture(recording);
+  const start = jest.spyOn(replay, 'start');
+  await renderWithPhone(replay);
+  expect(screen.getByRole('button', { name: en['lab.torchOff'] })).toBeSelected();
+  expect(screen.getByRole('button', { name: en['lab.torchOn'] })).toBeDisabled();
+
+  await press(en['lab.start']);
+  expect(start).toHaveBeenCalledWith({ torchLevel: 0 });
+});
+
+test('a lens without a torch disables every torch choice but Off until another lens is picked', async () => {
+  await renderWithPhone(new ReplayCapture(withUltrawideWithoutTorch()));
+  const level = (value: number) =>
+    screen.getByRole('button', { name: fill(en['lab.torchLevel'], { level: value }) });
+  await press(ultraLabel);
+  expect(level(1)).toBeDisabled();
+  expect(level(0.25)).toBeDisabled();
+  expect(screen.getByRole('button', { name: en['lab.torchOff'] })).toBeEnabled();
+
+  await press(en['lab.lensDefault']);
+  expect(level(1)).toBeEnabled();
+});

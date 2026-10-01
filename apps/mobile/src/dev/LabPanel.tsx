@@ -85,7 +85,7 @@ function RedTrace({ values }: { values: readonly number[] }) {
   );
 }
 
-type Choice<T> = { key: string; label: string; value: T };
+type Choice<T> = { key: string; label: string; value: T; disabled?: boolean };
 
 function ChoiceRow<T>({
   choices,
@@ -103,12 +103,13 @@ function ChoiceRow<T>({
     <View style={[styles.choices, { gap: spacing.sm }]}>
       {choices.map((choice) => {
         const selected = choice.value === chosen;
+        const off = disabled || choice.disabled === true;
         return (
           <Pressable
             key={choice.key}
             accessibilityRole="button"
-            accessibilityState={{ selected, disabled }}
-            disabled={disabled}
+            accessibilityState={{ selected, disabled: off }}
+            disabled={off}
             onPress={() => onChoose(choice.value)}
             style={[
               styles.choice,
@@ -118,7 +119,7 @@ function ChoiceRow<T>({
                 borderRadius: radius.pill,
                 borderColor: selected ? colors.accentFill : colors.line2,
                 backgroundColor: selected ? colors.accentFill : 'transparent',
-                opacity: disabled ? 0.5 : 1,
+                opacity: off ? 0.5 : 1,
               },
             ]}
           >
@@ -230,7 +231,10 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
     capture
       .getCapabilities()
       .then((capabilities) => {
-        if (mounted.current) setPhoneShown(capabilities);
+        if (!mounted.current) return;
+        setPhoneShown(capabilities);
+        // Native rejects start() with a torch level when the phone has no torch (ADR 0029 addendum).
+        if (!capabilities.torch.available) setTorchLevel(0);
       })
       .catch((error: unknown) => {
         if (mounted.current) setFailure(reasonOf(error));
@@ -451,10 +455,12 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   ];
   // Phones without torch levels only take on (1) or off (0).
   const hasLevels = phoneShown?.torch.levels === true;
+  const torchUsable = phoneShown?.torch.available !== false && pickedLens?.torchUsable !== false;
   const torchChoices: Choice<number>[] = (hasLevels ? TORCH_LEVELS : TORCH_ON_OFF).map((level) => ({
     key: String(level),
     label: level === 0 ? t('lab.torchOff') : hasLevels ? t('lab.torchLevel', { level }) : t('lab.torchOn'),
     value: level,
+    disabled: level !== 0 && !torchUsable,
   }));
 
   const canSend = !running && recorded !== null && frames > 0 && address.trim() !== '' && token.trim() !== '';

@@ -7,6 +7,7 @@ import tokens from '@/theme/tokens.json';
 import { AppText } from './AppText';
 import { Button } from './Button';
 import { Card } from './Card';
+import { Icon, type IconName } from './Icon';
 import { ListRow } from './ListRow';
 import { Screen } from './Screen';
 
@@ -108,6 +109,26 @@ describe.each([
       StyleSheet.flatten(screen.getByRole('button', { name }).props.style).borderBottomWidth;
     expect(dividerOf('First')).toBeGreaterThan(0);
     expect(dividerOf('Final')).toBe(0);
+  });
+
+  it.each<IconName>(['home', 'trends', 'learn', 'settings', 'chevron', 'check', 'close'])(
+    'Icon %s draws strokes in the colour it is given',
+    (name) => {
+      render(<Icon name={name} size={24} color={colors.accent} />);
+      const drawn = JSON.stringify(screen.toJSON());
+      expect(drawn).toContain('RNSVGPath');
+      // react-native-svg serialises a colour as opaque ARGB.
+      const opaqueArgb = Number.parseInt(colors.accent.slice(1), 16) + 0xff000000;
+      expect(drawn).toContain(`"stroke":{"type":0,"payload":${opaqueArgb}}`);
+    },
+  );
+
+  it('ListRow shows a chevron only when asked', () => {
+    const { unmount } = render(<ListRow title="Goes" chevron onPress={jest.fn()} />);
+    expect(JSON.stringify(screen.toJSON())).toContain('RNSVGSvgView');
+    unmount();
+    render(<ListRow title="Stays" onPress={jest.fn()} />);
+    expect(JSON.stringify(screen.toJSON())).not.toContain('RNSVGSvgView');
   });
 
   it('AppText applies the type scale and tone colour', () => {

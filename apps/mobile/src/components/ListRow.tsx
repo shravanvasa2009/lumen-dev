@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from '@/theme';
 
 import { AppText } from './AppText';
+import { Icon } from './Icon';
 
 type ListRowProps = {
   title: string;
@@ -11,10 +12,11 @@ type ListRowProps = {
   trailing?: ReactNode;
   // The last row of a grouped card has no divider under it.
   last?: boolean;
+  chevron?: boolean;
   onPress?: () => void;
 };
 
-export function ListRow({ title, subtitle, trailing, last = false, onPress }: ListRowProps) {
+export function ListRow({ title, subtitle, trailing, last = false, chevron = false, onPress }: ListRowProps) {
   const { colors, spacing, control } = useTheme();
   return (
     <Pressable
@@ -42,6 +44,7 @@ export function ListRow({ title, subtitle, trailing, last = false, onPress }: Li
         ) : null}
       </View>
       {trailing}
+      {chevron ? <Icon name="chevron" size={control.chevronSize} color={colors.textFaint} /> : null}
     </Pressable>
   );
 }

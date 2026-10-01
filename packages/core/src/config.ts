@@ -41,8 +41,8 @@ export const DSP_CONFIG = {
   dsp9: {
     // Not a beat when its maximum upslope < this × the median upslope. Owner decision H-016 (ADR 0025):
     // 0.15, not the spec's 0.3, which removed small premature beats riding on the previous beat's
-    // falling side. A foot-level dicrotic rule was tried and withdrawn: on BUT PPG it removed 3-5% of
-    // real beats.
+    // falling side. A foot-level dicrotic rule was tried and withdrawn because it removed real beats
+    // on BUT PPG (ADR 0025).
     notABeatUpslopeRatio: 0.15,
     // Spec values (§10 DSP-9).
     artifactIntervalS: [0.25, 2.5], // an interval outside this range makes its ending beat an artifact

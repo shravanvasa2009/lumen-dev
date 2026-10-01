@@ -63,7 +63,7 @@ export function classifyBeats(
   // Intervals run between consecutive beats that are not "not a beat"; the first beat has none.
   const previousBeat: (number | null)[] = [];
   let lastBeat: number | null = null;
-  beats.forEach((beat, i) => {
+  beats.forEach((_, i) => {
     previousBeat.push(lastBeat);
     if (classes[i] !== 'not-a-beat') lastBeat = i;
   });
@@ -107,7 +107,7 @@ export function classifyBeats(
   candidates.forEach((i, p) => {
     const reference = median(neighboursOf(candidates, p, config.neighbours).map((j) => beats[j]!.amplitude));
     const ratio = beats[i]!.amplitude / reference;
-    const window = windows[p]!;
+    const window = windows[p] ?? null;
     const template =
       normalWindows.length > 0
         ? pointwise(normalWindows.slice(-config.templateBeats), mean)

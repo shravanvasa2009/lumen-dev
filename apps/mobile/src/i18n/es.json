@@ -348,5 +348,13 @@
   "why.explainIrregular": "Tus intervalos cambiaron sin un patrón que se repita.",
   "why.explainRegular": "Tus intervalos se mantuvieron parecidos de un latido al siguiente.",
   "why.rhythmCheck": "Revisión de ritmo con IA",
-  "why.extraBeatsNote": "{{rate}} por minuto · los latidos extra frecuentes también pueden parecer irregulares"
+  "why.extraBeatsNote": "{{rate}} por minuto · los latidos extra frecuentes también pueden parecer irregulares",
+  "inconclusive.generic": "No pudimos reunir suficientes segundos limpios. Inténtalo de nuevo con los consejos de abajo.",
+  "inconclusive.gotOnly": "Obtuvimos {{seconds}} segundos limpios.",
+  "inconclusive.got": "Obtuvimos {{seconds}} segundos limpios. Casi todo el tiempo perdido fue por {{cause}}.",
+  "inconclusive.causeMovement": "movimiento",
+  "inconclusive.causePressure": "presión",
+  "inconclusive.causeLight": "luz",
+  "inconclusive.rowSeconds": "{{label}} {{seconds}} s",
+  "inconclusive.close": "Cerrar"
 }

@@ -348,5 +348,13 @@
   "why.explainIrregular": "Your intervals changed without a repeating pattern.",
   "why.explainRegular": "Your intervals stayed close to each other from one beat to the next.",
   "why.rhythmCheck": "AI rhythm check",
-  "why.extraBeatsNote": "{{rate}} per minute · frequent extra beats can also look irregular"
+  "why.extraBeatsNote": "{{rate}} per minute · frequent extra beats can also look irregular",
+  "inconclusive.generic": "We couldn't collect enough clean seconds. Try again with the tips below.",
+  "inconclusive.gotOnly": "We got {{seconds}} clean seconds.",
+  "inconclusive.got": "We got {{seconds}} clean seconds. Most of the lost time was {{cause}}.",
+  "inconclusive.causeMovement": "movement",
+  "inconclusive.causePressure": "pressure",
+  "inconclusive.causeLight": "light",
+  "inconclusive.rowSeconds": "{{label}} {{seconds}} s",
+  "inconclusive.close": "Close"
 }

@@ -8,8 +8,8 @@ const checks = [];
 const add = (name, ok, fix) => checks.push({ name, ok, fix });
 const version = (cmd, args = ['--version']) => run(cmd, args);
 
-const nodeMajor = Number(process.versions.node.split('.')[0]);
-add(`Node ${process.versions.node} (LTS 20 or newer)`, nodeMajor >= 20, 'Install the current LTS from https://nodejs.org');
+const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
+add(`Node ${process.versions.node} (22.13 or newer, required by Expo SDK 57)`, nodeMajor > 22 || (nodeMajor === 22 && nodeMinor >= 13), 'Install the current LTS from https://nodejs.org');
 add('npm', version('npm').code === 0, 'npm ships with Node; reinstall Node LTS');
 const git = version('git');
 add('git', git.code === 0, 'Install Git for Windows from https://git-scm.com/download/win');

@@ -52,3 +52,8 @@ secrets/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Expo-generated files
+expo-env.d.ts
+.kotlin/
+.metro-health-check*

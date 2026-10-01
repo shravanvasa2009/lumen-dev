@@ -19,6 +19,7 @@ def test_beats_json_joins_the_existing_files_without_changing_them():
         "zscore.json",
         "rhythm.json",
         "beats.json",
+        "shape.json",
     ]
 
 

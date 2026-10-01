@@ -47,3 +47,4 @@ export {
   type Upstroke,
 } from './beats';
 export { classifyBeats } from './beat-classes';
+export { ensembleBeat, savgolFilter, type PulseShape, type WaveLabels } from './pulse-shape';

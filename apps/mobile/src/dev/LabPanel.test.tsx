@@ -48,6 +48,19 @@ const press = async (label: string) => {
   });
 };
 
+// react-native loads its components lazily, so the first full render in a test process loads and
+// Babel-transforms TextInput, Pressable, and the Fabric renderer. Measured on the owner's 28-thread
+// PC with a cold Jest cache and the whole mobile suite running in parallel: 4.3-6.1 s in the first
+// test that starts a capture (past Jest's 5 s default) and 4.5-5.5 s in this hook; under 0.4 s once
+// loaded. One render here pays that cost with room to spare, so each test's 5 s is for its own work.
+const COLD_RENDER_MS = 30_000;
+beforeAll(async () => {
+  const { unmount } = render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  // Lets getCapabilities() resolve so the lens and torch options render too.
+  await act(async () => {});
+  unmount();
+}, COLD_RENDER_MS);
+
 const realFetch = globalThis.fetch;
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => {
@@ -56,7 +69,7 @@ afterEach(() => {
 });
 
 async function recordWholeReplay() {
-  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
   await press(en['lab.start']);
   await act(async () => {
     jest.advanceTimersByTime(2500);
@@ -75,7 +88,7 @@ test('says so when the build has neither the camera module nor a recording', () 
 });
 
 test('drives a ReplayCapture: permission, live trace, status, and frame count', async () => {
-  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
   expect(screen.getByText(en['lab.sourceReplay'])).toBeOnTheScreen();
 
   await press(en['lab.askPermission']);
@@ -137,7 +150,7 @@ test('a second Start press while the first is pending does not record every fram
       ({ status: 201, text: async () => JSON.stringify({ folder: 'f' }) }) as Response,
   );
   globalThis.fetch = fetchMock as unknown as typeof fetch;
-  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
   await act(async () => {
     const start = screen.getByRole('button', { name: en['lab.start'] });
     fireEvent.press(start);
@@ -167,6 +180,7 @@ test('stops the camera if the screen closes while start() is pending, and report
   const stop = jest.spyOn(replay, 'stop').mockRejectedValue(new Error('camera busy'));
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   const { unmount } = render(<LabPanel capture={replay} />);
+  await act(async () => undefined);
 
   await press(en['lab.start']);
   expect(screen.getByRole('button', { name: en['lab.start'] })).toBeDisabled();
@@ -181,7 +195,7 @@ test('stops the camera if the screen closes while start() is pending, and report
 });
 
 test('shows the thermal state from the status event', async () => {
-  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
   await press(en['lab.start']);
   await act(async () => {
     jest.advanceTimersByTime(500);
@@ -474,4 +488,107 @@ test('a new lock clears the previous error', async () => {
   await press(en['lab.lockExposure']);
   expect(screen.queryByText(failed)).toBeNull();
   expect(screen.getByText(en['lab.lockDone'])).toBeOnTheScreen();
+});
+
+// SYNTHETIC: 12 s of a clean 1.2 Hz (72 bpm) sine in red at 30 fps, long enough for core's 8 s segment.
+function pulseRecording(): RecordedCapture {
+  const recording = syntheticRecording();
+  const tNs = Array.from({ length: 360 }, (_, i) => 1e12 + (i * 1e9) / 30);
+  recording.samples = {
+    tNs,
+    r: tNs.map((_, i) => 0.6 + 0.01 * Math.sin(2 * Math.PI * 1.2 * (i / 30))),
+    g: tNs.map(() => 0.1),
+    b: tNs.map(() => 0.1),
+  };
+  delete recording.stats;
+  return recording;
+}
+
+async function playFor(recording: RecordedCapture, ms: number) {
+  await renderWithPhone(new ReplayCapture(recording));
+  await press(en['lab.start']);
+  await act(async () => {
+    jest.advanceTimersByTime(ms);
+  });
+}
+
+test('shows the live heart rate and SNR from @lumen/core once 10 s of pulse have arrived', async () => {
+  await playFor(pulseRecording(), 12500);
+  expect(screen.getByText(/^Live heart rate \(Lab only\): 72 bpm · SNR \d+\.\d dB$/)).toBeOnTheScreen();
+});
+
+test('shows a dash while core has no estimate', async () => {
+  // 2.5 s of pulse: core runs on a window shorter than its 8 s segment and returns no estimate.
+  await playFor(pulseRecording(), 2500);
+  expect(screen.getByText(en['lab.liveHrNone'])).toBeOnTheScreen();
+});
+
+test('drops the old bpm when the clock steps back more than 1 s', async () => {
+  const recording = pulseRecording();
+  const { tNs, r, g, b } = recording.samples;
+  const steppedNs = Array.from({ length: 30 }, (_, i) => 1e12 - 20e9 + (i * 1e9) / 30);
+  recording.samples = {
+    tNs: [...tNs, ...steppedNs],
+    r: [...r, ...steppedNs.map(() => 0.6)],
+    g: [...g, ...steppedNs.map(() => 0.1)],
+    b: [...b, ...steppedNs.map(() => 0.1)],
+  };
+  await playFor(recording, 11900);
+  expect(screen.getByText(/^Live heart rate \(Lab only\): 72 bpm/)).toBeOnTheScreen();
+
+  await act(async () => {
+    jest.advanceTimersByTime(600);
+  });
+  expect(screen.getByText(en['lab.liveHrNone'])).toBeOnTheScreen();
+});
+
+test('shows the RangeError for repeated timestamps instead of a number', async () => {
+  const recording = pulseRecording();
+  recording.samples.tNs[300] = recording.samples.tNs[299]!;
+  await playFor(recording, 12500);
+  expect(screen.getByText(en['lab.liveHrNone'])).toBeOnTheScreen();
+  expect(screen.getByText(new RegExp(`^${en['lab.liveHrError'].split('{{')[0]}`))).toBeOnTheScreen();
+});
+
+test('keeps Start disabled until the phone capabilities arrive, so a torchless phone is not sent level 1', async () => {
+  const recording = syntheticRecording();
+  recording.capabilities = { ...recording.capabilities, torch: { available: false, levels: false } };
+  const replay = new ReplayCapture(recording);
+  const start = jest.spyOn(replay, 'start');
+  render(<LabPanel capture={replay} />);
+  expect(screen.getByRole('button', { name: en['lab.start'] })).toBeDisabled();
+
+  await act(async () => undefined);
+  await press(en['lab.start']);
+  expect(start).toHaveBeenCalledWith({ torchLevel: 0 });
+});
+
+test('with no torch on the phone, the torch starts Off and only Off can be chosen (ADR 0029)', async () => {
+  const recording = syntheticRecording();
+  recording.capabilities = {
+    ...recording.capabilities,
+    rearLenses: [{ id: 'synthetic-wide', kind: 'wide', maxFps: 50, torchUsable: false }],
+    torch: { available: false, levels: false },
+  };
+  const replay = new ReplayCapture(recording);
+  const start = jest.spyOn(replay, 'start');
+  await renderWithPhone(replay);
+  expect(screen.getByRole('button', { name: en['lab.torchOff'] })).toBeSelected();
+  expect(screen.getByRole('button', { name: en['lab.torchOn'] })).toBeDisabled();
+
+  await press(en['lab.start']);
+  expect(start).toHaveBeenCalledWith({ torchLevel: 0 });
+});
+
+test('a lens without a torch disables every torch choice but Off until another lens is picked', async () => {
+  await renderWithPhone(new ReplayCapture(withUltrawideWithoutTorch()));
+  const level = (value: number) =>
+    screen.getByRole('button', { name: fill(en['lab.torchLevel'], { level: value }) });
+  await press(ultraLabel);
+  expect(level(1)).toBeDisabled();
+  expect(level(0.25)).toBeDisabled();
+  expect(screen.getByRole('button', { name: en['lab.torchOff'] })).toBeEnabled();
+
+  await press(en['lab.lensDefault']);
+  expect(level(1)).toBeEnabled();
 });

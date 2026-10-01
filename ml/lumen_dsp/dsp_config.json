@@ -41,6 +41,16 @@
     "earlyIntervalRatio": 0.85,
     "earlySmallAmplitudeRatio": 1.0
   },
+  "dsp14": {
+    "minNormalBeats": 20,
+    "beatSamples": 256,
+    "leadFraction": 0.1,
+    "systoleFraction": 0.7,
+    "maxPeriodRatio": 1.5,
+    "savgolWindow": 9,
+    "savgolOrder": 3,
+    "minFps": 60
+  },
   "dsp15": {
     "windowIntervals": 32,
     "windowStep": 16,

@@ -2,10 +2,12 @@ import numpy as np
 import pytest
 import torch
 
-from export.specs import REQUIRED, SPECS
+from export.specs import SPECS
 from export.to_onnx import source_model
 from nets.rhythm_net import RhythmNet
 from nets.sqi_net import SqiNet
+
+NETWORKS = sorted(name for name, spec in SPECS.items() if spec.kind == "torch")
 
 
 def _parameter_count(model: torch.nn.Module) -> int:
@@ -19,7 +21,7 @@ def _rhythm_inputs(batch: int, valid: int) -> tuple[torch.Tensor, torch.Tensor, 
     return intervals, mask, torch.randn(batch, 8, generator=generator)
 
 
-@pytest.mark.parametrize("name", REQUIRED)
+@pytest.mark.parametrize("name", NETWORKS)
 def test_output_shape_and_probability_range(name):
     spec = SPECS[name]
     model = source_model(spec, runs_dir=None, random_seed=1)

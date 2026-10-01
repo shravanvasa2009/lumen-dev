@@ -11,6 +11,8 @@
   "result.notChecked": "No se revisó: presión arterial, oxígeno en la sangre ni infarto.",
   "result.inconclusive": "No hubo suficiente señal limpia.",
   "safety.question": "¿Tienes ahora dolor de pecho, desmayo o mucha falta de aire?",
+  "emergency.title": "Busca ayuda ahora",
+  "emergency.call": "Llama al 911",
   "appearance.title": "Apariencia",
   "appearance.system": "Usar la configuración del sistema",
   "placement.flashOutsideBump": "Coloca la yema del dedo plana sobre el flash y el lente de arriba.",
@@ -228,5 +230,16 @@
   "lockScreen.timer": "Temporizador en vivo",
   "lockScreen.nextReading": "Próxima medición en",
   "lockScreen.tap": "Toca para medir",
-  "lockScreen.reminder": "Recordatorio"
+  "lockScreen.reminder": "Recordatorio",
+  "emergency.body": "Dolor de pecho, desmayo o dificultad para respirar junto con una lectura inusual del corazón pueden ser una emergencia.",
+  "emergency.okay": "Estoy bien: volver",
+  "emergency.stroke": "Señales de derrame cerebral — BE FAST",
+  "emergency.strokeLetters": "Balance · Ojos · Rostro · Brazo · Habla · Hora de llamar al 911",
+  "followUp.title": "¿Pudiste ver a un médico?",
+  "followUp.subtitle": "Hace una semana Lumen sugirió una visita al médico. Tu respuesta se queda en este teléfono.",
+  "followUp.saw": "Sí, vi a un médico",
+  "followUp.booked": "Reservé una cita",
+  "followUp.notYet": "Todavía no",
+  "followUp.whatToAsk": "Qué pedir",
+  "followUp.whatToAskBody": "Un electrocardiograma por el resultado del ritmo. Una prueba de sangre A1c por el patrón relacionado con la diabetes. Lleva tu informe de Lumen."
 }

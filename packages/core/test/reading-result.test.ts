@@ -48,6 +48,7 @@ const CONTEXT: ReadingContext = {
   recordedAt: { ms: NOW_MS, day: '2026-10-04' },
   motionSpans: [],
   sqi: null,
+  validationRhythmLabel: null,
 };
 // SQI scores are only needed for "high" confidence; one passing window per second.
 const PASSING_SQI = {
@@ -314,6 +315,23 @@ describe('RMSSD card (DSP-12, §6.2 Full tier)', () => {
     expect(build(BASE, NO_MODELS).metrics.rmssd).toBeNull();
     expect(build(analysisWith({}, { tier: 'basic' })).metrics.rmssd).toBeNull();
     expect(build(analysisWith({}, { captureFps: 30 })).metrics.rmssd).toBeNull();
+  });
+
+  it('validation only: a labelled sinus rhythm opens the DSP-12 gate when no rhythm model ran', () => {
+    const labelled = analysisWith({}, { validationRhythmLabel: 'sinus' });
+    const outcome = build(labelled, NO_MODELS);
+    expect(outcome.metrics.rmssd!.value).toBeCloseTo(build(BASE).metrics.rmssd!.value, 12);
+    // The label never makes a rhythm card or changes the headline.
+    expect(outcome.metrics.rhythm).toBeNull();
+    expect(outcome.headlineKey).toBe('result.uncertain');
+    expect(build(analysisWith({}, { validationRhythmLabel: 'af' }), NO_MODELS).metrics.rmssd).toBeNull();
+    expect(
+      build(analysisWith({}, { validationRhythmLabel: 'sinus', tier: 'basic' }), NO_MODELS).metrics.rmssd,
+    ).toBeNull();
+  });
+
+  it('ignores the rhythm label whenever a rhythm model output is supplied', () => {
+    expect(build(analysisWith({}, { validationRhythmLabel: 'sinus' }), AF).metrics.rmssd).toBeNull();
   });
 
   it('adds the personal band (median ± 1.5 IQR) after 7 earlier readings', () => {

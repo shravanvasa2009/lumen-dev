@@ -7,6 +7,7 @@ import { loadCore } from './core.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const TIERS = ['full', 'basic', 'limited'];
+const RHYTHM_CLASSES = ['sinus', 'af', 'other'];
 const NO_MODELS = { rhythm: null, diabetes: null };
 const DEFAULT_PROFILE = { athlete: false, betaBlocker: false, pacemaker: false, knownAf: false };
 
@@ -36,9 +37,20 @@ function readCapture(folder) {
   return { samples, stats, meta };
 }
 
+// --rhythm-from-label (validation only, ADR 0041): meta.labels.rhythm stands in for the rhythm class in
+// the DSP-12 gate. It must be one of the rhythm model's classes.
+function rhythmLabel(meta) {
+  const label = meta.labels?.rhythm;
+  if (!RHYTHM_CLASSES.includes(label))
+    throw new Error(
+      `--rhythm-from-label needs meta.labels.rhythm in ${RHYTHM_CLASSES.join('/')}, got ${label}`,
+    );
+  return label;
+}
+
 // Lab captures (Appendix B meta) may lack fps and rating. Without fps, the format rate is taken as the
 // whole number nearest the median frame rate; without a rating the phone is unrated (ADR 0041).
-function contextFromMeta(meta, samples) {
+function contextFromMeta(meta, samples, validationRhythmLabel) {
   let captureFps = meta.fps;
   if (typeof captureFps !== 'number') {
     const gaps = samples
@@ -59,6 +71,7 @@ function contextFromMeta(meta, samples) {
     // Captures carry no accelerometer data, and SQI-Net does not run in replay (ADR 0041).
     motionSpans: [],
     sqi: null,
+    validationRhythmLabel,
   };
 }
 
@@ -82,10 +95,11 @@ function intervalsCsv(intervals) {
 }
 
 /** Replays one capture folder through @lumen/core and writes replay-result.json and replay-intervals.csv. */
-export async function replayFolder(folder) {
+export async function replayFolder(folder, { rhythmFromLabel = false } = {}) {
   const core = await loadCore();
   const { samples, stats, meta } = readCapture(folder);
-  const context = contextFromMeta(meta, samples);
+  const label = rhythmFromLabel ? rhythmLabel(meta) : null;
+  const context = contextFromMeta(meta, samples, label);
   const analysis = core.analyzeReading({ samples, stats }, context);
   const evidence = JSON.parse(
     fs.readFileSync(path.join(REPO_ROOT, 'docs', 'validation', 'evidence.json'), 'utf8'),
@@ -96,6 +110,8 @@ export async function replayFolder(folder) {
     coreCommit: coreCommit(),
     configHash: configHash(),
     inconclusive: reading.headlineKey === 'result.inconclusive',
+    // What the DSP-12 gate used for the rhythm class. "model" arrives when replay runs the ONNX rhythm model.
+    rhythmSource: label === null ? 'none' : 'label',
   };
   fs.writeFileSync(path.join(folder, 'replay-result.json'), `${JSON.stringify(output, null, 2)}\n`);
   fs.writeFileSync(path.join(folder, 'replay-intervals.csv'), intervalsCsv(analysis.intervals));

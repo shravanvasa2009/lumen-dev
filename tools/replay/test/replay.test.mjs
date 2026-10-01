@@ -46,6 +46,7 @@ describe('replay on a clean synthetic capture (CLI end to end)', () => {
       'coreCommit',
       'configHash',
       'inconclusive',
+      'rhythmSource',
     ]);
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
     assert.equal(written.coreCommit, head);
@@ -99,6 +100,47 @@ describe('replayFolder', () => {
     const { context } = await replayFolder(folder);
     assert.equal(context.captureFps, 30);
     assert.equal(context.tier, null);
+  });
+
+  it('without --rhythm-from-label: rhythmSource "none" and no RMSSD', async () => {
+    const folder = path.join(scratch, 'no-label-flag');
+    writeSyntheticCapture(folder, { seconds: 90, meta: { labels: { rhythm: 'sinus' } } });
+    const { output } = await replayFolder(folder);
+    assert.equal(output.rhythmSource, 'none');
+    assert.equal(output.metrics.rmssd, null);
+  });
+
+  it('with --rhythm-from-label: the label opens the DSP-12 gate, but no rhythm card appears', async () => {
+    const folder = path.join(scratch, 'label-flag');
+    writeSyntheticCapture(folder, { seconds: 90, meta: { labels: { rhythm: 'sinus' } } });
+    const { output } = await replayFolder(folder, { rhythmFromLabel: true });
+    assert.equal(output.rhythmSource, 'label');
+    assert.ok(output.metrics.rmssd.value >= 0);
+    assert.equal(output.metrics.rhythm, null);
+    assert.equal(output.headlineKey, 'result.uncertain');
+    assert.deepEqual(Object.keys(output).slice(-4), [
+      'coreCommit',
+      'configHash',
+      'inconclusive',
+      'rhythmSource',
+    ]);
+  });
+
+  it('with --rhythm-from-label: refuses a capture without a known rhythm label', async () => {
+    const folder = path.join(scratch, 'label-missing');
+    writeSyntheticCapture(folder, { seconds: 20 });
+    await assert.rejects(replayFolder(folder, { rhythmFromLabel: true }), /labels\.rhythm/);
+    writeSyntheticCapture(folder, { seconds: 20, meta: { labels: { rhythm: 'bigeminy' } } });
+    await assert.rejects(replayFolder(folder, { rhythmFromLabel: true }), /labels\.rhythm/);
+  });
+
+  it('the CLI passes --rhythm-from-label through', () => {
+    const folder = path.join(scratch, 'label-cli');
+    writeSyntheticCapture(folder, { seconds: 70, meta: { labels: { rhythm: 'sinus' } } });
+    const run = spawnSync(process.execPath, [CLI, '--rhythm-from-label', folder], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    const written = JSON.parse(fs.readFileSync(path.join(folder, 'replay-result.json'), 'utf8'));
+    assert.equal(written.rhythmSource, 'label');
   });
 
   it('refuses a folder whose stats rows do not match the samples', async () => {

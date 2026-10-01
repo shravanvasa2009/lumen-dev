@@ -268,7 +268,9 @@ export function buildReadingResult(
     rhythm !== null &&
     rhythm.metric.class === 'sinus' &&
     rhythm.topProb >= DSP_CONFIG.rules.uncertainBelowTopProb;
-  if (confidentSinus && tierAtLeast(analysis, 'full')) {
+  // Validation only (ADR 0041): with no rhythm model output, a labelled sinus rhythm opens the gate.
+  const labelledSinus = models.rhythm === null && analysis.context.validationRhythmLabel === 'sinus';
+  if ((confidentSinus || labelledSinus) && tierAtLeast(analysis, 'full')) {
     const values = hrv(analysis.segments, 'sinus', analysis.context.captureFps, analysis.cleanSeconds);
     if (values?.rmssdMs != null) {
       const earlier = history.flatMap((past) => (past.rmssdMs === null ? [] : [past.rmssdMs]));

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { alignIntervals } from './eval-replay/align.mjs';
 import { readCaptures } from './eval-replay/captures.mjs';
 import { computeMetrics } from './eval-replay/metrics.mjs';
+import { compareMetrics } from './eval-replay/recompute.mjs';
 import { mean, rmssd, subjectBootstrap } from './eval-replay/stats.mjs';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'eval-replay.mjs');
@@ -105,6 +106,14 @@ test('RMSSD skips differences next to an unusable beat', () => {
     Math.sqrt((100 + 100) / 2),
   );
   assert.equal(rmssd([800, 2500], [true, false]), null);
+});
+
+test('the CI does not depend on the order the readings arrive in', () => {
+  const rows = ['P4', 'P1', 'P3', 'P2', 'P5', 'P1'].map((subject, i) => ({
+    subject,
+    value: [5, 1, 4, 2, 6, 3][i],
+  }));
+  assert.deepEqual(subjectBootstrap([...rows].reverse()), subjectBootstrap(rows));
 });
 
 test('every subject counts equally, and one subject has no interval', () => {
@@ -286,4 +295,106 @@ test('the CLI writes metrics.json and fails without captures', (t) => {
     encoding: 'utf8',
   });
   assert.equal(empty.status, 1);
+});
+
+const metricsFixture = () => ({
+  polarPairedCaptures: 30,
+  hr: { maeBpm: 2.41, ci95: [1.9, 2.95], people: 10, readings: 30, phones: 1 },
+  intervals: { maeMs: 14.2, ci95: [11.1, 17.6] },
+  rmssd: { withinPct: 80, people: 10 },
+  resp: { maeBrpm: null, people: 0 },
+  artifactCaptures: { total: 5, rejectedOrInconclusive: 5 },
+  ux1: { firstReadings: 10, conclusive: 9 },
+  ml5: { sinusReadings: 28, falseIrregular: 1 },
+  perTier: [{ tier: 'full', phones: 1, hrMaeBpm: 2.41, intervalMaeMs: 14.2 }],
+  recompute: { agent: null, matches: null },
+});
+const differencesWith = (change) => {
+  const independent = metricsFixture();
+  change(independent);
+  return compareMetrics(metricsFixture(), independent).differences;
+};
+
+test('VER-1: values may differ by one rounding step (0.01) and no more', () => {
+  assert.deepEqual(
+    differencesWith((m) => (m.hr.maeBpm = 2.42)),
+    [],
+  );
+  assert.deepEqual(
+    differencesWith((m) => (m.hr.maeBpm = 2.43)),
+    ['hr.maeBpm: 2.41 vs 2.43'],
+  );
+  assert.deepEqual(
+    differencesWith((m) => (m.intervals.ci95 = [11.1, 17.62])),
+    ['intervals.ci95: [11.1,17.6] vs [11.1,17.62]'],
+  );
+});
+
+// One rounding step can still straddle a pass line (3.00 vs 3.01); anything wider can't count as a match.
+test('VER-1: results more than a rounding step apart across the DSP-A line do not match', () => {
+  const below = metricsFixture();
+  const above = metricsFixture();
+  below.hr.maeBpm = 2.95;
+  above.hr.maeBpm = 3.04;
+  assert.equal(compareMetrics(below, above).matches, false);
+});
+
+test('VER-1: counts must be equal integers, and nulls must be on both sides', () => {
+  assert.deepEqual(
+    differencesWith((m) => (m.hr.people = 10.05)),
+    ['hr.people: 10 vs 10.05'],
+  );
+  assert.deepEqual(
+    differencesWith((m) => (m.hr.maeBpm = '2.41')),
+    ['hr.maeBpm: 2.41 vs "2.41"'],
+  );
+  assert.deepEqual(
+    differencesWith((m) => {
+      m.polarPairedCaptures = 29;
+      m.hr.phones = 2;
+      m.resp.people = 1;
+      m.resp.maeBrpm = 1.2;
+    }),
+    [
+      'polarPairedCaptures: 30 vs 29',
+      'hr.phones: 1 vs 2',
+      'resp.people: 0 vs 1',
+      'resp.maeBrpm: null vs 1.2',
+    ],
+  );
+  assert.deepEqual(
+    differencesWith((m) => m.perTier.push({ tier: 'basic', phones: 1, hrMaeBpm: 3, intervalMaeMs: 20 })),
+    ['perTier.basic: only in the independent metrics'],
+  );
+});
+
+test('VER-1: the CLI records the recompute and fails on a mismatch or bad input', (t) => {
+  const root = tempDir(t);
+  const out = path.join(root, 'metrics.json');
+  const independent = path.join(root, 'independent.json');
+  fs.writeFileSync(out, JSON.stringify(metricsFixture()));
+  fs.writeFileSync(independent, JSON.stringify(metricsFixture()));
+  const run = (...args) => spawnSync(process.execPath, [CLI, ...args, '--out', out], { encoding: 'utf8' });
+  assert.equal(run('--recompute', independent).status, 1);
+  assert.match(run('--agent', 'second-agent', '--recompute').stderr, /not found/);
+  assert.match(
+    run('--recompute', path.join(root, 'none.json'), '--agent', 'a').stderr,
+    /none\.json not found/,
+  );
+  assert.equal(run('--recompute', independent, '--agent', 'second-agent').status, 0);
+  assert.deepEqual(JSON.parse(fs.readFileSync(out, 'utf8')).recompute, {
+    agent: 'second-agent',
+    matches: true,
+    differences: [],
+  });
+  fs.writeFileSync(
+    independent,
+    JSON.stringify({ ...metricsFixture(), hr: { ...metricsFixture().hr, maeBpm: 3.1 } }),
+  );
+  const mismatch = run('--recompute', independent, '--agent', 'second-agent');
+  assert.equal(mismatch.status, 1);
+  assert.match(mismatch.stderr, /hr\.maeBpm: 2\.41 vs 3\.1/);
+  assert.equal(JSON.parse(fs.readFileSync(out, 'utf8')).recompute.matches, false);
+  fs.writeFileSync(independent, '{}');
+  assert.match(run('--recompute', independent, '--agent', 'a').stderr, /no perTier list/);
 });

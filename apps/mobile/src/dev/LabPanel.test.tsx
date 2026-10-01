@@ -48,6 +48,19 @@ const press = async (label: string) => {
   });
 };
 
+// react-native loads its components lazily, so the first full render in a test process loads and
+// Babel-transforms TextInput, Pressable, and the Fabric renderer. Measured on the owner's 28-thread
+// PC with a cold Jest cache and the whole mobile suite running in parallel: 4.3-6.1 s in the first
+// test that starts a capture (past Jest's 5 s default) and 4.5-5.5 s in this hook; under 0.4 s once
+// loaded. One render here pays that cost with room to spare, so each test's 5 s is for its own work.
+const COLD_RENDER_MS = 30_000;
+beforeAll(async () => {
+  const { unmount } = render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  // Lets getCapabilities() resolve so the lens and torch options render too.
+  await act(async () => {});
+  unmount();
+}, COLD_RENDER_MS);
+
 const realFetch = globalThis.fetch;
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => {

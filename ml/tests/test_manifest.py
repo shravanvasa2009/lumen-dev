@@ -1,11 +1,13 @@
 import json
+from dataclasses import replace
 
 import pytest
 import torch
 
 from export import to_onnx, verify_onnx, write_manifest
-from export.provenance import ProvenanceError, load_metrics, sha256_of
-from export.specs import MODELS_DIR, OPSET, REQUIRED, SPECS
+from export.provenance import ALL_BAD_BASIS, ProvenanceError, load_metrics, sha256_of
+from export import specs
+from export.specs import MODELS_DIR, OPSET, SHIPPED, SPECS, ShipRuleError, shipped_per_family
 from export.to_onnx import source_model
 from export.write_manifest import EXTERNAL_NOT_RUN, NOT_MEASURED
 from tests.training_artifacts import fit_baseline, save_trained
@@ -22,10 +24,40 @@ CARD_HEADINGS = [
     "## What the app shows when the model abstains",
 ]
 
+NETWORKS = sorted(name for name, spec in SPECS.items() if spec.kind == "torch")
+
+
+def ship_decision(ships):
+    return {
+        "criterion": "subject-level AUROC for AF vs not on dev-val",
+        "bestBaseline": "rhythm-lgbm",
+        "networkMinusBestBaselineAuroc": {"estimate": -0.0006, "low": -0.0161, "high": 0.0156},
+        "ships": ships,
+    }
+
+
 RHYTHM_EXTRAS = {
+    "metricsFormat": 2,
+    "shipDecision": ship_decision("rhythm-lgbm"),
     "ablation": [{"model": "rhythm-net", "auroc": 0.5}, {"model": "lightgbm", "auroc": 0.25}],
     "calibration": {"method": "temperature scaling", "temperature": 1.5},
+    "notes": ["Jitter sigma is an assumption."],
+    "development": {
+        "subjects": 4,
+        "metrics": {
+            "auroc": {"estimate": 0.5, "low": 0.25, "high": 0.75},
+            "falseAfRatePrematureReadings": {"estimate": 0.301, "low": 0.085, "high": 0.612},
+            "readingAbstainRate": {"estimate": 0.218, "low": 0.176, "high": 0.253},
+        },
+        "byDataset": [{"dataset": "afdb", "subject AUROC": "0.600 (0.400-0.800)"}],
+        "prematureBeatSet": {"subjects": 8, "windows": 294},
+    },
 }
+
+
+# A trained SQI model must record its threshold basis (export.provenance fails closed); "all-bad" is
+# the basis that needs no owner decision, so these release tests are not about H-024.
+SQI_EXTRAS = {"thresholdBasis": ALL_BAD_BASIS}
 
 
 def _run(module, *args):
@@ -47,6 +79,8 @@ def _manifest(models_dir, runs_dir):
 def untrained(tmp_path):
     models_dir, runs_dir = tmp_path / "models", tmp_path / "runs"
     runs_dir.mkdir()
+    # The shipped rhythm model is a trained classifier, so even an untrained pipeline check needs one.
+    save_trained(SPECS["rhythm-lgbm"], runs_dir, fit_baseline(SPECS["rhythm-lgbm"]))
     _release(models_dir, runs_dir, "--random-init", 3)
     return models_dir, runs_dir
 
@@ -54,10 +88,10 @@ def untrained(tmp_path):
 @pytest.fixture
 def trained(tmp_path):
     models_dir, runs_dir = tmp_path / "models", tmp_path / "runs"
-    for seed, name in enumerate(REQUIRED):
-        extras = RHYTHM_EXTRAS if name == "rhythm-net" else {}
+    for seed, name in enumerate(NETWORKS):
+        extras = {"rhythm-net": RHYTHM_EXTRAS, "sqi-finger": SQI_EXTRAS}.get(name, {})
         save_trained(SPECS[name], runs_dir, source_model(SPECS[name], None, seed), extras)
-    save_trained(SPECS["rhythm-lgbm"], runs_dir, fit_baseline(SPECS["rhythm-lgbm"]))
+    save_trained(SPECS["rhythm-lgbm"], runs_dir, fit_baseline(SPECS["rhythm-lgbm"]), RHYTHM_EXTRAS)
     _release(models_dir, runs_dir)
     return models_dir, runs_dir
 
@@ -65,9 +99,9 @@ def trained(tmp_path):
 def test_manifest_matches_the_files_and_appendix_b(untrained):
     models_dir, runs_dir = untrained
     entries = _manifest(models_dir, runs_dir)
-    assert set(entries) == set(REQUIRED)
-    for name, entry in entries.items():
-        spec = SPECS[name]
+    assert set(entries) == {*NETWORKS, "rhythm-lgbm"}
+    for name in NETWORKS:
+        entry, spec = entries[name], SPECS[name]
         assert entry["sha256"] == sha256_of(models_dir / entry["file"])
         assert entry["file"] == f"{name}@{spec.version}.onnx"
         assert entry["card"] == f"{name}@{spec.version}.md"
@@ -95,7 +129,8 @@ def test_cards_have_every_heading_and_no_external_numbers(untrained):
         assert all(heading in card for heading in CARD_HEADINGS)
         external = card.split("## External test", 1)[1].split("\n## ", 1)[0]
         assert EXTERNAL_NOT_RUN in external
-        assert NOT_MEASURED in card.split("## Development metrics", 1)[1].split("\n## ", 1)[0]
+        if not entry["trainedOn"]:
+            assert NOT_MEASURED in card.split("## Development metrics", 1)[1].split("\n## ", 1)[0]
     sqi_card = (models_dir / "sqi-finger@1.0.0.md").read_text(encoding="utf-8")
     assert "inverted red channel" in sqi_card and "finger recordings" in sqi_card
 
@@ -103,7 +138,7 @@ def test_cards_have_every_heading_and_no_external_numbers(untrained):
 def test_trained_release_fills_metrics_and_lists_baselines(trained):
     models_dir, runs_dir = trained
     entries = _manifest(models_dir, runs_dir)
-    assert set(entries) == {*REQUIRED, "rhythm-lgbm"}
+    assert set(entries) == {*NETWORKS, "rhythm-lgbm"}
     rhythm = entries["rhythm-net"]
     assert rhythm["threshold"] == {"af": 0.5}
     assert rhythm["trainedOn"] == ["afdb"]
@@ -111,16 +146,140 @@ def test_trained_release_fills_metrics_and_lists_baselines(trained):
     assert "| auroc | 0.5 | 0.25 | 0.75 |" in card
     assert "| lightgbm | 0.25 |" in card
     assert "- temperature: 1.5" in card
+    assert "Training notes:\n\n- Jitter sigma is an assumption." in card
+    assert "| afdb | 0.600 (0.400-0.800) |" in card
     assert "Trained on: afdb." in card
-    baseline_card = (models_dir / entries["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
-    assert "classical baseline for rhythm-net" in baseline_card
+    limitations = card.split("## Limitations", 1)[1].split("\n## ", 1)[0]
+    assert (
+        "- False-AF rate on augmented premature-beat readings (dev-val, 8 subjects, 294 windows): "
+        "0.301 (95% CI 0.085-0.612)." in limitations
+    )
+    abstain = "- Reading abstain rate (top probability below 0.6) on dev-val: 0.218 (95% CI 0.176-0.253)."
+    assert abstain in limitations
+    assert "reported under Development metrics" not in card
+    assert "(ablation model, not shipped)" in card and "the app loads rhythm-lgbm" in card
+    shipped_card = (models_dir / entries["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
+    assert shipped_card.startswith("# rhythm-lgbm 1.0.0 (shipped rhythm model)")
+    assert "ships per §11.3 (ADR 0031)" in shipped_card
     assert entries["rhythm-lgbm"]["inputs"] == {"features": [1, 8]}
+
+
+def test_every_entry_names_its_family_and_whether_it_ships(trained):
+    models_dir, runs_dir = trained
+    entries = _manifest(models_dir, runs_dir)
+    assert {name: (entry["family"], entry["ships"]) for name, entry in entries.items()} == {
+        "sqi-finger": ("sqi", True),
+        "rhythm-net": ("rhythm", False),
+        "rhythm-lgbm": ("rhythm", True),
+        "diabetes-net": ("diabetes", True),
+    }
+    # The non-shipped ablation model is still parity-checked, for the exact file listed.
+    parity = json.loads((models_dir / "parity.json").read_text(encoding="utf-8"))["models"]
+    assert parity["rhythm-net"]["onnxSha256"] == entries["rhythm-net"]["sha256"]
+
+
+def test_shipped_models_are_one_per_family_by_flag_not_by_name():
+    assert SHIPPED == {"rhythm": "rhythm-lgbm", "sqi": "sqi-finger", "diabetes": "diabetes-net"}
+
+
+@pytest.mark.parametrize(
+    ("rhythm_ships", "match"), [((False, False), "rhythm: none"), ((True, True), r"rhythm: \['rhythm-net'")]
+)
+def test_ship_rule_needs_exactly_one_per_family(rhythm_ships, match):
+    entries = [
+        {"name": "rhythm-net", "family": "rhythm", "ships": rhythm_ships[0]},
+        {"name": "rhythm-lgbm", "family": "rhythm", "ships": rhythm_ships[1]},
+        {"name": "sqi-finger", "family": "sqi", "ships": True},
+        {"name": "diabetes-net", "family": "diabetes", "ships": True},
+    ]
+    with pytest.raises(ShipRuleError, match=match):
+        shipped_per_family(entries)
+
+
+def test_manifest_with_two_shipped_rhythm_models_is_refused(trained, monkeypatch):
+    models_dir, runs_dir = trained
+    monkeypatch.setitem(specs.SPECS, "rhythm-net", replace(SPECS["rhythm-net"], ships=True))
+    _assert_refused(models_dir, runs_dir, ShipRuleError, "rhythm")
+    assert not list(models_dir.glob("*.md"))
+
+
+def test_manifest_without_the_shipped_rhythm_model_is_refused(tmp_path):
+    models_dir, runs_dir = tmp_path / "models", tmp_path / "runs"
+    runs_dir.mkdir()
+    # Networks only: --random-init has no trained rhythm-lgbm to export, so no rhythm model ships.
+    _release(models_dir, runs_dir, "--random-init", 3)
+    _assert_refused(models_dir, runs_dir, ShipRuleError, "rhythm: none")
+
+
+def test_untrained_ablation_model_is_left_out_of_a_release(tmp_path):
+    runs_dir = tmp_path / "runs"
+    save_trained(SPECS["rhythm-lgbm"], runs_dir, fit_baseline(SPECS["rhythm-lgbm"]))
+    released = {spec.name for spec in specs.release_specs(runs_dir)}
+    assert released == {"sqi-finger", "rhythm-lgbm", "diabetes-net"}
 
 
 def _assert_refused(models_dir, runs_dir, error, match):
     with pytest.raises(error, match=match):
         _run(write_manifest, "--models-dir", models_dir, "--runs-dir", runs_dir)
     assert not (models_dir / "manifest.json").exists()
+    assert not list(models_dir.glob("*.md"))
+
+
+def test_shipped_card_renders_the_ship_reason_from_the_metrics(trained):
+    models_dir, runs_dir = trained
+    entries = _manifest(models_dir, runs_dir)
+    shipped_card = (models_dir / entries["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
+    assert (
+        "The development ablation picked it (subject-level AUROC for AF vs not on dev-val; network minus "
+        "rhythm-lgbm: -0.0006, 95% CI -0.0161 to 0.0156), so it ships per §11.3 (ADR 0031)." in shipped_card
+    )
+
+
+def test_refuses_when_the_metrics_pick_another_shipped_model(trained):
+    models_dir, runs_dir = trained
+    spec = SPECS["rhythm-net"]
+    save_trained(
+        spec,
+        runs_dir,
+        source_model(spec, None, 0),
+        {**RHYTHM_EXTRAS, "shipDecision": ship_decision("rhythm-net")},
+    )
+    _assert_refused(models_dir, runs_dir, ShipRuleError, r"rhythm-net.*owner decides.*ADR 0031")
+
+
+def test_ship_decision_guard_covers_every_family(trained):
+    models_dir, runs_dir = trained
+    spec = SPECS["sqi-finger"]
+    decision = {**ship_decision("sqi-baseline"), "bestBaseline": "sqi-baseline"}
+    save_trained(spec, runs_dir, source_model(spec, None, 0), {"shipDecision": decision})
+    _assert_refused(models_dir, runs_dir, ShipRuleError, "sqi-baseline.*sqi-finger")
+
+
+def test_new_metrics_files_must_carry_the_premature_beat_counts(trained):
+    models_dir, runs_dir = trained
+    development = {
+        key: value for key, value in RHYTHM_EXTRAS["development"].items() if key != "prematureBeatSet"
+    }
+    save_trained(
+        SPECS["rhythm-lgbm"],
+        runs_dir,
+        fit_baseline(SPECS["rhythm-lgbm"]),
+        {**RHYTHM_EXTRAS, "development": development},
+    )
+    _assert_refused(models_dir, runs_dir, ProvenanceError, "prematureBeatSet")
+
+
+def test_older_metrics_files_without_the_counts_still_render(trained):
+    models_dir, runs_dir = trained
+    development = {
+        key: value for key, value in RHYTHM_EXTRAS["development"].items() if key != "prematureBeatSet"
+    }
+    older = {key: value for key, value in RHYTHM_EXTRAS.items() if key != "metricsFormat"}
+    lgbm = SPECS["rhythm-lgbm"]
+    save_trained(lgbm, runs_dir, fit_baseline(lgbm), {**older, "development": development})
+    _release(models_dir, runs_dir)
+    card = (models_dir / _manifest(models_dir, runs_dir)["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
+    assert "premature-beat readings (dev-val): 0.301 (95% CI 0.085-0.612)." in card
 
 
 def test_refuses_without_parity_json(untrained):
@@ -153,7 +312,7 @@ def test_refuses_parity_above_tolerance(untrained):
 def test_refuses_parity_run_on_a_different_source_model(trained):
     models_dir, runs_dir = trained
     spec = SPECS["sqi-finger"]
-    save_trained(spec, runs_dir, source_model(spec, None, 9))
+    save_trained(spec, runs_dir, source_model(spec, None, 9), SQI_EXTRAS)
     _assert_refused(models_dir, runs_dir, ProvenanceError, "different source model")
 
 

@@ -64,4 +64,12 @@ describe('app.config personal-team mode (BOOT)', () => {
       );
     },
   );
+
+  it.each(['', '0'])('treats LUMEN_IOS_PERSONAL_TEAM=%p as off', (flag) => {
+    expect(loadConfig({ LUMEN_IOS_PERSONAL_TEAM: flag })).toEqual(loadConfig({}));
+  });
+
+  it.each(['true', 'yes', '2', ' 1'])('refuses any other LUMEN_IOS_PERSONAL_TEAM value (%p)', (flag) => {
+    expect(() => loadConfig({ LUMEN_IOS_PERSONAL_TEAM: flag })).toThrow(/LUMEN_IOS_PERSONAL_TEAM/);
+  });
 });

@@ -61,8 +61,9 @@ const withoutPushEntitlement: ConfigPlugin = (config) =>
     platform: 'ios',
     mod: 'entitlements',
     async action({ modRequest, ...chainConfig }) {
+      // Typed optional in ModProps, but withBaseMod always sets it (a no-op when nothing is chained).
       if (!modRequest.nextMod) {
-        throw new Error('lumen-capture: the entitlements mod chain has no provider.');
+        throw new Error('lumen-capture: withBaseMod passed no nextMod for ios.entitlements.');
       }
       const entitlementsConfig = await modRequest.nextMod({ ...chainConfig, modRequest });
       delete entitlementsConfig.modResults['aps-environment'];

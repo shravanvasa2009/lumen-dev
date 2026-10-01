@@ -16,12 +16,22 @@ ML_ROOT = Path(__file__).resolve().parents[1]
 MODELS_DIR = ML_ROOT.parent / "models"
 # Training writes the source model (<stem>.pt or <stem>.pkl) and <stem>.json (metrics) here.
 RUNS_DIR = ML_ROOT / "runs"
+# ML-2 (acceptance.md): windows the SQI model accepts have HR error ≤ 5 bpm in ≥ 95% of cases. Here so
+# that train.sqi and the model card read one value.
+ML2_TARGET = 0.95
 # A threshold basis other than "all-bad" (every bad window counted when τ is chosen) changes how a spec
-# threshold is met, so only the owner can accept it. Each entry records the owner's decision as
-# {model name: {"basis": ..., "decision": "<HUMAN_STEPS id and option>"}}. Empty until the owner answers
-# H-024 (ADR 0038); export.provenance.check_threshold_bases refuses to ship without it.
-OWNER_APPROVED_THRESHOLD_BASES: dict[str, dict[str, str]] = {}
+# threshold is met, so only the owner can accept it, and only for one role. Each entry records the owner's
+# decision as {model name: {"basis": ..., "decision": "<HUMAN_STEPS id and option>", "role": ...}};
+# export.provenance.check_threshold_bases refuses to ship a model whose basis and role it does not match.
+# H-024 option B (ADR 0038): SQI-Net ships on the synthetic-bad-only basis as an Experimental guard only,
+# with the rule checks (DSP-4, DSP-9) as the gate; the owner re-decides after the M2 team captures.
+OWNER_APPROVED_THRESHOLD_BASES: dict[str, dict[str, str]] = {
+    "sqi-finger": {"basis": "synthetic-bad-only", "decision": "H-024 option B", "role": "guard"},
+}
 Family = Literal["rhythm", "sqi", "diabetes"]
+# "gate": the model's output is used on its own. "guard": the model may only reject more windows than the
+# rule checks already reject; it never accepts a window on its own.
+Role = Literal["gate", "guard"]
 FAMILIES: tuple[Family, ...] = ("rhythm", "sqi", "diabetes")
 
 
@@ -50,6 +60,7 @@ class ModelSpec:
     family: Family
     # ADR 0031: the app loads only the one shipped model per family; the rest are ablation models.
     ships: bool
+    role: Role
 
     @property
     def file_stem(self) -> str:
@@ -76,6 +87,8 @@ _SQI = ModelSpec(
     family="sqi",
     # train.sqi: SQI-Net beat sqi-rule on dev-val AUROC. Diabetes is decided when it trains.
     ships=True,
+    # H-024 option B: an Experimental reject-only guard; the rule checks (DSP-4, DSP-9) stay the gate.
+    role="guard",
 )
 _RHYTHM = ModelSpec(
     name="rhythm-net",
@@ -93,6 +106,7 @@ _RHYTHM = ModelSpec(
     family="rhythm",
     # ADR 0031: Rhythm-Net did not beat rhythm-lgbm on development subjects; it is the ablation model.
     ships=False,
+    role="gate",
 )
 _DIABETES = ModelSpec(
     name="diabetes-net",
@@ -110,17 +124,17 @@ _DIABETES = ModelSpec(
     size_budget_bytes=300 * 1024,
     family="diabetes",
     ships=True,
+    role="gate",
 )
 # §11.1–11.4 baselines on the networks' feature inputs, with the same output names, so the app can
-# swap one in without code changes. The rhythm logistic rule has no entry: it is compared in training
-# (train.rhythm) but never exported. sqi-rule is §11.1's rule SQI without the acquisition checks, which
-# need camera frames: a logistic regression on the window's skewness and whether its spectral-peak heart
-# rate is in range (train/sqi.py, RULE_FEATURES).
+# swap one in without code changes, and with the same role, so sqi-rule is a guard too. The rhythm
+# logistic rule has no entry: it is compared in training (train.rhythm) but never exported. sqi-rule is
+# §11.1's rule SQI without the acquisition checks, which need camera frames: a logistic regression on the
+# window's skewness and whether its spectral-peak heart rate is in range (train/sqi.py, RULE_FEATURES).
 _BASELINES = tuple(
     replace(network, name=name, kind="classifier", build=None, inputs=inputs, ships=ships)
     for network, name, inputs, ships in (
-        # SQI-Net beat sqi-rule on development subjects (train.sqi); its threshold basis still waits
-        # for the owner (ADR 0038, H-024), which export.provenance enforces.
+        # SQI-Net beat sqi-rule on development subjects (train.sqi).
         (_SQI, "sqi-rule", {"features": [1, SQI_RULE_FEATURES]}, False),
         # ADR 0031: rhythm-lgbm beat Rhythm-Net on development subjects, so it is the v1 rhythm model.
         (_RHYTHM, "rhythm-lgbm", {"features": [1, FEATURES]}, True),

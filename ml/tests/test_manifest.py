@@ -146,7 +146,7 @@ def test_trained_release_fills_metrics_and_lists_baselines(trained):
     assert "| auroc | 0.5 | 0.25 | 0.75 |" in card
     assert "| lightgbm | 0.25 |" in card
     assert "- temperature: 1.5" in card
-    assert "Training notes:\n\n- Jitter sigma is an assumption." in card
+    assert "Training notes, as written at training time:\n\n- Jitter sigma is an assumption." in card
     assert "| afdb | 0.600 (0.400-0.800) |" in card
     assert "Trained on: afdb." in card
     limitations = card.split("## Limitations", 1)[1].split("\n## ", 1)[0]
@@ -164,14 +164,16 @@ def test_trained_release_fills_metrics_and_lists_baselines(trained):
     assert entries["rhythm-lgbm"]["inputs"] == {"features": [1, 8]}
 
 
-def test_every_entry_names_its_family_and_whether_it_ships(trained):
+def test_every_entry_names_its_family_role_and_whether_it_ships(trained):
     models_dir, runs_dir = trained
     entries = _manifest(models_dir, runs_dir)
-    assert {name: (entry["family"], entry["ships"]) for name, entry in entries.items()} == {
-        "sqi-finger": ("sqi", True),
-        "rhythm-net": ("rhythm", False),
-        "rhythm-lgbm": ("rhythm", True),
-        "diabetes-net": ("diabetes", True),
+    described = {name: (entry["family"], entry["role"], entry["ships"]) for name, entry in entries.items()}
+    # H-024 option B: SQI-Net only rejects more windows than the rule checks; it is not the gate.
+    assert described == {
+        "sqi-finger": ("sqi", "guard", True),
+        "rhythm-net": ("rhythm", "gate", False),
+        "rhythm-lgbm": ("rhythm", "gate", True),
+        "diabetes-net": ("diabetes", "gate", True),
     }
     # The non-shipped ablation model is still parity-checked, for the exact file listed.
     parity = json.loads((models_dir / "parity.json").read_text(encoding="utf-8"))["models"]

@@ -12,19 +12,27 @@ data class FrameWorkMs(val mean: Double, val max: Double)
 
 private const val ONE_SECOND_NS = 1_000_000_000L
 
-// ADR 0029 (DSP-1): a gap longer than 1.5x the nominal interval hides round(gap / interval) - 1 frames.
+// DSP-1 (ADR 0029, corrected 2026-10-01): a gap longer than 1.5x the median interval of the last 1 s hides
+// round(gap / median) - 1 frames; the nominal interval stands in until 5 intervals exist.
 private const val DROP_GAP_FACTOR = 1.5
+private const val MIN_MEDIAN_INTERVALS = 5
+
+// DSP-5 (ADR 0029 addendum): red above 0.95 for 0.5 s after the lock asks for one exposure step down.
+private const val OVEREXPOSED_RED = 0.95
+private const val OVEREXPOSED_FOR_NS = 500_000_000L
 
 // The analyzer thread adds frames while the event thread drains batches and reads status, so every
 // method that touches shared state is synchronized.
 class CaptureCounters(private val nominalIntervalNs: Long) {
     private val pending = ArrayList<CapturedFrame>()
     private val arrivalsNs = ArrayDeque<Long>()
-    private val sinceStatus = ArrayList<FrameNumbers>()
-    private var lastFrameNs: Long? = null
+    private val recentFrameNs = ArrayDeque<Long>()
+    private var newestSinceStatus: FrameNumbers? = null
     private var workCount = 0
     private var workSumNs = 0L
     private var workMaxNs = 0L
+    private var watchArmed = false
+    private var overexposedSinceNs: Long? = null
 
     var frames = 0L
         @Synchronized get
@@ -32,29 +40,34 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
     var dropped = 0L
         @Synchronized get
         private set
+    var lastRed: Double? = null
+        @Synchronized get
+        private set
 
     init {
         require(nominalIntervalNs > 0) { "nominal frame interval must be positive" }
     }
 
+    // Returns true once when the armed DSP-5 watch sees red above 0.95 for 0.5 s.
     @Synchronized
-    fun addFrame(frame: CapturedFrame, arrivalNs: Long, workNs: Long) {
-        val previous = lastFrameNs
-        if (previous != null) {
-            val gapNs = frame.tNs - previous
-            if (gapNs > DROP_GAP_FACTOR * nominalIntervalNs) {
-                dropped += (gapNs.toDouble() / nominalIntervalNs).roundToLong() - 1
-            }
-        }
-        lastFrameNs = frame.tNs
+    fun addFrame(frame: CapturedFrame, arrivalNs: Long, workNs: Long): Boolean {
+        countDropped(frame.tNs)
         frames++
+        lastRed = frame.numbers.r
         pending.add(frame)
-        sinceStatus.add(frame.numbers)
+        newestSinceStatus = frame.numbers
         arrivalsNs.addLast(arrivalNs)
         dropOldArrivals(arrivalNs)
         workCount++
         workSumNs += workNs
         if (workNs > workMaxNs) workMaxNs = workNs
+        return watchOverexposure(frame.numbers.r, frame.tNs)
+    }
+
+    @Synchronized
+    fun armOverexposureWatch() {
+        watchArmed = true
+        overexposedSinceNs = null
     }
 
     // Frames since the previous call; the 100 ms samples event (spec §9.3).
@@ -66,12 +79,13 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
     }
 
     // fps counts frames that arrived in the last 1 s, so it falls to 0 when frames stop (ADR 0029);
-    // droppedFrac covers the whole capture (ADR 0013).
+    // droppedFrac covers the whole capture (ADR 0013). Contact is judged on the newest frame since the
+    // previous status, as in the Swift module, so a stalled camera reports no contact.
     @Synchronized
     fun status(nowNs: Long): StatusNumbers {
         dropOldArrivals(nowNs)
-        val covered = sinceStatus.isNotEmpty() && fingerCovered(averageOf(sinceStatus))
-        sinceStatus.clear()
+        val covered = newestSinceStatus?.let(::fingerCovered) ?: false
+        newestSinceStatus = null
         val seen = frames + dropped
         return StatusNumbers(
             fingerCovered = covered,
@@ -93,6 +107,29 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
         workSumNs = 0
         workMaxNs = 0
         return work
+    }
+
+    private fun countDropped(tNs: Long) {
+        val previous = recentFrameNs.lastOrNull()
+        while (recentFrameNs.isNotEmpty() && tNs - recentFrameNs.first() >= ONE_SECOND_NS) recentFrameNs.removeFirst()
+        if (previous != null) {
+            val intervalNs = medianIntervalNs(recentFrameNs) ?: nominalIntervalNs.toDouble()
+            val gapNs = (tNs - previous).toDouble()
+            if (gapNs > DROP_GAP_FACTOR * intervalNs) dropped += (gapNs / intervalNs).roundToLong() - 1
+        }
+        recentFrameNs.addLast(tNs)
+    }
+
+    private fun watchOverexposure(red: Double, tNs: Long): Boolean {
+        if (!watchArmed || red <= OVEREXPOSED_RED) {
+            overexposedSinceNs = null
+            return false
+        }
+        val since = overexposedSinceNs ?: tNs.also { overexposedSinceNs = it }
+        if (tNs - since < OVEREXPOSED_FOR_NS) return false
+        watchArmed = false
+        overexposedSinceNs = null
+        return true
     }
 
     private fun dropOldArrivals(nowNs: Long) {
@@ -135,14 +172,13 @@ class ExposureLog(private val capacity: Int = 32) {
     }
 }
 
-private fun averageOf(all: List<FrameNumbers>): FrameNumbers =
-    FrameNumbers(
-        r = all.sumOf { it.r } / all.size,
-        g = all.sumOf { it.g } / all.size,
-        b = all.sumOf { it.b } / all.size,
-        spatialStdR = all.sumOf { it.spatialStdR } / all.size,
-        clipFrac = all.sumOf { it.clipFrac } / all.size,
-    )
+// Median of the intervals between the given frame times, or null with fewer than 5 intervals.
+fun medianIntervalNs(frameNs: Collection<Long>): Double? {
+    val intervals = frameNs.zipWithNext { a, b -> b - a }.sorted()
+    if (intervals.size < MIN_MEDIAN_INTERVALS) return null
+    val middle = intervals.size / 2
+    return if (intervals.size % 2 == 1) intervals[middle].toDouble() else (intervals[middle - 1] + intervals[middle]) / 2.0
+}
 
 // DSP-4 initial values (spec §10), copied here because native code cannot read packages/core/src/config.ts.
 // This is only the live hint; @lumen/core recomputes contact and is authoritative (ADR 0013).

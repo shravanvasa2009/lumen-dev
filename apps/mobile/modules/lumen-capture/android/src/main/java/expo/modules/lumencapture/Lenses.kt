@@ -8,6 +8,8 @@ import kotlin.math.sqrt
 
 data class FpsRange(val lower: Int, val upper: Int)
 
+data class ManualExposureRange(val minDurationNs: Long, val maxDurationNs: Long, val minIso: Int, val maxIso: Int)
+
 // One physical rear lens. cameraId is what CameraX opens; physicalId is set when the lens sits behind a
 // logical multi-camera and is reached with Camera2Interop setPhysicalCameraId.
 data class RearLens(
@@ -22,9 +24,8 @@ data class RearLens(
     val whiteBalanceLock: Boolean,
     val focusLock: Boolean,
     val fixedFocus: Boolean,
-    val compensationMin: Int,
-    val compensationMax: Int,
-    val compensationStepEv: Double,
+    // Set when the lens takes manual exposure time and ISO (MANUAL_SENSOR); DSP-5 steering needs it.
+    val manualExposure: ManualExposureRange?,
     val realtimeTimestamps: Boolean,
 ) {
     val maxFps: Int
@@ -52,7 +53,7 @@ fun lensKind(focalLengthMm: Float?, sensorWidthMm: Float?, sensorHeightMm: Float
     }
 }
 
-// ADR 0029: the highest rate the lens supports, capped at the requested rate. Among ranges with the same
+// Spec §9.2: the highest rate the lens supports up to the requested one (60 fps on Android). Among ranges with the same
 // top rate the highest floor wins, so auto-exposure has the least room to slow the frame rate down.
 fun pickFpsRange(ranges: List<FpsRange>, wantFps: Int): FpsRange? {
     val allowed = ranges.filter { it.upper <= wantFps }
@@ -102,7 +103,7 @@ private fun hiddenPhysicalIds(
     return logical.physicalIdsOrEmpty().filter { it !in listed }.sorted()
 }
 
-// Requests go to the logical camera, so frame rates, torch, locks and compensation come from it; the
+// Requests go to the logical camera, so frame rates, torch, locks and exposure ranges come from it; the
 // focal length and sensor size that decide the lens kind come from the physical lens.
 private fun describe(
     id: String,
@@ -122,8 +123,15 @@ private fun describe(
         } else {
             1
         }
-    val compensation = logical.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
-    val step = logical.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP)
+    val capabilities = logical.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: IntArray(0)
+    val durations = logical.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+    val isoRange = logical.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+    val manual =
+        if (CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR in capabilities && durations != null && isoRange != null) {
+            ManualExposureRange(durations.lower, durations.upper, isoRange.lower, isoRange.upper)
+        } else {
+            null
+        }
     return RearLens(
         id = id,
         cameraId = cameraId,
@@ -139,9 +147,7 @@ private fun describe(
         whiteBalanceLock = logical.get(CameraCharacteristics.CONTROL_AWB_LOCK_AVAILABLE) == true,
         focusLock = fixedFocus || CameraMetadata.CONTROL_AF_MODE_OFF in afModes,
         fixedFocus = fixedFocus,
-        compensationMin = compensation?.lower ?: 0,
-        compensationMax = compensation?.upper ?: 0,
-        compensationStepEv = step?.toDouble()?.takeIf { it > 0 } ?: 1.0,
+        manualExposure = manual,
         realtimeTimestamps =
             logical.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE) ==
                 CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME,

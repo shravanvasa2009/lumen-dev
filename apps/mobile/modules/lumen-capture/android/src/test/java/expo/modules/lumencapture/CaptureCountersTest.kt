@@ -3,6 +3,7 @@ package expo.modules.lumencapture
 import android.os.PowerManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -56,12 +57,51 @@ class CaptureCountersTest {
     }
 
     @Test
-    fun contactHintUsesFramesSinceTheLastStatus() {
+    fun medianIntervalReplacesTheNominalOneAfterFiveIntervals() {
+        // Nominal 60 fps but the camera delivers 30 fps: the first 5 intervals count one drop each against the
+        // nominal interval, then the 1 s median (33 ms) takes over and steady frames drop nothing.
+        val counters = CaptureCounters(INTERVAL_NS)
+        val thirtyFps = 2 * INTERVAL_NS
+        for (i in 0 until 60) counters.frameAt(i * thirtyFps)
+        assertEquals(5L, counters.dropped)
+        // A gap of 3 intervals at the median hides 2 frames.
+        counters.frameAt(59 * thirtyFps + 3 * thirtyFps)
+        assertEquals(7L, counters.dropped)
+    }
+
+    @Test
+    fun medianOfIntervals() {
+        assertNull(medianIntervalNs(listOf(0L, 10, 20, 30, 40)))
+        assertEquals(10.0, medianIntervalNs(listOf(0L, 10, 20, 30, 40, 50))!!, 0.0)
+        assertEquals(15.0, medianIntervalNs(listOf(0L, 10, 20, 30, 50, 70, 90))!!, 0.0)
+    }
+
+    @Test
+    fun contactHintUsesTheNewestFrameSinceTheLastStatus() {
         val counters = CaptureCounters(INTERVAL_NS)
         assertFalse(counters.status(0).fingerCovered)
-        counters.frameAt(0)
-        assertTrue(counters.status(0).fingerCovered)
-        assertFalse(counters.status(0).fingerCovered)
+        counters.frameAt(0, numbers = COVERED.copy(r = 0.1))
+        counters.frameAt(INTERVAL_NS)
+        assertTrue(counters.status(INTERVAL_NS).fingerCovered)
+        assertFalse(counters.status(INTERVAL_NS).fingerCovered)
+        counters.frameAt(2 * INTERVAL_NS)
+        counters.frameAt(3 * INTERVAL_NS, numbers = COVERED.copy(r = 0.1))
+        assertFalse(counters.status(3 * INTERVAL_NS).fingerCovered)
+    }
+
+    @Test
+    fun overexposureWatchFiresOnceAfterHalfASecondWhenArmed() {
+        val counters = CaptureCounters(INTERVAL_NS)
+        val bright = COVERED.copy(r = 0.97)
+        assertFalse(counters.frameAt(0, numbers = bright))
+        assertFalse(counters.frameAt(SECOND_NS, numbers = bright)) // not armed
+        counters.armOverexposureWatch()
+        assertFalse(counters.frameAt(2 * SECOND_NS, numbers = bright))
+        assertFalse(counters.frameAt(2 * SECOND_NS + 300_000_000, numbers = COVERED.copy(r = 0.95)))
+        assertFalse(counters.frameAt(2 * SECOND_NS + 400_000_000, numbers = bright))
+        assertTrue(counters.frameAt(2 * SECOND_NS + 900_000_000, numbers = bright))
+        assertFalse(counters.frameAt(4 * SECOND_NS, numbers = bright)) // once until re-armed
+        assertEquals(0.97, counters.lastRed!!, 0.0)
     }
 
     @Test

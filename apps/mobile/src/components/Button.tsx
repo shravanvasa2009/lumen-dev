@@ -7,13 +7,15 @@ import { AppText } from './AppText';
 type ButtonProps = {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'critical';
   disabled?: boolean;
 };
 
 export function Button({ label, onPress, variant = 'primary', disabled = false }: ButtonProps) {
   const { colors, radius, control, spacing } = useTheme();
-  const isPrimary = variant === 'primary';
+  const isSecondary = variant === 'secondary';
+  const fill = variant === 'critical' ? colors.criticalFill : colors.accentFill;
+  const onFill = variant === 'critical' ? colors.onCriticalFill : colors.onAccentFill;
   return (
     <Pressable
       accessibilityRole="button"
@@ -23,16 +25,16 @@ export function Button({ label, onPress, variant = 'primary', disabled = false }
       style={[
         styles.button,
         {
-          minHeight: isPrimary ? control.primaryButtonHeight : control.minTarget,
+          minHeight: isSecondary ? control.minTarget : control.primaryButtonHeight,
           borderRadius: radius.pill,
           paddingHorizontal: spacing.xxl,
-          backgroundColor: isPrimary ? colors.accentFill : 'transparent',
-          borderColor: isPrimary ? colors.accentFill : colors.line2,
+          backgroundColor: isSecondary ? 'transparent' : fill,
+          borderColor: isSecondary ? colors.line2 : fill,
           opacity: disabled ? 0.5 : 1,
         },
       ]}
     >
-      <AppText variant="headline" style={{ color: isPrimary ? colors.onAccentFill : colors.text }}>
+      <AppText variant="headline" style={{ color: isSecondary ? colors.text : onFill }}>
         {label}
       </AppText>
     </Pressable>

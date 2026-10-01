@@ -11,6 +11,8 @@
   "result.notChecked": "Not checked: blood pressure, blood oxygen, heart attack.",
   "result.inconclusive": "Not enough clean signal.",
   "safety.question": "Any chest pain, fainting, or severe shortness of breath right now?",
+  "emergency.title": "Get help now",
+  "emergency.call": "Call 911",
   "appearance.title": "Appearance",
   "appearance.system": "Use system setting",
   "placement.flashOutsideBump": "Lay the pad of your finger flat across the flash and the top lens.",
@@ -228,5 +230,16 @@
   "lockScreen.timer": "Live timer",
   "lockScreen.nextReading": "Next reading in",
   "lockScreen.tap": "Tap to measure",
-  "lockScreen.reminder": "Reminder"
+  "lockScreen.reminder": "Reminder",
+  "emergency.body": "Chest pain, fainting, or trouble breathing with an unusual heart reading can be an emergency.",
+  "emergency.okay": "I'm okay — go back",
+  "emergency.stroke": "Stroke signs — BE FAST",
+  "emergency.strokeLetters": "Balance · Eyes · Face · Arm · Speech · Time to call 911",
+  "followUp.title": "Did you get a chance to see a doctor?",
+  "followUp.subtitle": "A week ago Lumen suggested a doctor visit. Your answer stays on this phone.",
+  "followUp.saw": "Yes, I saw a doctor",
+  "followUp.booked": "I booked a visit",
+  "followUp.notYet": "Not yet",
+  "followUp.whatToAsk": "What to ask for",
+  "followUp.whatToAskBody": "An ECG for the rhythm result. An A1c blood test for the diabetes pattern. Bring your Lumen report."
 }

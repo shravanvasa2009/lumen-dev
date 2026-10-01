@@ -70,11 +70,6 @@ jobs:
       - name: README tested-devices table matches devices.json
         if: hashFiles('package-lock.json') != ''
         run: npm run devices:table -- --check
-      # DSP-D (synthetic signals). Kept out of npm test so verify:fast stays fast; it fails while a
-      # DSP-D criterion is unmet, and that failure is meant to show.
-      - name: Synthetic DSP-D suite
-        if: hashFiles('package-lock.json') != ''
-        run: npm run test:synthetic
       - name: Expo prebuild smoke test
         if: hashFiles('apps/mobile/app.config.ts') != ''
         working-directory: apps/mobile

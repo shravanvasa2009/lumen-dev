@@ -9,17 +9,16 @@ type ScreenProps = {
   // Headerless screens have no native header, so the status-bar inset must come from here.
   headerless?: boolean;
   footer?: ReactNode;
-  centered?: boolean;
 };
 
-export function Screen({ children, headerless = false, footer, centered = false }: ScreenProps) {
+export function Screen({ children, headerless = false, footer }: ScreenProps) {
   const { colors, spacing } = useTheme();
   return (
     <SafeAreaView
       edges={headerless ? ['top', 'left', 'right', 'bottom'] : ['left', 'right', 'bottom']}
       style={[styles.screen, { backgroundColor: colors.bg, padding: spacing.screen }]}
     >
-      <View style={[styles.body, centered && styles.centered]}>{children}</View>
+      <View style={styles.body}>{children}</View>
       {footer ? <View style={{ paddingTop: spacing.lg, gap: spacing.md }}>{footer}</View> : null}
     </SafeAreaView>
   );
@@ -28,5 +27,4 @@ export function Screen({ children, headerless = false, footer, centered = false 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   body: { flex: 1 },
-  centered: { justifyContent: 'center' },
 });

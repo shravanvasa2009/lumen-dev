@@ -21,7 +21,7 @@ const FIXTURES = {
 };
 const FRONT = rot13('sebag');
 const FRONT_UPPER = FRONT.toUpperCase();
-// Each form slipped past the guard before PR4a; one fixture per form so each is checked on its own.
+// One fixture per form so each is checked on its own; tabs stand in for any spacing between tokens.
 const SWIFT_FORMS = {
   assignment: `let wanted: AVCaptureDevice.Position = .${FRONT}\n`,
   qualifiedPosition: `let wanted = AVCaptureDevice.Position.${FRONT}\n`,
@@ -33,6 +33,15 @@ const SWIFT_FORMS = {
   unspecifiedPosition: `discover(mediaType: .video, position: .unspecified)\n`,
   unspecifiedQualified: `let any = AVCaptureDevice.Position.unspecified\n`,
   colonNoSpace: `lookup(.video, position:.${FRONT})\n`,
+  returned: `return .${FRONT}\n`,
+  ternary: `let side = flipped ? .${FRONT} : .back\n`,
+  arrayLiteral: `let sides: [AVCaptureDevice.Position] = [.${FRONT}]\n`,
+  arrayAfterBack: `let sides = [.back, .${FRONT}]\n`,
+  tabbedCase: `switch side {\ncase\t.${FRONT}: break\ndefault: break\n}\n`,
+  tabbedLabel: `lookup(.video, position:\t.${FRONT})\n`,
+  unspecifiedTernary: `discover(position: wide ? .unspecified : .back)\n`,
+  unspecifiedTyped: `let any: AVCaptureDevice.Position = .unspecified\n`,
+  unspecifiedTabbed: `discover(mediaType: .video, position:\t.unspecified)\n`,
 };
 const KOTLIN_FORMS = {
   cameraXDefault: `val selector = CameraSelector.DEFAULT_${FRONT_UPPER}_CAMERA\n`,
@@ -42,13 +51,17 @@ const KOTLIN_FORMS = {
 };
 // Lines a rear-only module may legitimately contain.
 const ALLOWED = {
-  frontier: `let frontier = .${FRONT}ier\n`,
-  storefront: `let storefront = store${FRONT}\n`,
-  frontierCompare: `if region.${FRONT}ier == other {}\n`,
-  backPosition: `let wanted: AVCaptureDevice.Position = .back\nif side == .back {}\n`,
-  backCase: `switch side {\ncase .back: break\ncase .${FRONT}Row: break\n}\n`,
-  backLookup: `discover(mediaType: .video, position: .back)\n`,
-  kotlinBack: `val selector = CameraSelector.DEFAULT_BACK_CAMERA\n`,
+  'Frontier.swift': `let frontier = .${FRONT}ier\n`,
+  'Storefront.swift': `let storefront = store${FRONT}\n`,
+  'FrontierCompare.swift': `if region.${FRONT}ier == other {}\n`,
+  'BackPosition.swift': `let wanted: AVCaptureDevice.Position = .back\nif side == .back {}\n`,
+  'BackCase.swift': `switch side {\ncase .back: break\ncase .${FRONT}Row: break\n}\n`,
+  'BackLookup.swift': `discover(mediaType: .video, position: .back)\n`,
+  'KotlinBack.kt': `val selector = CameraSelector.DEFAULT_BACK_CAMERA\n`,
+  'MemberCompare.ts': `if (cfg.${FRONT} === true) {}\n`,
+  'MemberCompare.py': `if cfg.${FRONT} == 1:\n    pass\n`,
+  'MemberAccess.swift': `let a = cfg.${FRONT}\nlet b = items[0].${FRONT}\nlet c = load().${FRONT}\nlet d = cfg?.${FRONT}\n`,
+  'OtherUnspecified.swift': `view.overrideUserInterfaceStyle = .unspecified\n`,
 };
 
 function runGuard(relativeFile, content) {
@@ -115,7 +128,7 @@ for (const [name, content] of Object.entries(KOTLIN_FORMS)) {
 
 for (const [name, content] of Object.entries(ALLOWED)) {
   test(`does not flag the allowed line: ${name}`, () => {
-    const run = runGuard(`${MODULE}/ios/${name}.swift`, content);
+    const run = runGuard(`${MODULE}/src/${name}`, content);
     assert.equal(run.status, 0, run.stderr);
   });
 }

@@ -6,14 +6,11 @@ import { useTheme } from '@/theme';
 
 import { AppText } from './AppText';
 
-type EvidenceBadgeProps = { metric: EvidenceMetric; flag?: undefined } | { flag: true; metric?: undefined };
-
-// The label comes from the evidence reader alone; a flag is the only state a screen can ask for itself,
-// and it stands for a fired decision rule rather than for accuracy.
-export function EvidenceBadge({ metric, flag }: EvidenceBadgeProps) {
+// The label comes from the evidence reader alone.
+export function EvidenceBadge({ metric }: { metric: EvidenceMetric }) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
-  const state = flag ? 'flag' : metric ? evidenceFor(metric).label : 'experimental';
+  const { label } = evidenceFor(metric);
   const look = {
     checked: { fg: colors.badgeCheckedFg, bg: colors.badgeCheckedBg, word: t('evidence.checked') },
     'public-data': { fg: colors.badgePublicFg, bg: colors.badgePublicBg, word: t('evidence.publicData') },
@@ -22,8 +19,7 @@ export function EvidenceBadge({ metric, flag }: EvidenceBadgeProps) {
       bg: colors.badgeExperimentalBg,
       word: t('evidence.experimental'),
     },
-    flag: { fg: colors.badgeFlagFg, bg: colors.badgeFlagBg, word: t('evidence.flag') },
-  }[state];
+  }[label];
   return (
     <View
       testID="evidence-badge"

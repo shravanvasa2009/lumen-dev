@@ -67,11 +67,17 @@ describe('EVID-1: the reader never shows more than the file supports', () => {
     expect(evidence.resp).toEqual({ label: 'checked', measured: true });
   });
 
-  it('"public-data" is passed through and stays unmeasured until a criterion passes', () => {
-    expect(readEvidence(fileWith({ diabetes: { label: 'public-data', passed: false } })).diabetes).toEqual({
-      label: 'public-data',
-      measured: false,
-    });
+  it('"public-data" needs a passed criterion too, so diabetes cannot claim it without one', () => {
+    const evidence = readEvidence(
+      fileWith({
+        diabetes: { label: 'public-data', passed: false },
+        rhythm: { label: 'public-data' },
+        hr: { label: 'public-data', passed: true },
+      }),
+    );
+    expect(evidence.diabetes).toEqual({ label: 'experimental', measured: false });
+    expect(evidence.rhythm).toEqual({ label: 'experimental', measured: false });
+    expect(evidence.hr).toEqual({ label: 'public-data', measured: true });
   });
 
   it('no combination of label and passed shows a label stronger than the file states', () => {
@@ -80,6 +86,7 @@ describe('EVID-1: the reader never shows more than the file supports', () => {
       for (const passed of [true, false, undefined]) {
         const shown = readEvidence(fileWith({ hr: { label, passed } })).hr.label;
         const stated = label === 'checked' || label === 'public-data' ? label : 'experimental';
+        if (passed !== true) expect(shown).toBe('experimental');
         expect(strength[shown]).toBeLessThanOrEqual(strength[stated]);
       }
     }
@@ -110,16 +117,6 @@ describe.each([
       colors.badgeExperimentalBg,
     );
   });
-
-  it('shows the amber Flag badge with its own word', () => {
-    render(<EvidenceBadge flag />);
-    expect(StyleSheet.flatten(screen.getByText(en['evidence.flag']).props.style).color).toBe(
-      colors.badgeFlagFg,
-    );
-    expect(StyleSheet.flatten(screen.getByTestId('evidence-badge').props.style).backgroundColor).toBe(
-      colors.badgeFlagBg,
-    );
-  });
 });
 
 describe('the evidence words exist in both languages', () => {
@@ -128,7 +125,6 @@ describe('the evidence words exist in both languages', () => {
     'evidence.publicData',
     'evidence.experimental',
     'evidence.notTested',
-    'evidence.flag',
   ] as const)('%s', (key) => {
     expect(en[key]).toBeTruthy();
     expect(es[key]).toBeTruthy();

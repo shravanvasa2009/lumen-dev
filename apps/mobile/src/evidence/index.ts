@@ -17,14 +17,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-// EVID-1: anything missing or unrecognised is Experimental, and "checked" needs `passed: true` as well.
-// "public-data" is taken from the file as written; the model-card half of its rule is Track D's gate.
+// EVID-1: a label above Experimental needs the file to say so and `passed: true` (spec 6.2, ML-6).
+// Anything missing, unrecognised or unpassed is Experimental, and `measured` follows the shown label so
+// a badge never sits next to "Not yet tested".
 function readMetric(metric: unknown): MetricEvidence {
-  if (!isRecord(metric)) return weakest;
-  const measured = metric.passed === true;
-  if (metric.label === 'checked' && measured) return { label: 'checked', measured };
-  if (metric.label === 'public-data') return { label: 'public-data', measured };
-  return { label: 'experimental', measured };
+  if (!isRecord(metric) || metric.passed !== true) return weakest;
+  if (metric.label === 'checked') return { label: 'checked', measured: true };
+  if (metric.label === 'public-data') return { label: 'public-data', measured: true };
+  return weakest;
 }
 
 export function readEvidence(file: unknown): Record<EvidenceMetric, MetricEvidence> {

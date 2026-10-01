@@ -7,13 +7,13 @@ import en from '@/i18n/en.json';
 import '@/i18n';
 
 // The screen reads the file when its module loads, so the mock is fixed per test file. Each metric has
-// a different claim; only the first has both the label and the passed criterion.
+// a different claim; a label counts only with the passed criterion.
 jest.mock('../../assets/evidence.json', () => ({
   commit: null,
   date: null,
   metrics: {
     hr: { label: 'checked', passed: true },
-    rhythm: { label: 'public-data', passed: false },
+    rhythm: { label: 'public-data', passed: true },
     hrv: { label: 'experimental', passed: false },
     resp: { label: 'checked', passed: false },
     diabetes: { label: 'public-data', passed: false },
@@ -37,9 +37,9 @@ it('EVID-1: shows one badge per metric with the label the file supports', () => 
     en['evidence.publicData'],
     en['evidence.experimental'],
     en['evidence.experimental'],
-    en['evidence.publicData'],
+    en['evidence.experimental'],
     en['evidence.experimental'],
   ]);
   expect(screen.getByText(en['accuracy.diabetes'])).toBeTruthy();
-  expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(5);
+  expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(4);
 });

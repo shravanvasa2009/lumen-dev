@@ -12,12 +12,19 @@ export default function proveM3() {
   const manifest = readJsonIfExists(path.join(models, 'manifest.json'));
   if (!manifest) return { status: 'FAIL', reasons: ['models/manifest.json not found'] };
   const reasons = [];
-  for (const name of ['rhythm-net', 'sqi-finger', 'diabetes-net']) {
-    const entry = manifest.models?.find((model) => model.name === name);
-    if (!entry) {
-      reasons.push(`manifest has no ${name}`);
+  const parity = readJsonIfExists(path.join(models, 'parity.json'));
+  if (!(parity?.maxAbsDiff <= 1e-4))
+    reasons.push(`ONNX parity ${parity?.maxAbsDiff ?? 'missing'}; need ≤ 1e-4 (ML-3)`);
+  // ADR 0031: the manifest marks which model ships in each family, so the proof checks that entry by flag.
+  for (const family of ['rhythm', 'sqi', 'diabetes']) {
+    const shipped = (manifest.models ?? []).filter(
+      (model) => model.family === family && model.ships === true,
+    );
+    if (shipped.length !== 1) {
+      reasons.push(`manifest has ${shipped.length} shipped ${family} models; need exactly 1`);
       continue;
     }
+    const [entry] = shipped;
     const file = path.join(models, entry.file);
     if (!fs.existsSync(file)) {
       reasons.push(`${entry.file} missing`);
@@ -25,16 +32,16 @@ export default function proveM3() {
     }
     const digest = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
     if (digest !== entry.sha256) reasons.push(`${entry.file} sha256 does not match the manifest`);
+    // The parity run must have tested this exact file, not an earlier export.
+    if (parity?.models?.[entry.name]?.onnxSha256 !== entry.sha256)
+      reasons.push(`parity.json was not run on the shipped ${entry.name} (onnxSha256 differs or missing)`);
     const card = path.join(models, entry.card ?? '');
-    if (!entry.card || !fs.existsSync(card)) reasons.push(`${name} model card missing`);
+    if (!entry.card || !fs.existsSync(card)) reasons.push(`${entry.name} model card missing`);
     else
       CARD_SECTIONS.filter((heading) => !fs.readFileSync(card, 'utf8').includes(heading)).forEach((heading) =>
         reasons.push(`${entry.card} lacks "${heading}"`),
       );
   }
-  const parity = readJsonIfExists(path.join(models, 'parity.json'));
-  if (!(parity?.maxAbsDiff <= 1e-4))
-    reasons.push(`ONNX parity ${parity?.maxAbsDiff ?? 'missing'}; need ≤ 1e-4 (ML-3)`);
   const external = readJsonIfExists(path.join(models, 'external-test.json'));
   const rhythm = external?.rhythm ?? {};
   for (const field of ['sensitivity', 'specificity', 'auroc', 'ci95', 'ppvNpv'])

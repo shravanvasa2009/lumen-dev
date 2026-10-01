@@ -26,6 +26,22 @@ export const DSP_CONFIG = {
     hrBandHz: [0.6, 3.5],
     morphologyBandHz: [0.5, 8],
   },
+  // Pulse-shape view and diabetes-net's averaged beat (ADR 0030).
+  dsp14: {
+    minNormalBeats: 20,
+    // Each beat (onset to next onset) is resampled to this many samples, so the average is one period
+    // long whatever the heart rate: diabetes-net's [1, 1, 256] input.
+    beatSamples: 256,
+    // The window starts this fraction of a period before the onset, so the a-wave sits clear of the
+    // Savitzky–Golay edge fit.
+    leadFraction: 0.1,
+    // a–e are searched from the window start to onset + this fraction of the period. Ejection lasts about
+    // 35–55% of the period from rest to 150 bpm; the rest is margin. Initial value.
+    systoleFraction: 0.6,
+    savgolWindow: 9,
+    savgolOrder: 3,
+    minFps: 60, // DSP-14 requires ≥ 60 fps capture
+  },
   dsp15: {
     // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).
     windowIntervals: 32,

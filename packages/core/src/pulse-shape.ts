@@ -1,0 +1,162 @@
+import { DSP_CONFIG } from './config';
+
+// DSP-14 (ADR 0030). ml/lumen_dsp/shape.py runs the same operations in the same order for the averaged
+// beat, which is diabetes-net's [1, 1, 256] input; Savitzky–Golay there is scipy.signal.savgol_filter.
+
+export interface WaveLabels {
+  // Sample indices into the 256-sample beat; null when that wave (or an earlier one) is not found.
+  a: number | null;
+  b: number | null;
+  c: number | null;
+  d: number | null;
+  e: number | null;
+}
+
+export interface PulseShape {
+  beat: Float64Array; // ensemble average of min–max normalized beats: the model input
+  smoothed: Float64Array;
+  secondDerivative: Float64Array; // per sample²; only signs and extrema are used
+  waves: WaveLabels;
+  beatsUsed: number;
+}
+
+// Weights that turn a window of samples at centred positions −h..h into the least-squares polynomial's
+// derivative of order `deriv` at position x (Savitzky–Golay). Solves the normal equations VᵀV c = Vᵀ y.
+function savgolWeights(halfWidth: number, order: number, deriv: number, x: number): number[] {
+  const positions = Array.from({ length: 2 * halfWidth + 1 }, (_, i) => i - halfWidth);
+  const size = order + 1;
+  const normal = Array.from({ length: size }, (_, r) =>
+    Array.from({ length: size }, (_, c) => positions.reduce((sum, p) => sum + p ** (r + c), 0)),
+  );
+  // Row vector of the derivative of [1, x, x², …] at x.
+  const basis = Array.from({ length: size }, (_, j) => {
+    if (j < deriv) return 0;
+    let factor = 1;
+    for (let m = j - deriv + 1; m <= j; m++) factor *= m;
+    return factor * x ** (j - deriv);
+  });
+  // Solve normal · z = basis (normal is symmetric), then weight_i = Σ_j z_j · p_i^j.
+  const augmented = normal.map((row, r) => [...row, basis[r]!]);
+  for (let col = 0; col < size; col++) {
+    let pivot = col;
+    for (let r = col + 1; r < size; r++)
+      if (Math.abs(augmented[r]![col]!) > Math.abs(augmented[pivot]![col]!)) pivot = r;
+    [augmented[col], augmented[pivot]] = [augmented[pivot]!, augmented[col]!];
+    for (let r = col + 1; r < size; r++) {
+      const ratio = augmented[r]![col]! / augmented[col]![col]!;
+      for (let c = col; c <= size; c++) augmented[r]![c]! -= ratio * augmented[col]![c]!;
+    }
+  }
+  const z = new Array<number>(size).fill(0);
+  for (let r = size - 1; r >= 0; r--) {
+    let rest = augmented[r]![size]!;
+    for (let c = r + 1; c < size; c++) rest -= augmented[r]![c]! * z[c]!;
+    z[r] = rest / augmented[r]![r]!;
+  }
+  return positions.map((p) => z.reduce((sum, zj, j) => sum + zj * p ** j, 0));
+}
+
+/** DSP-14: Savitzky–Golay filter (window 9, order 3) like scipy savgol_filter with mode 'interp'. */
+export function savgolFilter(values: ArrayLike<number>, deriv: number): Float64Array {
+  const { savgolWindow, savgolOrder } = DSP_CONFIG.dsp14;
+  const half = (savgolWindow - 1) / 2;
+  const n = values.length;
+  if (n < savgolWindow)
+    throw new RangeError(`Savitzky–Golay needs at least ${savgolWindow} samples, got ${n}`);
+  const filtered = new Float64Array(n);
+  const apply = (weights: number[], start: number) =>
+    weights.reduce((sum, w, i) => sum + w * values[start + i]!, 0);
+  const centre = savgolWeights(half, savgolOrder, deriv, 0);
+  for (let k = half; k < n - half; k++) filtered[k] = apply(centre, k - half);
+  // 'interp': the first and last `half` samples come from the polynomial fitted to the first and last
+  // full windows, evaluated at their positions.
+  for (let k = 0; k < half; k++) {
+    filtered[k] = apply(savgolWeights(half, savgolOrder, deriv, k - half), 0);
+    filtered[n - half + k] = apply(savgolWeights(half, savgolOrder, deriv, k + 1), n - savgolWindow);
+  }
+  return filtered;
+}
+
+const isLocalMax = (y: Float64Array, i: number) => y[i - 1]! < y[i]! && y[i]! >= y[i + 1]!;
+const isLocalMin = (y: Float64Array, i: number) => y[i - 1]! > y[i]! && y[i]! <= y[i + 1]!;
+
+// a: the largest local maximum of the second derivative before the systolic peak; b: the lowest point
+// after a; then c, d, e: the first local maximum, minimum, maximum after that. All within the systolic
+// span; a wave that is not found leaves it and every later wave null.
+function labelWaves(smoothed: Float64Array, secondDerivative: Float64Array, spanEnd: number): WaveLabels {
+  const waves: WaveLabels = { a: null, b: null, c: null, d: null, e: null };
+  let systolicPeak = 0;
+  for (let k = 1; k < spanEnd; k++) if (smoothed[k]! > smoothed[systolicPeak]!) systolicPeak = k;
+  for (let i = 1; i < systolicPeak; i++) {
+    if (
+      isLocalMax(secondDerivative, i) &&
+      (waves.a === null || secondDerivative[i]! > secondDerivative[waves.a]!)
+    )
+      waves.a = i;
+  }
+  if (waves.a === null || waves.a + 1 >= spanEnd) return waves;
+  let b = waves.a + 1;
+  for (let i = b + 1; i < spanEnd; i++) if (secondDerivative[i]! < secondDerivative[b]!) b = i;
+  waves.b = b;
+  const next = (from: number, isWave: (y: Float64Array, i: number) => boolean) => {
+    for (let i = from + 1; i < spanEnd - 1; i++) if (isWave(secondDerivative, i)) return i;
+    return null;
+  };
+  waves.c = next(b, isLocalMax);
+  waves.d = waves.c === null ? null : next(waves.c, isLocalMin);
+  waves.e = waves.d === null ? null : next(waves.d, isLocalMax);
+  return waves;
+}
+
+/** DSP-14: ensemble beat of ≥ 20 normal beats aligned on onsets, with a–e labels; null if not enough. */
+export function ensembleBeat(
+  signal256: ArrayLike<number>,
+  onsets: number[],
+  normal: boolean[],
+  effectiveFps: number,
+): PulseShape | null {
+  if (onsets.length !== normal.length)
+    throw new RangeError(`${onsets.length} onsets but ${normal.length} normal-beat flags`);
+  const { minNormalBeats, beatSamples, leadFraction, systoleFraction, minFps } = DSP_CONFIG.dsp14;
+  if (effectiveFps < minFps) return null;
+
+  const sums = new Float64Array(beatSamples);
+  let beatsUsed = 0;
+  for (let i = 0; i + 1 < onsets.length; i++) {
+    // A beat runs from its onset to the next one, so both beats must be normal.
+    if (!normal[i] || !normal[i + 1]) continue;
+    const onset = onsets[i]!;
+    const period = onsets[i + 1]! - onset;
+    const first = onset - leadFraction * period;
+    const last = onset + ((beatSamples - 1) / beatSamples - leadFraction) * period;
+    if (!(period > 0) || first < 0 || Math.floor(last) + 1 > signal256.length - 1) continue;
+    const raw = new Float64Array(beatSamples);
+    for (let k = 0; k < beatSamples; k++) {
+      const x = onset + (k / beatSamples - leadFraction) * period;
+      const j = Math.floor(x);
+      raw[k] = signal256[j]! + (signal256[j + 1]! - signal256[j]!) * (x - j);
+    }
+    let low = raw[0]!;
+    let high = raw[0]!;
+    for (const value of raw) {
+      low = Math.min(low, value);
+      high = Math.max(high, value);
+    }
+    if (high === low) continue;
+    for (let k = 0; k < beatSamples; k++) sums[k]! += (raw[k]! - low) / (high - low);
+    beatsUsed++;
+  }
+  if (beatsUsed < minNormalBeats) return null;
+
+  const beat = sums.map((sum) => sum / beatsUsed);
+  const smoothed = savgolFilter(beat, 0);
+  const secondDerivative = savgolFilter(beat, 2);
+  const spanEnd = Math.floor((leadFraction + systoleFraction) * beatSamples + 0.5);
+  return {
+    beat,
+    smoothed,
+    secondDerivative,
+    waves: labelWaves(smoothed, secondDerivative, spanEnd),
+    beatsUsed,
+  };
+}

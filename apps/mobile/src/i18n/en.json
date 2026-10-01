@@ -54,7 +54,6 @@
   "placement.start": "I'm ready — start practice",
   "practice.title": "Practice reading",
   "practice.subtitle": "Slide your finger until the bar says Strong, then hold still.",
-  "practice.steady": "Steady seconds",
   "signal.weak": "Weak",
   "signal.ok": "OK",
   "signal.strong": "Strong",
@@ -393,5 +392,8 @@
   "phoneCheck.notChecked": "Not checked",
   "phoneCheck.timingLater": "Measured in practice",
   "phoneCheck.probeUnavailable": "This build can't reach the camera, so nothing was checked.",
-  "placement.subtitle": "Rear camera lens and flash, seen from the back of the phone"
+  "placement.subtitle": "Rear camera lens and flash, seen from the back of the phone",
+  "coach.cover": "Cover the lens and the flash.",
+  "practice.progress": "{{done}} of {{total}} steady seconds",
+  "practice.pending": "Camera practice isn't connected in this build yet, so you can continue without it."
 }

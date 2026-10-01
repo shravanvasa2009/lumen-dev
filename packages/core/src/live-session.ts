@@ -25,7 +25,7 @@ export interface RejectedSpan {
   reason: RejectionReason;
 }
 
-// SQI-Net input (§11.2): channel-major [2, 256] = R then G, 4 s at 64 Hz, each z-scored (DSP-2, DSP-3).
+// SQI-Net v1 input (ADR 0023, [1, 256]): one channel, −R, 4 s at 64 Hz = 256 samples, z-scored (DSP-3).
 export interface SqiWindow {
   endS: number;
   input: Float32Array;

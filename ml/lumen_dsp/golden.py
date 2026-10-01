@@ -155,35 +155,27 @@ def golden_files() -> dict[str, dict]:
             ]
         },
         "filters.json": {"bandPass": filters, "dcLevel": dc},
-        "zscore.json": zscore_windows(timebase, primary, secondary),
+        "zscore.json": zscore_windows(timebase, primary),
     }
 
 
-def zscore_windows(timebase, primary: np.ndarray, secondary: np.ndarray) -> dict:
-    # SQI-Net inputs (DSP-3, §11) cut from the longest 64 Hz segment every 64 samples (SQI runs every 1 s),
-    # plus a flat window, which has no input.
+def zscore_windows(timebase, primary: np.ndarray) -> dict:
+    # SQI-Net v1 inputs (DSP-3, ADR 0023: −R only) cut from the longest 64 Hz segment every 64 samples
+    # (SQI runs every 1 s), plus a flat window, which has no input.
     rate = DSP_CONFIG["dsp2"]["modelRateHz"]
     samples = DSP_CONFIG["dsp3"]["modelWindowS"] * rate
-    primary_segments = resample_cubic(timebase.t_s, primary, rate)
-    secondary_segments = resample_cubic(timebase.t_s, secondary, rate)
-    longest = max(range(len(primary_segments)), key=lambda i: len(primary_segments[i].values))
-    first_index = primary_segments[longest].first_index
-    primary_values = primary_segments[longest].values
-    secondary_values = secondary_segments[longest].values
+    segment = max(resample_cubic(timebase.t_s, primary, rate), key=lambda candidate: len(candidate.values))
     windows = []
-    for start in range(0, len(primary_values) - samples + 1, rate):
-        window_primary = floats(primary_values[start : start + samples])
-        window_secondary = floats(secondary_values[start : start + samples])
+    for start in range(0, len(segment.values) - samples + 1, rate):
+        window_primary = floats(segment.values[start : start + samples])
         windows.append(
             {
-                "firstIndex": first_index + start,
+                "firstIndex": segment.first_index + start,
                 "primary": window_primary,
-                "secondary": window_secondary,
-                "input": floats(sqi_model_input(window_primary, window_secondary)),
+                "input": floats(sqi_model_input(window_primary)),
             }
         )
-    flat = [-0.62] * samples
-    windows.append({"firstIndex": None, "primary": flat, "secondary": window_secondary, "input": None})
+    windows.append({"firstIndex": None, "primary": [-0.62] * samples, "input": None})
     return {"windowSamples": samples, "windows": windows}
 
 

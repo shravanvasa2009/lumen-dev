@@ -29,18 +29,13 @@ def z_score_window(window) -> list[float] | None:
     return [(value - mean) / sd for value in values]
 
 
-# DSP-3: SQI-Net input (§11), channel-major [2, 256] float32: z-scored primary (−R), then secondary (−G).
-def sqi_model_input(primary, secondary) -> np.ndarray | None:
+# DSP-3: SQI-Net v1 input (ADR 0023), 256 float32: the 4 s primary (−R) window, z-scored; None if flat.
+def sqi_model_input(primary) -> np.ndarray | None:
     samples = DSP_CONFIG["dsp3"]["modelWindowS"] * DSP_CONFIG["dsp2"]["modelRateHz"]
-    if len(primary) != samples or len(secondary) != samples:
-        raise ValueError(
-            f"SQI windows need {samples} samples per channel, got {len(primary)} and {len(secondary)}"
-        )
-    scored_primary = z_score_window(primary)
-    scored_secondary = z_score_window(secondary)
-    if scored_primary is None or scored_secondary is None:
-        return None
-    return np.asarray(scored_primary + scored_secondary, dtype=np.float32)
+    if len(primary) != samples:
+        raise ValueError(f"SQI windows need {samples} samples, got {len(primary)}")
+    scored = z_score_window(primary)
+    return None if scored is None else np.asarray(scored, dtype=np.float32)
 
 
 # DSP-3: DC level (zero-phase Butterworth low-pass below 0.3 Hz) of a uniformly sampled channel.

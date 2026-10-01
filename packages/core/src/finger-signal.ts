@@ -29,20 +29,13 @@ export function zScoreWindow(window: ArrayLike<number>): Float64Array | null {
   return Float64Array.from(values, (value) => (value - mean) / sd);
 }
 
-/** DSP-3: SQI-Net input (§11), channel-major [2, 256] float32: z-scored primary (−R), then secondary (−G). */
-export function sqiModelInput(primary: ArrayLike<number>, secondary: ArrayLike<number>): Float32Array | null {
+/** DSP-3: SQI-Net v1 input (ADR 0023), 256 float32: the 4 s primary (−R) window, z-scored; null if flat. */
+export function sqiModelInput(primary: ArrayLike<number>): Float32Array | null {
   const samples = DSP_CONFIG.dsp3.modelWindowS * DSP_CONFIG.dsp2.modelRateHz;
-  if (primary.length !== samples || secondary.length !== samples)
-    throw new RangeError(
-      `SQI windows need ${samples} samples per channel, got ${primary.length} and ${secondary.length}`,
-    );
-  const scoredPrimary = zScoreWindow(primary);
-  const scoredSecondary = zScoreWindow(secondary);
-  if (!scoredPrimary || !scoredSecondary) return null;
-  const input = new Float32Array(2 * samples);
-  input.set(scoredPrimary, 0);
-  input.set(scoredSecondary, samples);
-  return input;
+  if (primary.length !== samples)
+    throw new RangeError(`SQI windows need ${samples} samples, got ${primary.length}`);
+  const scored = zScoreWindow(primary);
+  return scored && Float32Array.from(scored);
 }
 
 /** DSP-3: DC level (zero-phase Butterworth low-pass below 0.3 Hz) of a uniformly sampled channel. */

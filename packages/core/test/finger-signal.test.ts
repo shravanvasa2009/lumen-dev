@@ -52,30 +52,23 @@ describe('DSP-3 per-window z-score for model inputs', () => {
     expect(zScoreWindow(new Array<number>(256).fill(-0.62))).toBeNull();
   });
 
-  it('builds the SQI-Net input [2, 256]: primary (−R) then secondary (−G), each z-scored, as float32', () => {
+  it('builds the SQI-Net v1 input [1, 256] (ADR 0023): the primary (−R) z-scored, as float32', () => {
     const primary = Array.from(
       { length: 256 },
       (_, k) => -0.6 - 0.004 * Math.sin((2 * Math.PI * 1.2 * k) / 64),
     );
-    const secondary = Array.from(
-      { length: 256 },
-      (_, k) => -0.11 - 0.001 * Math.sin((2 * Math.PI * 1.2 * k) / 64 + 0.3),
-    );
-    const input = sqiModelInput(primary, secondary)!;
+    const input = sqiModelInput(primary)!;
     expect(input).toBeInstanceOf(Float32Array);
-    expect(input).toHaveLength(512);
-    expect(Array.from(input.subarray(0, 256))).toEqual(Array.from(Float32Array.from(zScoreWindow(primary)!)));
-    expect(Array.from(input.subarray(256))).toEqual(Array.from(Float32Array.from(zScoreWindow(secondary)!)));
+    expect(input).toHaveLength(256);
+    expect(Array.from(input)).toEqual(Array.from(Float32Array.from(zScoreWindow(primary)!)));
   });
 
-  it('gives no SQI input when either channel is flat', () => {
-    const pulse = Array.from({ length: 256 }, (_, k) => Math.sin(k / 9));
-    expect(sqiModelInput(pulse, new Array<number>(256).fill(-0.1))).toBeNull();
-    expect(sqiModelInput(new Array<number>(256).fill(-1), pulse)).toBeNull();
+  it('gives no SQI input for a flat window', () => {
+    expect(sqiModelInput(new Array<number>(256).fill(-1))).toBeNull();
   });
 
   it('rejects windows that are not 256 samples long', () => {
     const pulse = Array.from({ length: 255 }, (_, k) => Math.sin(k / 9));
-    expect(() => sqiModelInput(pulse, pulse)).toThrow(RangeError);
+    expect(() => sqiModelInput(pulse)).toThrow(RangeError);
   });
 });

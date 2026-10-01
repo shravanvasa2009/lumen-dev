@@ -21,22 +21,36 @@ const rot13 = (text) =>
     const base = ch <= 'Z' ? 65 : 97;
     return String.fromCharCode(((ch.charCodeAt(0) - base + 13) % 26) + base);
   });
-const PATTERNS = ENCODED.map(
-  (encoded) => new RegExp(rot13(encoded).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
-);
+// Regular-expression sources (ROT13 as well) for Objective-C and Swift forms of the front position.
+const ENCODED_REGEX = [
+  'NIPncgherQrivprCbfvgvbaSebag',
+  'cbfvgvba[ ]*[=!]=[ ]*[.]sebag',
+  '[(,][ ]*[.]sebag[ ]*[,)]',
+];
+const PATTERNS = [
+  ...ENCODED.map((encoded) => new RegExp(rot13(encoded).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')),
+  ...ENCODED_REGEX.map((encoded) => new RegExp(rot13(encoded), 'i')),
+];
 const ROOTS = ['apps', 'packages', 'tools', 'ml'];
-const SKIP = new Set(['node_modules', '.venv', 'data', 'runs', 'build', 'dist', '.expo']);
-// Only the generated prebuild folders are skipped; modules/lumen-capture/{ios,android} is hand-written
-// native camera code and must be scanned.
-const SKIP_PATHS = new Set(['apps/mobile/ios', 'apps/mobile/android']);
-const EXT = /\.(ts|tsx|js|jsx|mjs|cjs|swift|kt|kts|java|py|json)$/;
+// Vendored or generated folders that are skipped wherever they appear.
+const SKIP = new Set(['node_modules', '.venv', '.expo']);
+// Everything else is skipped by full repo-relative path, so a hand-written folder that happens to be
+// named data or build (for example inside modules/lumen-capture) is still scanned.
+const SKIP_PATHS = [
+  /^ml\/(data|runs)$/,
+  /^(apps|packages|tools)\/[^/]+\/(dist|build)$/,
+  /^apps\/mobile\/(ios|android)$/,
+  /^apps\/mobile\/modules\/lumen-capture\/android\/(build|[.]cxx|[.]gradle)$/,
+];
+const EXT = /[.](ts|tsx|js|jsx|mjs|cjs|swift|kt|kts|java|py|json|m|mm|h|xml|gradle|plist)$/;
 
 function* walk(dir) {
   if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (SKIP.has(entry.name)) continue;
     const full = path.join(dir, entry.name);
-    if (SKIP_PATHS.has(full.split(path.sep).join('/'))) continue;
+    const relative = full.split(path.sep).join('/');
+    if (SKIP_PATHS.some((skipped) => skipped.test(relative))) continue;
     if (entry.isDirectory()) yield* walk(full);
     else if (EXT.test(entry.name)) yield full;
   }

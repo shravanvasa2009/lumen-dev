@@ -1,4 +1,5 @@
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { router } from 'expo-router';
+import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 
@@ -70,5 +71,25 @@ describe('Lab mode', () => {
     renderRouter(appDirectory, { initialUrl: '/settings/lab' });
     expect(screen.getByRole('header', { name: en['lab.title'] })).toBeOnTheScreen();
     expect(screen.queryByText(en['lab.noSource'])).toBeNull();
+  });
+});
+
+describe('Appearance', () => {
+  it('previews both looks for System and one look for a chosen theme', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/appearance' });
+    expect(screen.getAllByText(en['home.measure'])).toHaveLength(2);
+    fireEvent.press(screen.getByRole('radio', { name: en['appearance.dark'] }));
+    expect(screen.getByRole('radio', { name: en['appearance.dark'] })).toBeChecked();
+    expect(screen.getAllByText(en['home.measure'])).toHaveLength(1);
+    fireEvent.press(screen.getByRole('radio', { name: en['appearance.segmentSystem'] }));
+    expect(screen.getAllByText(en['home.measure'])).toHaveLength(2);
+  });
+
+  it('shows the choice on the Settings row', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/appearance' });
+    fireEvent.press(screen.getByRole('radio', { name: en['appearance.light'] }));
+    act(() => router.navigate('/settings'));
+    const row = screen.getByRole('button', { name: new RegExp(en['appearance.title']), hidden: true });
+    expect(within(row).getByText(en['appearance.light'])).toBeOnTheScreen();
   });
 });

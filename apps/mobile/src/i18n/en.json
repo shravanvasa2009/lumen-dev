@@ -295,7 +295,7 @@
   "emergency.stroke": "Stroke signs — BE FAST",
   "emergency.strokeLetters": "Balance · Eyes · Face · Arm · Speech · Time to call 911",
   "followUp.title": "Did you get a chance to see a doctor?",
-  "followUp.subtitle": "If Lumen suggested a doctor visit, how did it go? Your answer stays on this phone.",
+  "followUp.subtitle": "A week ago Lumen suggested a doctor visit. Your answer stays on this phone.",
   "followUp.saw": "Yes, I saw a doctor",
   "followUp.booked": "I booked a visit",
   "followUp.notYet": "Not yet",
@@ -333,5 +333,7 @@
   "widgets.inline": "Inline: “{{text}}”",
   "widgets.sample": "Sample previews. Your widgets show your own latest check.",
   "lockScreen.step": "Step {{step}} of {{total}}",
-  "lockScreen.now": "now"
+  "lockScreen.now": "now",
+  "followUp.careFinder": "Find low-cost care near you ›",
+  "followUp.careFinderFailed": "This phone couldn't open the page. Visit findahealthcenter.hrsa.gov in your browser."
 }

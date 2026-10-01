@@ -295,7 +295,7 @@
   "emergency.stroke": "Señales de derrame cerebral — BE FAST",
   "emergency.strokeLetters": "Equilibrio · Ojos · Rostro · Brazo · Habla · Tiempo de llamar al 911",
   "followUp.title": "¿Pudiste ver a un médico?",
-  "followUp.subtitle": "Si Lumen te sugirió ver a un médico, ¿cómo te fue? Tu respuesta se queda en este teléfono.",
+  "followUp.subtitle": "Hace una semana Lumen sugirió una visita al médico. Tu respuesta se queda en este teléfono.",
   "followUp.saw": "Sí, vi a un médico",
   "followUp.booked": "Reservé una cita",
   "followUp.notYet": "Todavía no",
@@ -333,5 +333,7 @@
   "widgets.inline": "En línea: “{{text}}”",
   "widgets.sample": "Vistas de ejemplo. Tus widgets muestran tu última revisión.",
   "lockScreen.step": "Paso {{step}} de {{total}}",
-  "lockScreen.now": "ahora"
+  "lockScreen.now": "ahora",
+  "followUp.careFinder": "Encuentra atención de bajo costo cerca de ti ›",
+  "followUp.careFinderFailed": "Este teléfono no pudo abrir la página. Visita findahealthcenter.hrsa.gov en tu navegador."
 }

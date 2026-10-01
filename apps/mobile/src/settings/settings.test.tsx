@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { Linking } from 'react-native';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
@@ -163,5 +164,34 @@ describe('Lock-screen previews', () => {
     expect(screen.getByLabelText(en['lockScreen.reminder'])).toBeOnTheScreen();
     expect(screen.getByText(lockscreenStrings('en')['notif.confirm'])).toBeOnTheScreen();
     expect(screen.queryByText(/bpm/i)).toBeNull();
+  });
+});
+
+describe('Doctor follow-up', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('offers the three answers and the test to ask for', () => {
+    renderRouter(appDirectory, { initialUrl: '/follow-up' });
+    for (const key of ['followUp.saw', 'followUp.booked', 'followUp.notYet'] as const) {
+      expect(screen.getByRole('button', { name: en[key] })).toBeOnTheScreen();
+    }
+    expect(screen.getByText(en['followUp.whatToAskBody'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['followUp.booked'] }));
+    expect(screen.getByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
+  });
+
+  it('opens the health-center finder only when the link is tapped', () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValueOnce(true);
+    renderRouter(appDirectory, { initialUrl: '/follow-up' });
+    expect(openURL).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByRole('link', { name: en['followUp.careFinder'] }));
+    expect(openURL).toHaveBeenCalledWith('https://findahealthcenter.hrsa.gov');
+  });
+
+  it('says what to do when the page cannot open', async () => {
+    jest.spyOn(Linking, 'openURL').mockRejectedValueOnce(new Error('no browser'));
+    renderRouter(appDirectory, { initialUrl: '/follow-up' });
+    fireEvent.press(screen.getByRole('link', { name: en['followUp.careFinder'] }));
+    expect(await screen.findByText(en['followUp.careFinderFailed'])).toBeOnTheScreen();
   });
 });

@@ -3,7 +3,7 @@ import type { ExpoConfig } from 'expo/config';
 import brandSnippet from './app.config.brand.json';
 
 // The display name is swappable (spec §2); the bundle identifier is not after the first upload (ADR 0007).
-const APP_NAME = 'Lumen';
+export const APP_NAME = 'Lumen';
 const BUNDLE_ID = 'io.github.shravanvasa2009.heartcheck';
 
 // JSON imports widen literals ("automatic", plugin tuples) to plain strings and arrays; the snippet is
@@ -20,7 +20,7 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   ios: { ...brand.ios, bundleIdentifier: BUNDLE_ID, supportsTablet: false },
   android: { ...brand.android, package: BUNDLE_ID },
-  plugins: ['expo-router', 'expo-dev-client', ...(brand.plugins ?? [])],
+  plugins: ['expo-router', 'expo-dev-client', ...(brand.plugins ?? []), './modules/lumen-capture/app.plugin'],
   // No over-the-air updates: release builds make no network requests (PRIV-1).
   updates: { enabled: false },
   experiments: { typedRoutes: true },

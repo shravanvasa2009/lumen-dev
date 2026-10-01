@@ -57,11 +57,6 @@ def test_registry_keys_are_unique():
     assert len(keys) == len(set(keys))
 
 
-def test_registered_keys_are_unique():
-    keys = [dataset.key for dataset in registry.DATASETS]
-    assert len(keys) == len(set(keys))
-
-
 # §11.5: MIMIC PERform AF is the rhythm external test; it must never be reachable through --open.
 def test_mimic_perform_af_is_external_only():
     by_key = {dataset.key: dataset for dataset in registry.DATASETS}

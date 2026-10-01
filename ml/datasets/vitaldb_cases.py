@@ -26,6 +26,10 @@ class HoldoutChangedError(Exception):
     pass
 
 
+class HoldoutAccessError(Exception):
+    pass
+
+
 def eligible_cases(clinical: pd.DataFrame) -> pd.DataFrame:
     # VitalDB writes ages as text (">89" for the oldest); the digits are enough for an adult cut.
     age_years = pd.to_numeric(clinical["age"].astype("string").str.extract(r"(\d+)")[0], errors="coerce")
@@ -40,6 +44,7 @@ def lock_holdout(cases: pd.DataFrame) -> dict[str, list[int]]:
     dev: list[int] = []
     for diabetic, stratum in cases.groupby("preop_dm"):
         split = assign_splits(stratum["subjectid"].astype(str), HOLDOUT_FRACTION, SEED + int(diabetic))
+        # assign_splits names its smaller share "dev-val"; here that share is the locked holdout.
         holdout += [int(subject) for subject, part in split.items() if part == "dev-val"]
         dev += [int(subject) for subject, part in split.items() if part == "dev-train"]
     return {"holdout": sorted(holdout), "dev": sorted(dev)}
@@ -68,9 +73,24 @@ def write_or_check_split(split: dict[str, list[int]], split_file: Path) -> None:
     split_file.write_text(json.dumps(split, indent=1) + "\n", encoding="utf-8")
 
 
+def ensure_dev_only(subject_ids: Iterable[int], split: dict[str, list[int]]) -> None:
+    # The holdout's labels share clinical_data.csv with everyone else, so every reader of VitalDB
+    # waveforms or labels for diabetes-net passes through this check (ADR 0014).
+    leaked = sorted(set(subject_ids) & set(split["holdout"]))
+    if leaked:
+        raise HoldoutAccessError(f"{len(leaked)} holdout patients requested, e.g. {leaked[:3]}")
+
+
+def load_split(split_file: Path = SPLIT_FILE) -> dict[str, list[int]]:
+    if not split_file.exists():
+        raise FileNotFoundError(f"{split_file} is missing; run python -m datasets.vitaldb_cases first")
+    return json.loads(split_file.read_text(encoding="utf-8"))
+
+
 def case_files(caseids: Sequence[int], listing: str, local_dir: Path) -> list[RemoteFile]:
-    base = f"{registry.PHYSIONET_MIRROR}/vitaldb/1.0.0"
-    by_name = {remote.name: remote for remote in download.parse_sha256sums(listing, base, local_dir)}
+    by_name = {
+        remote.name: remote for remote in download.parse_sha256sums(listing, registry.VITALDB_BASE, local_dir)
+    }
     return [by_name[CASE_FILE.format(caseid=caseid)] for caseid in caseids]
 
 
@@ -86,6 +106,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     split = lock_holdout(cases)
     write_or_check_split(split, SPLIT_FILE)
     picked = select_dev_cases(cases, split["dev"])
+    ensure_dev_only(picked["subjectid"], split)
     log.info(
         "%d eligible patients; holdout %d; development cases picked: %d diabetic, %d controls",
         len(cases),

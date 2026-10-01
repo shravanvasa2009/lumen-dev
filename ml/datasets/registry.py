@@ -15,6 +15,8 @@ PHYSIONET_ORG = "https://physionet.org/files"
 # about 56 KB/s from physionet.org on 2026-09-30; the owner approved using it the same day.
 PHYSIONET_MIRROR = "https://physionet-open.s3.amazonaws.com"
 
+VITALDB_BASE = f"{PHYSIONET_MIRROR}/vitaldb/1.0.0"
+
 # Keys become folder names, so they must not contain separators or "..".
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
@@ -78,7 +80,9 @@ MIMIC_PERFORM_CITATION = (
 )
 
 # An entry is added only after its license and URLs are checked (workspace ADR 0015, 2026-09-30).
-# Zenodo publishes md5 only, so its files are verified by size; PhysioNet files are verified by sha256.
+# Verification is as strong as each source allows: PhysioNet releases with SHA256SUMS.txt get sha256 per
+# file; challenge-2017 publishes no SHA256SUMS.txt and Zenodo publishes md5 only, so those files (and the
+# VitalDB SHA256SUMS.txt itself) are checked by exact size.
 DATASETS: tuple[Dataset, ...] = (
     Dataset(
         key="butppg",
@@ -161,21 +165,21 @@ DATASETS: tuple[Dataset, ...] = (
         method="url",
         files=(
             RemoteFile(
-                url=f"{PHYSIONET_MIRROR}/vitaldb/1.0.0/clinical_data.csv",
+                url=f"{VITALDB_BASE}/clinical_data.csv",
                 sha256="7d6edb471e5eee3fde75e417084240c97bdbf6eff41cbd61e5dace44f1585ecf",
                 size=2199588,
             ),
             RemoteFile(
-                url=f"{PHYSIONET_MIRROR}/vitaldb/1.0.0/clinical_parameters.csv",
+                url=f"{VITALDB_BASE}/clinical_parameters.csv",
                 sha256="3fd13678a26629df5f1352c2a3fa2951e731d3760b8fa47c06c9ac3fbcef2e35",
                 size=3258,
             ),
             RemoteFile(
-                url=f"{PHYSIONET_MIRROR}/vitaldb/1.0.0/track_names.csv",
+                url=f"{VITALDB_BASE}/track_names.csv",
                 sha256="31c431642f91153461724375c05309d251ea63f206f3aeaed782ea4b9817400c",
                 size=10440,
             ),
-            RemoteFile(url=f"{PHYSIONET_MIRROR}/vitaldb/1.0.0/SHA256SUMS.txt", size=562636),
+            RemoteFile(url=f"{VITALDB_BASE}/SHA256SUMS.txt", size=562636),
         ),
         license="Creative Commons Attribution 4.0 International",
         citation="Lee H-C, Jung C-W. VitalDB (version 1.0.0). PhysioNet (2022). doi:10.13026/czw8-9p62",

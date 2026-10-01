@@ -1,48 +1,67 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import path from 'node:path';
 
 // PRIV-1: release builds must make no network requests during a reading. The only network code allowed
 // is the development-build capture sender, which must live under src/dev/ and be guarded by __DEV__.
 // Native code (the capture module now, Track F's widget targets later) may make no network calls at all:
 // the Polar strap and the capture sender both run in JS.
 const ROOTS = [
-  'apps/mobile/src',
-  'apps/mobile/app',
-  'apps/mobile/modules',
-  'apps/mobile/targets',
-  'packages/core/src',
+  'apps/mobile/src/',
+  'apps/mobile/app/',
+  'apps/mobile/modules/',
+  'apps/mobile/targets/',
+  'packages/core/src/',
 ];
-const DEV_DIR = path.normalize('apps/mobile/src/dev') + path.sep;
-const SKIP = new Set(['node_modules', 'build', '.cxx', '.gradle', '.build', 'Pods']);
+const DEV_DIR = 'apps/mobile/src/dev/';
 const SCRIPT = /\.(ts|tsx|js|jsx)$/;
-const NATIVE = /\.(swift|m|mm|kt|java)$/;
+const NATIVE = /\.(swift|m|mm|h|c|cc|cpp|kt|java)$/;
 const NETWORK = /\bfetch\s*\(|\bXMLHttpRequest\b|\bnew\s+WebSocket\b|\baxios\b|\bEventSource\b/;
-const NATIVE_NETWORK =
-  /\bURLSession\b|\bNSURLConnection\b|\bNWConnection\b|\bCFStream|\bHttpURLConnection\b|\bHttpsURLConnection\b|\bokhttp3?\b|\bjava\.net\.(Socket|URL)\b|\bopenConnection\s*\(|\bio\.ktor\b|\bretrofit2?\b|\bcom\.android\.volley\b/;
+// URLSession has no word boundaries so NSURLSession and URLSessionWebSocketTask match too. Library names
+// match only as packages (okhttp3.…), so the words in a comment don't.
+const NATIVE_NETWORK = new RegExp(
+  [
+    'URLSession',
+    'NSURLConnection',
+    '\\bNWConnection\\b',
+    '\\bCFStream',
+    '\\bjava\\.net\\.(Socket|URL|URLConnection|HttpURLConnection|\\*)',
+    '\\bHttpsURLConnection\\b',
+    '\\bopenConnection\\s*\\(',
+    '\\bokhttp3?\\.',
+    '\\bretrofit2?\\.',
+    '\\bio\\.ktor\\.',
+    '\\bcom\\.android\\.volley\\.',
+    '\\bandroid\\.net\\.http\\.',
+    '\\borg\\.chromium\\.net\\.',
+  ].join('|'),
+);
+const INTERNET_PERMISSION = /android\.permission\.INTERNET/;
 
-function* walk(dir) {
-  if (!fs.existsSync(dir)) return;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (SKIP.has(entry.name)) continue;
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) yield* walk(full);
-    else if (SCRIPT.test(entry.name) || NATIVE.test(entry.name)) yield full;
-  }
-}
+// Tracked and not-ignored files, so a hand-written file can't hide under a folder name such as build.
+const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
+  encoding: 'utf8',
+})
+  .split('\n')
+  .filter((file) => ROOTS.some((root) => file.startsWith(root)) && fs.existsSync(file));
 
 const violations = [];
-for (const root of ROOTS) {
-  for (const file of walk(root)) {
-    const text = fs.readFileSync(file, 'utf8');
-    if (NATIVE.test(file)) {
-      if (NATIVE_NETWORK.test(text)) violations.push(`${file}: native network call (none are allowed)`);
-      continue;
-    }
-    const inDev = path.normalize(file).startsWith(DEV_DIR);
-    if (NETWORK.test(text) && !inDev) violations.push(`${file}: network call outside ${DEV_DIR}`);
-    if (inDev && NETWORK.test(text) && !/__DEV__/.test(text))
-      violations.push(`${file}: network code without a __DEV__ guard`);
+for (const file of files) {
+  if (file.endsWith('AndroidManifest.xml')) {
+    if (INTERNET_PERMISSION.test(fs.readFileSync(file, 'utf8')))
+      violations.push(`${file}: declares the INTERNET permission`);
+    continue;
   }
+  const native = NATIVE.test(file);
+  if (!native && !SCRIPT.test(file)) continue;
+  const text = fs.readFileSync(file, 'utf8');
+  if (native) {
+    if (NATIVE_NETWORK.test(text)) violations.push(`${file}: native network call (none are allowed)`);
+    continue;
+  }
+  const inDev = file.startsWith(DEV_DIR);
+  if (NETWORK.test(text) && !inDev) violations.push(`${file}: network call outside ${DEV_DIR}`);
+  if (inDev && NETWORK.test(text) && !/__DEV__/.test(text))
+    violations.push(`${file}: network code without a __DEV__ guard`);
 }
 if (violations.length) {
   console.error(`PRIV-1 failed:\n${violations.join('\n')}`);

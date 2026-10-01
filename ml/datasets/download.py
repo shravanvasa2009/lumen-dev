@@ -116,6 +116,10 @@ def physionet_listing(dataset: Dataset, session: requests.Session) -> list[Remot
     with session.get(f"{base}/SHA256SUMS.txt", timeout=TIMEOUT_SECONDS) as response:
         response.raise_for_status()
         listing = b"".join(response.iter_content(chunk_size=CHUNK_BYTES)).decode("utf-8")
+    return parse_sha256sums(listing, base, dataset.local_dir)
+
+
+def parse_sha256sums(listing: str, base_url: str, local_dir: Path) -> list[RemoteFile]:
     remotes = []
     for line in listing.splitlines():
         if not line.strip():
@@ -124,9 +128,9 @@ def physionet_listing(dataset: Dataset, session: requests.Session) -> list[Remot
         # sha256sum's binary mode writes "<sha> *<path>"; the star is a flag, not part of the name.
         relative = listed.removeprefix("*")
         # Checked on the resolved local path, so Windows separators ("..\x") and drive letters are caught.
-        if not (dataset.local_dir / relative).resolve().is_relative_to(dataset.local_dir.resolve()):
-            raise UnsafeListingError(f"{dataset.key}: SHA256SUMS.txt lists {relative!r} outside the dataset")
-        remotes.append(RemoteFile(url=f"{base}/{relative}", sha256=sha256, filename=relative))
+        if not (local_dir / relative).resolve().is_relative_to(local_dir.resolve()):
+            raise UnsafeListingError(f"SHA256SUMS.txt lists {relative!r} outside {local_dir}")
+        remotes.append(RemoteFile(url=f"{base_url}/{relative}", sha256=sha256, filename=relative))
     return remotes
 
 

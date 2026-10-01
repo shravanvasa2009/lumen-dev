@@ -139,21 +139,28 @@ def test_mitdb_records_201_and_202_share_a_subject(data_dir):
     assert subjects == {"201": "201", "202": "201", "203": "203"}
 
 
-def test_ltafdb_keeps_rhythm_labels_and_flags_premature_beats(data_dir):
+def test_ltafdb_marks_ectopy_context_like_mitdb(data_dir):
     directory = prepare("ltafdb")
     fs = 128
-    sinus = beats_from(10, np.full(59, 102))
-    symbols = ["N"] * 60
-    symbols[30] = "A"
+    # 100 sinus beats with an atrial premature beat at index 50, then 50 AF beats with one ventricular
+    # premature beat that must stay AF.
+    sinus = beats_from(10, np.full(99, 102))
+    symbols = ["N"] * 100
+    symbols[50] = "A"
     fibrillation = beats_from(int(sinus[-1]) + 200, np.random.default_rng(3).integers(60, 150, 49))
+    af_symbols = ["N"] * 50
+    af_symbols[25] = "V"
     samples = np.concatenate([[0], sinus, [int(sinus[-1]) + 100], fibrillation])
-    all_symbols = ["+", *symbols, "+", *(["N"] * 50)]
-    aux_notes = ["(N", *([""] * 60), "(AFIB", *([""] * 50)]
+    all_symbols = ["+", *symbols, "+", *af_symbols]
+    aux_notes = ["(N", *([""] * 100), "(AFIB", *([""] * 50)]
     write_annotations(directory, "00", "atr", samples, all_symbols, aux_notes, fs)
     build_intervals.main(["--only", "ltafdb"])
     episodes = read_output(data_dir)
-    assert list(episodes["label"]) == ["sinus", "af"]
-    assert list(episodes["premature"][0]).index(True) == 29
+    assert list(episodes["label"]) == ["sinus", "other", "sinus", "af"]
+    assert [len(intervals) for intervals in episodes["intervals_ms"]] == [33, 32, 32, 49]
+    assert list(episodes["premature"][1]).index(True) == 15
+    assert not any(episodes["premature"][0]) and not any(episodes["premature"][2])
+    assert list(episodes["premature"][3]).index(True) == 24
 
 
 def synthetic_ecg(seconds: float, rr_s: float, fs: int = 300) -> np.ndarray:

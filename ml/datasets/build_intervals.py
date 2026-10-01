@@ -75,9 +75,11 @@ def mitdb_subject(record: str) -> str:
 
 ANNOTATED_SOURCES = {
     # afdb: only 05091 and 07859 ship corrected beats (.qrsc); the rest have only the unaudited .qrs.
+    # Both files mark every beat "N" (no beat types), so afdb ectopy cannot be found or marked.
     "afdb": AnnotatedSource(("qrsc", "qrs"), "atr", split_ectopy=False, subject_of=same_subject),
-    # ltafdb: .atr holds the reviewed beat labels and the rhythm changes together.
-    "ltafdb": AnnotatedSource(("atr",), "atr", split_ectopy=False, subject_of=same_subject),
+    # ltafdb: .atr holds the reviewed beat labels and the rhythm changes together, so its ectopy is
+    # marked exactly as in mitdb (§11.3 "other" includes premature beats).
+    "ltafdb": AnnotatedSource(("atr",), "atr", split_ectopy=True, subject_of=same_subject),
     "mitdb": AnnotatedSource(("atr",), "atr", split_ectopy=True, subject_of=mitdb_subject),
 }
 RHYTHM_KEYS = (*ANNOTATED_SOURCES, "cinc2017")

@@ -324,5 +324,12 @@
   "notifications.followUpHint": "Later the same day and next morning",
   "notifications.doctorHint": "7 days after a flagged result",
   "notifications.quietStart": "9:00 PM",
-  "notifications.quietEnd": "7:00 AM"
+  "notifications.quietEnd": "7:00 AM",
+  "widgets.checkNow": "Check now",
+  "widgets.lastCheck": "Last check {{hours}} h ago",
+  "widgets.bpm": "bpm",
+  "widgets.streak": "streak {{days}} days",
+  "widgets.sampleTime": "8 PM",
+  "widgets.inline": "Inline: “{{text}}”",
+  "widgets.sample": "Sample previews. Your widgets show your own latest check."
 }

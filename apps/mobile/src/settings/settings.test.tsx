@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { setPreference } from '@/settings/preferences';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -9,6 +10,16 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 }));
 
 const appDirectory = './app';
+
+// The preferences live in module state, so every test starts from the shipped defaults.
+beforeEach(() => {
+  act(() => {
+    setPreference('appearance', 'system');
+    setPreference('hideWidgetValues', false);
+    for (const key of ['daily', 'followUp', 'doctor', 'standing', 'retest'] as const)
+      setPreference(key, true);
+  });
+});
 
 describe('Settings tab', () => {
   it('groups the rows and marks features that do not exist yet', () => {
@@ -117,5 +128,27 @@ describe('Notifications', () => {
     expect(hide).not.toBeChecked();
     fireEvent(hide, 'valueChange', true);
     expect(screen.getByRole('switch', { name: en['notifications.hideValues'] })).toBeChecked();
+  });
+});
+
+describe('Widget gallery', () => {
+  it('previews the home and lock-screen widgets with steps for each platform', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.getByText(en['widgets.howToAdd'])).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.androidBody'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
+    expect(screen.getByText('64')).toBeOnTheScreen();
+  });
+
+  it('hides the sample number when Hide values on widgets is on', () => {
+    act(() => setPreference('hideWidgetValues', true));
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.queryByText('64')).toBeNull();
+  });
+
+  it('opens the lock-screen previews', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    fireEvent.press(screen.getByRole('button', { name: en['widgets.lockScreenLink'] }));
+    expect(screen.getByRole('header', { name: en['lockScreen.title'] })).toBeOnTheScreen();
   });
 });

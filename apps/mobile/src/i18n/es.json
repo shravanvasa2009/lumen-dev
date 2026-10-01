@@ -324,5 +324,12 @@
   "notifications.followUpHint": "Más tarde el mismo día y a la mañana siguiente",
   "notifications.doctorHint": "7 días después de un resultado marcado",
   "notifications.quietStart": "21:00",
-  "notifications.quietEnd": "7:00"
+  "notifications.quietEnd": "7:00",
+  "widgets.checkNow": "Revisar ahora",
+  "widgets.lastCheck": "Última revisión hace {{hours}} h",
+  "widgets.bpm": "lpm",
+  "widgets.streak": "racha de {{days}} días",
+  "widgets.sampleTime": "20:00",
+  "widgets.inline": "En línea: “{{text}}”",
+  "widgets.sample": "Vistas de ejemplo. Tus widgets muestran tu última revisión."
 }

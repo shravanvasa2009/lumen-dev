@@ -6,6 +6,8 @@ from pathlib import Path
 
 import numpy as np
 
+from lumen_dsp.beat_classes import RejectedSpan, classify_beats
+from lumen_dsp.beats import detect_beats, elgendi_peaks
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import CausalFilter, butter_bandpass, butter_lowpass, filter_zero_phase
 from lumen_dsp.resample import ResampledSegment, resample_cubic
@@ -159,6 +161,7 @@ def golden_files() -> dict[str, dict]:
         "filters.json": {"bandPass": filters, "dcLevel": dc},
         "zscore.json": zscore_windows(longest(resampled[rates[0]])),
         "rhythm.json": rhythm_vectors(),
+        "beats.json": beat_vectors(),
     }
 
 
@@ -253,6 +256,140 @@ def rhythm_vectors() -> dict:
         }
         cases.append({**case, "expected": expected})
     return {"cases": cases}
+
+
+# A beat is (systolic peak time in s, amplitude); the waves below mirror packages/core/test/synthetic.ts.
+Beat = tuple[float, float]
+
+
+def ppg_wave(beats: list[Beat], dicrotic_ratio: float, seconds: float, rate_hz: float, first_index: int = 0):
+    # Two-Gaussian pulse: systolic (σ 60 ms) plus a dicrotic wave 300 ms later (σ 80 ms) of dicrotic_ratio ×
+    # its height, sampled at (first_index + k) / rate.
+    def gaussian(t_s: float, centre_s: float, sigma_s: float) -> float:
+        return math.exp(-0.5 * ((t_s - centre_s) / sigma_s) ** 2)
+
+    wave = []
+    for k in range(round(seconds * rate_hz)):
+        t_s = (first_index + k) / rate_hz
+        total = 0.0
+        for peak_s, amplitude in beats:
+            total += amplitude * (
+                gaussian(t_s, peak_s, 0.06) + dicrotic_ratio * gaussian(t_s, peak_s + 0.3, 0.08)
+            )
+        wave.append(total)
+    return wave
+
+
+def regular_beats(first_s: float, last_s: float, bpm: float) -> list[Beat]:
+    beats = []
+    peak_s = first_s
+    while peak_s < last_s:
+        beats.append((peak_s, 1.0))
+        peak_s += 60 / bpm
+    return beats
+
+
+def with_premature_beats(
+    rr_s: float, seconds: float, premature_at: list[int], amplitude: float, coupling: float = 0.6
+) -> list[Beat]:
+    # Premature beat k comes coupling × RR after the previous beat; the next follows after (2 − coupling) ×
+    # RR (a compensatory pause), so the rhythm stays in phase.
+    beats = []
+    peak_s = 1.0
+    k = 0
+    while peak_s < seconds - 1.5:
+        if k in premature_at:
+            peak_s += (coupling - 1) * rr_s
+            beats.append((peak_s, amplitude))
+            peak_s += (2 - coupling) * rr_s
+        else:
+            beats.append((peak_s, 1.0))
+            peak_s += rr_s
+        k += 1
+    return beats
+
+
+def morphology_segment(wave, rate_hz: float, first_index: int = 0) -> ResampledSegment:
+    dsp6 = DSP_CONFIG["dsp6"]
+    low_hz, high_hz = dsp6["morphologyBandHz"]
+    sos = butter_bandpass(dsp6["morphologyOrder"], low_hz, high_hz, rate_hz)
+    return ResampledSegment(
+        first_index=first_index, values=filter_zero_phase(sos, np.asarray(wave, dtype=float))
+    )
+
+
+def beats_from_intervals(first_s: float, intervals_s: list[float]) -> list[Beat]:
+    beats = [(first_s, 1.0)]
+    for interval_s in intervals_s:
+        beats.append((beats[-1][0] + interval_s, 1.0))
+    return beats
+
+
+def beat_case(name: str, wave: list[float], first_index_256: int, true_peaks_s, spans=()) -> dict:
+    # The 256 Hz morphology band, rounded to 10 significant digits so the file stays small; both sides
+    # compute from these exact values. The 64 Hz input is every fourth sample (first index ÷ 4).
+    shape_hz = DSP_CONFIG["dsp2"]["shapeRateHz"]
+    model_hz = DSP_CONFIG["dsp2"]["modelRateHz"]
+    filtered = morphology_segment(wave, shape_hz, first_index_256).values
+    rounded = [float(f"{value:.10g}") for value in filtered]
+    shape = ResampledSegment(first_index=first_index_256, values=np.asarray(rounded))
+    model = ResampledSegment(first_index=first_index_256 // 4, values=np.asarray(rounded[::4]))
+    rejected = [RejectedSpan(start_s, end_s, reason) for start_s, end_s, reason in spans]
+    detected = detect_beats(model, shape)
+    classified = classify_beats(detected, shape, rejected)
+    return {
+        "name": name,
+        "firstIndex256": first_index_256,
+        "morphology256": rounded,
+        "spans": [{"startS": s.start_s, "endS": s.end_s, "reason": s.reason} for s in rejected],
+        "truePeaksS": [float(peak_s) for peak_s in true_peaks_s],
+        "expected": {
+            "elgendiPeaks64": elgendi_peaks(model.values, model_hz),
+            "detected": [
+                {
+                    "peakS": b.peak_s,
+                    "onsetS": b.onset_s,
+                    "maxUpslope": b.max_upslope,
+                    "amplitude": b.amplitude,
+                }
+                for b in detected
+            ],
+            "classified": [{"beatClass": c.beat_class, "longPause": c.long_pause} for c in classified],
+        },
+    }
+
+
+def beat_vectors() -> dict:
+    # DSP-7/8/9 cases (§10.2): sinus, dicrotic double detections, premature beats, AF-like intervals,
+    # bigeminy, rejected spans with long pauses and impossible intervals, and noise.
+    hz = DSP_CONFIG["dsp2"]["shapeRateHz"]
+    rr_s = 60 / 72
+
+    def case(name, beats, seconds, dicrotic=0.3, first_index=0, spans=()):
+        wave = ppg_wave(beats, dicrotic, seconds, hz, first_index)
+        return beat_case(name, wave, first_index, [peak_s for peak_s, _ in beats], spans)
+
+    af_like = beats_from_intervals(1.0, [0.4 + 0.8 * u for u in park_miller_uniforms(20, seed=4242)])
+    pauses = beats_from_intervals(
+        0.8, [rr_s] * 3 + [1.7 * rr_s] + [rr_s] * 3 + [2.6] + [rr_s] * 3 + [1.7 * rr_s] + [rr_s] * 2
+    )
+    noise = [(u - 0.5) * (1 + math.sin(n / 160)) for n, u in enumerate(park_miller_uniforms(8 * hz, seed=99))]
+    return {
+        "cases": [
+            case("regular-sinus", regular_beats(3.0, 14.0, 72), 12, first_index=640),
+            case("dicrotic-heavy", regular_beats(1.0, 11.0, 72), 12, dicrotic=0.9),
+            case("premature", with_premature_beats(rr_s, 14, [4, 10], 0.5, 0.65), 14),
+            case("af-like", [beat for beat in af_like if beat[0] < 11.0], 12),
+            case("bigeminy", with_premature_beats(60 / 75, 12, [1, 3, 5, 7, 9, 11, 13], 0.5, 0.6), 12),
+            case(
+                "spans-and-pauses",
+                pauses,
+                16,
+                spans=[(pauses[5][0] - 0.05, pauses[5][0] + 0.05, "motion"), (12.9, 13.1, "quality")],
+            ),
+            beat_case("noise", noise, 0, []),
+        ]
+    }
 
 
 def serialize(content: dict) -> str:

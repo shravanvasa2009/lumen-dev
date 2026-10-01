@@ -80,8 +80,8 @@ export function savgolFilter(values: ArrayLike<number>, deriv: number): Float64A
 const isLocalMax = (y: Float64Array, i: number) => y[i - 1]! < y[i]! && y[i]! >= y[i + 1]!;
 const isLocalMin = (y: Float64Array, i: number) => y[i - 1]! > y[i]! && y[i]! <= y[i + 1]!;
 
-// a: the largest local maximum of the second derivative before the systolic peak; b: the lowest point
-// after a; then c, d, e: the first local maximum, minimum, maximum after that. All within the systolic
+// a: the largest local maximum of the second derivative before the systolic peak; then b, c, d, e: the
+// first local minimum, maximum, minimum, maximum after it, in the spec's order. All within the systolic
 // span; a wave that is not found leaves it and every later wave null.
 function labelWaves(smoothed: Float64Array, secondDerivative: Float64Array, spanEnd: number): WaveLabels {
   const waves: WaveLabels = { a: null, b: null, c: null, d: null, e: null };
@@ -94,47 +94,61 @@ function labelWaves(smoothed: Float64Array, secondDerivative: Float64Array, span
     )
       waves.a = i;
   }
-  if (waves.a === null || waves.a + 1 >= spanEnd) return waves;
-  let b = waves.a + 1;
-  for (let i = b + 1; i < spanEnd; i++) if (secondDerivative[i]! < secondDerivative[b]!) b = i;
-  waves.b = b;
+  if (waves.a === null) return waves;
   const next = (from: number, isWave: (y: Float64Array, i: number) => boolean) => {
     for (let i = from + 1; i < spanEnd - 1; i++) if (isWave(secondDerivative, i)) return i;
     return null;
   };
-  waves.c = next(b, isLocalMax);
+  waves.b = next(waves.a, isLocalMin);
+  waves.c = waves.b === null ? null : next(waves.b, isLocalMax);
   waves.d = waves.c === null ? null : next(waves.c, isLocalMin);
   waves.e = waves.d === null ? null : next(waves.d, isLocalMax);
   return waves;
 }
 
-/** DSP-14: ensemble beat of ≥ 20 normal beats aligned on onsets, with a–e labels; null if not enough. */
+// Matches numpy.median: the mean of the two middle values for an even count.
+function median(values: number[]): number {
+  const sorted = [...values].sort((x, y) => x - y);
+  const middle = sorted.length >> 1;
+  return sorted.length % 2 === 1 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
+}
+
+/** DSP-14: ensemble beat of ≥ 20 normal beats of the 0.5–8 Hz morphology band at 256 Hz, with a–e labels. */
 export function ensembleBeat(
-  signal256: ArrayLike<number>,
+  morphology256: ArrayLike<number>,
   onsets: number[],
   normal: boolean[],
-  effectiveFps: number,
+  captureFps: number,
 ): PulseShape | null {
   if (onsets.length !== normal.length)
     throw new RangeError(`${onsets.length} onsets but ${normal.length} normal-beat flags`);
-  const { minNormalBeats, beatSamples, leadFraction, systoleFraction, minFps } = DSP_CONFIG.dsp14;
-  if (effectiveFps < minFps) return null;
+  const { minNormalBeats, beatSamples, leadFraction, systoleFraction, minFps, maxPeriodRatio } =
+    DSP_CONFIG.dsp14;
+  // The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
+  // nominal 60 fps session measures 59.9x.
+  if (captureFps < minFps) return null;
+
+  // A beat runs from its onset to the next one, so both beats must be normal.
+  const candidates: number[] = [];
+  for (let i = 0; i + 1 < onsets.length; i++) {
+    if (normal[i] && normal[i + 1] && onsets[i + 1]! - onsets[i]! > 0) candidates.push(i);
+  }
+  if (candidates.length < minNormalBeats) return null;
+  const longestPeriod = maxPeriodRatio * median(candidates.map((i) => onsets[i + 1]! - onsets[i]!));
 
   const sums = new Float64Array(beatSamples);
   let beatsUsed = 0;
-  for (let i = 0; i + 1 < onsets.length; i++) {
-    // A beat runs from its onset to the next one, so both beats must be normal.
-    if (!normal[i] || !normal[i + 1]) continue;
+  for (const i of candidates) {
     const onset = onsets[i]!;
     const period = onsets[i + 1]! - onset;
     const first = onset - leadFraction * period;
     const last = onset + ((beatSamples - 1) / beatSamples - leadFraction) * period;
-    if (!(period > 0) || first < 0 || Math.floor(last) + 1 > signal256.length - 1) continue;
+    if (period > longestPeriod || first < 0 || Math.floor(last) + 1 > morphology256.length - 1) continue;
     const raw = new Float64Array(beatSamples);
     for (let k = 0; k < beatSamples; k++) {
       const x = onset + (k / beatSamples - leadFraction) * period;
       const j = Math.floor(x);
-      raw[k] = signal256[j]! + (signal256[j + 1]! - signal256[j]!) * (x - j);
+      raw[k] = morphology256[j]! + (morphology256[j + 1]! - morphology256[j]!) * (x - j);
     }
     let low = raw[0]!;
     let high = raw[0]!;

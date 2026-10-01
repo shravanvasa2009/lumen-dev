@@ -291,22 +291,25 @@ def shape_vectors() -> dict:
 
     one_atypical = [k != 12 for k in range(len(onsets))]
     too_few = [k % 6 != 0 for k in range(len(onsets))]
+    # Dropping onset 8 leaves one double-length beat flagged normal, which the period gate removes.
+    missed = [onset for k, onset in enumerate(onsets) if k != 8]
     cases = [
-        ("jittered-72-bpm", one_atypical, 60),
-        ("too-few-normal-beats", too_few, 60),
-        ("below-60-fps", one_atypical, 50),
+        ("jittered-72-bpm", onsets, one_atypical, 60),
+        ("missed-onset", missed, [True] * len(missed), 60),
+        ("too-few-normal-beats", onsets, too_few, 60),
+        ("below-60-fps", onsets, one_atypical, 30),
     ]
     return {
         "signal": floats(morphology),
-        "onsets": onsets,
         "cases": [
             {
                 "name": name,
+                "onsets": case_onsets,
                 "normal": normal,
-                "effectiveFps": fps,
-                "expected": shape_json(ensemble_beat(morphology, onsets, normal, fps)),
+                "captureFps": fps,
+                "expected": shape_json(ensemble_beat(morphology, case_onsets, normal, fps)),
             }
-            for name, normal, fps in cases
+            for name, case_onsets, normal, fps in cases
         ],
     }
 

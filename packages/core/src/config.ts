@@ -36,11 +36,14 @@ export const DSP_CONFIG = {
     // Savitzky–Golay edge fit.
     leadFraction: 0.1,
     // a–e are searched from the window start to onset + this fraction of the period. Ejection lasts about
-    // 35–55% of the period from rest to 150 bpm; the rest is margin. Initial value.
-    systoleFraction: 0.6,
+    // 35–55% of the period from rest to 150 bpm; at 0.6, e sat at 177 of 179 samples at 72 bpm on the
+    // synthetic model, so 0.7 leaves margin. Initial value.
+    systoleFraction: 0.7,
+    // A beat longer than this × the median period of the normal beats most likely hides a missed onset.
+    maxPeriodRatio: 1.5,
     savgolWindow: 9,
     savgolOrder: 3,
-    minFps: 60, // DSP-14 requires ≥ 60 fps capture
+    minFps: 60,
   },
   dsp15: {
     // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).

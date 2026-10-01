@@ -30,14 +30,6 @@ class PulseShape:
     beats_used: int
 
 
-def savgol(values: np.ndarray, deriv: int) -> np.ndarray:
-    # DSP-14: Savitzky–Golay, window 9, order 3, scipy's default edge mode 'interp'.
-    dsp14 = DSP_CONFIG["dsp14"]
-    return signal.savgol_filter(
-        values, dsp14["savgolWindow"], dsp14["savgolOrder"], deriv=deriv, mode="interp"
-    )
-
-
 def _is_local_max(y: np.ndarray, i: int) -> bool:
     return y[i - 1] < y[i] >= y[i + 1]
 
@@ -47,8 +39,8 @@ def _is_local_min(y: np.ndarray, i: int) -> bool:
 
 
 def _label_waves(smoothed: np.ndarray, second: np.ndarray, span_end: int) -> WaveLabels:
-    # a: the largest local maximum of the second derivative before the systolic peak; b: the lowest point
-    # after a; then c, d, e: the first local maximum, minimum, maximum after that. All within the systolic
+    # a: the largest local maximum of the second derivative before the systolic peak; then b, c, d, e: the
+    # first local minimum, maximum, minimum, maximum after it, in the spec's order. All within the systolic
     # span; a wave that is not found leaves it and every later wave None.
     systolic_peak = 0
     for k in range(1, span_end):
@@ -58,45 +50,57 @@ def _label_waves(smoothed: np.ndarray, second: np.ndarray, span_end: int) -> Wav
     for i in range(1, systolic_peak):
         if _is_local_max(second, i) and (a is None or second[i] > second[a]):
             a = i
-    if a is None or a + 1 >= span_end:
-        return WaveLabels(a, None, None, None, None)
-    b = a + 1
-    for i in range(b + 1, span_end):
-        if second[i] < second[b]:
-            b = i
+    if a is None:
+        return WaveLabels(None, None, None, None, None)
 
     def following(start: int, is_wave) -> int | None:
         return next((i for i in range(start + 1, span_end - 1) if is_wave(second, i)), None)
 
-    c = following(b, _is_local_max)
+    b = following(a, _is_local_min)
+    c = None if b is None else following(b, _is_local_max)
     d = None if c is None else following(c, _is_local_min)
     e = None if d is None else following(d, _is_local_max)
     return WaveLabels(a, b, c, d, e)
 
 
+def _median(values: list[float]) -> float:
+    # Same rule as packages/core: the mean of the two middle values for an even count.
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    return ordered[middle] if len(ordered) % 2 == 1 else (ordered[middle - 1] + ordered[middle]) / 2
+
+
 def ensemble_beat(
-    signal_256: Sequence[float], onsets: Sequence[float], normal: Sequence[bool], effective_fps: float
+    morphology_256: Sequence[float], onsets: Sequence[float], normal: Sequence[bool], capture_fps: float
 ) -> PulseShape | None:
-    # DSP-14: ensemble beat of ≥ 20 normal beats aligned on onsets, with a–e labels; None if not enough.
+    # DSP-14: ensemble beat of ≥ 20 normal beats of the 0.5–8 Hz morphology band at 256 Hz, with a–e labels.
     if len(onsets) != len(normal):
         raise ValueError(f"{len(onsets)} onsets but {len(normal)} normal-beat flags")
     dsp14 = DSP_CONFIG["dsp14"]
     samples, lead = dsp14["beatSamples"], dsp14["leadFraction"]
-    if effective_fps < dsp14["minFps"]:
+    # The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
+    # nominal 60 fps session measures 59.9x.
+    if capture_fps < dsp14["minFps"]:
         return None
-    values = [float(value) for value in signal_256]
+    values = [float(value) for value in morphology_256]
+    starts = [float(onset) for onset in onsets]
+
+    # A beat runs from its onset to the next one, so both beats must be normal.
+    candidates = [
+        i for i in range(len(starts) - 1) if normal[i] and normal[i + 1] and starts[i + 1] - starts[i] > 0
+    ]
+    if len(candidates) < dsp14["minNormalBeats"]:
+        return None
+    longest_period = dsp14["maxPeriodRatio"] * _median([starts[i + 1] - starts[i] for i in candidates])
 
     sums = [0.0] * samples
     beats_used = 0
-    for i in range(len(onsets) - 1):
-        # A beat runs from its onset to the next one, so both beats must be normal.
-        if not (normal[i] and normal[i + 1]):
-            continue
-        onset = float(onsets[i])
-        period = float(onsets[i + 1]) - onset
+    for i in candidates:
+        onset = starts[i]
+        period = starts[i + 1] - onset
         first = onset - lead * period
         last = onset + ((samples - 1) / samples - lead) * period
-        if not period > 0 or first < 0 or math.floor(last) + 1 > len(values) - 1:
+        if period > longest_period or first < 0 or math.floor(last) + 1 > len(values) - 1:
             continue
         raw = []
         for k in range(samples):
@@ -113,7 +117,8 @@ def ensemble_beat(
         return None
 
     beat = np.array([total / beats_used for total in sums])
-    smoothed = savgol(beat, 0)
-    second = savgol(beat, 2)
+    window, order = dsp14["savgolWindow"], dsp14["savgolOrder"]
+    smoothed = signal.savgol_filter(beat, window, order, deriv=0, mode="interp")
+    second = signal.savgol_filter(beat, window, order, deriv=2, mode="interp")
     span_end = math.floor((lead + dsp14["systoleFraction"]) * samples + 0.5)
     return PulseShape(beat, smoothed, second, _label_waves(smoothed, second, span_end), beats_used)

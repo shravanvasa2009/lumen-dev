@@ -10,6 +10,8 @@ def test_shape_cases_cover_a_full_result_and_both_null_paths():
     full = cases["jittered-72-bpm"]["expected"]
     assert full["beatsUsed"] >= 20
     assert len(full["beat"]) == 256
-    assert full["waves"]["a"] is not None
+    assert all(full["waves"][wave] is not None for wave in "abcde")
+    missed = cases["missed-onset"]["expected"]
+    assert missed["beatsUsed"] == len(cases["missed-onset"]["onsets"]) - 2
     assert cases["too-few-normal-beats"]["expected"] is None
     assert cases["below-60-fps"]["expected"] is None

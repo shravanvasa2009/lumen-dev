@@ -5,13 +5,18 @@ const RATE_HZ = DSP_CONFIG.dsp2.shapeRateHz;
 
 // Asymmetric systolic wave (rise σ 40 ms, fall σ 90 ms) plus a dicrotic wave 300 ms after the peak: a
 // steeper upstroke than downstroke, as in real finger PPG. Onsets sit 80 ms before each peak.
-function syntheticPpg(peaksS: number[], seconds: number, dicroticRatio = 0.3): number[] {
+function syntheticPpg(
+  peaksS: number[],
+  seconds: number,
+  dicroticRatio = 0.3,
+  dicroticSigmaS = 0.06,
+): number[] {
   return Array.from({ length: Math.round(seconds * RATE_HZ) }, (_, k) => {
     const tS = k / RATE_HZ;
     return peaksS.reduce((sum, peakS) => {
       const dt = tS - peakS;
       const systolic = Math.exp(-0.5 * (dt / (dt < 0 ? 0.04 : 0.09)) ** 2);
-      return sum + systolic + dicroticRatio * Math.exp(-0.5 * ((dt - 0.3) / 0.06) ** 2);
+      return sum + systolic + dicroticRatio * Math.exp(-0.5 * ((dt - 0.3) / dicroticSigmaS) ** 2);
     }, 0);
   });
 }
@@ -112,9 +117,31 @@ describe('DSP-14 ensemble beat', () => {
     expect(ensembleBeat(syntheticPpg(peaks20, 20), onsetsOf(peaks20), allNormal(20), 60)).toBeNull();
   });
 
-  it('requires a capture of at least 60 fps', () => {
+  it('requires a configured capture rate of at least 60 fps (not a measured rate)', () => {
+    expect(ensembleBeat(wave, onsets, allNormal(30), 60)).not.toBeNull();
+    expect(ensembleBeat(wave, onsets, allNormal(30), 30)).toBeNull();
     expect(ensembleBeat(wave, onsets, allNormal(30), minFps - 1)).toBeNull();
-    expect(ensembleBeat(wave, onsets, allNormal(30), minFps)).not.toBeNull();
+  });
+
+  it('drops a beat longer than 1.5 × the median period (a missed onset)', () => {
+    // Removing onset 15 merges beats 14 and 15 into one double-length "beat" flagged normal.
+    const missed = onsets.filter((_, i) => i !== 15);
+    expect(ensembleBeat(wave, missed, allNormal(29), 60)!.beatsUsed).toBe(27);
+    expect(DSP_CONFIG.dsp14.maxPeriodRatio).toBe(1.5);
+  });
+
+  it('averages two alternating beat shapes to their midpoint (hand-computed answer)', () => {
+    // Beats of exactly 256 samples whose windows start on whole samples (onset = start + 25.6), so no
+    // interpolation is involved: rising ramps k/255 and falling ramps 1 − k/255 alternate, already 0..1.
+    // Ten of each average to 0.5 at every sample.
+    const blocks = Array.from({ length: 21 }, (_, beat) =>
+      Array.from({ length: 256 }, (_, k) => (beat % 2 === 0 ? k / 255 : 1 - k / 255)),
+    );
+    const signal = blocks.flat();
+    const alignedOnsets = Array.from({ length: 21 }, (_, beat) => beat * 256 + 25.6);
+    const shape = ensembleBeat(signal, alignedOnsets, allNormal(21), 60)!;
+    expect(shape.beatsUsed).toBe(20);
+    shape.beat.forEach((value) => expect(value).toBeCloseTo(0.5, 12));
   });
 
   it('skips beats whose window would run off the signal', () => {
@@ -131,19 +158,31 @@ describe('DSP-14 ensemble beat', () => {
 
 describe('DSP-14 a–e waves on the second derivative', () => {
   const lastIndex = Math.floor((leadFraction + DSP_CONFIG.dsp14.systoleFraction) * beatSamples + 0.5) - 1;
+  const labels = (count: number, rrS: number, dicroticRatio = 0.3, dicroticSigmaS = 0.06) => {
+    const peaks = regularPeaks(count, rrS);
+    const wave = syntheticPpg(peaks, count * rrS + 2, dicroticRatio, dicroticSigmaS);
+    return ensembleBeat(morphologyBand(wave), onsetsOf(peaks), allNormal(count), 60)!;
+  };
 
-  it('finds a < b < c < d < e inside systole, with a before the systolic peak (72 bpm)', () => {
-    const peaks = regularPeaks(30, 0.83);
-    const shape = ensembleBeat(morphologyBand(syntheticPpg(peaks, 27)), onsetsOf(peaks), allNormal(30), 60)!;
+  // Exact indices, the same as ml/lumen_dsp/tests/test_dsp_shape.py on the same synthetic signals.
+  it.each([
+    [72, 30, 0.83, [24, 49, 104, 144, 177]],
+    [55, 25, 1.1, [25, 43, 85, 115, 140]],
+    [100, 40, 0.6, [24, 58, 135, 189, null]],
+  ])('labels a–e at %i bpm', (_bpm, count, rrS, expected) => {
+    const { a, b, c, d, e } = labels(count as number, rrS as number).waves;
+    expect([a, b, c, d, e]).toEqual(expected);
+  });
+
+  it('keeps a < b < c < d < e inside systole, with a before the systolic peak and extrema of the right kind', () => {
+    const shape = labels(30, 0.83);
     const { a, b, c, d, e } = shape.waves;
-    expect([a, b, c, d, e].every((index) => index !== null)).toBe(true);
     expect(a! < b! && b! < c! && c! < d! && d! < e!).toBe(true);
     expect(e!).toBeLessThanOrEqual(lastIndex);
     let systolicPeak = 0;
     for (let k = 0; k <= lastIndex; k++)
       if (shape.smoothed[k]! > shape.smoothed[systolicPeak]!) systolicPeak = k;
     expect(a!).toBeLessThan(systolicPeak);
-    // a and c are maxima and b and d minima of the second derivative.
     const d2 = shape.secondDerivative;
     for (const index of [a!, c!, e!])
       expect(d2[index]).toBeGreaterThanOrEqual(Math.max(d2[index - 1]!, d2[index + 1]!));
@@ -151,13 +190,11 @@ describe('DSP-14 a–e waves on the second derivative', () => {
       expect(d2[index]).toBeLessThanOrEqual(Math.min(d2[index - 1]!, d2[index + 1]!));
   });
 
-  it('labels what it can and returns null for waves it cannot find', () => {
-    // 100 bpm: the dicrotic region moves past the systolic search span, so the late waves are missing.
-    const peaks = regularPeaks(40, 0.6);
-    const shape = ensembleBeat(morphologyBand(syntheticPpg(peaks, 27)), onsetsOf(peaks), allNormal(40), 60)!;
-    const { a, b, e } = shape.waves;
-    expect(a).not.toBeNull();
-    expect(b).not.toBeNull();
-    expect(e).toBeNull();
+  it('takes b as the first minimum after a even when d is deeper', () => {
+    // A sharp dicrotic wave (0.8, σ 30 ms) makes d the deepest point; the lowest-point rule would put b there.
+    const shape = labels(30, 0.83, 0.8, 0.03);
+    const { a, b, c, d, e } = shape.waves;
+    expect(shape.secondDerivative[d!]!).toBeLessThan(shape.secondDerivative[b!]!);
+    expect([a, b, c, d, e]).toEqual([24, 49, 120, 143, 165]);
   });
 });

@@ -115,6 +115,16 @@ def write_mitdb_record(directory, record, fs=360):
     write_annotations(directory, record, "atr", samples, ["+", *symbols], ["(N"] + [""] * 100, fs)
 
 
+@pytest.mark.parametrize(("key", "record"), [("mitdb", "100"), ("ltafdb", "00")])
+def test_same_premature_pattern_is_other_in_mitdb_and_ltafdb(data_dir, key, record):
+    write_mitdb_record(prepare(key), record)
+    build_intervals.main(["--only", key])
+    episodes = read_output(data_dir)
+    assert list(episodes["label"]) == ["sinus", "other", "sinus"]
+    assert [len(intervals) for intervals in episodes["intervals_ms"]] == [33, 32, 32]
+    assert list(episodes["premature"][1]).index(True) == 15
+
+
 def test_mitdb_premature_beat_makes_an_other_episode_with_context(data_dir):
     directory = prepare("mitdb")
     write_mitdb_record(directory, "119")

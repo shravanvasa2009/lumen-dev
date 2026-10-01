@@ -395,5 +395,7 @@
   "placement.subtitle": "Rear camera lens and flash, seen from the back of the phone",
   "coach.cover": "Cover the lens and the flash.",
   "practice.progress": "{{done}} of {{total}} steady seconds",
-  "practice.pending": "Camera practice isn't connected in this build yet, so you can continue without it."
+  "practice.pending": "Camera practice isn't connected in this build yet, so you can continue without it.",
+  "howToSit.labelPhone": "phone at chest height",
+  "howToSit.labelElbow": "elbow on the table"
 }

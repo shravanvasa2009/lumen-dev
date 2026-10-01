@@ -395,5 +395,7 @@
   "placement.subtitle": "Lente y flash de la cámara trasera, vistos desde la parte de atrás del teléfono",
   "coach.cover": "Cubre el lente y el flash.",
   "practice.progress": "{{done}} de {{total}} segundos estables",
-  "practice.pending": "La práctica con la cámara aún no está conectada en esta versión, así que puedes continuar sin ella."
+  "practice.pending": "La práctica con la cámara aún no está conectada en esta versión, así que puedes continuar sin ella.",
+  "howToSit.labelPhone": "teléfono a la altura del pecho",
+  "howToSit.labelElbow": "codo sobre la mesa"
 }

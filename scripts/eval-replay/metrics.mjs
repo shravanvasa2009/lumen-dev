@@ -1,5 +1,5 @@
 import { alignIntervals } from './align.mjs';
-import { mean, rmssd, subjectBootstrap } from './stats.mjs';
+import { mean, median, rmssd, subjectBootstrap } from './stats.mjs';
 
 // Which readings count: only conclusive ones feed error metrics; DSP-A uses resting sessions only;
 // strap intervals outside 30–200 bpm are strap artifacts and are never a reference.
@@ -52,13 +52,13 @@ function intervalError(capture, alignment) {
 }
 
 // The app's own RMSSD against the strap's RMSSD over the matched segment (DSP-B checks what the card shows).
-function rmssdWithinTolerance(capture, alignment) {
+function rmssdRelativeError(capture, alignment) {
   const shown = capture.reading.metrics?.rmssd?.value;
   if (shown == null || !alignment?.pairs.length) return null;
   const segment = capture.polarRrMs.slice(alignment.pairs[0][1], alignment.pairs.at(-1)[1] + 1);
   const reference = rmssd(segment, segment.map(polarUsable));
   if (!reference) return null;
-  return Math.abs(shown - reference) / reference <= RMSSD_TOLERANCE;
+  return Math.abs(shown - reference) / reference;
 }
 
 function summarize(rows) {
@@ -85,8 +85,8 @@ export function computeMetrics(captures, { commit, date }, log = () => {}) {
   );
   const rmssdRows = aligned
     .filter(({ capture }) => capture.meta.fps >= RMSSD_MIN_FPS)
-    .map(({ capture, alignment }) => ({ capture, within: rmssdWithinTolerance(capture, alignment) }))
-    .filter((row) => row.within != null);
+    .map(({ capture, alignment }) => ({ capture, error: rmssdRelativeError(capture, alignment) }))
+    .filter((row) => row.error != null);
   const resp = summarize(
     captures.map((capture) => {
       const paced = capture.meta.labels?.pacedBrpm;
@@ -131,8 +131,12 @@ export function computeMetrics(captures, { commit, date }, log = () => {}) {
     intervals: { maeMs: round(intervals.value), ci95: roundPair(intervals.ci95) },
     rmssd: {
       withinPct: round(
-        rmssdRows.length ? (100 * rmssdRows.filter((row) => row.within).length) / rmssdRows.length : null,
+        rmssdRows.length
+          ? (100 * rmssdRows.filter((row) => row.error <= RMSSD_TOLERANCE).length) / rmssdRows.length
+          : null,
       ),
+      // DSP-B's pass rule uses the median across readings (ADR 0044).
+      medianErrorPct: round(rmssdRows.length ? 100 * median(rmssdRows.map((row) => row.error)) : null),
       people: distinct(rmssdRows.map((row) => subjectOf(row.capture))),
     },
     resp: { maeBrpm: round(resp.value), people: distinct(resp.rows.map((row) => subjectOf(row.capture))) },

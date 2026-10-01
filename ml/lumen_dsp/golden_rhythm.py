@@ -4,7 +4,7 @@ import math
 import sys
 from pathlib import Path
 
-from lumen_dsp.rhythm import RhythmWindow, has_enough_usable_intervals, rhythm_windows
+from lumen_dsp.rhythm import RhythmWindow, has_enough_usable_intervals, rhythm_feature_vector, rhythm_windows
 
 GOLDEN_PATH = Path(__file__).resolve().parents[2] / "packages" / "core" / "test" / "golden" / "rhythm.json"
 PARK_MILLER_MODULUS = 2_147_483_647
@@ -61,6 +61,10 @@ def interval_cases() -> list[dict]:
         case("artifact-gaps", sinus_intervals(100, seed=13), spans=gaps),
         case("usable-39", sinus_intervals(41, seed=14), spans=usable_39),
         case("usable-40", sinus_intervals(41, seed=15), spans=usable_40),
+        # Seed 1: no length-3 template matches, so SampEn is undefined and the feature vector fills it.
+        case("sampen-undefined", [0.4 + 0.8 * u for u in park_miller_uniforms(32, seed=1)]),
+        # Every x[i] + x[i + 1] is equal, so SD2 is exactly 0.
+        case("alternating", [0.8 if k % 2 == 0 else 1.0 for k in range(32)]),
     ]
 
 
@@ -76,6 +80,7 @@ def window_json(window: RhythmWindow) -> dict:
         "pnn50": window.pnn50,
         "sampleEntropy": window.sample_entropy,
         "atypicalFraction": window.atypical_fraction,
+        "featureVector": rhythm_feature_vector(window),
     }
 
 

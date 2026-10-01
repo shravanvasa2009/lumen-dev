@@ -1,4 +1,5 @@
 import json
+import math
 
 from lumen_dsp.golden_rhythm import CHECK_TOLERANCE, golden_rhythm, main, serialize
 
@@ -20,6 +21,8 @@ def test_cases_cover_the_required_situations():
         "artifact-gaps",
         "usable-39",
         "usable-40",
+        "sampen-undefined",
+        "alternating",
     }
     assert cases["usable-39"]["expected"]["hasEnoughUsableIntervals"] is False
     assert cases["usable-40"]["expected"]["hasEnoughUsableIntervals"] is True
@@ -50,3 +53,19 @@ def test_check_passes_on_a_fresh_file_and_fails_on_real_drift(tmp_path):
 
 def test_check_fails_when_the_file_is_missing(tmp_path):
     assert main(["--out", str(tmp_path / "rhythm.json"), "--check"]) == 1
+
+
+def test_every_window_carries_its_8_feature_vector():
+    for case in golden_rhythm()["cases"]:
+        for window in case["expected"]["windows"]:
+            assert len(window["featureVector"]) == 8
+            assert all(isinstance(value, float) and math.isfinite(value) for value in window["featureVector"])
+
+
+def test_cases_exercise_the_sample_entropy_fill_and_sd2_zero():
+    cases = cases_by_name()
+    (undefined,) = cases["sampen-undefined"]["expected"]["windows"]
+    assert undefined["sampleEntropy"] is None
+    assert undefined["featureVector"][6] == math.log(435)
+    (alternating,) = cases["alternating"]["expected"]["windows"]
+    assert alternating["sd2S"] == 0

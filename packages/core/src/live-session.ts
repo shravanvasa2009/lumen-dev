@@ -1,0 +1,45 @@
+import type { CaptureStatus, SampleBatch } from './capture';
+
+// DSP-9. Never assigned from interval irregularity alone.
+export type BeatClass = 'not-a-beat' | 'artifact' | 'atypical' | 'normal';
+
+// Times are seconds from capture start (DSP-1).
+export interface ClassifiedBeat {
+  peakS: number;
+  onsetS: number;
+  beatClass: BeatClass;
+  longPause: boolean; // DSP-9 long pause on the interval ending at this beat: kept for rhythm, not HRV
+}
+
+// Appendix C coach.* strings; the coaching state machine shows one at a time (§7).
+export type CoachingKey = 'coach.cover' | 'coach.lighter' | 'coach.still' | 'coach.warm' | 'coach.flat';
+
+// DSP-9 acquisition causes; quality = SQI-rejected window, exposure = the 1 s after a change (DSP-5).
+export type RejectionReason =
+  'motion' | 'pressure' | 'coverage' | 'coldHands' | 'quality' | 'clipping' | 'exposure';
+
+// Greyed out and labeled on the live waveform (§12).
+export interface RejectedSpan {
+  startS: number;
+  endS: number;
+  reason: RejectionReason;
+}
+
+// SQI-Net input (§11.2): channel-major [2, 256] = R then G, 4 s at 64 Hz, each z-scored (DSP-2, DSP-3).
+export interface SqiWindow {
+  endS: number;
+  input: Float32Array;
+}
+
+// Fed by the app's CaptureController (§9.3 step 3).
+export interface LiveSession {
+  pushSamples(batch: SampleBatch): void;
+  pushStatus(status: CaptureStatus): void;
+  // SQI-Net runs in the app every 1 s on the last 4 s window (§11.2).
+  setSqi(windowEndS: number, pClean: number): void;
+  readonly cleanSeconds: number;
+  readonly recentWaveform: { tS: number[]; ppg: number[] }; // last 6 s
+  readonly coachingKey: CoachingKey | null;
+  readonly rejectedSpans: RejectedSpan[];
+  readonly sqiWindow: SqiWindow | null; // null until 4 s of covered signal exists
+}

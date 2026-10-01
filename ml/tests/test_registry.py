@@ -55,3 +55,27 @@ def test_remote_file_name_comes_from_url_path_or_override():
 def test_registry_keys_are_unique():
     keys = [dataset.key for dataset in registry.DATASETS]
     assert len(keys) == len(set(keys))
+
+
+# §11.5: MIMIC PERform AF is the rhythm external test; it must never be reachable through --open.
+def test_mimic_perform_af_is_external_only():
+    by_key = {dataset.key: dataset for dataset in registry.DATASETS}
+    assert by_key["mimic-perform-af"].use == "external"
+    shared = [
+        remote.url
+        for dataset in registry.DATASETS
+        if dataset.use != "external"
+        for remote in dataset.files
+        if "mimic_perform_af" in remote.url
+    ]
+    assert shared == []
+
+
+def test_every_url_file_is_verified_by_size_or_sha256():
+    unverified = [
+        f"{dataset.key}/{remote.name}"
+        for dataset in registry.DATASETS
+        for remote in dataset.files
+        if remote.size is None and remote.sha256 is None
+    ]
+    assert unverified == []

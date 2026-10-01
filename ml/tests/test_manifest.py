@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from export import to_onnx, verify_onnx, write_manifest
-from export.provenance import ProvenanceError, load_metrics, sha256_of
+from export.provenance import ALL_BAD_BASIS, ProvenanceError, load_metrics, sha256_of
 from export import specs
 from export.specs import MODELS_DIR, OPSET, SHIPPED, SPECS, ShipRuleError, shipped_per_family
 from export.to_onnx import source_model
@@ -55,6 +55,11 @@ RHYTHM_EXTRAS = {
 }
 
 
+# A trained SQI model must record its threshold basis (export.provenance fails closed); "all-bad" is
+# the basis that needs no owner decision, so these release tests are not about H-024.
+SQI_EXTRAS = {"thresholdBasis": ALL_BAD_BASIS}
+
+
 def _run(module, *args):
     module.main([*map(str, args)])
 
@@ -84,7 +89,7 @@ def untrained(tmp_path):
 def trained(tmp_path):
     models_dir, runs_dir = tmp_path / "models", tmp_path / "runs"
     for seed, name in enumerate(NETWORKS):
-        extras = RHYTHM_EXTRAS if name == "rhythm-net" else {}
+        extras = {"rhythm-net": RHYTHM_EXTRAS, "sqi-finger": SQI_EXTRAS}.get(name, {})
         save_trained(SPECS[name], runs_dir, source_model(SPECS[name], None, seed), extras)
     save_trained(SPECS["rhythm-lgbm"], runs_dir, fit_baseline(SPECS["rhythm-lgbm"]), RHYTHM_EXTRAS)
     _release(models_dir, runs_dir)
@@ -307,7 +312,7 @@ def test_refuses_parity_above_tolerance(untrained):
 def test_refuses_parity_run_on_a_different_source_model(trained):
     models_dir, runs_dir = trained
     spec = SPECS["sqi-finger"]
-    save_trained(spec, runs_dir, source_model(spec, None, 9))
+    save_trained(spec, runs_dir, source_model(spec, None, 9), SQI_EXTRAS)
     _assert_refused(models_dir, runs_dir, ProvenanceError, "different source model")
 
 

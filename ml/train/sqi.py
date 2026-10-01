@@ -58,6 +58,23 @@ BOOTSTRAP_RESAMPLES = 2000
 # Zero-padding 256 samples to 8192 puts spectral bins 0.47 bpm apart at 64 Hz.
 HR_FFT_POINTS = 8192
 RULE_FEATURES = ("skewness", "hrInRange")
+# ADR 0038 item 7, PROPOSED and not accepted: τ is chosen over natural clean windows and their synthetic
+# corruptions, with quality-0 records left out. The owner decides it in HUMAN_STEPS H-024; until
+# export/specs.py records that decision, export.provenance refuses to ship a model on this basis.
+THRESHOLD_BASIS = "synthetic-bad-only"
+# Reporting only, for H-024: the best precision with quality-0 counted as bad is read over thresholds
+# that still accept at least this share of clean windows, since a cut at the top few windows says nothing.
+BEST_PRECISION_MIN_CLEAN_RECALL = 0.1
+# Reporting only, for H-024: how many of the highest-scoring quality-0 windows are traced to their records.
+TOP_POOR_QUALITY_WINDOWS = 20
+# Changes made after earlier dev-val runs in which no τ reached 0.95 (ADR 0038); the card lists them next
+# to the precision because they make the dev-val numbers optimistic.
+DESIGN_ITERATIONS = (
+    "the reference check",
+    "poor-quality records weighted as half of the bad side (was one kind of five)",
+    "learning rate 3e-4 with patience 8 (was 1e-3, 6)",
+    "keeping poor-quality records out of τ",
+)
 # Pinned by the export spec, so the app and this file cannot disagree on the rule's input width.
 assert len(RULE_FEATURES) == RULE.inputs["features"][1]
 
@@ -436,9 +453,9 @@ def evaluate(
     scores: np.ndarray, dev_val: WindowSet, retimed_scores: np.ndarray, retimed: WindowSet, errors
 ) -> dict:
     is_clean = dev_val.labels == CLEAN
-    # §11.2's clean and bad windows: natural clean windows and their synthetic corruptions. Poor-quality
-    # records are trained on and reported, but stay out of τ (ADR 0038): some have clean pulses at the
-    # wrong rate from a phone timing fault that no window-level check can see.
+    # THRESHOLD_BASIS (proposed, H-024): τ uses natural clean windows and their synthetic corruptions.
+    # Poor-quality records are trained on and reported, but left out of τ; ADR 0038's hypothesis, not
+    # checked, is that some hold clean pulses at the wrong rate from a phone frame-timing fault.
     spec_set = dev_val.kinds != POOR_QUALITY
     subjects, flags, spec_scores = dev_val.subjects[spec_set], is_clean[spec_set], scores[spec_set]
     tau = threshold_for_precision(spec_scores, flags, TARGET_PRECISION)
@@ -456,6 +473,14 @@ def evaluate(
             "ml2HrWithin5BpmOfAccepted": ml2_proxy(scores, dev_val, tau, errors),
             "spectralHrWithin5BpmOfAllNaturalClean": estimator_ceiling(dev_val, errors),
         }
+        poor = dev_val.kinds == POOR_QUALITY
+        if poor.any():
+            metrics["poorQualityAccepted"] = with_ci(
+                dev_val.subjects[poor],
+                np.ones(int(poor.sum()), bool),
+                scores[poor],
+                lambda _flags, poor_scores: float(np.mean(poor_scores >= tau)),
+            )
         gaps = ml4_proxy(retimed_scores, retimed, tau)
         metrics["ml4GapSinusMinusAfPts"] = gaps["af"]
         metrics["gapSinusMinusPrematurePts"] = gaps["premature"]
@@ -477,7 +502,46 @@ def evaluate(
                         "accepted (95% CI)": _formatted(accepted),
                     }
                 )
-    return {"tau": tau, "metrics": metrics, "byKind": by_kind}
+    return {
+        "tau": tau,
+        "metrics": metrics,
+        "byKind": by_kind,
+        "thresholdEvidence": threshold_evidence(scores, dev_val, errors, tau),
+    }
+
+
+def threshold_evidence(scores: np.ndarray, dev_val: WindowSet, errors: np.ndarray, tau: float | None) -> dict:
+    # What the owner needs to decide H-024 (ADR 0038 item 7), all with quality-0 windows counted as bad.
+    is_clean = dev_val.labels == CLEAN
+    order = np.argsort(-scores, kind="stable")
+    ordered, hits = scores[order], is_clean[order]
+    precision = np.cumsum(hits) / np.arange(1, len(hits) + 1)
+    recall = np.cumsum(hits) / max(int(hits.sum()), 1)
+    # As in threshold_for_precision, only the last of tied scores is a real cut.
+    last_of_tie = np.r_[ordered[1:] != ordered[:-1], True]
+    cuts = np.flatnonzero(last_of_tie & (recall >= BEST_PRECISION_MIN_CLEAN_RECALL))
+    evidence = {
+        "anyTauReachesTargetAllBad": threshold_for_precision(scores, is_clean, TARGET_PRECISION) is not None,
+        "designIterations": list(DESIGN_ITERATIONS),
+    }
+    if len(cuts):
+        best = cuts[np.argmax(precision[cuts])]
+        evidence["bestPrecisionAllBad"] = {
+            "precision": float(precision[best]),
+            "cleanRecall": float(recall[best]),
+            "tau": float(ordered[best]),
+            "minCleanRecall": BEST_PRECISION_MIN_CLEAN_RECALL,
+        }
+    poor = np.flatnonzero(dev_val.kinds == POOR_QUALITY)
+    if len(poor):
+        top = poor[np.argsort(-scores[poor], kind="stable")][:TOP_POOR_QUALITY_WINDOWS]
+        evidence["highestScoringPoorQuality"] = {
+            "windows": len(top),
+            "records": sorted(set(dev_val.records[top].tolist())),
+            "medianHrErrorBpm": float(np.median(errors[top])),
+            "acceptedAtTau": int((scores[top] >= tau).sum()) if tau is not None else 0,
+        }
+    return evidence
 
 
 def _formatted(metric: dict) -> str:
@@ -486,7 +550,8 @@ def _formatted(metric: dict) -> str:
 
 def ship_decision(scores: dict[str, np.ndarray], dev_val: WindowSet, evaluations: dict[str, dict]) -> dict:
     # Fixed before training (§11.1, ADR 0031 logic): SQI-Net ships only if its window-level AUROC for clean
-    # vs bad on dev-val subjects beats the rule's. The paired difference shows how sure that is.
+    # vs bad on dev-val subjects beats the rule's. The paired difference shows how sure that is. The keys
+    # match train.rhythm's, which write_manifest renders; sqi-rule is the only SQI baseline.
     is_clean = dev_val.labels == CLEAN
     paired = np.column_stack([scores[NETWORK.name], scores[RULE.name]])
     difference = with_ci(
@@ -501,7 +566,8 @@ def ship_decision(scores: dict[str, np.ndarray], dev_val: WindowSet, evaluations
     )
     return {
         "criterion": "window-level AUROC for clean vs bad on dev-val subjects",
-        "networkMinusRuleAuroc": difference,
+        "bestBaseline": RULE.name,
+        "networkMinusBestBaselineAuroc": difference,
         "ships": NETWORK.name if network_wins else RULE.name,
     }
 
@@ -551,6 +617,8 @@ def training_notes(sets: WindowSets, decision: dict, evaluations: dict[str, dict
     retimed = np.char.startswith(sets.train.kinds, "retimed-")
     retimed_records = len(set(sets.train.records[retimed].tolist()))
     shipped = evaluations[decision["ships"]]["metrics"]
+    evidence = evaluations[decision["ships"]]["thresholdEvidence"]
+    top = evidence.get("highestScoringPoorQuality")
     gap, hr_share = shipped.get("ml4GapSinusMinusAfPts"), shipped.get("ml2HrWithin5BpmOfAccepted")
     retimed_af = int((sets.retimed.kinds == "retimed-af").sum())
     retimed_sinus = int((sets.retimed.kinds == "retimed-sinus").sum())
@@ -580,18 +648,26 @@ def training_notes(sets: WindowSets, decision: dict, evaluations: dict[str, dict
         "Records whose quality-hr-ann.csv HR differs by more than 5 bpm from 60 / median R-R of their own "
         "verified .qrs beats are left out, since quality is defined against that HR (ADR 0038); this "
         "removes most records of subjects 142–149.",
-        "Design changes made after earlier dev-val runs in which no τ reached 0.95: the reference check "
-        "above, poor-quality records weighted as half of the bad side (was one kind of five), learning rate "
-        "3e-4 with patience 8 (was 1e-3, 6), and keeping poor-quality records out of τ. A run that also "
-        "gave natural clean windows half of the clean side failed the ML-4 proxy, so clean kinds stay "
-        "equal (ADR 0028: the proxy informs training against the rhythm trap).",
-        f"Threshold: the lowest τ with clean precision ≥ {TARGET_PRECISION} over §11.2's dev-val windows "
-        "(natural clean windows and one synthetic corruption of each), checked by assert_precision on the "
-        "same scores. Poor-quality records stay out of τ (ADR 0038): with them counted as bad, no τ reached "
-        "0.95, and the windows ranked highest were clean pulses from three subject-149 records whose pulse "
-        "rate disagrees with the ECG (a phone frame-timing fault; the app uses real frame times). Precision "
-        "with poor-quality records counted as bad is reported at the same τ. Precision depends on the mix "
-        "of clean and bad windows; real captures will have a different mix.",
+        "Design changes made after earlier dev-val runs in which no τ reached 0.95: "
+        + "; ".join(DESIGN_ITERATIONS)
+        + ". A run that also gave natural clean windows half of the clean side failed the ML-4 proxy, so "
+        "clean kinds stay equal (ADR 0028: the proxy informs training against the rhythm trap).",
+        f"Threshold basis {THRESHOLD_BASIS!r} is PROPOSED (ADR 0038 item 7), awaiting the owner's decision "
+        f"in H-024: τ is the lowest score with clean precision ≥ {TARGET_PRECISION} over dev-val natural "
+        "clean windows and one synthetic corruption of each, checked by assert_precision on the same "
+        "scores, with quality-0 records left out. With quality-0 counted as bad, "
+        + ("some" if evidence["anyTauReachesTargetAllBad"] else "no")
+        + f" τ reaches {TARGET_PRECISION} for the shipped model. "
+        + (
+            f"Its {top['windows']} highest-scoring quality-0 windows come from records "
+            f"{', '.join(top['records'])}. A phone frame-timing fault in those recordings is a hypothesis, "
+            "not checked; the app's real frame timestamps (DSP-1) are expected to prevent it, but that is "
+            "not verified. "
+            if top
+            else ""
+        )
+        + "The Threshold section gives both precisions at the same τ. Precision depends on the mix of "
+        "clean and bad windows; real captures will have a different mix.",
         "spectralHrWithin5BpmOfAllNaturalClean is the ML-2 proxy's ceiling: the share of all dev-val natural "
         "clean windows whose spectral-peak HR is within 5 bpm, whatever the model accepts. Much of the "
         "proxy's shortfall from 95% is the 4 s spectral estimator, not the quality check.",
@@ -616,17 +692,58 @@ def training_notes(sets: WindowSets, decision: dict, evaluations: dict[str, dict
     return notes
 
 
+def label_check(assignment: dict[str, str]) -> dict:
+    # ADR 0038 item 2: how many finger records, and whose, the reference check removes in each split. It
+    # reads only quality-hr-ann.csv and the .qrs beats; reference_consistent never looks at the PPG, so
+    # none is loaded.
+    table = butppg.finger_records()
+    counts = {}
+    for split in ("dev-train", "dev-val"):
+        chosen = table[table["subject"].map(assignment) == split]
+        kept = np.array(
+            [
+                butppg.reference_consistent(
+                    butppg.Recording(
+                        record=row["record"],
+                        subject=row["subject"],
+                        quality=int(row["quality"]),
+                        reference_hr_bpm=float(row["reference_hr_bpm"]),
+                        negative_red=np.empty(0),
+                        r_peaks_s=butppg.r_peaks_s(row["record"]),
+                    )
+                )
+                for _, row in chosen.iterrows()
+            ],
+            dtype=bool,
+        )
+        kept_by_subject = pd.Series(kept, index=chosen["subject"].to_numpy()).groupby(level=0)
+        counts[split] = {
+            "records": len(chosen),
+            "removedRecords": int((~kept).sum()),
+            "subjects": int(kept_by_subject.ngroups),
+            "subjectsAffected": int((~kept_by_subject.all()).sum()),
+            "subjectsFullyRemoved": int((~kept_by_subject.any()).sum()),
+        }
+    return counts
+
+
 def _metrics_file(source: Path, evaluation: dict, sets: WindowSets, shared: dict, tau: float) -> dict:
+    finite = {
+        name: value
+        for name, value in evaluation["metrics"].items()
+        if all(math.isfinite(value[key]) for key in ("estimate", "low", "high"))
+    }
     return {
         "trainedOn": ["butppg", *sorted(sqi_windows.PATTERN_DATASETS)],
         "threshold": {"clean": tau},
+        # Always written: export.provenance refuses a shipped SQI model whose metrics lack it.
+        "thresholdBasis": THRESHOLD_BASIS,
+        "thresholdEvidence": evaluation["thresholdEvidence"],
         "development": {
             "subjects": len(set(sets.dev_val.subjects.tolist())),
-            "metrics": {
-                name: value
-                for name, value in evaluation["metrics"].items()
-                if all(math.isfinite(value[key]) for key in ("estimate", "low", "high"))
-            },
+            "metrics": finite,
+            # Listed, not hidden, so a missing number is visible in the card.
+            "undefinedMetrics": sorted(set(evaluation["metrics"]) - set(finite)),
             "byKind": evaluation["byKind"],
         },
         "sourceSha256": sha256_of(source),
@@ -645,6 +762,7 @@ def main(argv: list[str] | None = None) -> None:
     started = time.perf_counter()
 
     windows = windows_key(config, args.splits, args.rhythm_splits)
+    checked_labels = label_check(json.loads(args.splits.read_text(encoding="utf-8"))["subjects"])
     window_dir = args.runs_dir / NETWORK.file_stem / f"windows-{windows}"
     sets = window_sets(config, args.splits, args.rhythm_splits, window_dir)
     model, history = train_network(
@@ -681,6 +799,7 @@ def main(argv: list[str] | None = None) -> None:
         "shipDecision": decision,
         "notes": training_notes(sets, decision, evaluations),
         "windowCounts": window_counts(sets),
+        "labelCheck": checked_labels,
         # This process only; a resumed run's earlier epochs are timed in networkEpochs.
         "processSeconds": time.perf_counter() - started,
         "networkEpochs": history,
@@ -696,9 +815,10 @@ def main(argv: list[str] | None = None) -> None:
             json.dumps(metrics, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
         )
     log.info(
-        "ships: %s; AUROC network minus rule %s",
+        "ships: %s; AUROC network minus %s %s",
         decision["ships"],
-        _formatted(decision["networkMinusRuleAuroc"]),
+        decision["bestBaseline"],
+        _formatted(decision["networkMinusBestBaselineAuroc"]),
     )
 
 

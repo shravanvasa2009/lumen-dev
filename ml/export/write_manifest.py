@@ -207,48 +207,50 @@ def _threshold_section(spec: ModelSpec, metrics: dict | None) -> str | None:
         status = f"approved by the owner ({approval})"
     else:
         status = "PROPOSED, awaiting owner (H-024). ADR 0038 item 7; nothing ships on this basis until then"
-    lines = [f"Threshold basis: {basis}. Status: {status}."]
+    paragraphs = [f"Threshold basis: {basis}. Status: {status}."]
     measured = metrics["development"]["metrics"]
     if "cleanPrecision" in measured:
-        lines += [
-            f"At τ_clean = {metrics['threshold']['clean']:.4f}:",
+        at_tau = [
             f"- clean precision {_ci(measured['cleanPrecision'])} with only synthetic corruptions counted "
             "as bad;",
             f"- clean precision {_ci(measured['cleanPrecisionWithPoorQualityRecords'])} with quality-0 BUT "
             "PPG windows also counted as bad;",
-            f"- share of quality-0 windows accepted: {_ci(measured['poorQualityAccepted'])}.",
         ]
+        if "poorQualityAccepted" in measured:
+            at_tau.append(f"- share of quality-0 windows accepted: {_ci(measured['poorQualityAccepted'])}.")
+        paragraphs.append(f"At τ_clean = {metrics['threshold']['clean']:.4f}:\n\n" + "\n".join(at_tau))
     evidence = metrics.get("thresholdEvidence", {})
     best = evidence.get("bestPrecisionAllBad")
     if best:
         reached = "some τ reaches" if evidence["anyTauReachesTargetAllBad"] else "no τ reaches"
-        lines.append(
+        paragraphs.append(
             "With quality-0 counted as bad, the best precision any τ reaches while accepting at least "
             f"{best['minCleanRecall']:.0%} of natural clean windows is {best['precision']:.3f} (clean "
             f"recall {best['cleanRecall']:.3f}); {reached} 0.95."
         )
     if evidence.get("designIterations"):
-        lines.append(
+        paragraphs.append(
             f"These numbers follow design iteration on the same {metrics['development']['subjects']} "
             f"dev-val subjects ({'; '.join(evidence['designIterations'])}), so they are optimistic."
         )
     top = evidence.get("highestScoringPoorQuality")
     if top:
-        lines.append(
+        paragraphs.append(
             f"Hypothesis, not verified: the {top['windows']} highest-scoring quality-0 windows come from "
-            f"records {', '.join(top['records'])}, and their spectral-peak HR is a median "
-            f"{top['medianHrErrorBpm']:.1f} bpm from the reference although the pulses look clean. That "
-            "may be a phone frame-timing fault. The app's real frame timestamps (DSP-1) are expected to "
-            "prevent it, but that has not been verified."
+            f"records {', '.join(top['records'])}; {top['acceptedAtTau']} of them are accepted at τ_clean, "
+            f"and their spectral-peak HR is a median {top['medianHrErrorBpm']:.1f} bpm from the record's "
+            "reference HR. A phone frame-timing fault in those recordings may explain this; it has not "
+            "been checked. The app's real frame timestamps (DSP-1) are expected to prevent such a fault, "
+            "but that has not been verified."
         )
     for split, counts in (metrics.get("labelCheck") or {}).items():
-        lines.append(
+        paragraphs.append(
             f"Label check, {split}: {counts['removedRecords']} of {counts['records']} finger records "
             "removed (CSV reference HR more than 5 bpm from the record's own .qrs beats); "
-            f"{counts['subjectsAffected']} subjects lost records, {counts['subjectsFullyRemoved']} lost "
-            "all of them."
+            f"{counts['subjectsAffected']} of {counts['subjects']} subjects lost records, "
+            f"{counts['subjectsFullyRemoved']} lost all of them."
         )
-    return "## Threshold\n\n" + "\n".join(lines)
+    return "## Threshold\n\n" + "\n\n".join(paragraphs)
 
 
 def _ship_note(spec: ModelSpec, metrics: dict | None) -> str:
@@ -295,14 +297,12 @@ def _measured_limits(spec: ModelSpec, metrics: dict | None) -> str:
             raise ProvenanceError(f"{spec.name} metrics lack development.prematureBeatSet")
         size = f", {sample['subjects']} subjects, {sample['windows']} windows" if sample else ""
         lines.append(
-            f"- False-AF rate on augmented premature-beat readings (dev-val{size}): "
-            f"{false_af['estimate']:.3f} (95% CI {false_af['low']:.3f}-{false_af['high']:.3f})."
+            f"- False-AF rate on augmented premature-beat readings (dev-val{size}): {_ci(false_af)}."
         )
     abstain = measured.get("readingAbstainRate")
     if abstain:
         lines.append(
-            f"- Reading abstain rate (top probability below {spec.abstain_below}) on dev-val: "
-            f"{abstain['estimate']:.3f} (95% CI {abstain['low']:.3f}-{abstain['high']:.3f})."
+            f"- Reading abstain rate (top probability below {spec.abstain_below}) on dev-val: {_ci(abstain)}."
         )
     return "".join(f"\n{line}" for line in lines)
 

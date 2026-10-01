@@ -136,12 +136,19 @@ def threshold_approval(spec: ModelSpec, basis: str | None) -> str | None:
 def check_threshold_bases(specs: list[ModelSpec], metrics_by_name: dict[str, dict | None]) -> None:
     # ADR 0038 item 7 (τ set without quality-0 windows) is proposed, not accepted: the owner decides it in
     # HUMAN_STEPS H-024. A shipped model may use a basis other than "all-bad" only once that decision is
-    # recorded in export/specs.py; a metrics file claiming approval on its own proves nothing.
+    # recorded in export/specs.py; a metrics file claiming approval on its own proves nothing. It fails
+    # closed: train.sqi always records its basis, so a shipped SQI model without one is refused. Rhythm and
+    # diabetes thresholds are outside ADR 0038 and record no basis. No metrics at all means an untrained
+    # pipeline check, which write_manifest allows only outside models/ and which has no threshold.
     problems = []
     for spec in specs:
-        metrics = metrics_by_name.get(spec.name) or {}
+        metrics = metrics_by_name.get(spec.name)
+        if not spec.ships or metrics is None:
+            continue
         basis = metrics.get("thresholdBasis")
-        if not spec.ships or basis is None:
+        if basis is None:
+            if spec.family == "sqi":
+                problems.append(f"{spec.name}'s metrics record no threshold basis")
             continue
         approved = threshold_approval(spec, basis)
         if basis != ALL_BAD_BASIS and approved is None:

@@ -49,15 +49,16 @@ export const runoff =
     (tS < 0 ? gaussian(tS, riseSigmaS) : Math.exp(-tS / decayS)) +
     humpRatio * gaussian(tS - delayS, humpSigmaS);
 
-// Finger pulses spread over the four dicrotic-notch classes of Dawber et al. (Angiology 1973): a
-// distinct notch, a flat notch, a change of slope, and none. The systolic-to-diastolic peak time
-// (Millasseau et al., Clin Sci 2002, "ΔT") spans 0.17–0.37 s, short in stiff, older arteries and long
-// in young ones. Ranges are chosen to cover the classes, not fitted to recordings.
+// Finger pulses spread over the four dicrotic-notch classes of Dawber, Thomas and McNamara (Angiology
+// 1973;24:244-255, doi:10.1177/000331977302400407), from a clear notch (class 1) to none (class 4). The
+// systolic-to-diastolic peak time spans 0.15-0.35 s, the range of the stiffness-index examples in
+// Millasseau et al. (Clin Sci 2002;103:371-377, doi:10.1042/cs1030371): 147 ms at age 60, 270 ms at 45,
+// 346 ms at 29. Other ranges are chosen to cover the classes, not fitted to recordings.
 export function fingerPulseShape(random: Draws): PulseShape {
   return runoff(
     random.uniform(0.15, 0.35),
     random.uniform(0.1, 0.6),
-    random.uniform(0.17, 0.37),
+    random.uniform(0.15, 0.35),
     random.uniform(0.03, 0.08),
     random.uniform(0.05, 0.08),
   );

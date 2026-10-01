@@ -5,7 +5,7 @@
       "entry": ["scripts/**/*.mjs"]
     },
     "apps/mobile": {
-      "entry": ["modules/lumen-capture/src/LumenCapture.types.ts"]
+      "entry": ["modules/lumen-capture/src/index.ts"]
     }
   }
 }

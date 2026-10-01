@@ -1,5 +1,4 @@
 import argparse
-import hashlib
 import json
 import subprocess
 from datetime import UTC, datetime
@@ -9,7 +8,8 @@ import onnx
 import onnxruntime
 import torch
 
-from export.specs import MODELS_DIR, RUNS_DIR, SPECS, ModelSpec
+from export.provenance import check_parity, load_metrics, sha256_of, trained_source
+from export.specs import MODELS_DIR, RUNS_DIR, ModelSpec, inside_models_dir, release_specs
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
@@ -19,11 +19,14 @@ CARD_TEXT = {
     "sqi-finger": {
         "intended_use": (
             "Accepts or rejects each 4-second fingertip window during capture, whatever the rhythm, so "
-            "that only clean signal reaches heart-rate, rhythm, and pulse-shape analysis. Part of a "
-            "screening prototype, not a diagnosis."
+            "that only clean signal reaches heart-rate, rhythm, and pulse-shape analysis. Version 1 sees "
+            "only the inverted red channel, z-scored per window (ADR 0023); green is added in version 2. "
+            "Part of a screening prototype, not a diagnosis."
         ),
         "data": (
-            "Clean windows: BUT PPG smartphone windows whose PPG heart rate matches the ECG reference; "
+            "Only finger recordings are used; BUT PPG ear and front-camera recordings are excluded "
+            "(ADR 0023). Clean windows: BUT PPG finger windows whose PPG heart rate matches the ECG "
+            "reference; "
             "clean BUT PPG beats re-timed with real interval patterns from AF and premature-beat episodes "
             "(MIT-BIH AF, Long-Term AF, MIT-BIH Arrhythmia); team captures hand-labeled clean. Bad windows: "
             "synthetic motion, pressure, flicker, and dropout corruptions of clean windows, and team "
@@ -91,10 +94,6 @@ CARD_TEXT = {
 }
 
 
-def sha256_of(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def git_commit() -> str:
     completed = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=Path(__file__).parent, capture_output=True, text=True, check=True
@@ -108,18 +107,6 @@ def default_opset(path: Path) -> int:
     return next(
         entry.version for entry in onnx.load(str(path)).opset_import if entry.domain in ("", "ai.onnx")
     )
-
-
-def load_metrics(spec: ModelSpec, runs_dir: Path) -> dict | None:
-    path = runs_dir / f"{spec.file_stem}.json"
-    if not path.exists():
-        return None
-    metrics = json.loads(path.read_text())
-    if not isinstance(metrics.get("trainedOn"), list):
-        raise ValueError(f"{path}: trainedOn must be a list of dataset keys")
-    if set(metrics.get("threshold", {})) != set(spec.threshold_keys):
-        raise ValueError(f"{path}: threshold keys must be {list(spec.threshold_keys)}")
-    return metrics
 
 
 def manifest_entry(spec: ModelSpec, models_dir: Path, metrics: dict | None, commit: str, date: str) -> dict:
@@ -174,17 +161,24 @@ def _development_section(metrics: dict | None) -> str:
     return f"{header}\n\n{_table(rows)}"
 
 
-def model_card(spec: ModelSpec, metrics: dict | None) -> str:
-    text = CARD_TEXT[spec.name]
-    trained_on = (
-        ", ".join(metrics["trainedOn"]) if metrics and metrics["trainedOn"] else "no training run yet"
+def _baseline_note(spec: ModelSpec) -> str:
+    if spec.baseline_of is None:
+        return ""
+    return (
+        f"\n\nThis file is a classical baseline for {spec.baseline_of}. It ships in place of the network if "
+        "it wins the ablation, and the app falls back to it if the network fails to load."
     )
+
+
+def model_card(spec: ModelSpec, metrics: dict | None) -> str:
+    text = CARD_TEXT[spec.family]
+    trained_on = ", ".join(metrics["trainedOn"]) if metrics else "no training run yet"
     ablation = (metrics or {}).get("ablation")
     calibration = (metrics or {}).get("calibration")
     sections = [
         f"# {spec.name} {spec.version}",
         "Lumen is a screening prototype, not a diagnosis.",
-        f"## Intended use\n\n{text['intended_use']}",
+        f"## Intended use\n\n{text['intended_use']}{_baseline_note(spec)}",
         f"## Data\n\n{text['data']}\n\nTrained on: {trained_on}. Splits are by subject: no person appears in "
         "both development-train and development-validation.",
         f"## Development metrics\n\n{_development_section(metrics)}",
@@ -206,13 +200,23 @@ def model_card(spec: ModelSpec, metrics: dict | None) -> str:
 def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> Path:
     commit = git_commit()
     date = datetime.now(UTC).date().isoformat()
-    entries = []
-    for spec in SPECS.values():
+    specs = release_specs(runs_dir)
+    metrics_by_name, source_shas = {}, {}
+    for spec in specs:
         metrics = load_metrics(spec, runs_dir)
-        if require_metrics and metrics is None:
+        if metrics is None and require_metrics:
             raise FileNotFoundError(f"{runs_dir / spec.file_stem}.json not found; train {spec.name} first")
-        entries.append(manifest_entry(spec, models_dir, metrics, commit, date))
-        (models_dir / f"{spec.file_stem}.md").write_text(model_card(spec, metrics), encoding="utf-8")
+        if metrics is not None:
+            # Raises unless the weights in runs/ are the exact file these metrics describe.
+            trained_source(spec, runs_dir)
+        metrics_by_name[spec.name] = metrics
+        source_shas[spec.name] = metrics["sourceSha256"] if metrics else None
+    entries = [manifest_entry(spec, models_dir, metrics_by_name[spec.name], commit, date) for spec in specs]
+    # Checked before anything is written, so a failed check leaves no manifest or cards behind.
+    check_parity(models_dir, entries, source_shas)
+    for spec in specs:
+        card = model_card(spec, metrics_by_name[spec.name])
+        (models_dir / f"{spec.file_stem}.md").write_text(card, encoding="utf-8")
     path = models_dir / "manifest.json"
     path.write_text(json.dumps({"models": entries}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return path
@@ -224,7 +228,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--runs-dir", type=Path, default=RUNS_DIR)
     args = parser.parse_args(argv)
     # Only trained models may reach models/, and training always writes a metrics file.
-    require_metrics = args.models_dir.resolve() == MODELS_DIR.resolve()
+    require_metrics = inside_models_dir(args.models_dir)
     print(write_manifest(args.models_dir, args.runs_dir, require_metrics))
 
 

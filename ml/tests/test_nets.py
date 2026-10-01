@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from export.specs import SPECS
+from export.specs import REQUIRED, SPECS
 from export.to_onnx import source_model
 from nets.rhythm_net import RhythmNet
 from nets.sqi_net import SqiNet
@@ -19,7 +19,7 @@ def _rhythm_inputs(batch: int, valid: int) -> tuple[torch.Tensor, torch.Tensor, 
     return intervals, mask, torch.randn(batch, 8, generator=generator)
 
 
-@pytest.mark.parametrize("name", sorted(SPECS))
+@pytest.mark.parametrize("name", REQUIRED)
 def test_output_shape_and_probability_range(name):
     spec = SPECS[name]
     model = source_model(spec, runs_dir=None, random_seed=1)

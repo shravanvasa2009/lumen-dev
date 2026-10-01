@@ -1,0 +1,122 @@
+import hashlib
+import json
+import math
+import re
+from pathlib import Path
+
+from export.specs import ModelSpec
+
+# ML-3: a source model and its ONNX file may differ by at most this much on any output.
+TOLERANCE = 1e-4
+SEEDED_INPUTS = 500
+# Below this spread across the seeded inputs the outputs are effectively constant (a saturated or
+# dead model), and a tiny diff between two constants proves nothing about the export.
+MIN_OUTPUT_STD = 1e-6
+_SHA256 = re.compile(r"[0-9a-f]{64}")
+
+
+class ProvenanceError(Exception):
+    pass
+
+
+def sha256_of(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _is_number(candidate: object) -> bool:
+    return isinstance(candidate, int | float) and not isinstance(candidate, bool) and math.isfinite(candidate)
+
+
+def _metrics_problems(spec: ModelSpec, metrics: dict) -> list[str]:
+    problems = []
+    trained_on = metrics.get("trainedOn")
+    if not (isinstance(trained_on, list) and trained_on and all(isinstance(key, str) for key in trained_on)):
+        problems.append("trainedOn must be a non-empty list of dataset keys")
+    threshold = metrics.get("threshold")
+    if not isinstance(threshold, dict) or set(threshold) != set(spec.threshold_keys):
+        problems.append(f"threshold keys must be {list(spec.threshold_keys)}")
+    elif not all(_is_number(value) for value in threshold.values()):
+        problems.append("every threshold must be a finite number")
+    development = metrics.get("development")
+    if not (
+        isinstance(development, dict)
+        and isinstance(development.get("subjects"), int)
+        and development["subjects"] > 0
+        and isinstance(development.get("metrics"), dict)
+        and development["metrics"]
+        and all(
+            isinstance(value, dict) and all(_is_number(value.get(key)) for key in ("estimate", "low", "high"))
+            for value in development["metrics"].values()
+        )
+    ):
+        problems.append("development needs subjects > 0 and metrics with numeric estimate, low, and high")
+    if not (isinstance(metrics.get("sourceSha256"), str) and _SHA256.fullmatch(metrics["sourceSha256"])):
+        problems.append(f"sourceSha256 must be the sha256 of {spec.source_file}")
+    return problems
+
+
+def load_metrics(spec: ModelSpec, runs_dir: Path) -> dict | None:
+    path = Path(runs_dir) / f"{spec.file_stem}.json"
+    if not path.exists():
+        return None
+    metrics = json.loads(path.read_text(encoding="utf-8"))
+    problems = _metrics_problems(spec, metrics)
+    if problems:
+        raise ProvenanceError(f"{path}: " + "; ".join(problems))
+    return metrics
+
+
+def trained_source(spec: ModelSpec, runs_dir: Path) -> Path:
+    # The metrics file records the sha256 of the exact weights it describes, so a stray or stale
+    # .pt or .pkl cannot be exported or listed as trained.
+    path = Path(runs_dir) / spec.source_file
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found; train {spec.name} first")
+    metrics = load_metrics(spec, runs_dir)
+    if metrics is None:
+        raise FileNotFoundError(f"{Path(runs_dir) / spec.file_stem}.json not found; train {spec.name} first")
+    if sha256_of(path) != metrics["sourceSha256"]:
+        raise ProvenanceError(f"{path} is not the file its metrics describe (sha256 differs)")
+    return path
+
+
+def entry_problems(name: str, entry: dict) -> list[str]:
+    diff = entry.get("maxAbsDiff")
+    problems = []
+    if not _is_number(diff):
+        problems.append(f"{name}: max abs diff is {diff}")
+    elif diff > TOLERANCE:
+        problems.append(f"{name}: max abs diff {diff:.3e} exceeds {TOLERANCE:g}")
+    if not (isinstance(entry.get("nInputs"), int) and entry["nInputs"] >= SEEDED_INPUTS):
+        problems.append(f"{name}: checked {entry.get('nInputs')} inputs; need at least {SEEDED_INPUTS}")
+    if not (_is_number(entry.get("outputStd")) and entry["outputStd"] >= MIN_OUTPUT_STD):
+        problems.append(
+            f"{name}: outputs are constant across the seeded inputs (std {entry.get('outputStd')}), "
+            "so parity is not meaningful"
+        )
+    return problems
+
+
+def check_parity(models_dir: Path, manifest_entries: list[dict], source_shas: dict[str, str | None]) -> None:
+    # m3.mjs reads only parity.maxAbsDiff, so the manifest writer checks that parity.json covers every
+    # listed model, for these exact files.
+    path = Path(models_dir) / "parity.json"
+    if not path.exists():
+        raise ProvenanceError(f"{path} not found; run python -m export.verify_onnx --all")
+    parity_models = json.loads(path.read_text(encoding="utf-8")).get("models", {})
+    expected = {entry["name"] for entry in manifest_entries}
+    problems = []
+    if set(parity_models) != expected:
+        problems.append(f"parity covers {sorted(parity_models)}; the manifest lists {sorted(expected)}")
+    for entry in manifest_entries:
+        checked = parity_models.get(entry["name"])
+        if checked is None:
+            continue
+        if checked.get("onnxSha256") != entry["sha256"]:
+            problems.append(f"{entry['name']}: parity was run on a different {entry['file']}")
+        source_sha = source_shas.get(entry["name"])
+        if source_sha is not None and checked.get("sourceSha256") != source_sha:
+            problems.append(f"{entry['name']}: parity was run on a different source model")
+        problems += entry_problems(entry["name"], checked)
+    if problems:
+        raise ProvenanceError("ML-3 parity does not cover this release: " + "; ".join(problems))

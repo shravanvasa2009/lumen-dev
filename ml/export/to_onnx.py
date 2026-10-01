@@ -1,4 +1,5 @@
 import argparse
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -13,7 +14,8 @@ from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_
 from sklearn.linear_model import LogisticRegression
 from torch import nn
 
-from export.specs import MODELS_DIR, OPSET, RUNS_DIR, SPECS, ModelSpec
+from export.provenance import trained_source
+from export.specs import MODELS_DIR, OPSET, RUNS_DIR, SPECS, ModelSpec, inside_models_dir, release_specs
 from nets.blocks import Standardize
 
 # ai.onnx.ml 3 ships with default-domain opset 17 in ONNX 1.12 (https://onnx.ai/onnx/repo-docs/Versioning.html).
@@ -58,12 +60,19 @@ def export_torch(spec: ModelSpec, model: nn.Module, out_dir: Path) -> Path:
     return path
 
 
-def _load_trained(spec: ModelSpec, runs_dir: Path) -> nn.Module:
-    weights = runs_dir / f"{spec.file_stem}.pt"
-    if not weights.exists():
-        raise FileNotFoundError(f"{weights} not found; train {spec.name} first")
+Classifier = LGBMClassifier | LogisticRegression
+SourceModel = nn.Module | Classifier
+
+
+def _load_trained(spec: ModelSpec, runs_dir: Path) -> SourceModel:
+    path = trained_source(spec, runs_dir)
+    if spec.kind == "classifier":
+        # pickle runs code on load; trained_source has already matched this file's sha256 to the metrics
+        # our own training wrote, so only our own baselines are ever unpickled.
+        with path.open("rb") as source:
+            return pickle.load(source)
     model = spec.build()
-    model.load_state_dict(torch.load(weights, weights_only=True))
+    model.load_state_dict(torch.load(path, weights_only=True))
     return model.eval()
 
 
@@ -86,8 +95,9 @@ def _randomize_for_parity(model: nn.Module, seed: int) -> nn.Module:
     return model.eval()
 
 
-def source_model(spec: ModelSpec, runs_dir: Path, random_seed: int | None) -> nn.Module:
-    if random_seed is None:
+def source_model(spec: ModelSpec, runs_dir: Path, random_seed: int | None) -> SourceModel:
+    # Baselines have no random-init form: a fitted classifier always comes from training.
+    if random_seed is None or spec.kind == "classifier":
         return _load_trained(spec, runs_dir)
     torch.manual_seed(random_seed)
     return _randomize_for_parity(spec.build(), random_seed)
@@ -130,9 +140,7 @@ def _expose_probabilities(
     return model_proto
 
 
-def export_classifier(
-    classifier: LGBMClassifier | LogisticRegression, input_name: str, output_name: str, path: Path
-) -> Path:
+def export_classifier(classifier: Classifier, input_name: str, output_name: str, path: Path) -> Path:
     model_proto = skl2onnx.convert_sklearn(
         classifier,
         initial_types=[(input_name, FloatTensorType([None, classifier.n_features_in_]))],
@@ -145,10 +153,22 @@ def export_classifier(
     return path
 
 
+def export_model(spec: ModelSpec, source: SourceModel, out_dir: Path) -> Path:
+    if spec.kind == "torch":
+        return export_torch(spec, source, out_dir)
+    ((input_name, shape),) = spec.inputs.items()
+    if source.n_features_in_ != shape[1]:
+        raise ValueError(
+            f"{spec.name} was fitted on {source.n_features_in_} features; the spec says {shape[1]}"
+        )
+    (output_name,) = spec.outputs
+    return export_classifier(source, input_name, output_name, Path(out_dir) / f"{spec.file_stem}.onnx")
+
+
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Export Lumen's neural models to ONNX (ML-3)")
+    parser = argparse.ArgumentParser(description="Export Lumen's models and baselines to ONNX (ML-3)")
     which = parser.add_mutually_exclusive_group(required=True)
-    which.add_argument("--all", action="store_true")
+    which.add_argument("--all", action="store_true", help="every network plus each trained baseline")
     which.add_argument("--name", choices=sorted(SPECS))
     parser.add_argument("--runs-dir", type=Path, default=RUNS_DIR)
     parser.add_argument("--out-dir", type=Path, default=MODELS_DIR)
@@ -156,14 +176,13 @@ def main(argv: list[str] | None = None) -> None:
         "--random-init",
         type=int,
         metavar="SEED",
-        help="export untrained, randomized models to check the export pipeline (never into models/)",
+        help="export untrained, randomized networks to check the export pipeline (never into models/)",
     )
     args = parser.parse_args(argv)
-    if args.random_init is not None and args.out_dir.resolve() == MODELS_DIR.resolve():
+    if args.random_init is not None and inside_models_dir(args.out_dir):
         parser.error("--random-init needs --out-dir outside models/: untrained models must never ship")
-    for name in sorted(SPECS) if args.all else [args.name]:
-        spec = SPECS[name]
-        path = export_torch(spec, source_model(spec, args.runs_dir, args.random_init), args.out_dir)
+    for spec in release_specs(args.runs_dir) if args.all else [SPECS[args.name]]:
+        path = export_model(spec, source_model(spec, args.runs_dir, args.random_init), args.out_dir)
         print(f"{path}  {path.stat().st_size} bytes")
 
 

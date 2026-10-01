@@ -15,6 +15,7 @@ dependencies = [
     "requests==2.34.2",
     "scikit-learn==1.9.1",
     "scipy==1.17.1",
+    "skl2onnx==1.20.0",
     "torch==2.14.1",
     "vitaldb==1.7.2",
     "wfdb==4.3.1",

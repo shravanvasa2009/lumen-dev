@@ -1,4 +1,4 @@
-import { NativeModule, requireNativeModule } from 'expo';
+import { NativeModule, requireOptionalNativeModule } from 'expo';
 
 import type {
   CameraPermission,
@@ -20,4 +20,7 @@ declare class LumenCaptureNative extends NativeModule<LumenCaptureEvents> {
 }
 
 // The annotation is the conformance check: tsc fails if the native binding drifts from Appendix A.
-export const LumenCapture: LumenCaptureModule = requireNativeModule<LumenCaptureNative>('LumenCapture');
+// null where the module is not linked (Jest, Expo Go), so importing this file never throws and callers
+// can fall back to ReplayCapture.
+export const LumenCapture: LumenCaptureModule | null =
+  requireOptionalNativeModule<LumenCaptureNative>('LumenCapture');

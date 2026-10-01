@@ -26,5 +26,15 @@
     "sampleEntropyM": 2,
     "sampleEntropyR": 0.2,
     "minUsableIntervals": 40
+  },
+  "liveHr": {
+    "windowS": 10,
+    "minSegmentS": 8,
+    "detrendHalfWidthS": 1.5,
+    "scanBandHz": [0.6, 3.5],
+    "scanStepHz": 0.01,
+    "minBpm": 40,
+    "maxBpm": 180,
+    "minSnrDb": 6
   }
 }

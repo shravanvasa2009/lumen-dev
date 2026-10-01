@@ -3,10 +3,21 @@ name = "lumen-ml"
 version = "0.1.0"
 description = "Lumen datasets, training, export, and evaluation"
 requires-python = ">=3.11,<3.12"
-dependencies = []
+dependencies = [
+    "numpy==2.4.6",
+    "pandas==3.0.6",
+    "pyarrow==25.0.1",
+    "requests==2.34.2",
+    "scipy==1.17.1",
+    "wfdb==4.3.1",
+]
 
 [dependency-groups]
 dev = [
     "pytest==9.1.1",
     "ruff==0.16.9",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

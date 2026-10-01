@@ -1,7 +1,7 @@
 import { DSP_CONFIG } from './config';
 
-// Timestamps are whole ns, so a gap within half a ns of the limit equals it; differences of times in
-// seconds carry ~1e-16 s rounding that would otherwise split some gaps of exactly 150 ms.
+// Timestamps are whole ns, so a gap within half a ns of the limit equals it. A difference of two times in
+// seconds carries rounding up to ~1e-13 s (10-minute captures), which would split some 150 ms gaps.
 const HALF_NS_S = 0.5e-9;
 
 export interface ResampledSegment {

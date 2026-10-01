@@ -197,14 +197,16 @@ export function filterZeroPhase(sos: SosSection[], signal: ArrayLike<number>): F
 /** DSP-6: causal biquad filter for the live display, started in steady state at its first sample. */
 export class CausalFilter {
   private readonly sos: SosSection[];
-  private readonly states: [number, number][];
+  private states: [number, number][] | null = null;
 
-  constructor(sos: SosSection[], firstSample: number) {
+  constructor(sos: SosSection[]) {
     this.sos = sos;
-    this.states = startStates(sos, firstSample);
   }
 
   filter(batch: ArrayLike<number>): Float64Array {
+    if (batch.length === 0) return new Float64Array(0);
+    // The steady state comes from the first sample ever filtered, so it cannot mismatch the signal.
+    this.states ??= startStates(this.sos, batch[0]!);
     return runSections(this.sos, this.states, batch);
   }
 }

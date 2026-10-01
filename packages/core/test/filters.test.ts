@@ -10,11 +10,13 @@ import {
   DC_LOWPASS_64HZ_SOS,
   FILTFILT_DC_LOWPASS_64HZ,
   FILTFILT_HR_BAND_64HZ,
+  FILTFILT_MORPHOLOGY_BAND_64HZ,
   HR_BAND_64HZ_SOS,
+  MORPHOLOGY_BAND_64HZ_SOS,
   REFERENCE_INPUT,
 } from './scipy-reference';
 
-const { order, hrBandHz, morphologyBandHz } = DSP_CONFIG.dsp6;
+const { hrOrder, morphologyOrder, hrBandHz, morphologyBandHz } = DSP_CONFIG.dsp6;
 const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
 
 // |H(e^{jω})| of a cascade of biquads, evaluated directly from the coefficients.
@@ -35,12 +37,6 @@ function gainAt(sos: SosSection[], frequencyHz: number, rateHz: number): number 
 function digitalCentreHz([lowHz, highHz]: number[], rateHz: number): number {
   const tanProduct = Math.tan((Math.PI * lowHz!) / rateHz) * Math.tan((Math.PI * highHz!) / rateHz);
   return (rateHz / Math.PI) * Math.atan(Math.sqrt(tanProduct));
-}
-
-function impulse(length: number): Float64Array {
-  const unit = new Float64Array(length);
-  unit[0] = 1;
-  return unit;
 }
 
 function polyMul(left: number[], right: number[]): number[] {
@@ -94,9 +90,9 @@ function directFormImpulse({ b, a }: { b: number[]; a: number[] }, length: numbe
 }
 
 const DESIGNS = [
-  { name: 'HR band at 64 Hz', band: hrBandHz, rateHz: modelRateHz },
-  { name: 'morphology band at 64 Hz', band: morphologyBandHz, rateHz: modelRateHz },
-  { name: 'morphology band at 256 Hz', band: morphologyBandHz, rateHz: shapeRateHz },
+  { name: 'HR band at 64 Hz', order: hrOrder, band: hrBandHz, rateHz: modelRateHz },
+  { name: 'morphology band at 64 Hz', order: morphologyOrder, band: morphologyBandHz, rateHz: modelRateHz },
+  { name: 'morphology band at 256 Hz', order: morphologyOrder, band: morphologyBandHz, rateHz: shapeRateHz },
 ];
 
 describe('DSP-6 Butterworth design', () => {
@@ -111,7 +107,10 @@ describe('DSP-6 Butterworth design', () => {
 
   it('has the same impulse response as the analytic order-2 band-pass transfer function', () => {
     const reference = directFormImpulse(referenceBandpassTf(0.6, 3.5, 64), 512);
-    const fromSos = new CausalFilter(butterBandpass(2, 0.6, 3.5, 64), 0).filter(impulse(512));
+    // A leading zero starts the filter from rest; the impulse follows it.
+    const delayedImpulse = new Float64Array(513);
+    delayedImpulse[1] = 1;
+    const fromSos = new CausalFilter(butterBandpass(2, 0.6, 3.5, 64)).filter(delayedImpulse).subarray(1);
     const peak = Math.max(...reference.map(Math.abs));
     reference.forEach((value, n) => expect(Math.abs(fromSos[n]! - value)).toBeLessThan(1e-12 * peak));
   });
@@ -119,8 +118,8 @@ describe('DSP-6 Butterworth design', () => {
   it('pairs sections the way scipy zpk2sos "nearest" does for the HR band', () => {
     // All poles have Re > 0, so the two poles nearest the unit circle (the last sections) take the four
     // zeros at z = +1, the other two take the zeros at z = −1, and the gain goes into section 0.
-    const sos = butterBandpass(order, hrBandHz[0]!, hrBandHz[1]!, modelRateHz);
-    expect(sos).toHaveLength(order);
+    const sos = butterBandpass(hrOrder, hrBandHz[0]!, hrBandHz[1]!, modelRateHz);
+    expect(sos).toHaveLength(hrOrder);
     const [first, second, third, fourth] = sos.map((section) => section.slice(0, 3));
     expect(first![1]! / first![0]!).toBeCloseTo(2, 12);
     expect(first![2]! / first![0]!).toBeCloseTo(1, 12);
@@ -133,7 +132,7 @@ describe('DSP-6 Butterworth design', () => {
 
   it.each(DESIGNS)(
     '$name: unit gain at the centre, −3 dB at both edges, zero at DC and Nyquist',
-    ({ band, rateHz }) => {
+    ({ order, band, rateHz }) => {
       const sos = butterBandpass(order, band[0]!, band[1]!, rateHz);
       expect(gainAt(sos, digitalCentreHz(band, rateHz), rateHz)).toBeCloseTo(1, 9);
       expect(gainAt(sos, band[0]!, rateHz)).toBeCloseTo(Math.SQRT1_2, 9);
@@ -156,7 +155,7 @@ describe('DSP-6 Butterworth design', () => {
   it('keeps every section of every configured filter inside the biquad stability triangle', () => {
     const { dcCutoffHz, dcOrder } = DSP_CONFIG.dsp3;
     const all = [
-      ...DESIGNS.map(({ band, rateHz }) => butterBandpass(order, band[0]!, band[1]!, rateHz)),
+      ...DESIGNS.map(({ order, band, rateHz }) => butterBandpass(order, band[0]!, band[1]!, rateHz)),
       ...[modelRateHz, shapeRateHz].map((rateHz) => butterLowpass(dcOrder, dcCutoffHz, rateHz)),
     ];
     // Both poles of 1 + a1 z⁻¹ + a2 z⁻² lie inside the unit circle iff |a2| < 1 and |a1| < 1 + a2.
@@ -178,7 +177,7 @@ describe('DSP-6 Butterworth design', () => {
 });
 
 describe('DSP-6 zero-phase filtering (scipy sosfiltfilt)', () => {
-  const sos = butterBandpass(order, hrBandHz[0]!, hrBandHz[1]!, modelRateHz);
+  const sos = butterBandpass(hrOrder, hrBandHz[0]!, hrBandHz[1]!, modelRateHz);
   const pulseHz = 1.2;
   const seconds = 60;
   const tS = Array.from({ length: seconds * modelRateHz }, (_, n) => n / modelRateHz);
@@ -197,9 +196,11 @@ describe('DSP-6 zero-phase filtering (scipy sosfiltfilt)', () => {
   });
 
   it('a causal pass of the same sine is phase-shifted (the check above is sensitive)', () => {
-    const causal = new CausalFilter(sos, pulse[0]!).filter(pulse);
+    // Compared with |H|·sine, so only the phase can make the difference.
+    const gain = gainAt(sos, pulseHz, modelRateHz);
+    const causal = new CausalFilter(sos).filter(pulse);
     const worst = Math.max(
-      ...Array.from(pulse, (value, n) => (middle(n) ? Math.abs(causal[n]! - value) : 0)),
+      ...Array.from(pulse, (value, n) => (middle(n) ? Math.abs(causal[n]! - gain * value) : 0)),
     );
     expect(worst).toBeGreaterThan(0.1);
   });
@@ -228,15 +229,21 @@ describe('DSP-6 zero-phase filtering (scipy sosfiltfilt)', () => {
 describe('DSP-6 causal filtering for the live display', () => {
   const lowpass = butterLowpass(2, 0.3, 64);
 
+  it('returns nothing for an empty batch and still starts from the first real sample', () => {
+    const filter = new CausalFilter(lowpass);
+    expect(filter.filter([])).toHaveLength(0);
+    filter.filter([0.62, 0.62]).forEach((value) => expect(value).toBeCloseTo(0.62, 12));
+  });
+
   it('starts in steady state for the first sample (no start-up transient)', () => {
     const constant = new Float64Array(64).fill(0.62);
-    new CausalFilter(lowpass, 0.62).filter(constant).forEach((value) => expect(value).toBeCloseTo(0.62, 12));
+    new CausalFilter(lowpass).filter(constant).forEach((value) => expect(value).toBeCloseTo(0.62, 12));
   });
 
   it('gives the same output whether fed at once or in 100 ms batches', () => {
     const input = Float64Array.from({ length: 640 }, (_, n) => Math.sin(n / 7) + 0.5);
-    const whole = new CausalFilter(lowpass, input[0]!).filter(input);
-    const batched = new CausalFilter(lowpass, input[0]!);
+    const whole = new CausalFilter(lowpass).filter(input);
+    const batched = new CausalFilter(lowpass);
     const pieces: number[] = [];
     for (let start = 0; start < input.length; start += 6) {
       pieces.push(...batched.filter(input.subarray(start, start + 6)));
@@ -258,6 +265,10 @@ describe('DSP-6 agreement with scipy 1.17.1 output', () => {
     expectClose(sos.flat(), HR_BAND_64HZ_SOS.flat(), 1e-15);
   });
 
+  it('designs the same morphology band-pass sections as butter(2, [0.5, 8], "band", fs=64)', () => {
+    expectClose(butterBandpass(2, 0.5, 8, 64).flat(), MORPHOLOGY_BAND_64HZ_SOS.flat(), 1e-15);
+  });
+
   it('designs the same DC low-pass section as butter(2, 0.3, fs=64)', () => {
     expectClose(butterLowpass(2, 0.3, 64).flat(), DC_LOWPASS_64HZ_SOS.flat(), 1e-15);
   });
@@ -266,6 +277,11 @@ describe('DSP-6 agreement with scipy 1.17.1 output', () => {
     expectClose(
       filterZeroPhase(butterBandpass(4, 0.6, 3.5, 64), REFERENCE_INPUT),
       FILTFILT_HR_BAND_64HZ,
+      1e-12,
+    );
+    expectClose(
+      filterZeroPhase(butterBandpass(2, 0.5, 8, 64), REFERENCE_INPUT),
+      FILTFILT_MORPHOLOGY_BAND_64HZ,
       1e-12,
     );
     expectClose(filterZeroPhase(butterLowpass(2, 0.3, 64), REFERENCE_INPUT), FILTFILT_DC_LOWPASS_64HZ, 1e-12);

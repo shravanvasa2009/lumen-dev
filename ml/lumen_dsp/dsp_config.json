@@ -12,7 +12,8 @@
     "dcOrder": 2
   },
   "dsp6": {
-    "order": 4,
+    "hrOrder": 4,
+    "morphologyOrder": 2,
     "hrBandHz": [0.6, 3.5],
     "morphologyBandHz": [0.5, 8]
   }

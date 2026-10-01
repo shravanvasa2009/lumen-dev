@@ -16,7 +16,12 @@ export const DSP_CONFIG = {
     dcOrder: 2,
   },
   dsp6: {
-    order: 4, // Butterworth prototype order N, as in scipy butter(N, ...): 8 poles per band-pass (ADR 0018)
+    // Butterworth prototype order N as in scipy butter(N, ...): N = 4 is 8 poles. §10 DSP-6 says
+    // "4th-order" for the HR band; reading that as N = 4 awaits owner confirmation (ADR 0018).
+    hrOrder: 4,
+    // §10 gives no order for this band; Elgendi et al. 2013 (DSP-7 "as published") use a zero-phase
+    // second-order Butterworth 0.5–8 Hz band-pass, as NeuroKit2 does with butter(2, ...) (ADR 0018).
+    morphologyOrder: 2,
     hrBandHz: [0.6, 3.5],
     morphologyBandHz: [0.5, 8],
   },

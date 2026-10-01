@@ -22,6 +22,7 @@ export default function ModeScreen() {
             title={mode.title}
             subtitle={mode.subtitle}
             last={index === modes.length - 1}
+            chevron
             onPress={() => router.push(mode.href)}
           />
         ))}

@@ -17,6 +17,7 @@ export default function LearnScreen() {
           <ListRow
             key={lesson.slug}
             last={index === lessons.length - 1}
+            chevron
             title={lesson.title(t)}
             onPress={() => router.push({ pathname: '/learn/[slug]', params: { slug: lesson.slug } })}
           />

@@ -26,6 +26,7 @@ export default function SettingsScreen() {
             key={row.title}
             title={row.title}
             last={index === rows.length - 1}
+            chevron
             onPress={() => router.push(row.href)}
           />
         ))}

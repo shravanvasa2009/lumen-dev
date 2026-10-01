@@ -52,12 +52,46 @@ export interface CaptureSummary {
   frames: number;
   dropped: number;
 }
+// Same shape as Expo's PermissionResponse, so screens can treat it like any Expo permission (ADR 0013).
+export interface CameraPermission {
+  status: 'granted' | 'undetermined' | 'denied';
+  expires: 'never' | number;
+  granted: boolean;
+  canAskAgain: boolean;
+}
+
+// Development builds only, emitted at 1 Hz for Lab mode; app code never reads it (ADR 0013).
+export interface LabDiagnostics {
+  lensId: string;
+  formatWidth: number;
+  formatHeight: number;
+  targetFps: number;
+  frameWorkMsMean: number; // native per-frame reduction time; budget < 4 ms at 60 fps (spec §9.3)
+  frameWorkMsMax: number;
+  iso: number;
+  exposureNs: number;
+  torchOn: boolean;
+  torchLevel: number;
+  locked: { exposure: boolean; whiteBalance: boolean; focus: boolean };
+}
+
+// Event name to payload, matching the addListener overloads below; the native binding is typed with it.
+export type LumenCaptureEvents = {
+  samples: (b: SampleBatch) => void;
+  status: (s: CaptureStatus) => void;
+  lab: (d: LabDiagnostics) => void;
+};
+
 export interface LumenCaptureModule {
   getCapabilities(): Promise<Capabilities>;
+  getPermission(): Promise<CameraPermission>;
+  requestPermission(): Promise<CameraPermission>;
   start(config: CaptureConfig): Promise<void>;
   stop(): Promise<CaptureSummary>;
   setTorch(level: number): Promise<void>;
+  // Locks exposure, white balance, and focus together (spec §4.2 step 3; ADR 0013).
   lockExposure(): Promise<void>;
   addListener(e: 'samples', cb: (b: SampleBatch) => void): { remove(): void };
   addListener(e: 'status', cb: (s: CaptureStatus) => void): { remove(): void };
+  addListener(e: 'lab', cb: (d: LabDiagnostics) => void): { remove(): void };
 }

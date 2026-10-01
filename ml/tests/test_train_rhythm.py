@@ -286,6 +286,8 @@ def test_training_writes_metrics_the_manifest_accepts(trained_run):
     assert {row["model"] for row in network["ablation"]} == {"rhythm-net", "rhythm-lgbm", "rhythm-logistic"}
     assert network["shipDecision"]["ships"] in {"rhythm-net", "rhythm-lgbm", "rhythm-logistic"}
     assert {row["dataset"] for row in network["development"]["byDataset"]} == {"afdb", "cinc2017", "mitdb"}
+    premature_set = network["development"]["prematureBeatSet"]
+    assert premature_set["subjects"] > 0 and premature_set["windows"] >= premature_set["subjects"]
     for key in ("subjectAuroc", "subjectSpecificity", "falseAfRatePrematureReadings"):
         assert key in network["development"]["metrics"] and key in lgbm["development"]["metrics"]
     for metrics in (network, lgbm):

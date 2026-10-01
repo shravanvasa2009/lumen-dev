@@ -690,6 +690,11 @@ def _metrics_file(source: Path, evaluation: dict, sets: WindowSets, shared: dict
             "metrics": evaluation["metrics"],
             "undefinedMetrics": evaluation["undefined"],
             "byDataset": evaluation["byDataset"],
+            # The card states the premature-beat false-AF rate with its sample size (§11.3).
+            "prematureBeatSet": {
+                "subjects": len(set(sets.premature.subjects.tolist())),
+                "windows": len(sets.premature.labels),
+            },
         },
         "sourceSha256": sha256_of(source),
         "featureOrder": list(FEATURE_NAMES),

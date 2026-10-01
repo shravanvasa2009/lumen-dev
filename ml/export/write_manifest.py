@@ -70,8 +70,7 @@ CARD_TEXT = {
         ),
         "limitations": (
             "- Frequent premature beats make intervals irregular in every reading, so they can trigger "
-            "repeated false irregular results that the 2-of-3 rule does not catch. The false-AF rate on "
-            "augmented premature-beat sequences is reported under Development metrics.\n"
+            "repeated false irregular results that the 2-of-3 rule does not catch.\n"
             "- Trained on ECG intervals adapted to look like phone intervals, not on phone recordings."
         ),
         "abstain": (
@@ -201,6 +200,29 @@ def _ship_note(spec: ModelSpec, metrics: dict | None) -> str:
     )
 
 
+def _measured_limits(spec: ModelSpec, metrics: dict | None) -> str:
+    # §11.3 asks for the false-AF rate on premature beats to be stated, so the card prints the generated
+    # numbers next to the limitation rather than pointing elsewhere.
+    development = (metrics or {}).get("development") or {}
+    measured = development.get("metrics", {})
+    lines = []
+    false_af = measured.get("falseAfRatePrematureReadings")
+    if false_af:
+        sample = development.get("prematureBeatSet")
+        size = f", {sample['subjects']} subjects, {sample['windows']} windows" if sample else ""
+        lines.append(
+            f"- False-AF rate on augmented premature-beat readings (dev-val{size}): "
+            f"{false_af['estimate']:.3f} (95% CI {false_af['low']:.3f}-{false_af['high']:.3f})."
+        )
+    abstain = measured.get("readingAbstainRate")
+    if abstain:
+        lines.append(
+            f"- Reading abstain rate (top probability below {spec.abstain_below}) on dev-val: "
+            f"{abstain['estimate']:.3f} (95% CI {abstain['low']:.3f}-{abstain['high']:.3f})."
+        )
+    return "".join(f"\n{line}" for line in lines)
+
+
 def model_card(spec: ModelSpec, metrics: dict | None) -> str:
     text = CARD_TEXT[spec.family]
     role = f"shipped {spec.family} model" if spec.ships else "ablation model, not shipped"
@@ -225,7 +247,7 @@ def model_card(spec: ModelSpec, metrics: dict | None) -> str:
             else NOT_MEASURED
         ),
         f"## External test\n\nDataset: {spec.external_dataset}. {EXTERNAL_NOT_RUN}",
-        f"## Limitations\n\n{text['limitations']}",
+        f"## Limitations\n\n{text['limitations']}{_measured_limits(spec, metrics)}",
         f"## What the app shows when the model abstains\n\n{text['abstain']}",
     ]
     return "\n\n".join(sections) + "\n"

@@ -32,8 +32,13 @@ RHYTHM_EXTRAS = {
     "notes": ["Jitter sigma is an assumption."],
     "development": {
         "subjects": 4,
-        "metrics": {"auroc": {"estimate": 0.5, "low": 0.25, "high": 0.75}},
+        "metrics": {
+            "auroc": {"estimate": 0.5, "low": 0.25, "high": 0.75},
+            "falseAfRatePrematureReadings": {"estimate": 0.301, "low": 0.085, "high": 0.612},
+            "readingAbstainRate": {"estimate": 0.218, "low": 0.176, "high": 0.253},
+        },
         "byDataset": [{"dataset": "afdb", "subject AUROC": "0.600 (0.400-0.800)"}],
+        "prematureBeatSet": {"subjects": 8, "windows": 294},
     },
 }
 
@@ -127,6 +132,14 @@ def test_trained_release_fills_metrics_and_lists_baselines(trained):
     assert "Training notes:\n\n- Jitter sigma is an assumption." in card
     assert "| afdb | 0.600 (0.400-0.800) |" in card
     assert "Trained on: afdb." in card
+    limitations = card.split("## Limitations", 1)[1].split("\n## ", 1)[0]
+    assert (
+        "- False-AF rate on augmented premature-beat readings (dev-val, 8 subjects, 294 windows): "
+        "0.301 (95% CI 0.085-0.612)." in limitations
+    )
+    abstain = "- Reading abstain rate (top probability below 0.6) on dev-val: 0.218 (95% CI 0.176-0.253)."
+    assert abstain in limitations
+    assert "reported under Development metrics" not in card
     assert "(ablation model, not shipped)" in card and "the app loads rhythm-lgbm" in card
     shipped_card = (models_dir / entries["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
     assert shipped_card.startswith("# rhythm-lgbm 1.0.0 (shipped rhythm model)")

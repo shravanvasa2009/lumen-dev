@@ -21,27 +21,16 @@ name: Home through a measurement to results, emergency, report, why, and fix-tec
 - assertVisible: 'Analyzing your reading'
 - tapOn: 'See results'
 - assertVisible: 'Results'
-# On short screens (the CI emulator) this button sits below the fold.
-- scrollUntilVisible:
-    element:
-      text: 'Yes'
-    direction: DOWN
+# The demo reading has no heart-rate or rhythm flag, so the safety question comes from the flagged one.
+- openLink: lumen://results/demo-flag
+- assertVisible: 'Quick safety check'
 - tapOn: 'Yes'
 - assertVisible: 'Get help now'
 - openLink: lumen://results/demo
-# On short screens (the CI emulator) this button sits below the fold.
-- scrollUntilVisible:
-    element:
-      text: 'Share'
-    direction: DOWN
+# Share and Show me why are pinned below the cards, so they are visible without scrolling.
 - tapOn: 'Share'
 - assertVisible: 'Doctor report'
 - openLink: lumen://results/demo
-# On short screens (the CI emulator) this button sits below the fold.
-- scrollUntilVisible:
-    element:
-      text: 'Show me why'
-    direction: DOWN
 - tapOn: 'Show me why'
 # The button and the destination share the words "Show me why", so check a line only the destination has.
 - assertVisible: 'Beat-to-beat intervals \(ms\)'

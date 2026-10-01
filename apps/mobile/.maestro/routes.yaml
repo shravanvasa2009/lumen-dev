@@ -48,12 +48,16 @@ name: Every route opens
 - assertVisible: 'Analyzing your reading'
 - openLink: lumen://results/demo
 - assertVisible: 'Results'
+- openLink: lumen://results/demo-flag
+- assertVisible: 'Quick safety check'
 - openLink: lumen://results/demo/why
 - assertVisible: 'Why .regular.\?'
 - openLink: lumen://results/demo-flag/why
 - assertVisible: 'Why .irregular.\?'
 - openLink: lumen://measure/inconclusive
 - assertVisible: 'Not enough clean signal\.'
+- openLink: lumen://measure/inconclusive?id=demo-inconclusive
+- assertVisible: 'We got 38 clean seconds\. Most of the lost time was movement\.'
 - openLink: lumen://emergency
 - assertVisible: 'Get help now'
 - openLink: lumen://measure/standing-test

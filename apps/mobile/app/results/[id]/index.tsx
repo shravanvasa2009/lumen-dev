@@ -11,7 +11,7 @@ export default function ResultsScreen() {
   const reading = readingById(id);
   // An id with no stored reading shows no values rather than made-up ones.
   return reading ? (
-    <ReadingResults reading={reading} />
+    <ReadingResults key={reading.id} reading={reading} />
   ) : (
     <RouteShell title={t('results.title')} subtitle={t('result.inconclusive')} />
   );

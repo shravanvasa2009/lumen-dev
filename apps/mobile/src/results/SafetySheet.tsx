@@ -8,7 +8,7 @@ import { useTheme } from '@/theme';
 
 type SafetySheetProps = { visible: boolean; onDismiss: () => void };
 
-// SAFE-1: shown when a heart-rate or rhythm flag fires. Yes opens emergency guidance; No or a tap outside
+// SAFE-1: shown when any flag fires (heart rate, rhythm, or the diabetes pattern card, §12.5). Yes opens emergency guidance; No or a tap outside
 // closes it. The Yes button uses the flag colour, because red belongs to the emergency screen alone.
 export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
   const { t } = useTranslation();
@@ -24,7 +24,15 @@ export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
         <Pressable
           accessibilityLabel={t('safety.dismiss')}
           onPress={onDismiss}
-          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: isDark ? colors.bg : colors.text, opacity: 0.6 }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            backgroundColor: isDark ? colors.bg : colors.text,
+            opacity: 0.6,
+          }}
         />
         <View
           style={{

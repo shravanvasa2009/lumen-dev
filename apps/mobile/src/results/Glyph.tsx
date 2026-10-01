@@ -8,7 +8,12 @@ const strokes = {
   close: 'M6 6l12 12M18 6L6 18',
 } as const;
 
-type GlyphProps = { name: keyof typeof strokes | 'warning'; size: number; color: ColorValue; mark?: ColorValue };
+type GlyphProps = {
+  name: keyof typeof strokes | 'warning';
+  size: number;
+  color: ColorValue;
+  mark?: ColorValue;
+};
 
 // Glyphs the shared Icon set does not have yet. `mark` is the exclamation colour on the warning triangle.
 export function Glyph({ name, size, color, mark = color }: GlyphProps) {
@@ -20,7 +25,13 @@ export function Glyph({ name, size, color, mark = color }: GlyphProps) {
           <Path d="M12 9.5v5M12 17.4v.2" stroke={mark} strokeWidth={2} strokeLinecap="round" />
         </>
       ) : (
-        <Path d={strokes[name]} stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+        <Path
+          d={strokes[name]}
+          stroke={color}
+          strokeWidth={1.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       )}
       {name === 'hint' ? <Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={1.8} /> : null}
     </Svg>

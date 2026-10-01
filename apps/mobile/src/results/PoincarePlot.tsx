@@ -5,18 +5,20 @@ import { useTheme } from '@/theme';
 
 const size = 160;
 const margin = 12;
-// Same axis on both plots, so the spread of one reading is comparable with the typical regular cluster.
-const lowMs = 400;
-const highMs = 1200;
-
-type PoincarePlotProps = { intervalsMs: readonly number[]; color: ColorValue; label: string };
+type PoincarePlotProps = {
+  intervalsMs: readonly number[];
+  // Shared by both plots, so the spread of one reading is comparable with the typical regular cluster.
+  axis: { lowMs: number; highMs: number };
+  color: ColorValue;
+  label: string;
+};
 
 // Each point pairs one beat-to-beat interval with the next one (RR[n] against RR[n+1]).
-export function PoincarePlot({ intervalsMs, color, label }: PoincarePlotProps) {
+export function PoincarePlot({ intervalsMs, axis, color, label }: PoincarePlotProps) {
+  const { lowMs, highMs } = axis;
   const { colors, radius } = useTheme();
   const scale = (ms: number) => {
-    const clamped = Math.min(highMs, Math.max(lowMs, ms));
-    return margin + ((clamped - lowMs) / (highMs - lowMs)) * (size - 2 * margin);
+    return margin + ((ms - lowMs) / (highMs - lowMs)) * (size - 2 * margin);
   };
   const flip = (coordinate: number) => size - coordinate;
   return (

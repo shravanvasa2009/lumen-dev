@@ -11,6 +11,7 @@ import type { MeasureMode } from '@/measure/mode';
 import { useTheme } from '@/theme';
 
 import type { FixtureReading } from './fixtures';
+import { DemoBanner } from './DemoBanner';
 import { Glyph } from './Glyph';
 import { LostTime, lostCauses, secondsLost } from './LostTime';
 
@@ -18,7 +19,9 @@ function summary(t: TFunction, reading: FixtureReading | undefined): string {
   if (!reading) return t('inconclusive.generic');
   const seconds = reading.scan.cleanSeconds;
   const lost = reading.scan.lostSeconds;
-  const [biggest] = [...lostCauses].sort((first, second) => secondsLost(lost, second) - secondsLost(lost, first));
+  const [biggest] = [...lostCauses].sort(
+    (first, second) => secondsLost(lost, second) - secondsLost(lost, first),
+  );
   if (!biggest || secondsLost(lost, biggest) === 0) return t('inconclusive.gotOnly', { seconds });
   const cause = {
     movement: t('inconclusive.causeMovement'),
@@ -69,6 +72,7 @@ export function InconclusiveView({ reading, mode }: InconclusiveViewProps) {
           <Glyph name="close" size={control.chevronSize + 4} color={colors.textDim} />
         </Pressable>
         <View style={{ flex: 1, justifyContent: 'center', gap: spacing.lg }}>
+          {reading ? <DemoBanner synthetic={reading.synthetic} /> : null}
           <View style={{ alignItems: 'center', gap: spacing.sm }}>
             <Glyph name="noSignal" size={56} color={colors.flag} />
             <AppText variant="title" accessibilityRole="header" style={{ textAlign: 'center' }}>

@@ -48,10 +48,10 @@ export function ExperimentalCard({ experimental, showDiabetes }: ExperimentalCar
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <AppText variant="headline">{t('results.diabetesPattern')}</AppText>
+            <AppText variant="headline">{t('dm.flag.title')}</AppText>
             <EvidenceBadge metric="diabetes" />
           </View>
-          <AppText tone="textDim">{t('results.diabetesExperimental')}</AppText>
+          <AppText tone="textDim">{t('dm.experimental')}</AppText>
         </View>
       ) : null}
       <View style={{ borderTopColor: colors.line, borderTopWidth: 1 }}>

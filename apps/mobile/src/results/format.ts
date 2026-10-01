@@ -5,7 +5,3 @@ export function formatClock(moment: Date, language: string): string {
 export function formatDay(moment: Date, language: string): string {
   return new Intl.DateTimeFormat(language, { month: 'short', day: 'numeric' }).format(moment);
 }
-
-export function isSameDay(first: Date, second: Date): boolean {
-  return first.toDateString() === second.toDateString();
-}

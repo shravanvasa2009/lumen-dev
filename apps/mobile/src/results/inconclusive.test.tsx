@@ -16,11 +16,17 @@ describe('inconclusive screen', () => {
     expect(screen.getByText(en['inconclusive.tipBreathe'])).toBeOnTheScreen();
   });
 
+  it('labels the reading as demo data, and shows no banner when there is no reading', () => {
+    renderRouter('./app', { initialUrl: '/measure/inconclusive?id=demo-inconclusive' });
+    expect(screen.getByText(en['demo.banner'])).toBeOnTheScreen();
+  });
+
   it('lists the causes without numbers when there is no reading to explain', () => {
     renderRouter('./app', { initialUrl: '/measure/inconclusive' });
     expect(screen.getByText(en['inconclusive.generic'])).toBeOnTheScreen();
     expect(screen.getByText(en['inconclusive.movement'])).toBeOnTheScreen();
     expect(screen.queryByText(/\d+ s$/)).toBeNull();
+    expect(screen.queryByText(en['demo.banner'])).toBeNull();
   });
 
   it('retakes in the same mode', () => {

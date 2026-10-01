@@ -8,6 +8,8 @@ import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Screen } from '@/components/Screen';
 import { useTheme } from '@/theme';
 
+import { intervalAxis } from './axis';
+import { DemoBanner } from './DemoBanner';
 import { type FixtureReading, regularIntervalsMs } from './fixtures';
 import { PoincarePlot } from './PoincarePlot';
 import { rhythmWords } from './rhythmWords';
@@ -29,6 +31,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
   if (!rhythm || reading.intervalsMs.length === 0) {
     return (
       <Screen>
+        <DemoBanner synthetic={reading.synthetic} />
         <AppText variant="title" accessibilityRole="header">
           {t('result.inconclusive')}
         </AppText>
@@ -36,7 +39,12 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
     );
   }
 
-  const irregular = rhythm.class === 'af';
+  const why = {
+    af: { title: t('why.titleIrregular'), explain: t('why.explainIrregular') },
+    sinus: { title: t('why.titleRegular'), explain: t('why.explainRegular') },
+    other: { title: t('why.titleOther'), explain: t('why.explainOther') },
+  }[rhythm.class];
+  const axis = intervalAxis(reading.intervalsMs);
   const seriesColor = rhythm.flag ? colors.flag : colors.accent;
   const words = rhythmWords(t, rhythm);
   const chipColors = rhythm.flag
@@ -51,8 +59,9 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xxl }}>
+        <DemoBanner synthetic={reading.synthetic} />
         <AppText variant="title" accessibilityRole="header">
-          {irregular ? t('why.titleIrregular') : t('why.titleRegular')}
+          {why.title}
         </AppText>
 
         <SectionCaption text={t('why.intervals')} />
@@ -63,13 +72,23 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
         <SectionCaption text={t('why.poincare')} />
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <View style={{ flex: 1, gap: spacing.sm }}>
-            <PoincarePlot intervalsMs={reading.intervalsMs} color={seriesColor} label={t('why.yours')} />
+            <PoincarePlot
+              intervalsMs={reading.intervalsMs}
+              axis={axis}
+              color={seriesColor}
+              label={t('why.yours')}
+            />
             <AppText tone="textDim" style={{ textAlign: 'center' }}>
               {t('why.yours')}
             </AppText>
           </View>
           <View style={{ flex: 1, gap: spacing.sm }}>
-            <PoincarePlot intervalsMs={regularIntervalsMs} color={colors.accent} label={t('why.typical')} />
+            <PoincarePlot
+              intervalsMs={regularIntervalsMs}
+              axis={axis}
+              color={colors.accent}
+              label={t('why.typical')}
+            />
             <AppText tone="textDim" style={{ textAlign: 'center' }}>
               {t('why.typical')}
             </AppText>
@@ -77,7 +96,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
         </View>
 
         <Card>
-          <AppText>{irregular ? t('why.explainIrregular') : t('why.explainRegular')}</AppText>
+          <AppText>{why.explain}</AppText>
           <View
             style={{
               flexDirection: 'row',

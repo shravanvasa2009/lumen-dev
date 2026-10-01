@@ -1,12 +1,14 @@
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { router } from 'expo-router';
+import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
+import diabetes from '@/i18n/diabetes.json';
 import es from '@/i18n/es.json';
 import tokens from '@/theme/tokens.json';
 
 import { readingById } from './fixtures';
-import { formatClock } from './format';
+import { formatClock, formatDay } from './format';
 
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -26,6 +28,21 @@ jest.mock('@/evidence', () => {
   };
 });
 
+const mockDemo = { withoutPattern: false };
+jest.mock('./fixtures', () => {
+  const actual = jest.requireActual('./fixtures');
+  return {
+    ...actual,
+    readingById: (id: string) => {
+      const reading = actual.readingById(id);
+      if (!mockDemo.withoutPattern || id !== 'demo') return reading;
+      const { diabetes } = reading.scan.metrics;
+      const metrics = { ...reading.scan.metrics, diabetes: { ...diabetes, flag: null } };
+      return { ...reading, scan: { ...reading.scan, metrics } };
+    },
+  };
+});
+
 function openResults(id: string) {
   renderRouter('./app', { initialUrl: `/results/${id}` });
 }
@@ -37,6 +54,7 @@ describe.each([
   beforeEach(() => {
     mockScheme = scheme;
     mockEvidence.diabetesPassed = false;
+    mockDemo.withoutPattern = false;
   });
 
   it('shows the demo reading with its cards and the accuracy footer', () => {
@@ -52,28 +70,72 @@ describe.each([
 
   it('spells the meta line from the reading', () => {
     openResults('demo');
-    const clock = formatClock(readingById('demo')?.createdAt ?? new Date(), 'en');
-    expect(screen.getByText(`Full Scan · 92 clean s · Today ${clock}`)).toBeOnTheScreen();
+    const moment = readingById('demo')?.createdAt ?? new Date();
+    expect(
+      screen.getByText(`Full Scan · 92 clean s · ${formatDay(moment, 'en')}, ${formatClock(moment, 'en')}`),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText(/Today/)).toBeNull();
   });
 
   it('keeps the diabetes estimate in Experimental measurements until the evidence file passes it', () => {
     openResults('demo');
-    expect(screen.queryByText(en['results.diabetesTitle'])).toBeNull();
-    expect(screen.getByText(en['results.diabetesPattern'])).toBeOnTheScreen();
-    expect(screen.getByText(en['results.diabetesExperimental'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['dm.flag.body'])).toBeNull();
+    expect(screen.getByText(en['dm.flag.title'])).toBeOnTheScreen();
+    expect(screen.getByText(en['dm.experimental'])).toBeOnTheScreen();
     expect(screen.getByText('Experimental measurements (3)')).toBeOnTheScreen();
     expect(screen.getByText(en['results.sublineUsual'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['safety.title'])).toBeNull();
   });
 
   it('shows the amber diabetes card once the evidence file passes the diabetes metric', () => {
     mockEvidence.diabetesPassed = true;
     openResults('demo');
-    expect(screen.getByText(en['results.diabetesTitle'])).toBeOnTheScreen();
+    expect(screen.getByText(en['dm.flag.title'])).toBeOnTheScreen();
+    expect(screen.getByText(en['dm.flag.body'])).toBeOnTheScreen();
     expect(screen.getByText(/Seen on 2 readings \(Sep 25, Sep 27\)/)).toBeOnTheScreen();
-    expect(screen.queryByText(en['results.diabetesPattern'])).toBeNull();
+    expect(screen.queryByText(en['dm.experimental'])).toBeNull();
     expect(screen.getByText(en['results.sublineFollowUp'])).toBeOnTheScreen();
     expect(screen.getByText('Experimental measurements (2)')).toBeOnTheScreen();
     expect(JSON.stringify(screen.toJSON()).includes(colors.flagBg)).toBe(true);
+  });
+
+  it('asks the safety question for the amber diabetes card, and Yes opens emergency (SAFE-1)', () => {
+    mockEvidence.diabetesPassed = true;
+    openResults('demo');
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
+    expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
+  });
+
+  it('shows no diabetes card and no accuracy-floor text when evidence passed but no pattern fired', () => {
+    mockEvidence.diabetesPassed = true;
+    mockDemo.withoutPattern = true;
+    openResults('demo');
+    expect(screen.queryByText(en['dm.flag.title'])).toBeNull();
+    expect(screen.queryByText(en['dm.experimental'])).toBeNull();
+    expect(screen.getByText('Experimental measurements (2)')).toBeOnTheScreen();
+    expect(screen.queryByText(en['safety.title'])).toBeNull();
+    expect(screen.getByText(en['results.sublineUsual'])).toBeOnTheScreen();
+  });
+
+  it('labels every fixture reading as demo data, and the irregular one as synthetic (§8.5)', () => {
+    openResults('demo');
+    expect(screen.getByText(en['demo.banner'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['demo.synthetic'])).toBeNull();
+  });
+
+  it('labels the irregular demo reading as synthetic', () => {
+    openResults('demo-flag');
+    expect(screen.getByText(en['demo.banner'])).toBeOnTheScreen();
+    expect(screen.getByText(en['demo.synthetic'])).toBeOnTheScreen();
+    expect(screen.getByText(en['result.irregularRetake'])).toBeOnTheScreen();
+  });
+
+  it('opens the safety sheet again when the screen moves from one reading to a flagged one', () => {
+    openResults('demo');
+    expect(screen.queryByText(en['safety.title'])).toBeNull();
+    act(() => router.push('/results/demo-flag'));
+    expect(screen.getByText(en['safety.title'])).toBeOnTheScreen();
   });
 
   it('never draws a badge stronger than the evidence file (EVID-1)', () => {
@@ -94,7 +156,7 @@ describe.each([
     openResults('demo-flag');
     expect(screen.getByText(en['safety.title'])).toBeOnTheScreen();
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
-    expect(screen.getByText('Irregular rhythm detected')).toBeOnTheScreen();
+    expect(screen.getByText(en['result.irregularRetake'])).toBeOnTheScreen();
     expect(screen.getByText('Please take 2 more readings today.')).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
     expect(screen.queryByText(en['safety.title'])).toBeNull();
@@ -142,6 +204,13 @@ describe('copy', () => {
   it('has a Spanish string for every results key', () => {
     for (const key of Object.keys(en).filter((name) => name.startsWith('results.'))) {
       expect(es).toHaveProperty([key]);
+    }
+  });
+
+  it('keeps the diabetes strings equal to the wording-checked diabetes.json', () => {
+    for (const key of ['dm.flag.title', 'dm.flag.body', 'dm.experimental'] as const) {
+      expect(en[key]).toBe(diabetes.en[key]);
+      expect(es[key]).toBe(diabetes.es[key]);
     }
   });
 });

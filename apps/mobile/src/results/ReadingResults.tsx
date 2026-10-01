@@ -11,9 +11,10 @@ import { Screen } from '@/components/Screen';
 import { evidenceFor } from '@/evidence';
 import { useTheme } from '@/theme';
 
+import { DemoBanner } from './DemoBanner';
 import { ExperimentalCard } from './ExperimentalCard';
 import type { FixtureReading } from './fixtures';
-import { formatClock, formatDay, isSameDay } from './format';
+import { formatClock, formatDay } from './format';
 import { Glyph } from './Glyph';
 import { MetricCard } from './MetricCard';
 import { rhythmWords } from './rhythmWords';
@@ -25,7 +26,7 @@ function headlineText(t: TFunction, reading: FixtureReading): string {
     case 'result.regular':
       return metrics.hr ? t('result.regular', { hr: metrics.hr.value }) : t('result.inconclusive');
     case 'result.irregularRetake':
-      return t('results.headlineIrregular');
+      return t('result.irregularRetake');
     case 'result.possibleAf':
       return t('result.possibleAf');
     case 'result.uncertain':
@@ -36,9 +37,12 @@ function headlineText(t: TFunction, reading: FixtureReading): string {
 }
 
 function sublineText(t: TFunction, reading: FixtureReading, anyFlag: boolean): string | null {
-  const { headlineKey } = reading.scan;
-  if (headlineKey === 'result.regular')
-    return anyFlag ? t('results.sublineFollowUp') : t('results.sublineUsual');
+  const { headlineKey, metrics } = reading.scan;
+  if (headlineKey === 'result.regular') {
+    if (anyFlag) return t('results.sublineFollowUp');
+    // "Usual range" is only true when there is a personal band to compare against.
+    return metrics.rmssd?.band ? t('results.sublineUsual') : t('results.sublineNeutral');
+  }
   if (headlineKey === 'result.irregularRetake' && reading.repeat)
     return t('results.sublineRetake', { remaining: reading.repeat.of - reading.repeat.number });
   return null;
@@ -51,19 +55,19 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const scan = reading.scan;
   const { hr, rhythm, rmssd, diabetes } = scan.metrics;
   const acuteFlag = Boolean(hr?.flag) || Boolean(rhythm?.flag);
-  const [sheetOpen, setSheetOpen] = useState(acuteFlag);
 
-  // ADR 0046: the amber card needs the flag and a passed accuracy criterion; otherwise the estimate
-  // sits in Experimental measurements.
+  // ADR 0046, §12.5: the amber card needs the flag and a passed accuracy criterion. Without the passed
+  // criterion the estimate sits in Experimental measurements; with it and no flag, nothing is shown.
   const diabetesCard = diabetes?.flag === 'pattern' && evidenceFor('diabetes').measured ? diabetes : null;
-  const diabetesExperimental = diabetes !== null && diabetesCard === null;
+  const diabetesExperimental = diabetes !== null && !evidenceFor('diabetes').measured;
   const anyFlag = acuteFlag || diabetesCard !== null;
+  const [sheetOpen, setSheetOpen] = useState(anyFlag);
 
   const subline = sublineText(t, reading, anyFlag);
-  const clock = formatClock(reading.createdAt, i18n.language);
-  const when = isSameDay(reading.createdAt, new Date())
-    ? t('results.todayAt', { time: clock })
-    : t('results.dayAt', { day: formatDay(reading.createdAt, i18n.language), time: clock });
+  const when = t('results.dayAt', {
+    day: formatDay(reading.createdAt, i18n.language),
+    time: formatClock(reading.createdAt, i18n.language),
+  });
   // A repeat counter already says when in the day this reading was taken, so the time drops out.
   const metaParts = [
     reading.repeat ? t('results.readingOf', { number: reading.repeat.number, of: reading.repeat.of }) : null,
@@ -94,6 +98,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
       }
     >
       <ScrollView contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xxl }}>
+        <DemoBanner synthetic={reading.synthetic} />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <AppText variant="title" accessibilityRole="header">
             {t('results.title')}
@@ -138,7 +143,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <AppText variant="headline" style={{ color: colors.flag, flex: 1 }}>
-                {t('results.diabetesTitle')}
+                {t('dm.flag.title')}
               </AppText>
               <EvidenceBadge metric="diabetes" />
             </View>
@@ -148,6 +153,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
                 days: reading.diabetesDays.map((day) => formatDay(day, i18n.language)).join(', '),
               })}
             </AppText>
+            <AppText>{t('dm.flag.body')}</AppText>
             <AppText
               accessibilityRole="link"
               tone="accent"

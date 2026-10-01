@@ -4,25 +4,23 @@ import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 
 import { useTheme } from '@/theme';
 
+import { intervalAxis } from './axis';
+
 const width = 320;
 const height = 150;
 const left = 38;
 const right = 10;
 const top = 10;
 const bottom = 26;
-// Fixed axis so a regular and an irregular reading are drawn on the same scale (mockup 18).
-const lowMs = 400;
-const highMs = 1200;
-const gridMs = [lowMs, 800, highMs];
-
 type TachogramProps = { intervalsMs: readonly number[]; color: ColorValue };
 
 export function Tachogram({ intervalsMs, color }: TachogramProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const { lowMs, highMs } = intervalAxis(intervalsMs);
+  const gridMs = [lowMs, (lowMs + highMs) / 2, highMs];
   const yFor = (ms: number) => {
-    const clamped = Math.min(highMs, Math.max(lowMs, ms));
-    return top + ((highMs - clamped) / (highMs - lowMs)) * (height - top - bottom);
+    return top + ((highMs - ms) / (highMs - lowMs)) * (height - top - bottom);
   };
   const xFor = (index: number) =>
     left + (index / Math.max(1, intervalsMs.length - 1)) * (width - left - right);

@@ -7,6 +7,7 @@ export default function PracticeScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      headerless
       title={t('practice.title')}
       subtitle={t('practice.subtitle')}
       sections={[

@@ -7,6 +7,7 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      headerless
       title={t('profile.title')}
       subtitle={t('profile.subtitle')}
       sections={[

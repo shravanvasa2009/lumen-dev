@@ -24,6 +24,18 @@ test('keeps only the last 10 s of samples (ADR 0027 window)', () => {
   expect(kept[0]!.tNs - FRAME_NS).toBeLessThan(newest - 10e9);
 });
 
+// Appendix A does not promise that tNs increases; samples from before a clock step belong to another timeline.
+test('drops every sample before the last backward clock step', () => {
+  const afterLastStep = pulse(1, 1e12 - 40e9);
+  const kept = keepLiveWindow(pulse(8), [...pulse(1, 1e12 - 20e9), ...afterLastStep]);
+  expect(kept).toEqual(afterLastStep);
+});
+
+test('drops the samples before a backward step even when the step is shorter than the window', () => {
+  const afterStep = pulse(1, 1e12 + 7.5e9);
+  expect(keepLiveWindow(pulse(8), afterStep)).toEqual(afterStep);
+});
+
 test('reads the bpm and SNR of a clean pulse', () => {
   const reading = readLiveHeartRate(pulse(12));
   expect(reading.kind).toBe('bpm');

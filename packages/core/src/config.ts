@@ -26,6 +26,18 @@ export const DSP_CONFIG = {
     hrBandHz: [0.6, 3.5],
     morphologyBandHz: [0.5, 8],
   },
+  // Elgendi et al. 2013 (PLoS ONE, doi:10.1371/journal.pone.0076585), run on the 64 Hz morphology band.
+  dsp7: {
+    peakWindowS: 0.111, // W1 for MA_peak; also the minimum block width (THR2)
+    beatWindowS: 0.667, // W2 for MA_beat
+    beta: 0.02, // THR1 = MA_beat + beta · mean(squared signal)
+    // The 64 Hz peak is refined on the 256 Hz morphology band within ± one 64 Hz sample.
+    refineHalfWindowS: 0.015625,
+  },
+  dsp8: {
+    // The beat foot is searched back from the peak over this span, never past the previous peak.
+    minimumSearchS: 0.4,
+  },
   dsp15: {
     // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).
     windowIntervals: 32,

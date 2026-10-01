@@ -18,6 +18,15 @@
     "hrBandHz": [0.6, 3.5],
     "morphologyBandHz": [0.5, 8]
   },
+  "dsp7": {
+    "peakWindowS": 0.111,
+    "beatWindowS": 0.667,
+    "beta": 0.02,
+    "refineHalfWindowS": 0.015625
+  },
+  "dsp8": {
+    "minimumSearchS": 0.4
+  },
   "dsp15": {
     "windowIntervals": 32,
     "windowStep": 16,

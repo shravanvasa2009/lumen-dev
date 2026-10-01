@@ -123,9 +123,9 @@ def parity_entry(spec: ModelSpec, source: SourceModel, onnx_path: Path, source_s
 
 def parity_report(entries: dict[str, dict]) -> dict:
     problems = [problem for name, entry in entries.items() for problem in entry_problems(name, entry)]
-    # JSON has no inf, and null would pass m3.mjs (null <= 1e-4 is true in JavaScript). m3.mjs reads only
-    # the top-level maxAbsDiff, so any failed check turns it into a string, which fails that comparison
-    # and says why.
+    # JSON has no inf, and null would pass m3.mjs (null <= 1e-4 is true in JavaScript). m3.mjs judges
+    # parity by the top-level maxAbsDiff (per model it checks only onnxSha256), so any failed check turns
+    # it into a string, which fails that comparison and says why.
     models = {
         name: {
             **entry,
@@ -147,7 +147,11 @@ def parity_report(entries: dict[str, dict]) -> dict:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Check ONNX files against their source models (ML-3)")
     which = parser.add_mutually_exclusive_group(required=True)
-    which.add_argument("--all", action="store_true", help="every network plus each trained baseline")
+    which.add_argument(
+        "--all",
+        action="store_true",
+        help="every shipped model plus each trained one (every network with --random-init)",
+    )
     which.add_argument("--name", choices=sorted(SPECS))
     parser.add_argument("--runs-dir", type=Path, default=RUNS_DIR)
     parser.add_argument("--models-dir", type=Path, default=MODELS_DIR)
@@ -161,7 +165,8 @@ def main(argv: list[str] | None = None) -> None:
         if args.name:
             parser.error("models/parity.json must cover every model; use --all")
     entries = {}
-    for spec in release_specs(args.runs_dir) if args.all else [SPECS[args.name]]:
+    untrained = args.random_init is not None
+    for spec in release_specs(args.runs_dir, untrained) if args.all else [SPECS[args.name]]:
         source = source_model(spec, args.runs_dir, args.random_init)
         from_file = args.random_init is None or spec.kind == "classifier"
         source_sha = sha256_of(args.runs_dir / spec.source_file) if from_file else None

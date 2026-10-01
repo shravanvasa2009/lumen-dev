@@ -331,5 +331,7 @@
   "widgets.streak": "streak {{days}} days",
   "widgets.sampleTime": "8 PM",
   "widgets.inline": "Inline: “{{text}}”",
-  "widgets.sample": "Sample previews. Your widgets show your own latest check."
+  "widgets.sample": "Sample previews. Your widgets show your own latest check.",
+  "lockScreen.step": "Step {{step}} of {{total}}",
+  "lockScreen.now": "now"
 }

@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { useTheme } from '@/theme';
+import tokens from '@/theme/tokens.json';
 
 import { LumenMark } from './LumenMark';
 
@@ -110,17 +111,24 @@ export function MediumWidgetPreview({ name, reading, unit, status, checkNow, ful
   );
 }
 
-export function LockCirclePreview() {
-  const { colors } = useTheme();
+type Scheme = 'light' | 'dark';
+
+// A lock screen looks the same in either app theme, so the lock-screen route passes its own scheme.
+export function LockCirclePreview({ scheme }: { scheme?: Scheme }) {
+  const theme = useTheme();
+  const colors = scheme ? tokens[scheme] : theme.colors;
   return (
-    <View style={[styles.lockCircle, { backgroundColor: colors.surface2, borderColor: colors.line }]}>
+    <View style={[styles.lockCircle, { backgroundColor: colors.surface3, borderColor: colors.line }]}>
       <LumenMark size={MARK_SIZE + 8} color={colors.text} />
     </View>
   );
 }
 
-export function LockRectanglePreview({ name, status }: { name: string; status: string }) {
-  const { colors, spacing } = useTheme();
+type LockRectangleProps = { name: string; status: string; scheme?: Scheme };
+
+export function LockRectanglePreview({ name, status, scheme }: LockRectangleProps) {
+  const { colors: themeColors, spacing } = useTheme();
+  const colors = scheme ? tokens[scheme] : themeColors;
   return (
     <View
       style={{
@@ -129,13 +137,15 @@ export function LockRectanglePreview({ name, status }: { name: string; status: s
         height: LOCK_CIRCLE_SIZE,
         paddingHorizontal: spacing.lg,
         borderRadius: 18,
-        backgroundColor: colors.surface2,
+        backgroundColor: colors.surface3,
         borderColor: colors.line,
         borderWidth: 1,
       }}
     >
-      <AppText variant="headline">{name}</AppText>
-      <AppText variant="caption" tone="textDim">
+      <AppText variant="headline" style={{ color: colors.text }}>
+        {name}
+      </AppText>
+      <AppText variant="caption" style={{ color: colors.textDim }}>
         {status}
       </AppText>
     </View>

@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { lockscreenStrings } from '@/i18n/lockscreen';
 import { setPreference } from '@/settings/preferences';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -150,5 +151,17 @@ describe('Widget gallery', () => {
     renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
     fireEvent.press(screen.getByRole('button', { name: en['widgets.lockScreenLink'] }));
     expect(screen.getByRole('header', { name: en['lockScreen.title'] })).toBeOnTheScreen();
+  });
+});
+
+describe('Lock-screen previews', () => {
+  it('shows the standing timer and a reminder with no health details', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets/lock-screen' });
+    expect(screen.getByText(en['lockScreen.nextReading'])).toBeOnTheScreen();
+    expect(screen.getByText(en['lockScreen.tap'])).toBeOnTheScreen();
+    expect(screen.getByLabelText(en['lockScreen.timer'])).toBeOnTheScreen();
+    expect(screen.getByLabelText(en['lockScreen.reminder'])).toBeOnTheScreen();
+    expect(screen.getByText(lockscreenStrings('en')['notif.confirm'])).toBeOnTheScreen();
+    expect(screen.queryByText(/bpm/i)).toBeNull();
   });
 });

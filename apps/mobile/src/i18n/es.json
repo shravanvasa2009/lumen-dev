@@ -331,5 +331,7 @@
   "widgets.streak": "racha de {{days}} días",
   "widgets.sampleTime": "20:00",
   "widgets.inline": "En línea: “{{text}}”",
-  "widgets.sample": "Vistas de ejemplo. Tus widgets muestran tu última revisión."
+  "widgets.sample": "Vistas de ejemplo. Tus widgets muestran tu última revisión.",
+  "lockScreen.step": "Paso {{step}} de {{total}}",
+  "lockScreen.now": "ahora"
 }

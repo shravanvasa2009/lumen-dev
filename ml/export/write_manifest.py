@@ -21,6 +21,7 @@ from export.provenance import (
 from export.specs import (
     MODELS_DIR,
     RUNS_DIR,
+    ML2_TARGET,
     SHIPPED,
     ModelSpec,
     ShipRuleError,
@@ -36,10 +37,13 @@ NOT_MEASURED = "Not measured yet: no training run is recorded for this model ver
 CARD_TEXT = {
     "sqi": {
         "intended_use": (
-            "Accepts or rejects each 4-second fingertip window during capture, whatever the rhythm, so "
-            "that only clean signal reaches heart-rate, rhythm, and pulse-shape analysis. Version 1 sees "
-            "only the inverted red channel, z-scored per window (ADR 0023); green is added in version 2. "
-            "Part of a screening prototype, not a diagnosis."
+            "Experimental. An extra, reject-only guard on each 4-second fingertip window during capture "
+            "(owner decision H-024 option B): the rule-based checks, DSP-4 contact and exposure and the "
+            "DSP-9 artifact rules, are the quality gate, and SQI-Net may only reject more windows; it "
+            "never accepts a window the rules reject. The owner re-decides its role after the M2 team "
+            "captures (hand-labeled clean and bad windows from the owner's phone), the data §11.2 asks "
+            "for. Version 1 sees only the inverted red channel, z-scored per window (ADR 0023); green is "
+            "added in version 2. Part of a screening prototype, not a diagnosis."
         ),
         "data": (
             "Only finger recordings are used; BUT PPG ear and front-camera recordings are excluded "
@@ -57,9 +61,9 @@ CARD_TEXT = {
             "differently."
         ),
         "abstain": (
-            "A rejected window is not used. The live check coaches the user (finger position, pressure, "
-            "staying still) and capture continues. If the model fails to load, the rule-based quality "
-            'check runs instead and the result card says "basic analysis."'
+            "A window that the rule checks or SQI-Net rejects is not used. The live check coaches the "
+            "user (finger position, pressure, staying still) and capture continues. If the model fails to "
+            'load, the rule-based quality checks run alone and the result card says "basic analysis."'
         ),
     },
     "rhythm": {
@@ -136,6 +140,7 @@ def manifest_entry(spec: ModelSpec, models_dir: Path, metrics: dict | None, comm
         "name": spec.name,
         "family": spec.family,
         "ships": spec.ships,
+        "role": spec.role,
         "version": spec.version,
         "file": path.name,
         "sha256": sha256_of(path),
@@ -194,9 +199,43 @@ def _ci(metric: dict) -> str:
     return f"{metric['estimate']:.3f} (95% CI {metric['low']:.3f}-{metric['high']:.3f})"
 
 
+def _approved_status(spec: ModelSpec, approval: str, metrics: dict) -> str:
+    role = (
+        "an Experimental, reject-only guard; the rule-based checks (DSP-4, DSP-9) are the quality gate"
+        if spec.role == "guard"
+        else "the quality gate"
+    )
+    facts = [f"approved by the owner ({approval}) only for {role}"]
+    measured = metrics["development"]["metrics"]
+    all_bad = measured.get("cleanPrecisionWithPoorQualityRecords")
+    if all_bad:
+        facts.append(
+            "on dev-val at τ, clean precision with every bad window counted (quality-0 records included) "
+            f"is {_ci(all_bad)}"
+        )
+    best = metrics.get("thresholdEvidence", {}).get("bestPrecisionAllBad")
+    if best:
+        facts.append(f"the best any τ reaches with every bad window counted is {best['precision']:.3f}")
+    ml2 = measured.get("ml2HrWithin5BpmOfAccepted")
+    if ml2 is None:
+        facts.append("the ML-2 proxy was not measured, so ML-2 is not shown to be met")
+    elif ml2["estimate"] < ML2_TARGET:
+        facts.append(
+            f"the ML-2 proxy (accepted windows with spectral HR within 5 bpm) is {_ci(ml2)}, below the "
+            f"{ML2_TARGET:.0%} floor, so ML-2 is not met"
+        )
+    else:
+        facts.append(
+            f"the ML-2 proxy (accepted windows with spectral HR within 5 bpm) is {_ci(ml2)}, at or "
+            f"above the {ML2_TARGET:.0%} floor on the dev-val subjects τ was chosen on, so it is optimistic"
+        )
+    return "; ".join(facts)
+
+
 def _threshold_section(spec: ModelSpec, metrics: dict | None) -> str | None:
-    # ADR 0038 item 7: the owner needs the threshold's basis and both precisions side by side to decide
-    # H-024. Every number comes from the training metrics file.
+    # ADR 0038 item 7: the threshold's basis, the owner's decision on it (H-024), and both precisions side
+    # by side. Every number comes from the training metrics file. The status comes from export/specs.py,
+    # not from the training notes, which may predate the decision.
     basis = (metrics or {}).get("thresholdBasis")
     if basis is None:
         return None
@@ -204,7 +243,7 @@ def _threshold_section(spec: ModelSpec, metrics: dict | None) -> str | None:
     if basis == ALL_BAD_BASIS:
         status = "every bad window, including quality-0 records, counted when τ was chosen (§11.2)"
     elif approval:
-        status = f"approved by the owner ({approval})"
+        status = _approved_status(spec, approval, metrics)
     else:
         status = "PROPOSED, awaiting owner (H-024). ADR 0038 item 7; nothing ships on this basis until then"
     paragraphs = [f"Threshold basis: {basis}. Status: {status}."]
@@ -309,10 +348,16 @@ def _measured_limits(spec: ModelSpec, metrics: dict | None) -> str:
 
 def model_card(spec: ModelSpec, metrics: dict | None) -> str:
     text = CARD_TEXT[spec.family]
-    role = f"shipped {spec.family} model" if spec.ships else "ablation model, not shipped"
+    if not spec.ships:
+        role = "ablation model, not shipped"
+    elif spec.role == "guard":
+        role = f"shipped {spec.family} model, Experimental reject-only guard"
+    else:
+        role = f"shipped {spec.family} model"
     trained_on = ", ".join(metrics["trainedOn"]) if metrics else "no training run yet"
     notes = "".join(f"\n- {note}" for note in (metrics or {}).get("notes", []))
-    training_notes = f"\n\nTraining notes:\n{notes}" if notes else ""
+    # Notes are as the training run wrote them; the Threshold section gives the owner's current decision.
+    training_notes = f"\n\nTraining notes, as written at training time:\n{notes}" if notes else ""
     ablation = (metrics or {}).get("ablation")
     calibration = (metrics or {}).get("calibration")
     sections = [

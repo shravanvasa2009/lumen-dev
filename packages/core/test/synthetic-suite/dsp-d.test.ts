@@ -2,16 +2,21 @@ import type { BeatClass, ClassifiedBeat, RejectedSpan, RejectionReason } from '.
 import type { SyntheticBeat } from '../synthetic';
 import {
   analyse,
+  breathing,
   cameraCapture,
   draws,
+  fingerPulseShape,
   matchBeats,
   pulseOf,
   runoff,
   sinusBeats,
   twoGaussian,
   wellInside,
+  withRespiration,
   type Analysis,
+  type Breathing,
   type Draws,
+  type PulseShape,
 } from './frames';
 
 // §10.2 synthetic signals and the DSP-D criteria, through the full path from camera frames to classes.
@@ -41,6 +46,33 @@ const spuriousDetections = (analysis: Analysis, truth: SyntheticBeat[]) =>
   analysis.beats.filter((beat) => truth.every(({ peakS }) => Math.abs(beat.peakS - peakS) > 0.1));
 
 const fpsFor = (caseIndex: number) => (caseIndex % 2 === 0 ? 30 : 60);
+
+// Breathing by case: pulse height ±10, 20 or 30% with baseline wander; where the rhythm is sinus, also
+// respiratory sinus arrhythmia shortening RR by up to 0, 10 or 20% on inspiration.
+const depthFor = (caseIndex: number) => [0.1, 0.2, 0.3][caseIndex % 3]!;
+const rsaFor = (caseIndex: number) => [0, 0.1, 0.2][Math.floor(caseIndex / 3) % 3]!;
+
+function breathingCapture(
+  random: Draws,
+  caseIndex: number,
+  seconds: number,
+  seed: number,
+  pulse: (tS: number) => number,
+  breath: Breathing,
+) {
+  const respiration = withRespiration(random, pulse, depthFor(caseIndex), breath);
+  return cameraCapture({
+    fps: fpsFor(caseIndex),
+    seconds,
+    seed,
+    pulse: respiration.pulse,
+    disturbance: respiration.disturbance,
+  });
+}
+
+function breathingSinus(random: Draws, caseIndex: number, bpm: number, seconds: number, breath: Breathing) {
+  return sinusBeats(random, bpm, 1, seconds - 1, { depth: rsaFor(caseIndex), breath });
+}
 
 function sinusTruth(random: Draws, seconds: number) {
   return sinusBeats(random, random.uniform(55, 100), 1, seconds - 1);
@@ -104,16 +136,17 @@ describe('regular sinus', () => {
       for (let c = 0; c < 20; c++) {
         const random = draws(1000 + c);
         const shape = twoGaussian(random.uniform(0.1, 0.5));
-        const truth = sinusTruth(random, 40);
+        const breath = breathing(random);
+        const truth = breathingSinus(random, c, random.uniform(55, 100), 40, breath);
         const analysis = analyse(
-          cameraCapture({ fps: fpsFor(c), seconds: 40, seed: 2000 + c, pulse: pulseOf(truth, shape) }),
+          breathingCapture(random, c, 40, 2000 + c, pulseOf(truth, shape), breath),
           [],
         );
         outcomes.push(...outcomesOf(matchBeats(analysis, wellInside(analysis, truth, [], 1))));
         artifacts += analysis.beats.filter((beat) => beat.beatClass === 'artifact').length;
       }
       const counts = tally(outcomes);
-      summary.push(describeTally('Regular sinus', counts));
+      summary.push(describeTally('Regular sinus with breathing (AM ±10–30%, RSA 0–20%)', counts));
       expect(artifacts).toBe(0);
       expect(counts.missed + counts['not-a-beat']).toBe(0);
     },
@@ -141,14 +174,14 @@ describe('AF-like irregular intervals (DSP-D: never marked artifact)', () => {
         }
         const shape = twoGaussian(random.uniform(0.1, 0.4));
         const analysis = analyse(
-          cameraCapture({ fps: fpsFor(c), seconds: 60, seed: 4000 + c, pulse: pulseOf(truth, shape) }),
+          breathingCapture(random, c, 60, 4000 + c, pulseOf(truth, shape), breathing(random)),
           [],
         );
         outcomes.push(...outcomesOf(matchBeats(analysis, wellInside(analysis, truth, [], 1))));
         artifacts += analysis.beats.filter((beat) => beat.beatClass === 'artifact').length;
       }
       const counts = tally(outcomes);
-      summary.push(describeTally('AF-like (RR 0.3–2.0 s, CV 30%)', counts));
+      summary.push(describeTally('AF-like (RR 0.3–2.0 s, CV 30%, AM ±10–30%)', counts));
       summary.push(`AF-like, detections marked artifact: ${artifacts}`);
       expect(artifacts).toBe(0);
       expect(counts.artifact).toBe(0);
@@ -165,7 +198,8 @@ describe('isolated small-amplitude premature beats (DSP-D: ≥ 95% kept as atypi
       const random = draws(5000 + c);
       const bpm = random.uniform(55, 100);
       const rrS = 60 / bpm;
-      const truth = sinusBeats(random, bpm, 1, 59);
+      const breath = breathing(random);
+      const truth = breathingSinus(random, c, bpm, 60, breath);
       const marked: { index: number; amplitude: number; coupling: number }[] = [];
       // Four premature beats, at least 8 beats apart; each replaces a sinus beat, and the next sinus beat
       // stays where it was (a compensatory pause).
@@ -180,10 +214,7 @@ describe('isolated small-amplitude premature beats (DSP-D: ≥ 95% kept as atypi
         marked.push({ index, amplitude, coupling });
       }
       const shape = twoGaussian(random.uniform(0.1, 0.4));
-      const analysis = analyse(
-        cameraCapture({ fps: fpsFor(c), seconds: 60, seed: 6000 + c, pulse: pulseOf(truth, shape) }),
-        [],
-      );
+      const analysis = analyse(breathingCapture(random, c, 60, 6000 + c, pulseOf(truth, shape), breath), []);
       const matches = matchBeats(analysis, truth);
       for (const { index, amplitude, coupling } of marked)
         premature.push({ amplitude, coupling, outcome: matches[index]?.beatClass ?? 'missed' });
@@ -243,6 +274,10 @@ describe.each([
         random.uniform(0.04, 0.07),
       ),
   },
+  {
+    family: 'finger pulses over the four dicrotic-notch classes',
+    shapeFor: (random: Draws): PulseShape => fingerPulseShape(random),
+  },
 ])(
   'dicrotic-heavy waveforms: $family (DSP-D: ≥ 95% of double detections removed)',
   ({ family, shapeFor }) => {
@@ -254,9 +289,10 @@ describe.each([
       for (let c = 0; c < 30; c++) {
         const random = draws(7000 + c);
         const shape = shapeFor(random);
-        const truth = sinusTruth(random, 40);
+        const breath = breathing(random);
+        const truth = breathingSinus(random, c, random.uniform(55, 100), 40, breath);
         const analysis = analyse(
-          cameraCapture({ fps: fpsFor(c), seconds: 40, seed: 8000 + c, pulse: pulseOf(truth, shape) }),
+          breathingCapture(random, c, 40, 8000 + c, pulseOf(truth, shape), breath),
           [],
         );
         const extras = dicroticDetections(analysis, truth);

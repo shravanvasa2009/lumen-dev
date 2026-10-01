@@ -7,6 +7,7 @@ export default function RatingScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      headerless
       title={t('rating.title')}
       subtitle={t('rating.subtitle')}
       sections={[{ heading: t('rating.unlocked') }]}

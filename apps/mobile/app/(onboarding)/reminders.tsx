@@ -8,6 +8,7 @@ export default function RemindersScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      headerless
       title={t('reminders.title')}
       subtitle={t('reminders.subtitle')}
       sections={[

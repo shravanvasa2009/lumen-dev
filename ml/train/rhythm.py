@@ -650,8 +650,8 @@ def training_notes(sets: WindowSets, cap: int, seed: int, decision: dict) -> lis
         f"label, chosen as whole readings with seed {seed}. {len(sets.train.labels)} dev-train, "
         f"{len(sets.val.labels)} dev-val, and {len(sets.premature.labels)} premature-beat windows.",
         f"Augmentation (dev-train only): augment_intervals (§11.3). Jitter σ ~ U({low:.0f}, {high:.0f} ms) "
-        "per reading, bounded by the BUT PPG finger robust per-beat SD (38.4 ms; pooled SD 49.3 ms) "
-        "measured by Track C (ADR 0025). Real phone timestamps at M2 will refine it.",
+        "per reading, about the BUT PPG finger robust per-beat SD (38.4 ms; pooled 49.3 ms), ADR 0025. "
+        "Real phone timestamps at M2 will refine it.",
         "Augmented intervals outside the DSP-9 range count as artifact spans, and windows are cut around "
         "them as the app would.",
         "Atypical-beat fraction neutralized in v1: ECG-derived training values don't match the app's "

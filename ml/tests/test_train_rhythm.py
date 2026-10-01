@@ -1,4 +1,5 @@
 import json
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -21,7 +22,7 @@ from train.rhythm import (
     threshold_for_specificity,
     train_network,
 )
-from train.rhythm_windows import WindowSet
+from train.rhythm_windows import ATYPICAL_INDEX, NEUTRAL_ATYPICAL_FRACTION, WindowSet
 
 AF, SINUS, OTHER = (LABELS.index(label) for label in ("af", "sinus", "other"))
 
@@ -35,10 +36,12 @@ def windows_for(rows):
     mask = np.zeros((count, 64), np.float32)
     mask[:, :32] = 1.0
     labels, subjects, readings = zip(*rows, strict=True)
+    features = rng.normal(size=(count, 8)).astype(np.float32)
+    features[:, ATYPICAL_INDEX] = NEUTRAL_ATYPICAL_FRACTION
     return WindowSet(
         intervals,
         mask,
-        rng.normal(size=(count, 8)).astype(np.float32),
+        features,
         np.asarray(labels, np.int64),
         np.asarray(subjects, str),
         np.asarray(readings, np.int64),
@@ -160,6 +163,24 @@ def test_training_key_covers_the_window_cap_and_the_windows():
     assert training_key("windows", config, 400) != training_key("other-windows", config, 400)
 
 
+def with_atypical(features, value):
+    changed = features.copy()
+    changed[:, ATYPICAL_INDEX] = value
+    return changed
+
+
+def test_trained_network_ignores_the_neutralized_feature(tmp_path):
+    train, val = small_training_sets()
+    config = TrainConfig(max_epochs=2, patience=10, batch_size=32)
+    model, _ = train_network(train, val, tmp_path, config, training_key("windows", config, 400))
+    inputs = rhythm._tensors(val)
+    with torch.no_grad():
+        neutral = model(*inputs)
+        # 0.42 is the top of the atypical fraction Track C measured on sinus PPG.
+        phone_like = model(inputs[0], inputs[1], torch.from_numpy(with_atypical(val.features, 0.42)))
+    assert torch.equal(neutral, phone_like)
+
+
 def test_checkpoints_are_picked_by_epoch_number(tmp_path):
     for epoch in (2, 999, 1000):
         (tmp_path / f"epoch-{epoch:03d}.pt").write_bytes(b"")
@@ -260,8 +281,17 @@ def test_training_writes_metrics_the_manifest_accepts(trained_run):
         assert metrics["development"]["metrics"]["subjectSpecificity"]["estimate"] >= TARGET_SPECIFICITY
     for row in network["ablation"]:
         assert float(row["subject specificity at τ_AF"].split()[0]) >= TARGET_SPECIFICITY
+    assert any("atypical-beat fraction neutralized in v1" in note.lower() for note in network["notes"])
     state = torch.load(trained_run / "rhythm-net@1.0.0.pt", weights_only=True)
     assert float(state["temperature"]) == pytest.approx(network["calibration"]["temperature"])
+
+
+def test_trained_lightgbm_ignores_the_neutralized_feature(trained_run):
+    lgbm = pickle.loads((trained_run / "rhythm-lgbm@1.0.0.pkl").read_bytes())
+    features = np.random.default_rng(3).normal(size=(50, 8)).astype(np.float32)
+    np.testing.assert_array_equal(
+        lgbm.predict_proba(with_atypical(features, 0.0)), lgbm.predict_proba(with_atypical(features, 0.42))
+    )
 
 
 def test_trained_models_export_within_parity(trained_run, tmp_path):

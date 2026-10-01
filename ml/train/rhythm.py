@@ -33,6 +33,7 @@ from nets import rhythm_net as rhythm_net_module
 from nets.rhythm_net import LABELS, RhythmNet
 from train import rhythm_windows
 from train.rhythm_windows import (
+    NEUTRAL_ATYPICAL_FRACTION,
     FEATURE_NAMES,
     JITTER_SD_RANGE_MS,
     READING_S,
@@ -217,13 +218,16 @@ def initial_model(train: WindowSet, seed: int) -> RhythmNet:
     model = RhythmNet()
     features = train.features.astype(np.float64)
     spread = features.std(axis=0)
-    if (spread == 0).any():
-        raise ValueError(
-            f"constant dev-train features: {[FEATURE_NAMES[i] for i in np.flatnonzero(spread == 0)]}"
-        )
+    constant = spread == 0
+    if constant.any():
+        ignored = np.asarray(FEATURE_NAMES)[constant]
+        log.info("constant dev-train features, ignored by the network: %s", ignored)
     with torch.no_grad():
         model.standardize.mean.copy_(torch.from_numpy(features.mean(axis=0)))
-        model.standardize.std.copy_(torch.from_numpy(spread))
+        model.standardize.std.copy_(torch.from_numpy(np.where(constant, 1.0, spread)))
+        # A constant feature (the neutralized atypical fraction) standardizes to exactly 0 in training,
+        # so its zeroed weights get no gradient and stay 0: whatever the app sends there has no effect.
+        model.feature_branch[0].weight[:, torch.from_numpy(constant)] = 0.0
     return model
 
 
@@ -455,7 +459,9 @@ def predictive_value_at(tau: float, prevalence: float, which: str) -> Metric:
     return metric
 
 
-def with_ci(units: Units, metric: Metric) -> dict:
+def with_ci(units: Units, metric: Metric) -> dict | None:
+    if math.isnan(metric(units.is_af, units.scores)):
+        return None
     interval = cluster_bootstrap_ci(
         units.subjects, units.is_af, units.scores, metric, n_resamples=BOOTSTRAP_RESAMPLES, seed=SEED
     )
@@ -507,7 +513,15 @@ def evaluate(probs: np.ndarray, val: WindowSet, premature_probs: np.ndarray, pre
     metrics["falseAfRatePrematureWindows"] = with_ci(
         Units(premature_scores, premature.labels == AF, premature.subjects), positive_rate_at(tau)
     )
-    return {"tau": tau, "metrics": metrics, "byDataset": by_dataset(scores, val, tau)}
+    # A metric undefined on the full dev-val set (e.g. PPV when no subject is called AF) has no CI; it is
+    # listed by name rather than stopping training, and the card shows it as undefined.
+    undefined = sorted(name for name, value in metrics.items() if value is None)
+    return {
+        "tau": tau,
+        "metrics": {name: value for name, value in metrics.items() if value is not None},
+        "undefined": undefined,
+        "byDataset": by_dataset(scores, val, tau),
+    }
 
 
 def _subset(windows: WindowSet, keep: np.ndarray) -> WindowSet:
@@ -535,8 +549,7 @@ def by_dataset(scores: np.ndarray, val: WindowSet, tau: float) -> list[dict]:
             ("subject specificity at τ_AF", subjects, specificity_at(tau)),
             ("window AUROC", windows, auroc),
         ):
-            defined = not math.isnan(metric(units.is_af, units.scores))
-            row[column] = _formatted(with_ci(units, metric)) if defined else "undefined"
+            row[column] = _formatted(with_ci(units, metric))
         rows.append(row)
     return rows
 
@@ -573,7 +586,9 @@ def calibration_summary(raw_probs: np.ndarray, probs: np.ndarray, val: WindowSet
     return summary
 
 
-def _formatted(metric: dict) -> str:
+def _formatted(metric: dict | None) -> str:
+    if metric is None:
+        return "undefined"
     return f"{metric['estimate']:.3f} ({metric['low']:.3f}-{metric['high']:.3f})"
 
 
@@ -581,13 +596,13 @@ def ablation_rows(evaluations: dict[str, dict]) -> list[dict]:
     return [
         {
             "model": name,
-            "subject AUROC (95% CI)": _formatted(evaluation["metrics"]["subjectAuroc"]),
-            "subject sensitivity at τ_AF": _formatted(evaluation["metrics"]["subjectSensitivity"]),
-            "subject specificity at τ_AF": _formatted(evaluation["metrics"]["subjectSpecificity"]),
-            "window AUROC": _formatted(evaluation["metrics"]["windowAuroc"]),
+            "subject AUROC (95% CI)": _formatted(evaluation["metrics"].get("subjectAuroc")),
+            "subject sensitivity at τ_AF": _formatted(evaluation["metrics"].get("subjectSensitivity")),
+            "subject specificity at τ_AF": _formatted(evaluation["metrics"].get("subjectSpecificity")),
+            "window AUROC": _formatted(evaluation["metrics"].get("windowAuroc")),
             "τ_AF": f"{evaluation['tau']:.4f}",
             "false AF, premature-beat readings": _formatted(
-                evaluation["metrics"]["falseAfRatePrematureReadings"]
+                evaluation["metrics"].get("falseAfRatePrematureReadings")
             ),
         }
         for name, evaluation in evaluations.items()
@@ -630,6 +645,10 @@ def training_notes(sets: WindowSets, cap: int, seed: int, decision: dict) -> lis
         "replaced once BUT PPG timing jitter is estimated.",
         "Augmented intervals outside the DSP-9 range count as artifact spans, and windows are cut around "
         "them as the app would.",
+        "Atypical-beat fraction neutralized in v1: ECG-derived training values don't match the app's "
+        "PPG-derived DSP-9 values (Track C measured 31-42% atypical on sinus PPG). Every training and "
+        f"dev-val window carries {NEUTRAL_ATYPICAL_FRACTION} there, and no model uses it, so premature-beat "
+        "information now comes only from interval irregularity.",
         "Training, early stopping, temperature scaling, and the LightGBM and logistic baselines weight "
         "windows so each label carries equal weight, each dataset equal weight within a label, and each "
         "subject equal weight within a dataset and label.",
@@ -660,6 +679,7 @@ def _metrics_file(source: Path, evaluation: dict, sets: WindowSets, shared: dict
         "development": {
             "subjects": len(set(sets.val.subjects)),
             "metrics": evaluation["metrics"],
+            "undefinedMetrics": evaluation["undefined"],
             "byDataset": evaluation["byDataset"],
         },
         "sourceSha256": sha256_of(source),

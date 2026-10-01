@@ -8,7 +8,9 @@ from lumen_dsp.rhythm import rhythm_feature_vector, rhythm_windows
 from nets.rhythm_net import FEATURES, INTERVALS, LABELS
 from train import rhythm_windows as windows_module
 from train.rhythm_windows import (
+    ATYPICAL_INDEX,
     FEATURE_NAMES,
+    NEUTRAL_ATYPICAL_FRACTION,
     build_window_set,
     cut_readings,
     load_window_set,
@@ -38,6 +40,13 @@ def irregular(count, seed):
     return np.random.default_rng(seed).uniform(400, 1100, count)
 
 
+def neutralized(features):
+    # v1 replaces the atypical-beat fraction with a constant; every other feature is lumen_dsp's.
+    features = np.array(features, dtype=float)
+    features[..., ATYPICAL_INDEX] = NEUTRAL_ATYPICAL_FRACTION
+    return features
+
+
 def test_feature_names_follow_the_dsp15_vector():
     assert len(FEATURE_NAMES) == FEATURES
     assert FEATURE_NAMES[0] == "normalizedRmssd" and FEATURE_NAMES[-1] == "atypicalFraction"
@@ -64,7 +73,7 @@ def test_window_inputs_follow_adr_0020_layout():
     np.testing.assert_allclose(intervals[:SIZE], intervals_s[:SIZE], rtol=1e-6)
     assert (intervals[SIZE:] == 0).all()
     assert (mask[:SIZE] == 1).all() and (mask[SIZE:] == 0).all()
-    np.testing.assert_allclose(features, rhythm_feature_vector(window), rtol=1e-6)
+    np.testing.assert_allclose(features, neutralized(rhythm_feature_vector(window)), rtol=1e-6)
 
 
 def test_dev_val_windows_match_lumen_dsp_on_the_raw_intervals():
@@ -76,8 +85,10 @@ def test_dev_val_windows_match_lumen_dsp_on_the_raw_intervals():
     expected = rhythm_windows(raw / 1000, [False] * 70, [False, *premature])
     assert len(windows.labels) == len(expected) == (70 - SIZE) // STEP + 1
     np.testing.assert_allclose(
-        windows.features, [rhythm_feature_vector(window) for window in expected], rtol=1e-6
+        windows.features, neutralized([rhythm_feature_vector(window) for window in expected]), rtol=1e-6
     )
+    # The premature beat is in the first windows, so lumen_dsp's own value is not the constant.
+    assert expected[0].atypical_fraction > 0
     assert set(windows.labels) == {LABELS.index("af")}
     assert set(windows.subjects) == {"afdb:01"}
 
@@ -150,16 +161,31 @@ def test_augmentation_changes_intervals_and_draws_jitter_per_reading(monkeypatch
 
 
 def test_premature_only_keeps_readings_with_a_premature_beat():
+    intervals = np.full(170, 1000.0)
     premature = [False] * 170
+    # A 500 ms premature interval in the second reading (intervals 89-169) marks where windows came from.
+    intervals[100] = 500.0
     premature[100] = True
-    episodes = pd.DataFrame([episode("mitdb", "100", "other", np.full(170, 1000.0), premature)])
+    episodes = pd.DataFrame([episode("mitdb", "100", "other", intervals, premature)])
     windows = build_window_set(
         episodes, {"mitdb:100": "dev-val"}, "dev-val", augment=False, seed=0, cap=400, premature_only=True
     )
-    # The 170 intervals form an 89-interval and an 81-interval reading; only the second has the beat.
     assert len(set(windows.readings)) == 1
-    assert (windows.mask.sum(axis=1) == SIZE).all() and len(windows.labels) == (81 - SIZE) // STEP + 1
-    assert windows.features[:, FEATURE_NAMES.index("atypicalFraction")].max() > 0
+    assert len(windows.labels) == (81 - SIZE) // STEP + 1
+    assert windows.intervals[0, :SIZE].min() == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize("augment", [False, True])
+def test_atypical_fraction_has_zero_variance_in_training_matrices(augment):
+    # ECG premature flags (about 0% in sinus) do not match the app's PPG DSP-9 atypical labels (31-42%
+    # on BUT PPG sinus, Track C), so v1 models must not learn from this feature.
+    premature = [index % 5 == 3 for index in range(400)]
+    episodes = pd.DataFrame([episode("mitdb", "100", "other", np.full(400, 900.0), premature)])
+    split = "dev-train" if augment else "dev-val"
+    windows = build_window_set(episodes, {"mitdb:100": split}, split, augment=augment, seed=0, cap=400)
+    column = windows.features[:, ATYPICAL_INDEX]
+    assert FEATURE_NAMES[ATYPICAL_INDEX] == "atypicalFraction"
+    assert column.var() == 0 and (column == NEUTRAL_ATYPICAL_FRACTION).all()
 
 
 def test_window_set_round_trips_through_npz(tmp_path):

@@ -24,6 +24,12 @@ FEATURE_NAMES = (
     "sampleEntropy",
     "atypicalFraction",
 )
+ATYPICAL_INDEX = FEATURE_NAMES.index("atypicalFraction")
+# v1 neutralizes the atypical-beat fraction (decision of 2026-10-01). Training flags come from ECG
+# premature-beat annotations, about 0% in sinus, but the app's PPG DSP-9 marks 31-42% of beats atypical
+# on BUT PPG sinus recordings (Track C), so a learned weight would not transfer to phones. Every
+# training and dev-val window carries this constant instead, and the models ignore the app's value.
+NEUTRAL_ATYPICAL_FRACTION = 0.0
 # §11.5 scores each 20-minute external recording as 90 s pseudo-readings; development data is cut the
 # same way, so reading-level numbers mean the same thing on both sides.
 READING_S = 90.0
@@ -130,7 +136,9 @@ def window_inputs(window: RhythmWindow) -> tuple[np.ndarray, np.ndarray, np.ndar
     mask = np.zeros(INTERVALS, dtype=np.float32)
     intervals[: len(window.intervals_s)] = window.intervals_s
     mask[: len(window.intervals_s)] = 1.0
-    return intervals, mask, np.asarray(rhythm_feature_vector(window), dtype=np.float32)
+    features = np.asarray(rhythm_feature_vector(window), dtype=np.float32)
+    features[ATYPICAL_INDEX] = NEUTRAL_ATYPICAL_FRACTION
+    return intervals, mask, features
 
 
 def build_window_set(

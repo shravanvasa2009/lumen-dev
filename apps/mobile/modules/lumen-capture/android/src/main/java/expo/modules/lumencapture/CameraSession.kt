@@ -87,9 +87,8 @@ private const val LAB_MS = 1000L // lab event at 1 Hz (ADR 0013)
 private const val MOTION_PERIOD_US = 20_000 // 50 Hz (ADR 0029)
 
 // ADR 0029 addendum, same values as the Swift module: at most 4 exposure steps, each judged on 3 frames
-// taken at least 0.2 s after the change (a manual exposure reaches the output a few frames late).
+// taken at least EXPOSURE_LATENCY_MS (0.2 s) after the change.
 private const val MAX_EXPOSURE_STEPS = 4
-private const val EXPOSURE_LATENCY_MS = 200L
 private const val FRESH_FRAMES = 3
 private const val FRESH_FRAME_POLL_MS = 20L
 private const val ANALYZER_DRAIN_MS = 100L
@@ -133,13 +132,15 @@ class CameraSession(
 
     @Volatile private var running = false
 
+    // When the first frame arrived (elapsedRealtimeNanos); the lock's settle wait counts from here.
+    @Volatile private var firstFrameRealtimeNs: Long? = null
+
     // One lockExposure() at a time; a second call while one steers rejects (as in the Swift module).
     private val locking = AtomicBoolean(false)
 
     @Volatile private var camera: Camera? = null
     private var added = RequestState()
     private var startedNs = 0L
-    private var startedRealtimeNs = 0L
     private var provider: ProcessCameraProvider? = null
     private var analysis: ImageAnalysis? = null
     private var stopped = false // main thread only
@@ -206,7 +207,6 @@ class CameraSession(
                 .addCameraFilter { infos -> infos.filter { Camera2CameraInfo.from(it).getCameraId() == lens.cameraId } }
                 .build()
         startedNs = frameClockNs()
-        startedRealtimeNs = SystemClock.elapsedRealtimeNanos()
         val bound = cameraProvider.bindToLifecycle(owner, selector, useCase)
         camera = bound
         bound.cameraInfo.cameraState.observe(owner, cameraStateObserver)
@@ -269,6 +269,7 @@ class CameraSession(
     }
 
     private fun reduceAndCount(image: ImageProxy) {
+        if (firstFrameRealtimeNs == null) firstFrameRealtimeNs = SystemClock.elapsedRealtimeNanos()
         image.use {
             val workStart = System.nanoTime()
             val plane = it.planes[0]
@@ -312,15 +313,15 @@ class CameraSession(
     private fun lockOnExposureThread() {
         check(running) { "lockExposure needs a running capture" }
         // Spec §4.2 step 3 lets auto-exposure settle for 1 s; the ADR 0029 addendum stretches that to the lock
-        // wait (at least 1 s, longer on a slow camera), counted from start().
-        val elapsedMs = (SystemClock.elapsedRealtimeNanos() - startedRealtimeNs) / 1_000_000
-        val settleLeftMs = (lockWaitMs(counters.lockIntervalNs()) - elapsedMs).coerceAtLeast(0)
+        // wait (at least 1 s, longer on a slow camera).
+        val firstWaitMs =
+            settleWaitMs(lockWaitMs(counters.lockIntervalNs()), firstFrameRealtimeNs, SystemClock.elapsedRealtimeNanos())
         val manual = lens.manualExposure
         if (manual != null) {
-            // As in Swift: the first reading comes after max(rest of the settle wait, 0.2 s).
-            steerExposure(manual, firstWaitMs = maxOf(settleLeftMs, EXPOSURE_LATENCY_MS))
+            steerExposure(manual, firstWaitMs)
         } else {
-            Thread.sleep(settleLeftMs)
+            // As in Swift, the settle ends with a fresh-frame read, so a stalled camera rejects instead of locking.
+            freshRed(firstWaitMs)
             if (lens.exposureLock) applyRequest(added.copy(aeLock = true))
         }
         val focusDistance = if (lens.focusLock && !lens.fixedFocus) latest?.focusDistance else null

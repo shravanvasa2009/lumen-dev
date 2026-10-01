@@ -1,21 +1,16 @@
 import { Stack } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { useTheme } from '@/theme';
+import { AppText } from '@/components/AppText';
+import { Screen } from '@/components/Screen';
 
 export default function HomeScreen() {
-  const { colors } = useTheme();
   const { t } = useTranslation();
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+    <Screen>
       <Stack.Screen options={{ title: t('app.name') }} />
-      <Text style={[styles.title, { color: colors.text }]}>{t('app.name')}</Text>
-    </View>
+      <AppText variant="display">{t('app.name')}</AppText>
+      <AppText tone="textDim">{t('app.tagline')}</AppText>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 28, fontWeight: '600' },
-});

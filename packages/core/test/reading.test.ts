@@ -72,6 +72,7 @@ const CONTEXT: ReadingContext = {
   recordedAt: null,
   motionSpans: [],
   sqi: null,
+  validationRhythmLabel: null,
 };
 
 function analyze(reading: SyntheticReading, context: Partial<ReadingContext> = {}): ReadingAnalysis {

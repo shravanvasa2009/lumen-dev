@@ -8,7 +8,7 @@ import { fingerSignals } from './finger-signal';
 import type { RejectedSpan, RejectionReason } from './live-session';
 import { cleanSeconds, heartRate, measureBeats, perfusionIndex, type MeasuredBeat } from './reading-metrics';
 import { resampleCubic, type ResampledSegment } from './resample';
-import type { LostSeconds } from './results';
+import type { LostSeconds, RhythmClass } from './results';
 import {
   hasEnoughUsableIntervals,
   rhythmFeatureVector,
@@ -39,6 +39,10 @@ export interface ReadingContext {
   recordedAt: { ms: number; day: string } | null; // epoch ms and local calendar day, for history rules
   motionSpans: NsSpan[]; // accelerometer RMS above the app's threshold (§7)
   sqi: SqiScores | null; // null when SQI-Net did not run
+  // Validation only (replay --rhythm-from-label, ADR 0041): a labelled rhythm that stands in for the
+  // rhythm class in the DSP-12 gate when no rhythm model ran. It never makes a rhythm card. The app
+  // passes null.
+  validationRhythmLabel: RhythmClass | null;
 }
 
 // One row of replay-intervals.csv (the C/E contract): the interval ending at the beat peaking at tNs.

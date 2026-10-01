@@ -312,7 +312,7 @@ def fit_temperature(model: RhythmNet, val: WindowSet) -> float:
         return loss
 
     optimizer.step(nll)
-    return float(log_temperature.exp())
+    return float(log_temperature.detach().exp())
 
 
 def network_probs(model: RhythmNet, windows: WindowSet) -> np.ndarray:

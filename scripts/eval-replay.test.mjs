@@ -524,3 +524,49 @@ test('the CLI writes evidence.json and the app copy only after a matching recomp
   assert.equal(JSON.parse(fs.readFileSync(out, 'utf8')).metrics.hr.label, 'checked');
   assert.equal(fs.readFileSync(app, 'utf8'), fs.readFileSync(out, 'utf8'));
 });
+
+// Strap rows stamped on the camera clock as B's Lab sender does: each row ends rr_ms after the one before.
+function strapRows(intervalsMs, startNs = 1e9) {
+  let endNs = startNs;
+  return intervalsMs.map((rr) => {
+    endNs += rr * 1e6;
+    return { t_ns: Math.round(endNs), rr_ms: rr };
+  });
+}
+
+test('a strap dropout becomes one unusable filler interval that keeps the elapsed time', (t) => {
+  const root = tempDir(t);
+  writeCaptureFolder(root, 'P1');
+  const folder = path.join(root, 'P1');
+  const rr = sequence(30);
+  // Rows 10–12 never arrived; row 13's timestamp still carries their time, plus 20 ms of bridge delay.
+  const rows = strapRows(rr).filter((_, i) => i < 10 || i > 12);
+  rows.slice(10).forEach((row) => (row.t_ns += 20e6));
+  fs.writeFileSync(path.join(folder, 'samples.csv'), `t_ns,r,g,b\n0,0.5,0.1,0.1\n${60e9},0.5,0.1,0.1\n`);
+  fs.writeFileSync(
+    path.join(folder, 'polar_rr.csv'),
+    `t_ns,rr_ms\n${rows.map((row) => `${row.t_ns},${row.rr_ms}`).join('\n')}\n`,
+  );
+  const [capture] = readCaptures(root).captures;
+  assert.deepEqual(capture.polarGaps, [10]);
+  assert.equal(capture.polarRrMs.length, 28);
+  assert.ok(Math.abs(capture.polarRrMs[10] - (rr[10] + rr[11] + rr[12] + 20)) < 1e-6);
+  assert.deepEqual(capture.polarRrMs.slice(11), rr.slice(13));
+});
+
+test('phone beats after a strap dropout still pair with their own heartbeats', () => {
+  const polar = sequence(60);
+  const phone = polar.slice(4, 54);
+  // Strap intervals 25–27 were lost; the filler keeps beat times, so phone interval p is still strap p + 4,
+  // shifted by the two intervals the filler replaced.
+  const withFiller = [...polar.slice(0, 25), polar[25] + polar[26] + polar[27], ...polar.slice(28)];
+  const alignment = alignIntervals(phone, withFiller, (_, q) => q !== 25);
+  assert.equal(alignment.lag, 4);
+  assert.equal(pairFor(alignment, 10), 14);
+  assert.equal(pairFor(alignment, 30), 32);
+  assert.equal(pairFor(alignment, 21), undefined);
+  assert.equal(
+    alignment.pairs.some(([, q]) => q === 25),
+    false,
+  );
+});

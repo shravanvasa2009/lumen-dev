@@ -48,6 +48,27 @@ function strapInsideCapture(folder, polar, span) {
   return inside;
 }
 
+// A Bluetooth dropout loses strap notifications, and with them whole beats: the next row's t_ns jumps by
+// more than its own RR explains. Beat times are running sums of intervals, so the lost time goes back in as
+// one filler interval, listed in polarGaps so it is never compared or used as a reference. 250 ms is below
+// the shortest usable RR (300 ms), so even one lost beat shows, and well above the tens of ms of bridge
+// delay left in the strap timestamps (order E.B polar-clock).
+const DROPOUT_MS = 250;
+
+function strapIntervals(rows) {
+  const polarRrMs = [];
+  const polarGaps = [];
+  rows.forEach((row, i) => {
+    const unexplainedMs = i === 0 ? 0 : (row.t_ns - rows[i - 1].t_ns) / 1e6 - row.rr_ms;
+    if (unexplainedMs > DROPOUT_MS) {
+      polarGaps.push(polarRrMs.length);
+      polarRrMs.push(unexplainedMs);
+    }
+    polarRrMs.push(row.rr_ms);
+  });
+  return { polarRrMs, polarGaps };
+}
+
 function readCapture(folder) {
   const phone = readCsv(folder, 'replay-intervals.csv', ['t_ns', 'ibi_ms', 'accepted']);
   if (!phone) throw new Error(`${folder}: replay-result.json has no replay-intervals.csv beside it`);
@@ -58,7 +79,7 @@ function readCapture(folder) {
     meta: JSON.parse(fs.readFileSync(path.join(folder, 'meta.json'), 'utf8')),
     reading: JSON.parse(fs.readFileSync(path.join(folder, RESULT), 'utf8')),
     phone: phone.map((row) => ({ ibiMs: row.ibi_ms, accepted: row.accepted === 1 })),
-    polarRrMs: polar && strapInsideCapture(folder, polar, span).map((row) => row.rr_ms),
+    ...(polar ? strapIntervals(strapInsideCapture(folder, polar, span)) : { polarRrMs: null, polarGaps: [] }),
   };
 }
 

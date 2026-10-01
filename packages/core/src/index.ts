@@ -47,3 +47,20 @@ export {
   type Upstroke,
 } from './beats';
 export { classifyBeats } from './beat-classes';
+export {
+  cleanSeconds,
+  heartRate,
+  hrv,
+  measureBeats,
+  perfusionIndex,
+  type Hrv,
+  type MeasuredBeat,
+} from './reading-metrics';
+export {
+  breathingRate,
+  breathingSeries,
+  welchPsd,
+  type BreathingRate,
+  type ModulationSeries,
+  type WelchSpectrum,
+} from './breathing';

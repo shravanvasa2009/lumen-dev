@@ -65,6 +65,38 @@ export const DSP_CONFIG = {
     earlyIntervalRatio: 0.85,
     earlySmallAmplitudeRatio: 1.0,
   },
+  // §6.2 minimum clean data per output; "clean seconds" is reading time not covered by a rejected span.
+  dsp10: {
+    minCleanS: 30, // §6.2 "Signal strength (perfusion index)"
+  },
+  dsp11: {
+    minCleanS: 15, // §6.2 "Heart rate"
+  },
+  dsp12: {
+    // The caller passes the capture format's frame rate (ADR 0040): a measured median frame interval at
+    // 60 fps can read 59.9.
+    minFps: 60,
+    // Spec values (§10 DSP-12): an NN interval deviating > 20% from the median of up to 5 NN intervals on
+    // each side (itself excluded) is dropped before RMSSD, SDNN, and pNN50.
+    neighbours: 5,
+    maxNeighbourDeviation: 0.2,
+    pnnThresholdS: 0.05, // pNN50: successive differences strictly greater than 50 ms, as in dsp15
+    rmssdMinCleanS: 60,
+    rmssdMinIntervals: 50, // NN intervals left after the 20% filter
+    sdnnMinCleanS: 300,
+  },
+  // Not given by the spec (ADR 0040). scipy.signal.welch parameters: Hann (periodic), detrend 'linear',
+  // density scaling, one-sided, mean average. 32 s segments hold ≥ 3 cycles at 6 br/min; the 512-point
+  // FFT puts a bin every 0.47 br/min, well inside the 4 br/min agreement rule.
+  dsp13: {
+    seriesRateHz: 4,
+    welchSegmentSamples: 128,
+    welchOverlapSamples: 64,
+    welchFftSamples: 512,
+    bandHz: [0.1, 0.5], // 6–30 breaths/min
+    maxSpreadBrpm: 4, // report the mean only when max − min of the three estimates is ≤ this
+    minCleanS: 60, // §6.2 "Breathing rate"
+  },
   dsp15: {
     // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).
     windowIntervals: 32,

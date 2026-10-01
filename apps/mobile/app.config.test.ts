@@ -39,19 +39,29 @@ describe('app.config personal-team mode (BOOT)', () => {
     expect(loadConfig({ LUMEN_IOS_TEAM_ID: 'ABCDE12345' })).toEqual(loadConfig({}));
   });
 
-  it('switches iOS to the .dev bundle ID and the given team in personal-team mode', () => {
+  it('switches iOS to the .dev bundle ID and leaves the team to expo run:ios without a team ID', () => {
+    for (const env of [{}, { LUMEN_IOS_TEAM_ID: '' }]) {
+      const config = loadConfig({ LUMEN_IOS_PERSONAL_TEAM: '1', ...env });
+      expect(config.ios?.bundleIdentifier).toBe('io.github.shravanvasa2009.heartcheck.dev');
+      expect(config.ios).not.toHaveProperty('appleTeamId');
+      expect(config.android?.package).toBe('io.github.shravanvasa2009.heartcheck');
+      expect(config.plugins).toContainEqual(['./modules/lumen-capture/app.plugin', { personalTeam: true }]);
+    }
+  });
+
+  it('also sets the given team in personal-team mode', () => {
     const config = loadConfig({ LUMEN_IOS_PERSONAL_TEAM: '1', LUMEN_IOS_TEAM_ID: 'ABCDE12345' });
     expect(config.ios?.bundleIdentifier).toBe('io.github.shravanvasa2009.heartcheck.dev');
     expect(config.ios?.appleTeamId).toBe('ABCDE12345');
-    expect(config.android?.package).toBe('io.github.shravanvasa2009.heartcheck');
     expect(config.plugins).toContainEqual(['./modules/lumen-capture/app.plugin', { personalTeam: true }]);
   });
 
-  it.each([undefined, '', 'abcde12345', 'ABCDE1234'])(
-    'refuses personal-team mode without a 10-character team ID (%p)',
+  it.each(['abcde12345', 'ABCDE1234', 'ABCDE123456'])(
+    'refuses a team ID that is not 10 capital letters and digits (%p)',
     (teamId) => {
-      const env = teamId === undefined ? {} : { LUMEN_IOS_TEAM_ID: teamId };
-      expect(() => loadConfig({ LUMEN_IOS_PERSONAL_TEAM: '1', ...env })).toThrow(/LUMEN_IOS_TEAM_ID/);
+      expect(() => loadConfig({ LUMEN_IOS_PERSONAL_TEAM: '1', LUMEN_IOS_TEAM_ID: teamId })).toThrow(
+        /LUMEN_IOS_TEAM_ID/,
+      );
     },
   );
 });

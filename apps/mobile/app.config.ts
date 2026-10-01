@@ -12,21 +12,21 @@ const brand = brandSnippet.expo as ExpoConfig;
 
 // Free Apple ID ("Personal Team") builds on the partner's Mac (ADR 0034): a separate iOS bundle ID so the
 // free team never claims the real one, and lumen-capture drops the push entitlement free teams cannot sign.
+// Without a team ID, `expo run:ios` picks the team from the Mac's signing certificate and lets xcodebuild
+// fetch the profile (-allowProvisioningUpdates); a preset team makes it skip that flag.
+const personalTeam = process.env.LUMEN_IOS_PERSONAL_TEAM === '1';
+const teamId = process.env.LUMEN_IOS_TEAM_ID || undefined;
 // Apple team IDs are 10 upper-case letters and digits.
-function personalTeamId(): string | undefined {
-  if (process.env.LUMEN_IOS_PERSONAL_TEAM !== '1') return undefined;
-  const teamId = process.env.LUMEN_IOS_TEAM_ID ?? '';
-  if (!/^[A-Z0-9]{10}$/.test(teamId)) {
-    throw new Error(
-      `LUMEN_IOS_PERSONAL_TEAM=1 needs LUMEN_IOS_TEAM_ID set to your 10-character Apple team ID (got "${teamId}").`,
-    );
-  }
-  return teamId;
+if (personalTeam && teamId !== undefined && !/^[A-Z0-9]{10}$/.test(teamId)) {
+  throw new Error(
+    `LUMEN_IOS_TEAM_ID must be your 10-character Apple team ID (got "${teamId}"); leave it unset to let expo run:ios pick the team.`,
+  );
 }
-const teamId = personalTeamId();
-const iosSigning = teamId
-  ? { bundleIdentifier: `${BUNDLE_ID}.dev`, appleTeamId: teamId }
-  : { bundleIdentifier: BUNDLE_ID };
+const iosSigning = !personalTeam
+  ? { bundleIdentifier: BUNDLE_ID }
+  : teamId
+    ? { bundleIdentifier: `${BUNDLE_ID}.dev`, appleTeamId: teamId }
+    : { bundleIdentifier: `${BUNDLE_ID}.dev` };
 const capturePlugin = './modules/lumen-capture/app.plugin';
 
 const config: ExpoConfig = {
@@ -43,7 +43,7 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-dev-client',
     ...(brand.plugins ?? []),
-    teamId ? [capturePlugin, { personalTeam: true }] : capturePlugin,
+    personalTeam ? [capturePlugin, { personalTeam: true }] : capturePlugin,
   ],
   // No over-the-air updates: release builds make no network requests (PRIV-1).
   updates: { enabled: false },

@@ -74,15 +74,18 @@ jobs:
         working-directory: apps/mobile
         env:
           LUMEN_IOS_PERSONAL_TEAM: '1'
-          LUMEN_IOS_TEAM_ID: ABCDE12345
+        # Without LUMEN_IOS_TEAM_ID no team is preset, so expo run:ios picks one; with it, the team is set.
         run: |
           npx expo prebuild --no-install --clean --platform ios
           test -f ios/*/*.entitlements
-          # Bash's -e ignores a failing "! cmd", so the absence check needs an explicit exit.
+          # Bash's -e ignores a failing "! cmd", so the absence checks need an explicit exit.
           if grep -q aps-environment ios/*/*.entitlements; then exit 1; fi
+          if grep -Eq 'DEVELOPMENT_TEAM = "?[A-Z0-9]{10}"?;' ios/*.xcodeproj/project.pbxproj; then exit 1; fi
           grep -Eq 'PRODUCT_BUNDLE_IDENTIFIER = "?io\.github\.shravanvasa2009\.heartcheck\.dev"?;' ios/*.xcodeproj/project.pbxproj
-          grep -Eq 'DEVELOPMENT_TEAM = "?ABCDE12345"?;' ios/*.xcodeproj/project.pbxproj
           grep -q NSCameraUsageDescription ios/*/Info.plist
+          LUMEN_IOS_TEAM_ID=ABCDE12345 npx expo prebuild --no-install --clean --platform ios
+          if grep -q aps-environment ios/*/*.entitlements; then exit 1; fi
+          grep -Eq 'DEVELOPMENT_TEAM = "?ABCDE12345"?;' ios/*.xcodeproj/project.pbxproj
 
   python:
     runs-on: ubuntu-latest

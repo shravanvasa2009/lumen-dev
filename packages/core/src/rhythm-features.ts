@@ -135,8 +135,15 @@ export function rhythmWindows(
   return windows;
 }
 
-/** DSP-15: the 8 Rhythm-Net features (§11.3) in fixed order; sample entropy may be null (fill pending H-012). */
-export function rhythmFeatureVector(window: RhythmWindow): (number | null)[] {
+// Undefined sample entropy (A or B = 0) takes the Richman & Moorman (2000) upper bound, ln of the number
+// of template pairs, ln((N − m)(N − m − 1) / 2): the owner's choice in H-012 (ADR 0024).
+function sampleEntropyUpperBound(): number {
+  const { windowIntervals: n, sampleEntropyM: m } = DSP_CONFIG.dsp15;
+  return Math.log(((n - m) * (n - m - 1)) / 2);
+}
+
+/** DSP-15: the 8 Rhythm-Net features (§11.3) in fixed order, with undefined sample entropy filled. */
+export function rhythmFeatureVector(window: RhythmWindow): number[] {
   return [
     window.normalizedRmssd,
     window.shannonEntropyBits,
@@ -144,7 +151,7 @@ export function rhythmFeatureVector(window: RhythmWindow): (number | null)[] {
     window.sd1S,
     window.sd2S,
     window.pnn50,
-    window.sampleEntropy,
+    window.sampleEntropy ?? sampleEntropyUpperBound(),
     window.atypicalFraction,
   ];
 }

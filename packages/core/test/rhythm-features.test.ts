@@ -200,8 +200,17 @@ describe('DSP-15 Rhythm-Net feature vector (§11.3)', () => {
     expect(rhythmFeatureVector(window!)).toHaveLength(8);
   });
 
-  it('passes an undefined sample entropy through as null until the fill rule is decided', () => {
+  it('fills an undefined sample entropy with the Richman–Moorman bound ln((N − m)(N − m − 1)/2)', () => {
+    // Seed 1: B = 4, A = 0, so SampEn is undefined. N = 32, m = 2: ln(30 · 29 / 2) = ln(435).
     const window = onlyWindow(uniforms(32, 1).map((u) => 0.4 + 0.8 * u));
-    expect(rhythmFeatureVector(window)[6]).toBeNull();
+    expect(window.sampleEntropy).toBeNull();
+    const vector = rhythmFeatureVector(window);
+    expect(vector[6]).toBeCloseTo(Math.log(435), 15);
+    expect(vector.every((value) => typeof value === 'number' && Number.isFinite(value))).toBe(true);
+  });
+
+  it('keeps a defined sample entropy as it is', () => {
+    const window = onlyWindow(uniforms(32, 29).map((u) => 0.4 + 0.8 * u));
+    expect(rhythmFeatureVector(window)[6]).toBe(window.sampleEntropy);
   });
 });

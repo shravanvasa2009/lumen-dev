@@ -145,6 +145,15 @@ def test_feature_vector_has_the_8_features_in_order():
     ]
 
 
-def test_feature_vector_passes_an_undefined_sample_entropy_as_none():
+def test_feature_vector_fills_an_undefined_sample_entropy_with_the_upper_bound():
+    # Seed 1: B = 4, A = 0. Richman–Moorman bound ln((N − m)(N − m − 1)/2) = ln(30 · 29 / 2) = ln(435).
     window = only_window([0.4 + 0.8 * u for u in park_miller(32, 1)])
-    assert rhythm_feature_vector(window)[6] is None
+    assert window.sample_entropy is None
+    vector = rhythm_feature_vector(window)
+    assert vector[6] == pytest.approx(math.log(435), abs=1e-15)
+    assert all(isinstance(value, float) and math.isfinite(value) for value in vector)
+
+
+def test_feature_vector_keeps_a_defined_sample_entropy():
+    window = only_window([0.4 + 0.8 * u for u in park_miller(32, 29)])
+    assert rhythm_feature_vector(window)[6] == window.sample_entropy

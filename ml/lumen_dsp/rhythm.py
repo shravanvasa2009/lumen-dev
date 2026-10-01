@@ -129,8 +129,15 @@ def rhythm_windows(
     return windows
 
 
-def rhythm_feature_vector(window: RhythmWindow) -> list[float | None]:
-    # DSP-15: the 8 Rhythm-Net features (§11.3) in order; sample entropy may be None (fill: H-012).
+def _sample_entropy_upper_bound() -> float:
+    # Undefined sample entropy (A or B = 0) takes the Richman & Moorman (2000) upper bound, ln of the number
+    # of template pairs, ln((N − m)(N − m − 1) / 2): the owner's choice in H-012 (ADR 0024).
+    n, m = DSP_CONFIG["dsp15"]["windowIntervals"], DSP_CONFIG["dsp15"]["sampleEntropyM"]
+    return math.log((n - m) * (n - m - 1) / 2)
+
+
+def rhythm_feature_vector(window: RhythmWindow) -> list[float]:
+    # DSP-15: the 8 Rhythm-Net features (§11.3) in fixed order, with undefined sample entropy filled.
     return [
         window.normalized_rmssd,
         window.shannon_entropy_bits,
@@ -138,7 +145,7 @@ def rhythm_feature_vector(window: RhythmWindow) -> list[float | None]:
         window.sd1_s,
         window.sd2_s,
         window.pnn50,
-        window.sample_entropy,
+        _sample_entropy_upper_bound() if window.sample_entropy is None else window.sample_entropy,
         window.atypical_fraction,
     ]
 

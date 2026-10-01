@@ -116,6 +116,11 @@ export function rhythmWindows(
     throw new RangeError(
       `${intervalsS.length} intervals need ${intervalsS.length + 1} beat flags, got ${atypicalBeats.length}`,
     );
+  // ADR 0024: the feature vector is always finite, which needs every interval finite and positive.
+  intervalsS.forEach((intervalS, i) => {
+    if (!(Number.isFinite(intervalS) && intervalS > 0))
+      throw new RangeError(`interval ${i} must be finite and positive seconds, got ${intervalS}`);
+  });
   const { windowIntervals, windowStep } = DSP_CONFIG.dsp15;
   const windows: RhythmWindow[] = [];
   // An excluded interval ends the run: successive differences, turning points, Poincaré pairs, and

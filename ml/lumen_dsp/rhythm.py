@@ -111,6 +111,10 @@ def rhythm_windows(
         raise ValueError(
             f"{len(intervals)} intervals need {len(intervals) + 1} beat flags, got {len(atypical)}"
         )
+    # ADR 0024: the feature vector is always finite, which needs every interval finite and positive.
+    for index, interval in enumerate(intervals):
+        if not (math.isfinite(interval) and interval > 0):
+            raise ValueError(f"interval {index} must be finite and positive seconds, got {interval}")
     size, step = DSP_CONFIG["dsp15"]["windowIntervals"], DSP_CONFIG["dsp15"]["windowStep"]
     windows = []
     # An excluded interval ends the run: successive differences, turning points, Poincaré pairs, and

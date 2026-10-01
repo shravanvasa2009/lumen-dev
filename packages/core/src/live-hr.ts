@@ -72,6 +72,8 @@ export function estimateLiveHeartRate(samples: Sample[]): { bpm: number; snrDb: 
 
   // DSP-3: ppg = −R, so the pulse rises with blood volume. DSP-2 splits wherever frames are > 150 ms apart.
   const negatedRed = Float64Array.from(recent, (sample) => -sample.r);
+  // resampleCubic throws on a non-finite value; a bad red frame means no number for this call, not a throw.
+  if (!negatedRed.every(Number.isFinite)) return null;
   const segments = resampleCubic(secondsFromStart(recent), negatedRed, RATE_HZ);
   if (segments.length === 0) return null;
   // On a tie, the later segment is the more current one.
@@ -79,6 +81,9 @@ export function estimateLiveHeartRate(samples: Sample[]): { bpm: number; snrDb: 
     segment.values.length >= longest.values.length ? segment : longest,
   ).values;
   if ((ppg.length - 1) / RATE_HZ < minSegmentS) return null;
+  // A flat segment (finger off, red clipped) has no pulse, but the moving-mean detrend rounds it into
+  // noise (up to ~2e-15 at −0.0737) whose spectrum can pass the 6 dB limit (ADR 0027).
+  if (ppg.every((value) => value === ppg[0])) return null;
 
   fitBuffersTo(ppg.length);
   detrendAndTaper(ppg);
@@ -90,7 +95,7 @@ export function estimateLiveHeartRate(samples: Sample[]): { bpm: number; snrDb: 
   sortedPower.sort();
   const snrDb = 10 * Math.log10(binPower[peak]! / sortedPower[BIN_COUNT >> 1]!);
   const bpm = binHz[peak]! * 60;
-  // A flat signal gives 0/0 = NaN, which must fail too.
+  // Written so a NaN SNR (0/0, all powers zero) fails too.
   if (!(snrDb >= minSnrDb) || bpm < minBpm || bpm > maxBpm) return null;
   return { bpm, snrDb };
 }

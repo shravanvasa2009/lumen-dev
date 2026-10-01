@@ -70,6 +70,9 @@ jobs:
       - name: README tested-devices table matches devices.json
         if: hashFiles('package-lock.json') != ''
         run: npm run devices:table -- --check
+      - name: Red-team suite (§16)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:redteam
       - name: Expo prebuild smoke test
         if: hashFiles('apps/mobile/app.config.ts') != ''
         working-directory: apps/mobile
@@ -81,6 +84,24 @@ jobs:
           grep -q NSCameraUsageDescription ios/*/Supporting/es.lproj/InfoPlist.strings
           grep -q android.permission.CAMERA android/app/src/main/AndroidManifest.xml
           grep -q 'android.hardware.camera.flash" android:required="false"' android/app/src/main/AndroidManifest.xml
+          grep -q aps-environment ios/*/*.entitlements
+      - name: Expo prebuild smoke test, free Apple ID mode (ADR 0034)
+        if: hashFiles('apps/mobile/app.config.ts') != ''
+        working-directory: apps/mobile
+        env:
+          LUMEN_IOS_PERSONAL_TEAM: '1'
+        # Without LUMEN_IOS_TEAM_ID no team is preset, so expo run:ios picks one; with it, the team is set.
+        run: |
+          npx expo prebuild --no-install --clean --platform ios
+          test -f ios/*/*.entitlements
+          # Bash's -e ignores a failing "! cmd", so the absence checks need an explicit exit.
+          if grep -q aps-environment ios/*/*.entitlements; then exit 1; fi
+          if grep -Eq 'DEVELOPMENT_TEAM = "?[A-Z0-9]{10}"?;' ios/*.xcodeproj/project.pbxproj; then exit 1; fi
+          grep -Eq 'PRODUCT_BUNDLE_IDENTIFIER = "?io\.github\.shravanvasa2009\.heartcheck\.dev"?;' ios/*.xcodeproj/project.pbxproj
+          grep -q NSCameraUsageDescription ios/*/Info.plist
+          LUMEN_IOS_TEAM_ID=ABCDE12345 npx expo prebuild --no-install --clean --platform ios
+          if grep -q aps-environment ios/*/*.entitlements; then exit 1; fi
+          grep -Eq 'DEVELOPMENT_TEAM = "?ABCDE12345"?;' ios/*.xcodeproj/project.pbxproj
 
   python:
     runs-on: ubuntu-latest

@@ -16,3 +16,7 @@ def open_dir() -> Path:
 
 def external_dir() -> Path:
     return data_root() / "external"
+
+
+def derived_dir() -> Path:
+    return data_root() / "derived"

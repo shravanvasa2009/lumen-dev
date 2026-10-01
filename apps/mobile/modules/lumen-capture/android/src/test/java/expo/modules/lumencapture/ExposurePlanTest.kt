@@ -28,6 +28,13 @@ class ExposurePlanTest {
     }
 
     @Test
+    fun lockWaitIsTenFrameIntervalsClampedToOneToThreeSeconds() {
+        assertEquals(1000L, lockWaitMs(1e9 / 30)) // 333 ms at 30 fps -> 1 s floor
+        assertEquals(1500L, lockWaitMs(150e6)) // about 6.7 fps -> 1.5 s
+        assertEquals(3000L, lockWaitMs(500e6)) // 2 fps -> 3 s cap
+    }
+
+    @Test
     fun exposurePlanPrefersLongerDurationOverHigherIso() {
         val limits = ExposureLimits(minDurationNs = 1e4, maxDurationNs = 1e9 / 60, minIso = 50.0, maxIso = 3000.0)
         val current = ExposureSetting(durationNs = 4e6, iso = 100.0)

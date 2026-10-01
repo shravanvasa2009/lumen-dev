@@ -94,10 +94,9 @@ private const val SETTLE_NS = 1_000_000_000L
 private const val MAX_EXPOSURE_STEPS = 4
 private const val EXPOSURE_LATENCY_MS = 200L
 private const val FRESH_FRAMES = 3
-private const val FRESH_FRAME_WAIT_MS = 1000L
 private const val FRESH_FRAME_POLL_MS = 20L
-private const val REQUEST_TIMEOUT_MS = 1000L
 private const val ANALYZER_DRAIN_MS = 100L
+private const val EVENT_DRAIN_MS = 50L
 private const val FAILURE_LOG_EVERY = 100
 
 // One running capture: CameraX ImageAnalysis on a rear lens with Camera2 interop for frame rate,
@@ -239,10 +238,12 @@ class CameraSession(
         analyzerThread.shutdown()
         // A frame still in analyze() takes well under 1 ms (Lab frame work), so this bound is generous.
         analyzerThread.awaitTermination(ANALYZER_DRAIN_MS, TimeUnit.MILLISECONDS)
+        // A batch the event thread is sending right now goes out first, so batches stay in time order.
+        eventThread.quitSafely()
+        eventThread.join(EVENT_DRAIN_MS)
         emitBatchNow()
         // Interrupts a lockExposure() that is waiting for frames, so its promise rejects.
         exposureThread.shutdownNow()
-        eventThread.quitSafely()
         return SessionSummary(startedNs, frameClockNs(), lens.id, counters.frames, counters.dropped)
     }
 
@@ -369,7 +370,7 @@ class CameraSession(
     private fun freshRed(waitMs: Long): Double {
         val before = counters.frames
         Thread.sleep(waitMs)
-        val deadline = SystemClock.elapsedRealtime() + FRESH_FRAME_WAIT_MS
+        val deadline = SystemClock.elapsedRealtime() + lockWaitMs(counters.referenceIntervalNs())
         while (SystemClock.elapsedRealtime() < deadline) {
             val red = counters.lastRed
             if (counters.frames - before >= FRESH_FRAMES && red != null) return red
@@ -397,12 +398,13 @@ class CameraSession(
                 .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
                 .setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, it)
         }
+        val waitMs = lockWaitMs(counters.referenceIntervalNs())
         try {
-            Camera2CameraControl.from(control).setCaptureRequestOptions(options.build()).get(REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            Camera2CameraControl.from(control).setCaptureRequestOptions(options.build()).get(waitMs, TimeUnit.MILLISECONDS)
         } catch (e: ExecutionException) {
             throw IllegalStateException("The camera rejected the exposure settings", e.cause ?: e)
         } catch (e: TimeoutException) {
-            throw IllegalStateException("The camera did not apply the exposure settings within 1 s", e)
+            throw IllegalStateException("The camera did not apply the exposure settings within $waitMs ms", e)
         }
         added = next
     }

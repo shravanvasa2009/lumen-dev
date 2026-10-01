@@ -67,6 +67,10 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
         return watchOverexposure(frame.numbers.r, frame.tNs)
     }
 
+    // The DSP-1 reference interval: median of the intervals that ended in the last 1 s, else nominal.
+    @Synchronized
+    fun referenceIntervalNs(): Double = medianIntervalNs(intervalsNs) ?: nominalIntervalNs.toDouble()
+
     @Synchronized
     fun armOverexposureWatch() {
         watchArmed = true

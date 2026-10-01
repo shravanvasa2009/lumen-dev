@@ -77,6 +77,14 @@ class CaptureCountersTest {
     }
 
     @Test
+    fun referenceIntervalIsNominalUntilFiveIntervalsThenTheMedian() {
+        val counters = CaptureCounters(INTERVAL_NS)
+        assertEquals(INTERVAL_NS.toDouble(), counters.referenceIntervalNs(), 0.0)
+        for (i in 0 until 6) counters.frameAt(i * 100_000_000L)
+        assertEquals(100_000_000.0, counters.referenceIntervalNs(), 0.0)
+    }
+
+    @Test
     fun medianCountsIntervalsThatEndedInTheLastSecondLikeSwift() {
         // 6 fps against a 30 fps nominal interval: the 5 intervals ending in the last second already give a
         // median at the 6th frame, so only frames 1..5 count drops (4 each). Counting intervals between frames

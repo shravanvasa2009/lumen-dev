@@ -5,6 +5,7 @@ const strokes = {
   share: 'M12 15V4M8 8l4-4 4 4M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7',
   noSignal: 'M2 12h5l2-5 3 10 2-5h3M5 20 19 4',
   hint: 'M12 11v5.5M12 7.6v.4',
+  close: 'M6 6l12 12M18 6L6 18',
 } as const;
 
 type GlyphProps = { name: keyof typeof strokes | 'warning'; size: number; color: ColorValue; mark?: ColorValue };

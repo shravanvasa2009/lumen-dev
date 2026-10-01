@@ -11,7 +11,7 @@
     "node": ">=22.13"
   },
   "lumen": {
-    "bootstrapped": false
+    "bootstrapped": true
   },
   "scripts": {
     "doctor": "node scripts/doctor.mjs",

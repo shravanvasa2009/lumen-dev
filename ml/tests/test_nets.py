@@ -34,11 +34,12 @@ def test_output_shape_and_probability_range(name):
 
 
 def test_sqi_parameter_count_matches_the_spec_architecture():
-    # §11.2 layer by layer: conv(2→16,k7)+BN, conv(16→32,k5)+BN, conv(32→32,k5)+BN, linear(32→1).
+    # §11.2 with ADR 0023's single input channel: conv(1→16,k7)+BN, conv(16→32,k5)+BN,
+    # conv(32→32,k5)+BN, linear(32→1).
     expected = (
-        (2 * 16 * 7 + 16 + 2 * 16) + (16 * 32 * 5 + 32 + 2 * 32) + (32 * 32 * 5 + 32 + 2 * 32) + (32 + 1)
+        (1 * 16 * 7 + 16 + 2 * 16) + (16 * 32 * 5 + 32 + 2 * 32) + (32 * 32 * 5 + 32 + 2 * 32) + (32 + 1)
     )
-    assert _parameter_count(SqiNet()) == expected == 8177
+    assert _parameter_count(SqiNet()) == expected == 8065
 
 
 def test_rhythm_probabilities_sum_to_one():

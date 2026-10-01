@@ -3,8 +3,9 @@ from torch import nn
 
 from nets.blocks import conv_block
 
-# §11.2: a 4 s finger window of the red and green channels resampled to 64 Hz.
-CHANNELS = 2
+# ADR 0023: v1 takes one channel, the inverted red signal (−R) at 64 Hz, z-scored per 4 s window
+# by lumen_dsp, because BUT PPG has only red. Green returns in v2 with team captures.
+CHANNELS = 1
 WINDOW = 256
 
 

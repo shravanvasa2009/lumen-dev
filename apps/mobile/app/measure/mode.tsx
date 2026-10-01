@@ -1,32 +1,40 @@
-import { type Href, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { Card } from '@/components/Card';
-import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
+import { MODES } from '@/measure/mode';
+import { ModeCard } from '@/measure/ModeCard';
 
 export default function ModeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const modes: readonly { title: string; subtitle: string; href: Href }[] = [
-    { title: t('mode.full'), subtitle: t('mode.fullBody'), href: '/measure/precheck?mode=full' },
-    { title: t('mode.quick'), subtitle: t('mode.quickBody'), href: '/measure/precheck?mode=quick' },
-    { title: t('mode.standing'), subtitle: t('mode.standingBody'), href: '/measure/standing-test' },
-  ];
   return (
     <RouteShell title={t('mode.title')}>
-      <Card flush>
-        {modes.map((mode, index) => (
-          <ListRow
-            key={mode.title}
-            title={mode.title}
-            subtitle={mode.subtitle}
-            last={index === modes.length - 1}
-            chevron
-            onPress={() => router.push(mode.href)}
-          />
-        ))}
-      </Card>
+      <ModeCard
+        title={t('mode.full')}
+        body={t('mode.fullBody')}
+        duration={t('mode.seconds', { count: MODES.full.cleanSeconds })}
+        recommended={t('mode.recommended')}
+        onPress={() => router.push('/measure/precheck?mode=full')}
+      />
+      <ModeCard
+        title={t('mode.quick')}
+        body={t('mode.quickBody')}
+        duration={t('mode.seconds', { count: MODES.quick.cleanSeconds })}
+        onPress={() => router.push('/measure/precheck?mode=quick')}
+      />
+      <ModeCard
+        title={t('mode.deep')}
+        body={t('mode.deepBody')}
+        duration={t('mode.minutes', { count: 5 })}
+        unavailable={t('mode.deepSoon')}
+      />
+      <ModeCard
+        title={t('mode.standing')}
+        body={t('mode.standingBody')}
+        duration={t('mode.approxMinutes', { count: 12 })}
+        onPress={() => router.push('/measure/standing-test')}
+      />
     </RouteShell>
   );
 }

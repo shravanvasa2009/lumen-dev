@@ -10,7 +10,7 @@ const ENCODED = [
   'eCCT',
   'YRAF_SNPVAT_SEBAG',
   'QRSNHYG_SEBAG_PNZREN',
-  'cbfvgvba: .sebag',
+  'PNZREN_SNPVAT_SEBAG',
   'ohvygVaGehrQrcguPnzren',
   'PbapheeragPnzren',
   'sebagPnzren',
@@ -21,15 +21,25 @@ const rot13 = (text) =>
     const base = ch <= 'Z' ? 65 : 97;
     return String.fromCharCode(((ch.charCodeAt(0) - base + 13) % 26) + base);
   });
-// Regular-expression sources (ROT13 as well) for Objective-C and Swift forms of the front position.
+// Regular-expression sources (ROT13 as well) for Objective-C and Swift forms of the front position:
+// assignment, comparison on either side, switch case, qualified Position, and argument labels. An
+// unspecified position is banned too, because a discovery session for it can return the front camera.
+// "~" marks a word end, so longer names such as frontier do not match.
 const ENCODED_REGEX = [
   'NIPncgherQrivprCbfvgvbaSebag',
-  'cbfvgvba[ ]*[=!]=[ ]*[.]sebag',
   '[(,][ ]*[.]sebag[ ]*[,)]',
+  '=[ ]*[.]sebag~',
+  '[.]sebag[ ]*[!=]=',
+  'pnfr[ ]+[.]sebag~',
+  'cbfvgvba[.]sebag~',
+  'cbfvgvba[ ]*:[ ]*[.]sebag~',
+  'cbfvgvba[.]hafcrpvsvrq~',
+  'cbfvgvba[ ]*:[ ]*[.]hafcrpvsvrq~',
 ];
+const WORD_END = '(?![A-Za-z0-9_])';
 const PATTERNS = [
   ...ENCODED.map((encoded) => new RegExp(rot13(encoded).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')),
-  ...ENCODED_REGEX.map((encoded) => new RegExp(rot13(encoded), 'i')),
+  ...ENCODED_REGEX.map((encoded) => new RegExp(rot13(encoded).replaceAll('~', WORD_END), 'i')),
 ];
 const ROOTS = ['apps', 'packages', 'tools', 'ml'];
 // Vendored or generated folders that are skipped wherever they appear.

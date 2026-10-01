@@ -19,6 +19,37 @@ const FIXTURES = {
   swiftComparison: `if device.${rot13('cbfvgvba')} == .${rot13('sebag')} {}\n`,
   swiftLookup: `lookup(.video, ${rot13('cbfvgvba')}: .${rot13('sebag')})\nlookup(.${rot13('sebag')})\n`,
 };
+const FRONT = rot13('sebag');
+const FRONT_UPPER = FRONT.toUpperCase();
+// Each form slipped past the guard before PR4a; one fixture per form so each is checked on its own.
+const SWIFT_FORMS = {
+  assignment: `let wanted: AVCaptureDevice.Position = .${FRONT}\n`,
+  qualifiedPosition: `let wanted = AVCaptureDevice.Position.${FRONT}\n`,
+  barePosition: `let wanted = Position.${FRONT}\n`,
+  frontOnLeftEquals: `if .${FRONT} == device.side {}\n`,
+  frontOnLeftNotEquals: `if .${FRONT} != device.side {}\n`,
+  frontOnRightEquals: `if side == .${FRONT} {}\n`,
+  switchCase: `switch side {\ncase .${FRONT}: break\ndefault: break\n}\n`,
+  unspecifiedPosition: `discover(mediaType: .video, position: .unspecified)\n`,
+  unspecifiedQualified: `let any = AVCaptureDevice.Position.unspecified\n`,
+  colonNoSpace: `lookup(.video, position:.${FRONT})\n`,
+};
+const KOTLIN_FORMS = {
+  cameraXDefault: `val selector = CameraSelector.DEFAULT_${FRONT_UPPER}_CAMERA\n`,
+  cameraXLensFacing: `builder.requireLensFacing(CameraSelector.LENS_FACING_${FRONT_UPPER})\n`,
+  camera2LensFacing: `if (facing == CameraCharacteristics.LENS_FACING_${FRONT_UPPER}) {}\n`,
+  camera1Facing: `if (info.facing == Camera.CameraInfo.CAMERA_FACING_${FRONT_UPPER}) {}\n`,
+};
+// Lines a rear-only module may legitimately contain.
+const ALLOWED = {
+  frontier: `let frontier = .${FRONT}ier\n`,
+  storefront: `let storefront = store${FRONT}\n`,
+  frontierCompare: `if region.${FRONT}ier == other {}\n`,
+  backPosition: `let wanted: AVCaptureDevice.Position = .back\nif side == .back {}\n`,
+  backCase: `switch side {\ncase .back: break\ncase .${FRONT}Row: break\n}\n`,
+  backLookup: `discover(mediaType: .video, position: .back)\n`,
+  kotlinBack: `val selector = CameraSelector.DEFAULT_BACK_CAMERA\n`,
+};
 
 function runGuard(relativeFile, content) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scope-guard-'));
@@ -69,6 +100,25 @@ test('flags Objective-C and Swift forms in the added file types', () => {
   assertFlagged(`${MODULE}/android/build.gradle`);
   assertFlagged(`${MODULE}/ios/Info.plist`);
 });
+
+for (const [name, content] of Object.entries(SWIFT_FORMS)) {
+  test(`flags the Swift form: ${name}`, () => {
+    assertFlagged(`${MODULE}/ios/${name}.swift`, content);
+  });
+}
+
+for (const [name, content] of Object.entries(KOTLIN_FORMS)) {
+  test(`flags the Kotlin form: ${name}`, () => {
+    assertFlagged(`${MODULE}/android/src/${name}.kt`, content);
+  });
+}
+
+for (const [name, content] of Object.entries(ALLOWED)) {
+  test(`does not flag the allowed line: ${name}`, () => {
+    const run = runGuard(`${MODULE}/ios/${name}.swift`, content);
+    assert.equal(run.status, 0, run.stderr);
+  });
+}
 
 test('does not flag the word in ordinary prose', () => {
   const run = runGuard(`${MODULE}/ios/Notes.swift`, '// the front of the phone faces the user\n');

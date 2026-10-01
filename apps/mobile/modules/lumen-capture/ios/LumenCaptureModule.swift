@@ -46,26 +46,47 @@ public final class LumenCaptureModule: Module {
     }
 
     AsyncFunction("start") { (config: CaptureConfigRecord) in
-      try self.capture.start(
-        lensId: config.lensId,
-        targetFps: config.targetFps,
-        torchLevel: config.torchLevel,
-        exposureTarget: config.exposureTarget
-      )
+      do {
+        try self.capture.start(
+          lensId: config.lensId,
+          targetFps: config.targetFps,
+          torchLevel: config.torchLevel,
+          exposureTarget: config.exposureTarget
+        )
+      } catch {
+        throw captureError(wrapping: error)
+      }
     }.runOnQueue(capture.sessionQueue)
 
-    AsyncFunction("stop") { () -> [String: Any] in
-      try self.capture.stop()
+    // ADR 0029 Addendum: the last samples batch reaches JS before stop() resolves. Events are scheduled on the JS
+    // runtime at normal priority but promise results at immediate priority, so resolving at once could overtake that
+    // batch; resolving from a normal-priority task queued after it keeps the order (expo-modules-jsi
+    // JavaScriptRuntime.schedule, LegacyEventEmitterCompat.sendEvent, Promise.tryResolve).
+    AsyncFunction("stop") { (promise: Promise) in
+      do {
+        let summary = try self.capture.stop()
+        guard let runtime = try self.appContext?.runtime else {
+          throw captureError("The JavaScript runtime is gone")
+        }
+        // resolve(Any?) takes a plain value; the generic resolve requires a `sending` one.
+        runtime.schedule { promise.resolve(summary as Any?) }
+      } catch {
+        promise.reject(captureError(wrapping: error))
+      }
     }.runOnQueue(capture.sessionQueue)
 
     AsyncFunction("setTorch") { (level: Double) in
-      try self.capture.setTorch(level)
+      do {
+        try self.capture.setTorch(level)
+      } catch {
+        throw captureError(wrapping: error)
+      }
     }.runOnQueue(capture.sessionQueue)
 
     AsyncFunction("lockExposure") { (promise: Promise) in
       self.capture.lockExposure { error in
         if let error {
-          promise.reject(error)
+          promise.reject(captureError(wrapping: error))
         } else {
           promise.resolve()
         }

@@ -113,13 +113,19 @@ struct CaptureCounters {
     return work
   }
 
-  // Median of the intervals that ended in the 1 s before `tNs`, or the nominal interval while fewer than 5 exist.
-  private mutating func referenceIntervalNs(at tNs: Int64) -> Double {
-    recentIntervals.removeAll { $0.endNs <= tNs - Self.medianWindowNs }
+  // Median of the intervals in the 1 s window as of the newest frame, or the nominal interval while fewer than 5
+  // exist. Also sizes the waits inside lockExposure (ADR 0029 Addendum).
+  var medianIntervalNs: Double {
     guard recentIntervals.count >= Self.minIntervalsForMedian else { return nominalIntervalNs }
     let sorted = recentIntervals.map { $0.ns }.sorted()
     let middle = sorted.count / 2
     return sorted.count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
+  }
+
+  // The median as of `tNs`, before that frame's own interval joins the window.
+  private mutating func referenceIntervalNs(at tNs: Int64) -> Double {
+    recentIntervals.removeAll { $0.endNs <= tNs - Self.medianWindowNs }
+    return medianIntervalNs
   }
 
   private mutating func watchOverexposure(red: Double, tNs: Int64) -> Bool {

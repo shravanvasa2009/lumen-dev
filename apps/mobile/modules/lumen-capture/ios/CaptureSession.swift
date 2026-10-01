@@ -11,8 +11,6 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
   static let lensTypes: [AVCaptureDevice.DeviceType] = [
     .builtInWideAngleCamera, .builtInUltraWideCamera, .builtInTelephotoCamera,
   ]
-  // Spec §4.2 step 3: let auto-exposure settle for 1 s before locking.
-  static let settleS = 1.0
   static let maxExposureSteps = 4
   // A custom exposure reaches the output a few frames after it is set; 0.2 s covers that at 30–240 fps.
   static let exposureLatencyS = 0.2
@@ -386,8 +384,9 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     }
     locking = true
     let steering = Steering(device: device, generation: generation, steps: 0, completion: completion)
+    // Spec §4.2 step 3 lets auto-exposure settle for 1 s; the Addendum stretches that with slow frame rates.
     let elapsedS = Double(clockNowNs() - startedNs) / 1e9
-    measureRed(steering, after: max(Self.settleS - elapsedS, Self.exposureLatencyS))
+    measureRed(steering, after: max(lockWait() - elapsedS, Self.exposureLatencyS))
   }
 
   private struct Steering {
@@ -399,12 +398,16 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
   }
 
   // Reads the red mean once `delayS` has passed and at least 3 new frames have arrived, so the reading reflects the
-  // latest exposure change; gives up after a further 1 s without frames.
+  // latest exposure change; gives up after a further lockWait() without frames.
   private func measureRed(_ steering: Steering, after delayS: Double) {
     let framesBefore = frameQueue.sync { counters.frames }
     sessionQueue.asyncAfter(deadline: .now() + delayS) {
-      self.pollRed(steering, framesBefore: framesBefore, deadline: Date().addingTimeInterval(1))
+      self.pollRed(steering, framesBefore: framesBefore, deadline: Date().addingTimeInterval(self.lockWait()))
     }
+  }
+
+  private func lockWait() -> Double {
+    lockWaitS(medianIntervalNs: frameQueue.sync { counters.medianIntervalNs })
   }
 
   private func pollRed(_ steering: Steering, framesBefore: Int, deadline: Date) {
@@ -618,6 +621,18 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
   }
 }
 
+// ADR 0029 Addendum: every rejection carries the single code ERR_LUMEN_CAPTURE with a plain message.
+let captureErrorCode = "ERR_LUMEN_CAPTURE"
+
 func captureError(_ description: String) -> Exception {
-  Exception(name: "LumenCaptureError", description: description, code: "ERR_LUMEN_CAPTURE")
+  Exception(name: "LumenCaptureError", description: description, code: captureErrorCode)
+}
+
+// System errors (for example from lockForConfiguration or AVCaptureDeviceInput) keep their message but take the
+// Lumen code, since Expo would otherwise report them under its own code.
+func captureError(wrapping error: Error) -> Exception {
+  if let exception = error as? Exception, exception.code == captureErrorCode {
+    return exception
+  }
+  return captureError(error.localizedDescription)
 }

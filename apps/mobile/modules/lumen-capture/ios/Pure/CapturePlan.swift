@@ -65,3 +65,9 @@ func planExposure(from current: ExposureSetting, factor: Double, limits: Exposur
   let iso = min(max(total / duration, limits.minISO), limits.maxISO)
   return ExposureSetting(durationS: duration, iso: iso)
 }
+
+// ADR 0029 Addendum, same as Kotlin: waits inside lockExposure() scale with the measured frame rate, 10 frame
+// intervals clamped to 1–3 s. Below about 10 fps a reading fails CAP-1 anyway, so timing out there is honest.
+func lockWaitS(medianIntervalNs: Double) -> Double {
+  min(max(10 * medianIntervalNs / 1e9, 1), 3)
+}

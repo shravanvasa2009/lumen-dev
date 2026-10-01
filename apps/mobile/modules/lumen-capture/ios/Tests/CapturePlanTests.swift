@@ -81,4 +81,12 @@ final class CapturePlanTests: XCTestCase {
     XCTAssertEqual(ceiling.durationS, 1.0 / 60, accuracy: 1e-12)
     XCTAssertEqual(ceiling.iso, 3000, accuracy: 1e-9)
   }
+
+  // ADR 0029 Addendum: waits inside lockExposure are clamp(10 × median frame interval, 1 s, 3 s), as on Kotlin.
+  func testLockWaitScalesWithTheFrameIntervalWithin1To3Seconds() {
+    XCTAssertEqual(lockWaitS(medianIntervalNs: 1e9 / 240), 1)
+    XCTAssertEqual(lockWaitS(medianIntervalNs: 1e9 / 30), 1)
+    XCTAssertEqual(lockWaitS(medianIntervalNs: 1e9 / 5), 2, accuracy: 1e-12)
+    XCTAssertEqual(lockWaitS(medianIntervalNs: 1e9), 3)
+  }
 }

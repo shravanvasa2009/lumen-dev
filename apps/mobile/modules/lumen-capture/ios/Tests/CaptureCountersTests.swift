@@ -73,6 +73,15 @@ final class CaptureCountersTests: XCTestCase {
     XCTAssertEqual(counters.dropped, 5 + 119)
   }
 
+  func testMedianIntervalIsNominalUntilFiveIntervalsThenMeasured() {
+    var counters = CaptureCounters(nominalIntervalNs: interval60)
+    XCTAssertEqual(counters.medianIntervalNs, interval60)
+    for index in 0..<5 { add(&counters, at: ns(index, fps: 30)) }
+    XCTAssertEqual(counters.medianIntervalNs, interval60)
+    add(&counters, at: ns(5, fps: 30))
+    XCTAssertEqual(counters.medianIntervalNs, 1e9 / 30, accuracy: 1)
+  }
+
   func testFpsCountsFramesInTheLastSecondAndFallsToZeroWhenFramesStop() {
     var counters = CaptureCounters(nominalIntervalNs: 1e9 / 30)
     for index in 0..<60 { add(&counters, at: ns(index, fps: 30)) }

@@ -51,6 +51,30 @@
     "savgolOrder": 3,
     "minFps": 60
   },
+  "dsp10": {
+    "minCleanS": 30
+  },
+  "dsp11": {
+    "minCleanS": 15
+  },
+  "dsp12": {
+    "minFps": 60,
+    "neighbours": 5,
+    "maxNeighbourDeviation": 0.2,
+    "pnnThresholdS": 0.05,
+    "rmssdMinCleanS": 60,
+    "rmssdMinIntervals": 50,
+    "sdnnMinCleanS": 300
+  },
+  "dsp13": {
+    "seriesRateHz": 4,
+    "welchSegmentSamples": 128,
+    "welchOverlapSamples": 64,
+    "welchFftSamples": 512,
+    "bandHz": [0.1, 0.5],
+    "maxSpreadBrpm": 4,
+    "minCleanS": 60
+  },
   "dsp15": {
     "windowIntervals": 32,
     "windowStep": 16,

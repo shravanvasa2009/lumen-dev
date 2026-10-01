@@ -1,11 +1,12 @@
 export type { CaptureStatus, FrameStat, Sample, SampleBatch } from './capture';
 export type {
-  AnalyzeReading,
   BeatClass,
   ClassifiedBeat,
   CoachingKey,
   LiveSession,
   RejectedSpan,
+  RejectionReason,
+  SqiWindow,
 } from './live-session';
 export type {
   Confidence,

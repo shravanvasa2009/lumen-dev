@@ -2,8 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "esModuleInterop": true,
-    "types": ["jest"]
+    "types": []
   },
-  "include": ["src", "test"]
+  "include": ["src"]
 }

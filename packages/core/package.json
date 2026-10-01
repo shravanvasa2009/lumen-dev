@@ -6,14 +6,21 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "test": "tsc --noEmit -p . && jest"
+    "test": "tsc --noEmit -p . && tsc --noEmit -p test && jest"
   },
   "jest": {
-    "preset": "ts-jest",
     "testEnvironment": "node",
     "roots": [
       "<rootDir>/test"
-    ]
+    ],
+    "transform": {
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": "<rootDir>/test/tsconfig.json"
+        }
+      ]
+    }
   },
   "devDependencies": {
     "@types/jest": "29.5.14",

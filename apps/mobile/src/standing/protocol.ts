@@ -23,7 +23,7 @@ export type TestState = {
 
 type StandingReading = { minute: ReadingSlot['minute']; bpm: number | null };
 
-type ChartPoint = { minute: number; bpm: number };
+export type ChartPoint = { minute: number; bpm: number };
 
 export type TestView = {
   stage: Stage;

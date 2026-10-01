@@ -1,5 +1,6 @@
 import {
   analyzeReading,
+  cleanSeconds,
   createLiveSession,
   DSP_CONFIG,
   type CaptureStatus,
@@ -184,6 +185,37 @@ describe('LiveSession rejected spans and clean seconds', () => {
     expect(Math.abs(span!.endS - 23)).toBeLessThanOrEqual(0.1);
   });
 
+  it('never shows clean seconds going down: after a late SQI rejection the count pauses, then catches up', () => {
+    // True clean seconds, from the spans: what analyzeReading and the result use.
+    const trueClean = (live: LiveSession) => {
+      const { tS } = live.recentWaveform;
+      return cleanSeconds(0, tS.at(-1)!, live.rejectedSpans);
+    };
+    const shown: { tS: number; exposed: number; truth: number }[] = [];
+    let rejected = false;
+    play(frames({ seconds: 30 }), {
+      onBatch: (live, tS) => {
+        if (!rejected && tS >= 20) {
+          const before = live.cleanSeconds;
+          live.setSqi(20, 0.1); // rejects 16–20 s, after those seconds were already counted
+          expect(trueClean(live)).toBeCloseTo(before - 4, 9);
+          expect(live.cleanSeconds).toBe(before);
+          rejected = true;
+        }
+        shown.push({ tS, exposed: live.cleanSeconds, truth: trueClean(live) });
+      },
+    });
+    shown.slice(1).forEach((entry, i) => expect(entry.exposed).toBeGreaterThanOrEqual(shown[i]!.exposed));
+    // Never below the true value either.
+    shown.forEach((entry) => expect(entry.exposed).toBeGreaterThanOrEqual(entry.truth));
+    const at = (tS: number) =>
+      shown.reduce((best, entry) => (Math.abs(entry.tS - tS) < Math.abs(best.tS - tS) ? entry : best));
+    // Paused from 20 s until the true count reaches it again, about 4 s later.
+    expect(at(22).exposed).toBe(at(20.1).exposed);
+    expect(at(28).exposed).toBeCloseTo(at(28).truth, 9);
+    expect(shown.at(-1)!.exposed).toBeCloseTo(30 - 1 / 60 - 4, 9);
+  });
+
   it('SQI: a score under the threshold rejects its 4 s window; none before the first score', () => {
     let scored = false;
     const { session } = play(frames({ seconds: 30 }), {
@@ -343,7 +375,11 @@ describe('live and replay paths agree', () => {
       expect(span.startS).toBeCloseTo(live.startS, 9);
       expect(span.endS).toBeCloseTo(live.endS, 9);
     });
-    expect(analysis.cleanSeconds).toBeCloseTo(session.cleanSeconds, 9);
+    // The true count (from the spans), which the displayed count equals once it has caught up.
+    const lastS = (capture.samples.at(-1)!.tNs - CLOCK_START_NS) / 1e9;
+    const trueClean = cleanSeconds(0, lastS, session.rejectedSpans);
+    expect(analysis.cleanSeconds).toBeCloseTo(trueClean, 9);
+    expect(session.cleanSeconds).toBeCloseTo(trueClean, 9);
   });
 
   it('a capture read back from Appendix B CSV text gives the identical analysis', () => {

@@ -9,6 +9,12 @@ from datasets import paths
 Use = Literal["train", "dev", "external", "validation"]
 Method = Literal["physionet", "url"]
 
+PHYSIONET_ORG = "https://physionet.org/files"
+# PhysioNet's open-data mirror on AWS, listed on each project page as
+# "aws s3 sync --no-sign-request s3://physionet-open/<slug>/<version>/". It served about 11.7 MB/s against
+# about 56 KB/s from physionet.org on 2026-09-30; the owner approved using it the same day.
+PHYSIONET_MIRROR = "https://physionet-open.s3.amazonaws.com"
+
 # Keys become folder names, so they must not contain separators or "..".
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
@@ -36,6 +42,8 @@ class Dataset:
     citation: str
     physionet_slug: str | None = None
     physionet_version: str | None = None
+    # Not every project is mirrored (bidmc is missing from the AWS bucket), so the host is per dataset.
+    physionet_base: str = PHYSIONET_MIRROR
     files: tuple[RemoteFile, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
@@ -61,7 +69,6 @@ class Dataset:
         return parent / self.key
 
 
-PHYSIONET = "https://physionet.org/files"
 ZENODO_MIMIC_PERFORM = "https://zenodo.org/records/15906524/files"
 ODC_BY = "Open Data Commons Attribution License v1.0"
 ODBL = "Open Database License (ODC-ODbL) v1.0"
@@ -120,8 +127,8 @@ DATASETS: tuple[Dataset, ...] = (
         use="train",
         method="url",
         files=(
-            RemoteFile(url=f"{PHYSIONET}/challenge-2017/1.0.0/training2017.zip", size=99226822),
-            RemoteFile(url=f"{PHYSIONET}/challenge-2017/1.0.0/REFERENCE-v3.csv", size=76752),
+            RemoteFile(url=f"{PHYSIONET_MIRROR}/challenge-2017/1.0.0/training2017.zip", size=99226822),
+            RemoteFile(url=f"{PHYSIONET_MIRROR}/challenge-2017/1.0.0/REFERENCE-v3.csv", size=76752),
         ),
         license=ODC_BY,
         citation="Clifford GD et al. CinC 2017. doi:10.22489/CinC.2017.065-469",
@@ -133,6 +140,7 @@ DATASETS: tuple[Dataset, ...] = (
         method="physionet",
         physionet_slug="bidmc",
         physionet_version="1.0.0",
+        physionet_base=PHYSIONET_ORG,
         license=ODC_BY,
         citation="Pimentel MAF et al. IEEE TBME 64(8):1914-1923 (2016). doi:10.13026/C2208R",
     ),
@@ -153,21 +161,21 @@ DATASETS: tuple[Dataset, ...] = (
         method="url",
         files=(
             RemoteFile(
-                url=f"{PHYSIONET}/vitaldb/1.0.0/clinical_data.csv",
+                url=f"{PHYSIONET_MIRROR}/vitaldb/1.0.0/clinical_data.csv",
                 sha256="7d6edb471e5eee3fde75e417084240c97bdbf6eff41cbd61e5dace44f1585ecf",
                 size=2199588,
             ),
             RemoteFile(
-                url=f"{PHYSIONET}/vitaldb/1.0.0/clinical_parameters.csv",
+                url=f"{PHYSIONET_MIRROR}/vitaldb/1.0.0/clinical_parameters.csv",
                 sha256="3fd13678a26629df5f1352c2a3fa2951e731d3760b8fa47c06c9ac3fbcef2e35",
                 size=3258,
             ),
             RemoteFile(
-                url=f"{PHYSIONET}/vitaldb/1.0.0/track_names.csv",
+                url=f"{PHYSIONET_MIRROR}/vitaldb/1.0.0/track_names.csv",
                 sha256="31c431642f91153461724375c05309d251ea63f206f3aeaed782ea4b9817400c",
                 size=10440,
             ),
-            RemoteFile(url=f"{PHYSIONET}/vitaldb/1.0.0/SHA256SUMS.txt", size=562636),
+            RemoteFile(url=f"{PHYSIONET_MIRROR}/vitaldb/1.0.0/SHA256SUMS.txt", size=562636),
         ),
         license="Creative Commons Attribution 4.0 International",
         citation="Lee H-C, Jung C-W. VitalDB (version 1.0.0). PhysioNet (2022). doi:10.13026/czw8-9p62",

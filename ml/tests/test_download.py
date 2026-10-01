@@ -163,7 +163,7 @@ def test_changed_registry_entry_downloads_again(data_dir):
     assert len(renamed.requests) == 1
 
 
-SUMS_URL = "https://physionet.org/files/afdb/1.0.0/SHA256SUMS.txt"
+SUMS_URL = "https://physionet-open.s3.amazonaws.com/afdb/1.0.0/SHA256SUMS.txt"
 HEADER = b"record header"
 SIGNAL = b"signal samples" * 50
 
@@ -172,8 +172,8 @@ def physionet_server(sums: str) -> FakeServer:
     return FakeServer(
         {
             SUMS_URL: sums.encode(),
-            "https://physionet.org/files/afdb/1.0.0/04015.hea": HEADER,
-            "https://physionet.org/files/afdb/1.0.0/sub/04015.dat": SIGNAL,
+            "https://physionet-open.s3.amazonaws.com/afdb/1.0.0/04015.hea": HEADER,
+            "https://physionet-open.s3.amazonaws.com/afdb/1.0.0/sub/04015.dat": SIGNAL,
         }
     )
 

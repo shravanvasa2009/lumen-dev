@@ -12,7 +12,6 @@ from datasets import registry
 from datasets.registry import Dataset, RemoteFile
 
 MARKER_NAME = ".lumen-download.json"
-PHYSIONET_FILES = "https://physionet.org/files"
 CHUNK_BYTES = 1 << 20
 # (connect, read) seconds; read is per chunk, not per file.
 TIMEOUT_SECONDS = (10, 60)
@@ -39,6 +38,7 @@ def fingerprint(dataset: Dataset) -> dict:
         "method": dataset.method,
         "physionet_slug": dataset.physionet_slug,
         "physionet_version": dataset.physionet_version,
+        "physionet_base": dataset.physionet_base,
         "files": [
             {"url": remote.url, "name": remote.name, "sha256": remote.sha256, "size": remote.size}
             for remote in dataset.files
@@ -112,7 +112,7 @@ def stream_file(remote: RemoteFile, target: Path, session: requests.Session) -> 
 # list fetches label CSVs that wfdb.dl_database skips, pins the release through the versioned URL, and
 # lets every file be checked by sha256 rather than size alone.
 def physionet_listing(dataset: Dataset, session: requests.Session) -> list[RemoteFile]:
-    base = f"{PHYSIONET_FILES}/{dataset.physionet_slug}/{dataset.physionet_version}"
+    base = f"{dataset.physionet_base}/{dataset.physionet_slug}/{dataset.physionet_version}"
     with session.get(f"{base}/SHA256SUMS.txt", timeout=TIMEOUT_SECONDS) as response:
         response.raise_for_status()
         listing = b"".join(response.iter_content(chunk_size=CHUNK_BYTES)).decode("utf-8")

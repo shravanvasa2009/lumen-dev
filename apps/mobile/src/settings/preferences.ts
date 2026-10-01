@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-export type Appearance = 'system' | 'light' | 'dark';
+type Appearance = 'system' | 'light' | 'dark';
 
 type Preferences = {
   appearance: Appearance;

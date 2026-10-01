@@ -21,8 +21,15 @@ const HYPE = [
   'significantly',
   'various',
 ];
+const BODY_LINE_LIMIT = 100;
+// Same exemption as commitlint's max-line-length: a line containing a URL may run long.
+const URL_IN_LINE = /\bhttps?:\/\/\S+/;
 
-export function commitMessageProblems(message) {
+// Git appends the diff below this line when committing with --verbose; commitlint stops reading here.
+const SCISSORS_LINE = /^# -{24} >8 -{24}\r?$/m;
+
+export function commitMessageProblems(fullMessage) {
+  const message = fullMessage.split(SCISSORS_LINE)[0];
   const subject = message.split(/\r?\n/)[0].trim();
   const problems = [];
   if (!new RegExp(`^(${TYPES})(\\([a-z0-9-]+\\))?: \\S`).test(subject))
@@ -32,6 +39,12 @@ export function commitMessageProblems(message) {
   if (subject.length > 72) problems.push(`subject is ${subject.length} characters; the limit is 72`);
   if (!TAG.test(subject))
     problems.push('subject must cite a requirement tag such as [DSP-7], [M0], or [BOOT]');
+  const longLines = message
+    .split(/\r?\n/)
+    .slice(1)
+    .filter((line) => !line.startsWith('#') && line.length > BODY_LINE_LIMIT && !URL_IN_LINE.test(line));
+  if (longLines.length)
+    problems.push(`${longLines.length} body line(s) over ${BODY_LINE_LIMIT} characters; wrap them`);
   const hype = HYPE.filter((word) => new RegExp(`\\b${word}\\b`, 'i').test(message));
   if (hype.length) problems.push(`remove hype words: ${hype.join(', ')}`);
   return problems;

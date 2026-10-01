@@ -1,5 +1,5 @@
+// One frame; r, g, b are means over the finger region, 0..1.
 export interface Sample {
-  // one frame; r, g, b are means over the finger region, 0..1
   tNs: number;
   r: number;
   g: number;
@@ -11,17 +11,19 @@ export interface FrameStat {
   clipFrac: number;
   exposureNs: number; // exposure duration of this frame
 }
+// Emitted every 100 ms.
 export interface SampleBatch {
   samples: Sample[];
   stats: FrameStat[];
-} // every 100 ms
+}
 
+// Emitted at 4 Hz.
 export interface CaptureStatus {
   fingerCovered: boolean;
   motionRms: number;
   thermal: 'nominal' | 'fair' | 'serious' | 'critical';
   fps: number;
-  droppedFrac: number; // emitted at 4 Hz
+  droppedFrac: number;
 }
 export interface LensInfo {
   id: string;

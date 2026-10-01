@@ -164,6 +164,12 @@ def test_trained_release_fills_metrics_and_lists_baselines(trained):
     assert entries["rhythm-lgbm"]["inputs"] == {"features": [1, 8]}
 
 
+def test_entries_carry_the_development_metrics_verbatim(trained):
+    models_dir, runs_dir = trained
+    entries = _manifest(models_dir, runs_dir)
+    assert entries["rhythm-lgbm"]["development"] == RHYTHM_EXTRAS["development"]
+
+
 def test_every_entry_names_its_family_role_and_whether_it_ships(trained):
     models_dir, runs_dir = trained
     entries = _manifest(models_dir, runs_dir)

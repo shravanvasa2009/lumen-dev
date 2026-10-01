@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const TYPES = 'feat|fix|docs|test|refactor|perf|build|ci|chore|revert';
-const TAG = /\[(CAP|DSP|RESP|ML|VER|EVID|UI|UX|COMP|PRIV|SAFE|SCOPE|REL)-[A-Z0-9]+\]|\[M[0-6]\]|\[BOOT\]/;
+// Prefixes are the requirement IDs in spec §18; milestones are M0–M6 plus M4d.
+const TAG =
+  /\[(CAP|DSP|RESP|ML|VER|EVID|UI|UX|COMP|PRIV|SAFE|SCOPE|REL|BRAND|WID|NOTIF|LIVE)-[A-Z0-9]+\]|\[M([0-6]|4d)\]|\[BOOT\]/;
 const HYPE = [
   'comprehensive',
   'robust',

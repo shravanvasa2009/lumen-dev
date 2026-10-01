@@ -60,6 +60,21 @@ export function classifyBeats(
     beat.maxUpslope < upslopeFloor ? 'not-a-beat' : 'normal',
   );
 
+  // Dicrotic rule (H-016): a smaller candidate soon after the previous beat whose foot never returned
+  // to baseline rides on that beat's falling side. The previous beat is the last one not removed.
+  let priorBeat: number | null = null;
+  beats.forEach((beat, i) => {
+    if (classes[i] === 'not-a-beat') return;
+    const prior = priorBeat === null ? null : beats[priorBeat]!;
+    const ridesOnPrior =
+      prior !== null &&
+      beat.peakS - prior.peakS <= config.dicroticWindowS &&
+      beat.footValue > prior.footValue + config.dicroticFootRise * prior.amplitude &&
+      beat.amplitude < prior.amplitude;
+    if (ridesOnPrior) classes[i] = 'not-a-beat';
+    else priorBeat = i;
+  });
+
   // Intervals run between consecutive beats that are not "not a beat"; the first beat has none.
   const previousBeat: (number | null)[] = [];
   let lastBeat: number | null = null;
@@ -84,6 +99,20 @@ export function classifyBeats(
     return shape.values.slice(peak - beforePeak, peak + afterPeak + 1);
   };
 
+  // "Early" (H-016): the interval to the previous beat is short against the median of up to `neighbours`
+  // intervals on each side, all between consecutive beats that are not "not a beat".
+  const kept = beats.flatMap((_, i) => (classes[i] !== 'not-a-beat' ? [i] : []));
+  const keptIntervals = kept.map((i, q) => (q === 0 ? null : beats[i]!.peakS - beats[kept[q - 1]!]!.peakS));
+  const earlyBeats = new Set<number>();
+  kept.forEach((i, q) => {
+    const ownS = keptIntervals[q];
+    if (ownS == null) return;
+    const others = neighboursOf(keptIntervals, q, config.neighbours).filter(
+      (intervalS) => intervalS !== null,
+    );
+    if (ownS < config.earlyIntervalRatio * median(others)) earlyBeats.add(i);
+  });
+
   const candidates = beats.flatMap((_, i) => (classes[i] === 'normal' ? [i] : []));
   const windows = candidates.map((i) => windowOf(beats[i]!));
   // Before any normal beat exists, the template is the pointwise median of the first windows, so one
@@ -104,7 +133,10 @@ export function classifyBeats(
     // A missing reference or window is no evidence either way.
     const oddSize = Number.isFinite(ratio) && (ratio < smallest || ratio > largest);
     const oddShape = similarity !== null && similarity < config.templateCorrelationMin;
-    if (oddSize || oddShape) classes[i] = 'atypical';
+    // Kept as atypical, never removed: the interval only decides together with a small amplitude.
+    const earlyAndSmall =
+      earlyBeats.has(i) && Number.isFinite(ratio) && ratio < config.earlySmallAmplitudeRatio;
+    if (oddSize || oddShape || earlyAndSmall) classes[i] = 'atypical';
     else if (window) normalWindows.push(window);
   });
 

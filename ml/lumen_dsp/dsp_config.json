@@ -28,7 +28,7 @@
     "minimumSearchS": 0.4
   },
   "dsp9": {
-    "notABeatUpslopeRatio": 0.3,
+    "notABeatUpslopeRatio": 0.15,
     "intervalRangeS": [0.25, 2.5],
     "templateCorrelationMin": 0.85,
     "amplitudeRatioRange": [0.5, 2.0],
@@ -36,7 +36,11 @@
     "longPauseRatio": 1.6,
     "templateBeforePeakS": 0.2,
     "templateAfterPeakS": 0.1,
-    "neighbours": 5
+    "neighbours": 5,
+    "earlyIntervalRatio": 0.85,
+    "earlySmallAmplitudeRatio": 1.0,
+    "dicroticWindowS": 0.5,
+    "dicroticFootRise": 0.2
   },
   "dsp15": {
     "windowIntervals": 32,

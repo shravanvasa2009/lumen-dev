@@ -16,6 +16,7 @@ import {
   withPrematureBeats,
   type SyntheticBeat,
 } from './synthetic';
+import { pulseOf, runoff } from './synthetic-suite/frames';
 
 const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
 const RR_S = 60 / 72;
@@ -54,12 +55,13 @@ describe('DSP-9 not a beat', () => {
   const sortedUpslopes = detected.map((beat) => beat.maxUpslope).sort((x, y) => x - y);
   const medianUpslope = sortedUpslopes[sortedUpslopes.length >> 1]!;
 
-  it('marks a candidate whose maximum upslope is under 30% of the median; 30% itself is kept', () => {
+  // Owner decision H-016: the floor is 15% of the median (the spec's 30% removed small premature beats).
+  it('marks a candidate whose maximum upslope is under 15% of the median; 15% itself is kept', () => {
     const edited = detected.map((beat, k) =>
       k === 10
-        ? { ...beat, maxUpslope: 0.29 * medianUpslope }
+        ? { ...beat, maxUpslope: 0.14 * medianUpslope }
         : k === 20
-          ? { ...beat, maxUpslope: 0.3 * medianUpslope }
+          ? { ...beat, maxUpslope: 0.15 * medianUpslope }
           : beat,
     );
     const classified = classifyBeats(edited, shape, []);
@@ -208,5 +210,90 @@ describe('DSP-9 normal and long pause', () => {
   it('reports onsets from DSP-8 with each class', () => {
     const classified = classify(regularBeats(1, 29, 72), 30);
     for (const beat of classified) expect(beat.peakS - beat.onsetS!).toBeGreaterThan(0.05);
+  });
+});
+
+// Owner decision H-016 (ADR 0025): a candidate within 0.5 s after the previous beat whose foot stays above
+// that beat's foot + 0.2 × its amplitude, and which is smaller than it, rides on the previous beat's
+// falling side without returning to baseline: a dicrotic wave, not a beat.
+describe('DSP-9 dicrotic rule', () => {
+  const beats = regularBeats(1, 29, 72);
+  const { model, shape } = morphologyPair(beats, 0.3, 30);
+  const detected = detectBeats(model, shape);
+  const previous = detected[10]!;
+
+  function withCandidate(afterS: number, footRise: number, amplitudeRatio: number): ClassifiedBeat {
+    const candidate: DetectedBeat = {
+      ...previous,
+      peakS: previous.peakS + afterS,
+      onsetS: previous.peakS + afterS - 0.1,
+      footValue: previous.footValue + footRise * previous.amplitude,
+      amplitude: amplitudeRatio * previous.amplitude,
+    };
+    return classifyBeats([...detected.slice(0, 11), candidate, ...detected.slice(11)], shape, [])[11]!;
+  }
+
+  it('removes a smaller candidate 0.3 s after a beat whose foot stays high', () => {
+    expect(withCandidate(0.3, 0.3, 0.5).beatClass).toBe('not-a-beat');
+  });
+
+  it('never removes a premature beat whose foot returns to baseline', () => {
+    expect(withCandidate(0.4, 0.1, 0.5).beatClass).toBe('atypical');
+  });
+
+  it('keeps a candidate more than 0.5 s after the previous beat', () => {
+    expect(withCandidate(0.55, 0.3, 0.5).beatClass).not.toBe('not-a-beat');
+  });
+
+  it('keeps a candidate that is not smaller than the previous beat', () => {
+    expect(withCandidate(0.3, 0.3, 1.05).beatClass).not.toBe('not-a-beat');
+  });
+
+  it('removes every dicrotic double detection of a runoff-and-hump pulse and keeps every beat', () => {
+    const truth = regularBeats(1, 29, 66);
+    const pulse = pulseOf(truth, runoff(0.3, 0.6, 0.3, 0.06));
+    const wave = (rateHz: number) => Array.from({ length: 30 * rateHz }, (_, k) => pulse(k / rateHz));
+    const hump = morphologySegment(wave(shapeRateHz), shapeRateHz);
+    const humpBeats = detectBeats(morphologySegment(wave(modelRateHz), modelRateHz), hump);
+    const classified = classifyBeats(humpBeats, hump, []);
+    const extras = classified.filter((beat) =>
+      truth.every(({ peakS }) => Math.abs(beat.peakS - peakS) > 0.1),
+    );
+    expect(extras.length).toBeGreaterThan(20);
+    expect(extras.every((beat) => beat.beatClass === 'not-a-beat')).toBe(true);
+    for (const { peakS } of truth) expect(nearest(classified, peakS).beatClass).toBe('normal');
+  });
+
+  it('keeps every premature beat of bigeminy (0.5 × amplitude at 0.6 RR) as atypical', () => {
+    const premature = Array.from({ length: 16 }, (_, k) => 2 * k + 1);
+    const truth = withPrematureBeats(60 / 75, 30, premature, 0.5, 0.6);
+    const classified = classify(truth, 30);
+    expect(classified).toHaveLength(truth.length);
+    truth.forEach(({ peakS, amplitude }) => {
+      if (amplitude < 1) expect(nearest(classified, peakS).beatClass).toBe('atypical');
+    });
+    expect(classesOf(classified)['not-a-beat']).toBeUndefined();
+    expect(classesOf(classified)['artifact']).toBeUndefined();
+  });
+});
+
+// Owner decision H-016 (ADR 0025): a beat both early (interval < 0.85 × the local median interval) and
+// small (amplitude < 1.0 × the running median) is atypical. It is kept; the interval alone never decides.
+describe('DSP-9 early and small', () => {
+  it('marks a premature beat of 0.6 × amplitude at 0.6 RR as atypical, and keeps it', () => {
+    const beats = withPrematureBeats(RR_S, 30, [15], 0.6, 0.6);
+    expect(nearest(classify(beats, 30), beats[15]!.peakS).beatClass).toBe('atypical');
+  });
+
+  it('keeps an early beat that is not small as normal', () => {
+    const beats = withGap(14, 0.8 * RR_S, 30);
+    beats[15]!.amplitude = 1.3;
+    expect(nearest(classify(beats, 30), beats[15]!.peakS).beatClass).toBe('normal');
+  });
+
+  it('keeps a small beat that is not early as normal', () => {
+    const beats = regularBeats(1, 29, 72);
+    beats[15]!.amplitude = 0.8;
+    expect(nearest(classify(beats, 30), beats[15]!.peakS).beatClass).toBe('normal');
   });
 });

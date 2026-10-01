@@ -39,8 +39,11 @@ export const DSP_CONFIG = {
     minimumSearchS: 0.4,
   },
   dsp9: {
+    // Not a beat when its maximum upslope < this × the median upslope. Owner decision H-016 (ADR 0025):
+    // 0.15, not the spec's 0.3, which removed small premature beats riding on the previous beat's
+    // falling side; the dicrotic rule below takes over removing dicrotic double detections.
+    notABeatUpslopeRatio: 0.15,
     // Spec values (§10 DSP-9).
-    notABeatUpslopeRatio: 0.3, // not a beat when its maximum upslope < this × the median upslope
     intervalRangeS: [0.25, 2.5], // an interval outside this range makes its ending beat an artifact
     templateCorrelationMin: 0.85, // atypical below this Pearson correlation with the template
     amplitudeRatioRange: [0.5, 2.0], // atypical outside this × the running median amplitude
@@ -54,6 +57,17 @@ export const DSP_CONFIG = {
     // Running median of amplitude, and the long-pause reference: up to this many usable neighbours on
     // each side, excluding the beat (or interval) itself.
     neighbours: 5,
+    // Owner decision H-016 (ADR 0025), proposed for §10 DSP-9. "Early and small" is atypical (kept): an
+    // interval < earlyIntervalRatio × the median of up to `neighbours` intervals on each side (intervals
+    // between consecutive candidates that are not "not a beat") AND an amplitude < earlySmallAmplitudeRatio
+    // × the running median. Same-shape premature beats at 0.5–0.7 × amplitude were otherwise normal.
+    earlyIntervalRatio: 0.85,
+    earlySmallAmplitudeRatio: 1.0,
+    // Dicrotic rule (H-016): not a beat when a candidate comes within dicroticWindowS after the previous
+    // beat, its foot stays above that beat's foot + dicroticFootRise × its amplitude (no return to
+    // baseline), and it is smaller. A premature beat whose foot returns to baseline is never removed.
+    dicroticWindowS: 0.5,
+    dicroticFootRise: 0.2,
   },
   dsp15: {
     // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).

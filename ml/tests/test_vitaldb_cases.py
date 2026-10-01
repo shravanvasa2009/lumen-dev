@@ -132,3 +132,30 @@ def test_holdout_cases_map_by_the_eligible_case_rule():
     assert vitaldb_cases.holdout_caseids(clinical, [10, 20]) == {10: 1, 20: 2}
     with pytest.raises(vitaldb_cases.HoldoutChangedError):
         vitaldb_cases.holdout_caseids(clinical, [30])
+
+
+def test_dev_split_is_by_patient_per_stratum_and_never_holds_holdout_patients():
+    cases = eligible_cases(clinical_table(patients=800))
+    split = lock_holdout(cases)
+    picked = select_dev_cases(cases, split["dev"])
+    document = vitaldb_cases.split_dev(picked)
+    subjects = {int(subject): part for subject, part in document["subjects"].items()}
+    assert set(subjects) == set(picked["subjectid"])
+    assert set(subjects).isdisjoint(split["holdout"])
+    for diabetic in (0, 1):
+        stratum = picked.loc[picked["preop_dm"] == diabetic, "subjectid"]
+        val = sum(subjects[subject] == "dev-val" for subject in stratum)
+        assert val == round(len(stratum) * vitaldb_cases.DEV_VAL_FRACTION)
+
+
+def test_dev_split_is_deterministic_and_round_trips(tmp_path):
+    cases = eligible_cases(clinical_table())
+    picked = select_dev_cases(cases, lock_holdout(cases)["dev"])
+    document = vitaldb_cases.split_dev(picked)
+    assert vitaldb_cases.split_dev(picked.sample(frac=1, random_state=5)) == document
+    split_file = tmp_path / "diabetes-dev.json"
+    with pytest.raises(FileNotFoundError):
+        vitaldb_cases.load_dev_split(split_file)
+    vitaldb_cases.write_or_check_split(document, split_file)
+    loaded = vitaldb_cases.load_dev_split(split_file)
+    assert loaded == {int(subject): part for subject, part in document["subjects"].items()}

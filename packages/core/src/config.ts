@@ -1,0 +1,28 @@
+// Mirror of ml/lumen_dsp/dsp_config.json (§10.2); test/config.test.ts fails on any difference.
+// Values are the spec's initial values, grouped by DSP ID.
+export const DSP_CONFIG = {
+  dsp1: {
+    droppedFrameGapRatio: 1.5, // a gap > this × the median frame interval is a dropped frame
+  },
+  dsp2: {
+    modelRateHz: 64, // models, quality, rhythm
+    shapeRateHz: 256, // onsets, waveform shape
+    maxGapS: 0.15, // never interpolate across a longer gap
+  },
+  dsp3: {
+    dcCutoffHz: 0.3, // DC for the perfusion index keeps only what is below this
+    // The spec gives no order. 2 (zero-phase, so 4 in effect) leaves 6% of the pulse at 36 bpm (0.6 Hz) in
+    // the DC, about 0.06% of DC for a 1% pulse, with less ringing at baseline steps than a higher order.
+    dcOrder: 2,
+  },
+  dsp6: {
+    // Butterworth prototype order N as in scipy butter(N, ...): N = 4 is 8 poles. §10 DSP-6 says
+    // "4th-order" for the HR band; reading that as N = 4 awaits owner confirmation (ADR 0018).
+    hrOrder: 4,
+    // §10 gives no order for this band; Elgendi et al. 2013 (DSP-7 "as published") use a zero-phase
+    // second-order Butterworth 0.5–8 Hz band-pass, as NeuroKit2 does with butter(2, ...) (ADR 0018).
+    morphologyOrder: 2,
+    hrBandHz: [0.6, 3.5],
+    morphologyBandHz: [0.5, 8],
+  },
+};

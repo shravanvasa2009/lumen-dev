@@ -31,4 +31,8 @@ name: Onboarding from welcome to Home
 - tapOn: 'Continue'
 - assertVisible: 'Reminders'
 - tapOn: 'Turn on reminders'
+# Android 13 and later ask for notification permission here; older versions show nothing.
+- tapOn:
+    text: 'Allow'
+    optional: true
 - assertVisible: 'Change mode'

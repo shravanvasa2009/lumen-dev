@@ -12,6 +12,9 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 
 const arcs = () => screen.root.findAll((node) => String(node.type) === 'RNSVGPath');
 
+// Continue opens Reminders, which imports the notification module; it warns outside a development build.
+jest.mock('expo-notifications', () => ({ requestPermissionsAsync: jest.fn() }));
+
 describe('rating gauge', () => {
   it('draws only the track and a dash instead of a number while unrated', () => {
     render(<RatingGauge score={null} />);

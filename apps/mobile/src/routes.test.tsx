@@ -4,6 +4,11 @@ import { StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import tokens from '@/theme/tokens.json';
 
+// Turn on reminders asks the system for notification permission before it leaves the screen.
+jest.mock('expo-notifications', () => ({
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
+}));
+
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -125,7 +130,7 @@ describe('navigation', () => {
     pressThrough(steps);
   }
 
-  it('walks the onboarding chain from welcome to Home', () => {
+  it('walks the onboarding chain from welcome to Home', async () => {
     followButtons('/welcome', [['welcome.getStarted', 'consent.title']]);
     fireEvent.press(screen.getByRole('checkbox', { name: en['consent.understand'] }));
     pressThrough([['common.continue', 'profile.title']]);
@@ -137,8 +142,9 @@ describe('navigation', () => {
       ['common.continue', 'howToSit.title'],
       ['common.continue', 'rating.title'],
       ['common.continue', 'reminders.title'],
-      ['reminders.turnOn', 'tabs.home'],
     ]);
+    fireEvent.press(screen.getByRole('button', { name: en['reminders.turnOn'] }));
+    expect(await screen.findByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
   });
 
   it('walks Home through a measurement to results and the emergency screen', () => {

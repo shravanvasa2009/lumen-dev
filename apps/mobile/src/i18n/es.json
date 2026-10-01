@@ -397,5 +397,8 @@
   "practice.pending": "La práctica con la cámara aún no está conectada en esta versión, así que puedes continuar sin ella.",
   "howToSit.labelPhone": "teléfono a la altura del pecho",
   "howToSit.labelElbow": "codo sobre la mesa",
-  "rating.pending": "Tu calificación se fija cuando la práctica mide qué tan bien el flash llega a tu dedo."
+  "rating.pending": "Tu calificación se fija cuando la práctica mide qué tan bien el flash llega a tu dedo.",
+  "reminders.earlier": "Una hora antes, {{time}}",
+  "reminders.later": "Una hora después, {{time}}",
+  "reminders.timeSelected": "Hora del recordatorio, {{time}}"
 }

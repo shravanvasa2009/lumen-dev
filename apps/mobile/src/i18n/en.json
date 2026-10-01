@@ -397,5 +397,8 @@
   "practice.pending": "Camera practice isn't connected in this build yet, so you can continue without it.",
   "howToSit.labelPhone": "phone at chest height",
   "howToSit.labelElbow": "elbow on the table",
-  "rating.pending": "Your rating is set once practice measures how well your flash reaches your finger."
+  "rating.pending": "Your rating is set once practice measures how well your flash reaches your finger.",
+  "reminders.earlier": "One hour earlier, {{time}}",
+  "reminders.later": "One hour later, {{time}}",
+  "reminders.timeSelected": "Reminder time, {{time}}"
 }

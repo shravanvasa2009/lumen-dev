@@ -38,7 +38,8 @@ export function subjectBootstrap(rows) {
   if (rows.length === 0) return { value: null, ci95: null };
   const bySubject = new Map();
   for (const row of rows) bySubject.set(row.subject, [...(bySubject.get(row.subject) ?? []), row.value]);
-  const subjectMeans = [...bySubject.values()].map(mean);
+  // Subjects in code order, so the seeded draws give the same CI whatever order the folders were read in.
+  const subjectMeans = [...bySubject.keys()].sort().map((subject) => mean(bySubject.get(subject)));
   if (subjectMeans.length < 2) return { value: subjectMeans[0], ci95: null };
   const random = mulberry32(BOOTSTRAP_SEED);
   const estimates = [];

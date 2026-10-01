@@ -8,9 +8,10 @@ import { fileURLToPath } from 'node:url';
 
 import { alignIntervals } from './eval-replay/align.mjs';
 import { readCaptures } from './eval-replay/captures.mjs';
+import { buildEvidence, decidePasses } from './eval-replay/evidence.mjs';
 import { computeMetrics } from './eval-replay/metrics.mjs';
 import { compareMetrics } from './eval-replay/recompute.mjs';
-import { mean, rmssd, subjectBootstrap } from './eval-replay/stats.mjs';
+import { mean, median, rmssd, subjectBootstrap } from './eval-replay/stats.mjs';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'eval-replay.mjs');
 
@@ -208,7 +209,7 @@ test('metrics follow Appendix B and ADR 0037', () => {
   assert.equal(metrics.hr.people, 3);
   assert.equal(metrics.hr.maeBpm, round2((3 + 1 + 3) / 3));
   assert.equal(metrics.intervals.maeMs, 10);
-  assert.deepEqual(metrics.rmssd, { withinPct: 100, people: 2 });
+  assert.deepEqual(metrics.rmssd, { withinPct: 100, medianErrorPct: 5, people: 2 });
   assert.deepEqual(metrics.resp, { maeBrpm: 1.5, people: 1 });
   assert.deepEqual(metrics.ml5, { sinusReadings: 4, falseIrregular: 1 });
   assert.deepEqual(metrics.ux1, { firstReadings: 3, conclusive: 2 });
@@ -301,7 +302,7 @@ const metricsFixture = () => ({
   polarPairedCaptures: 30,
   hr: { maeBpm: 2.41, ci95: [1.9, 2.95], people: 10, readings: 30, phones: 1 },
   intervals: { maeMs: 14.2, ci95: [11.1, 17.6] },
-  rmssd: { withinPct: 80, people: 10 },
+  rmssd: { withinPct: 80, medianErrorPct: 6.5, people: 10 },
   resp: { maeBrpm: null, people: 0 },
   artifactCaptures: { total: 5, rejectedOrInconclusive: 5 },
   ux1: { firstReadings: 10, conclusive: 9 },
@@ -346,7 +347,7 @@ test('VER-1: counts must be equal integers, and nulls must be on both sides', ()
   );
   assert.deepEqual(
     differencesWith((m) => (m.hr.maeBpm = '2.41')),
-    ['hr.maeBpm: 2.41 vs "2.41"'],
+    ['hr.maeBpm: 2.41 vs "2.41"', 'passed.hr: true vs false'],
   );
   assert.deepEqual(
     differencesWith((m) => {
@@ -397,4 +398,131 @@ test('VER-1: the CLI records the recompute and fails on a mismatch or bad input'
   assert.equal(JSON.parse(fs.readFileSync(out, 'utf8')).recompute.matches, false);
   fs.writeFileSync(independent, '{}');
   assert.match(run('--recompute', independent, '--agent', 'a').stderr, /no perTier list/);
+});
+
+test('the median RMSSD error is the middle reading, or the mean of the two middle ones', () => {
+  assert.equal(median([12, 3, 7]), 7);
+  assert.equal(median([4, 1, 9, 2]), 3);
+});
+
+const passesWith = (change) => {
+  const metrics = metricsFixture();
+  change(metrics);
+  return decidePasses(metrics);
+};
+
+test('ADR 0044: DSP-A passes at 3 bpm or less with at least 10 people', () => {
+  assert.equal(decidePasses(metricsFixture()).hr, true);
+  assert.equal(passesWith((m) => (m.hr.maeBpm = 3)).hr, true);
+  assert.equal(passesWith((m) => (m.hr.maeBpm = 3.01)).hr, false);
+  assert.equal(passesWith((m) => (m.hr.people = 9)).hr, false);
+  assert.equal(passesWith((m) => (m.hr.maeBpm = null)).hr, false);
+  assert.equal(passesWith((m) => (m.hr.ci95 = null)).hr, false);
+});
+
+test('ADR 0044: DSP-B needs interval MAE ≤ 25 ms, median RMSSD error ≤ 10% and 10 people', () => {
+  assert.equal(decidePasses(metricsFixture()).hrv, true);
+  assert.equal(passesWith((m) => (m.intervals.maeMs = 25)).hrv, true);
+  assert.equal(passesWith((m) => (m.intervals.maeMs = 25.01)).hrv, false);
+  assert.equal(passesWith((m) => (m.rmssd.medianErrorPct = 10)).hrv, true);
+  assert.equal(passesWith((m) => (m.rmssd.medianErrorPct = 10.01)).hrv, false);
+  assert.equal(passesWith((m) => (m.rmssd.medianErrorPct = null)).hrv, false);
+  assert.equal(passesWith((m) => (m.rmssd.people = 9)).hrv, false);
+  assert.equal(passesWith((m) => (m.intervals.ci95 = null)).hrv, false);
+});
+
+test('ADR 0044: RESP-1 needs MAE strictly below 2 breaths/min and 10 people', () => {
+  assert.equal(decidePasses(metricsFixture()).resp, false);
+  assert.equal(passesWith((m) => (m.resp = { maeBrpm: 1.99, people: 10 })).resp, true);
+  assert.equal(passesWith((m) => (m.resp = { maeBrpm: 2, people: 10 })).resp, false);
+  assert.equal(passesWith((m) => (m.resp = { maeBrpm: 1.2, people: 9 })).resp, false);
+});
+
+test('VER-1: values within a rounding step that straddle a pass line do not match', () => {
+  const onLine = metricsFixture();
+  onLine.hr.maeBpm = 3;
+  const over = metricsFixture();
+  over.hr.maeBpm = 3.01;
+  assert.deepEqual(compareMetrics(onLine, over).differences, ['passed.hr: true vs false']);
+});
+
+const seedEvidence = () => ({
+  commit: null,
+  date: null,
+  metrics: {
+    hr: { label: 'experimental', passed: false },
+    rhythm: { label: 'public-data', dataset: 'MIMIC PERform AF', subjects: 35, passed: true },
+    hrv: { label: 'experimental', passed: false },
+    resp: { label: 'experimental', passed: false },
+    diabetes: { label: 'experimental', passed: false },
+    extraBeats: { label: 'experimental', passed: false },
+  },
+});
+
+test('evidence.json gets labels from the pass rules and keeps the model evidence', () => {
+  const evidence = buildEvidence({ ...metricsFixture(), commit: 'abc', date: '2026-10-20' }, seedEvidence());
+  assert.equal(evidence.commit, 'abc');
+  assert.equal(evidence.date, '2026-10-20');
+  assert.deepEqual(evidence.metrics.hr, {
+    label: 'checked',
+    reference: 'Polar H10',
+    maeBpm: 2.41,
+    ci95: [1.9, 2.95],
+    people: 10,
+    phones: 1,
+    criterion: 'DSP-A',
+    passed: true,
+  });
+  assert.deepEqual(evidence.metrics.hrv, {
+    label: 'checked',
+    reference: 'Polar H10',
+    withinPct: 80,
+    medianErrorPct: 6.5,
+    intervalMaeMs: 14.2,
+    ci95: [11.1, 17.6],
+    people: 10,
+    criterion: 'DSP-B',
+    passed: true,
+  });
+  assert.deepEqual(evidence.metrics.resp, {
+    label: 'experimental',
+    reference: 'metronome',
+    maeBrpm: null,
+    people: 0,
+    criterion: 'RESP-1',
+    passed: false,
+  });
+  for (const key of ['rhythm', 'diabetes', 'extraBeats'])
+    assert.deepEqual(evidence.metrics[key], seedEvidence().metrics[key]);
+});
+
+test('the CLI writes evidence.json and the app copy only after a matching recompute', (t) => {
+  const root = tempDir(t);
+  const metricsFile = path.join(root, 'metrics.json');
+  const out = path.join(root, 'evidence.json');
+  const app = path.join(root, 'assets', 'evidence.json');
+  const run = () =>
+    spawnSync(process.execPath, [CLI, '--evidence', '--metrics', metricsFile, '--out', out, '--app', app], {
+      encoding: 'utf8',
+    });
+  const metrics = { ...metricsFixture(), commit: 'abc', date: '2026-10-20' };
+  fs.writeFileSync(metricsFile, JSON.stringify(metrics));
+  fs.writeFileSync(out, JSON.stringify(seedEvidence()));
+  const unmatched = run();
+  assert.equal(unmatched.status, 1);
+  assert.match(unmatched.stderr, /no matching recompute/);
+  assert.equal(fs.existsSync(app), false);
+
+  fs.writeFileSync(
+    metricsFile,
+    JSON.stringify({ ...metrics, recompute: { agent: 'second-agent', matches: true, differences: [] } }),
+  );
+  fs.rmSync(out);
+  assert.match(run().stderr, /evidence\.json not found/);
+
+  fs.writeFileSync(out, JSON.stringify(seedEvidence()));
+  const written = run();
+  assert.equal(written.status, 0, written.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(out, 'utf8')).metrics.hr.label, 'checked');
+  assert.equal(fs.readFileSync(app, 'utf8'), fs.readFileSync(out, 'utf8'));
 });

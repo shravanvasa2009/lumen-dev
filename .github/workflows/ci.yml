@@ -86,7 +86,7 @@ jobs:
           # every other non-zero exit still fails.
           uv run pytest || [ $? -eq 5 ]
       - name: Golden vectors reproduce from lumen_dsp (DSP-C)
-        if: hashFiles('ml/lumen_dsp/golden.py') != ''
+        if: hashFiles('ml/pyproject.toml') != ''
         working-directory: ml
         run: uv run python -m lumen_dsp.golden --check
 

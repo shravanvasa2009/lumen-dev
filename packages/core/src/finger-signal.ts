@@ -16,7 +16,7 @@ export function fingerSignals(timebase: Timebase): FingerSignals {
 }
 
 // Population SD (divide by n), sums in index order, so ml/lumen_dsp/signals.py gives the same doubles.
-/** DSP-3: z-score of one model-input window; null when the window is flat (SD 0), as nothing can be scored. */
+/** DSP-3: z-score of one model-input window; null when all samples are equal (flat: nothing to score). */
 export function zScoreWindow(window: ArrayLike<number>): Float64Array | null {
   const values = Array.from(window);
   if (values.every((value) => value === values[0])) return null;
@@ -29,7 +29,7 @@ export function zScoreWindow(window: ArrayLike<number>): Float64Array | null {
   return Float64Array.from(values, (value) => (value - mean) / sd);
 }
 
-/** DSP-3: SQI-Net v1 input (ADR 0023), 256 float32: the 4 s primary (−R) window, z-scored; null if flat. */
+/** DSP-3: SQI-Net v1 input (ADR 0023), 256 float32: the 4 s −R window, z-scored; null if all samples equal. */
 export function sqiModelInput(primary: ArrayLike<number>): Float32Array | null {
   const samples = DSP_CONFIG.dsp3.modelWindowS * DSP_CONFIG.dsp2.modelRateHz;
   if (primary.length !== samples)

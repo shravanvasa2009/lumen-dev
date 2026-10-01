@@ -12,7 +12,7 @@ def finger_signals(timebase: Timebase) -> tuple[np.ndarray, np.ndarray]:
     return -timebase.r, -timebase.g
 
 
-# DSP-3: z-score of one model-input window; None when the window is flat (SD 0), as nothing can be scored.
+# DSP-3: z-score of one model-input window; None when all samples are equal (flat: nothing to score).
 # Population SD (divide by n) with sums in index order on plain floats, like packages/core.
 def z_score_window(window) -> list[float] | None:
     values = [float(value) for value in window]
@@ -29,7 +29,7 @@ def z_score_window(window) -> list[float] | None:
     return [(value - mean) / sd for value in values]
 
 
-# DSP-3: SQI-Net v1 input (ADR 0023), 256 float32: the 4 s primary (−R) window, z-scored; None if flat.
+# DSP-3: SQI-Net v1 input (ADR 0023), 256 float32: the 4 s −R window, z-scored; None if all samples equal.
 def sqi_model_input(primary) -> np.ndarray | None:
     samples = DSP_CONFIG["dsp3"]["modelWindowS"] * DSP_CONFIG["dsp2"]["modelRateHz"]
     if len(primary) != samples:

@@ -8,12 +8,15 @@ describe('DSP-C golden parity: DSP-3 per-window z-score', () => {
     expect(zscoreGolden.windowSamples).toBe(DSP_CONFIG.dsp3.modelWindowS * DSP_CONFIG.dsp2.modelRateHz);
   });
 
-  it.each(zscoreGolden.windows)('window at index $firstIndex', ({ primary, input }) => {
-    const modelInput = sqiModelInput(primary);
-    if (input === null) {
-      expect(modelInput).toBeNull();
-      return;
-    }
-    expect(Array.from(modelInput!)).toEqual(input);
+  const scored = zscoreGolden.windows.filter((window) => window.input !== null);
+  const flat = zscoreGolden.windows.filter((window) => window.input === null);
+
+  it.each(scored)('window at 64 Hz index $firstIndex', ({ primary, input }) => {
+    expect(Array.from(sqiModelInput(primary)!)).toEqual(input);
+  });
+
+  it('gives no input for the flat window (all samples equal)', () => {
+    expect(flat).toHaveLength(1);
+    expect(sqiModelInput(flat[0]!.primary)).toBeNull();
   });
 });

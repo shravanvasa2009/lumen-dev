@@ -8,7 +8,7 @@ import numpy as np
 
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import CausalFilter, butter_bandpass, butter_lowpass, filter_zero_phase
-from lumen_dsp.resample import resample_cubic
+from lumen_dsp.resample import ResampledSegment, resample_cubic
 from lumen_dsp.rhythm import RhythmWindow, has_enough_usable_intervals, rhythm_feature_vector, rhythm_windows
 from lumen_dsp.signals import dc_level, finger_signals, sqi_model_input
 from lumen_dsp.timebase import build_timebase
@@ -157,17 +157,16 @@ def golden_files() -> dict[str, dict]:
             ]
         },
         "filters.json": {"bandPass": filters, "dcLevel": dc},
-        "zscore.json": zscore_windows(timebase, primary),
+        "zscore.json": zscore_windows(longest(resampled[rates[0]])),
         "rhythm.json": rhythm_vectors(),
     }
 
 
-def zscore_windows(timebase, primary: np.ndarray) -> dict:
+def zscore_windows(segment: ResampledSegment) -> dict:
     # SQI-Net v1 inputs (DSP-3, ADR 0023: −R only) cut from the longest 64 Hz segment every 64 samples
     # (SQI runs every 1 s), plus a flat window, which has no input.
     rate = DSP_CONFIG["dsp2"]["modelRateHz"]
     samples = DSP_CONFIG["dsp3"]["modelWindowS"] * rate
-    segment = max(resample_cubic(timebase.t_s, primary, rate), key=lambda candidate: len(candidate.values))
     windows = []
     for start in range(0, len(segment.values) - samples + 1, rate):
         window_primary = floats(segment.values[start : start + samples])

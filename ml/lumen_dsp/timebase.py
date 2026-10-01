@@ -23,7 +23,7 @@ def build_timebase(samples: dict, stats: dict) -> Timebase:
     if len(t_ns) < 2:
         raise ValueError(f"need at least 2 frames, got {len(t_ns)}")
     stat_t_ns = np.asarray(stats["tNs"], dtype=np.int64)
-    if len(stat_t_ns) != len(t_ns) or not np.array_equal(stat_t_ns, t_ns):
+    if not np.array_equal(stat_t_ns, t_ns):
         raise ValueError("frame stats do not line up with samples")
 
     # Subtract in integer ns before scaling, as packages/core does (exact while tNs < 2^53).

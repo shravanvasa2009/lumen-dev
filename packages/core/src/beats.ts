@@ -4,7 +4,10 @@ import type { ResampledSegment } from './resample';
 // Times are seconds from capture start (DSP-1); amplitudes are in morphology-band signal units.
 export interface DetectedBeat {
   peakS: number;
-  onsetS: number | null; // null when nothing rises between the preceding minimum and the peak
+  // null when nothing rises between the preceding minimum and the peak, or when the foot was not observed
+  // (the upstroke began before the segment); DSP-9 then keeps the beat out of its amplitude and template
+  // references.
+  onsetS: number | null;
   maxUpslope: number; // per second, between the preceding minimum and the peak (DSP-9 "not a beat")
   amplitude: number; // peak minus the preceding minimum
 }
@@ -98,7 +101,7 @@ export function detectBeats(model: ResampledSegment, shape: ResampledSegment): D
   const last = wave.length - 1;
 
   const beats: DetectedBeat[] = [];
-  let previousPeak = 0;
+  let previousPeak: number | null = null;
   for (const modelPeak of elgendiPeaks(model.values, modelRateHz)) {
     const centre =
       Math.round(((model.firstIndex + modelPeak) / modelRateHz) * shapeRateHz) - shape.firstIndex;
@@ -110,11 +113,15 @@ export function detectBeats(model: ResampledSegment, shape: ResampledSegment): D
     const offset =
       peak > 0 && peak < last ? parabolicOffset(wave[peak - 1]!, wave[peak]!, wave[peak + 1]!) : 0;
 
-    const found = upstroke(wave, peak, Math.max(previousPeak, peak - minimumSearch));
+    const clippedAtStart = previousPeak === null && peak - minimumSearch < 0;
+    const found = upstroke(wave, peak, Math.max(previousPeak ?? 0, peak - minimumSearch));
+    // A foot on the segment's first sample with the signal still rising there was not observed: the
+    // upstroke began before the segment, so its tangent onset would be fabricated.
+    const footUnseen = clippedAtStart && found !== null && found.footIndex === 0 && wave[1]! > wave[0]!;
     const toSeconds = (index: number) => (shape.firstIndex + index) / shapeRateHz;
     beats.push({
       peakS: toSeconds(peak + offset),
-      onsetS: found ? toSeconds(found.onsetIndex) : null,
+      onsetS: found && !footUnseen ? toSeconds(found.onsetIndex) : null,
       maxUpslope: found ? found.maxUpslope * shapeRateHz : 0,
       amplitude: found ? wave[peak]! - wave[found.footIndex]! : 0,
     });

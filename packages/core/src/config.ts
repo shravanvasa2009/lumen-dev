@@ -55,9 +55,10 @@ export const DSP_CONFIG = {
     // 150 bpm, so the next upstroke rarely enters it.
     templateBeforePeakS: 0.2,
     templateAfterPeakS: 0.1,
-    // Running median of amplitude, and the long-pause reference: up to this many usable neighbours on
-    // each side, excluding the beat (or interval) itself.
-    neighbours: 5,
+    // Running median of amplitude, the early-beat interval reference, and the long-pause reference: up to
+    // this many usable neighbours on each side, excluding the beat (or interval) itself. Even, so that in
+    // an alternating rhythm (bigeminy) both kinds are equally represented (red-team v2, ADR 0025).
+    neighbours: 4,
     // Owner decision H-016 (ADR 0025), proposed for §10 DSP-9. "Early and small" is atypical (kept): an
     // interval < earlyIntervalRatio × the median of up to `neighbours` intervals on each side (intervals
     // between consecutive candidates that are not "not a beat") AND an amplitude < earlySmallAmplitudeRatio

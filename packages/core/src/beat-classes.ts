@@ -1,4 +1,4 @@
-import type { DetectedBeat } from './beats';
+import { elgendiWindows, type DetectedBeat } from './beats';
 import { DSP_CONFIG } from './config';
 import type { BeatClass, ClassifiedBeat, RejectedSpan } from './live-session';
 import { median } from './median';
@@ -33,9 +33,13 @@ function pointwise(windows: Float64Array[], combine: (column: number[]) => numbe
 
 const mean = (column: number[]) => column.reduce((sum, value) => sum + value, 0) / column.length;
 
-// Up to `count` items on each side of position p, without p itself.
+// 2 × count items around position p, without p itself: count on each side, and at either end the window
+// shifts inward so it keeps 2 × count items. An even, balanced window lets alternating rhythms (bigeminy,
+// trigeminy) represent every beat kind in the median (red-team v2, ADR 0025).
 function neighboursOf<T>(items: T[], p: number, count: number): T[] {
-  return [...items.slice(Math.max(0, p - count), p), ...items.slice(p + 1, p + 1 + count)];
+  const start = Math.max(0, Math.min(p - count, items.length - 1 - 2 * count));
+  const end = Math.min(items.length, start + 2 * count + 1);
+  return [...items.slice(start, p), ...items.slice(p + 1, end)];
 }
 
 /**
@@ -53,9 +57,19 @@ export function classifyBeats(
   const [smallest, largest] = config.amplitudeRatioRange as [number, number];
   const overlapsSpan = (startS: number, endS: number) =>
     rejectedSpans.some((span) => span.startS <= endS && span.endS >= startS);
+  // A NaN fails every comparison, so such a beat would pass every rule as normal; refuse it (red-team v2).
+  beats.forEach((beat, i) => {
+    if (![beat.peakS, beat.maxUpslope, beat.amplitude, beat.onsetS ?? 0].every(Number.isFinite))
+      throw new RangeError(`beat ${i} has a non-finite time, upslope, or amplitude`);
+  });
+  const inSpan = (beat: DetectedBeat) => overlapsSpan(beat.onsetS ?? beat.peakS, beat.peakS);
 
-  // Median over every candidate of the segment, including the ones the rule will remove.
-  const upslopeFloor = config.notABeatUpslopeRatio * median(beats.map((beat) => beat.maxUpslope));
+  // Median over the candidates outside rejected spans, including the ones the rule will remove; motion
+  // upslopes would otherwise raise the floor over clean beats (red-team v2). All candidates if none qualify.
+  const cleanUpslopes = beats.filter((beat) => !inSpan(beat)).map((beat) => beat.maxUpslope);
+  const upslopeFloor =
+    config.notABeatUpslopeRatio *
+    median(cleanUpslopes.length > 0 ? cleanUpslopes : beats.map((beat) => beat.maxUpslope));
   const classes: BeatClass[] = beats.map((beat) =>
     beat.maxUpslope < upslopeFloor ? 'not-a-beat' : 'normal',
   );
@@ -73,7 +87,7 @@ export function classifyBeats(
     const previous = previousBeat[i];
     const intervalS = previous == null ? null : beat.peakS - beats[previous]!.peakS;
     const impossible = intervalS !== null && (intervalS < shortestS || intervalS > longestS);
-    if (overlapsSpan(beat.onsetS ?? beat.peakS, beat.peakS) || impossible) classes[i] = 'artifact';
+    if (inSpan(beat) || impossible) classes[i] = 'artifact';
   });
 
   const beforePeak = Math.round(config.templateBeforePeakS * shapeRateHz);
@@ -100,12 +114,21 @@ export function classifyBeats(
 
   const candidates = beats.flatMap((_, i) => (classes[i] === 'normal' ? [i] : []));
   const windows = candidates.map((i) => windowOf(beats[i]!));
+  // A beat whose foot was not observed (onset null) has an unreliable amplitude and window: it never
+  // serves as an amplitude or template reference (red-team v2).
+  const footSeen = (i: number) => beats[i]!.onsetS !== null;
   // Before any normal beat exists, the template is the pointwise median of the first windows, so one
   // early premature beat cannot become the reference.
-  const seedWindows = windows.filter((window) => window !== null).slice(0, config.templateBeats);
+  const seedWindows = windows
+    .flatMap((window, p) => (window !== null && footSeen(candidates[p]!) ? [window] : []))
+    .slice(0, config.templateBeats);
   const normalWindows: Float64Array[] = [];
   candidates.forEach((i, p) => {
-    const reference = median(neighboursOf(candidates, p, config.neighbours).map((j) => beats[j]!.amplitude));
+    const reference = median(
+      neighboursOf(candidates, p, config.neighbours)
+        .filter(footSeen)
+        .map((j) => beats[j]!.amplitude),
+    );
     const ratio = beats[i]!.amplitude / reference;
     const window = windows[p] ?? null;
     const template =
@@ -122,15 +145,25 @@ export function classifyBeats(
     const earlyAndSmall =
       earlyBeats.has(i) && Number.isFinite(ratio) && ratio < config.earlySmallAmplitudeRatio;
     if (oddSize || oddShape || earlyAndSmall) classes[i] = 'atypical';
-    else if (window) normalWindows.push(window);
+    else if (window && footSeen(i)) normalWindows.push(window);
   });
 
-  // Long-pause references: intervals with no acquisition problem at either end or inside.
+  // Long-pause references: intervals with no acquisition problem at either end or inside, and neither end
+  // at a segment edge, where a spurious candidate or an unseen foot would fake a pause (red-team v2): the
+  // first candidate when its DSP-8 foot search was cut by the segment start, or a peak within half of W2
+  // of the segment end, where Elgendi's MA_beat runs past the signal (counted as zeros) and lowers THR1.
+  const minimumSearch = Math.round(DSP_CONFIG.dsp8.minimumSearchS * shapeRateHz);
+  const endMargin = (elgendiWindows(shapeRateHz).beatSamples - 1) / 2;
+  const nearSegmentEdge = (i: number) => {
+    const peak = Math.round(beats[i]!.peakS * shapeRateHz) - shape.firstIndex;
+    return (i === 0 && peak < minimumSearch) || peak > shape.values.length - 1 - endMargin;
+  };
   const cleanIntervals: { end: number; lengthS: number }[] = [];
   beats.forEach((beat, i) => {
     const start = previousBeat[i];
     if (start == null || classes[i] === 'not-a-beat' || classes[i] === 'artifact') return;
     if (classes[start] === 'artifact' || overlapsSpan(beats[start]!.peakS, beat.peakS)) return;
+    if (nearSegmentEdge(i) || nearSegmentEdge(start)) return;
     cleanIntervals.push({ end: i, lengthS: beat.peakS - beats[start]!.peakS });
   });
   const longPauses = new Set<number>();

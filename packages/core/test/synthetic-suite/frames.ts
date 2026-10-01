@@ -1,0 +1,161 @@
+import {
+  buildTimebase,
+  classifyBeats,
+  detectBeats,
+  DSP_CONFIG,
+  fingerSignals,
+  resampleCubic,
+  type ClassifiedBeat,
+  type RejectedSpan,
+} from '../../src';
+import { captureAt, morphologySegment, parkMillerUniforms, type SyntheticBeat } from '../synthetic';
+
+export interface Draws {
+  uniform(low: number, high: number): number;
+  normal(): number;
+}
+
+// Deterministic draws from the shared Park–Miller stream, so every case reproduces from its seed.
+export function draws(seed: number, count = 100_000): Draws {
+  const uniforms = parkMillerUniforms(count, seed);
+  let next = 0;
+  const take = () => {
+    if (next >= uniforms.length) throw new RangeError(`seed ${seed}: more than ${count} draws`);
+    return uniforms[next++]!;
+  };
+  return {
+    uniform: (low, high) => low + (high - low) * take(),
+    // Box–Muller; Park–Miller never returns 0, so the logarithm is finite.
+    normal: () => Math.sqrt(-2 * Math.log(take())) * Math.cos(2 * Math.PI * take()),
+  };
+}
+
+// One beat's pulse, in units of a normal beat's systolic height, against time from its systolic peak.
+export type PulseShape = (fromPeakS: number) => number;
+
+const gaussian = (tS: number, sigmaS: number) => Math.exp(-0.5 * (tS / sigmaS) ** 2);
+
+// The fixture of test/synthetic.ts with free dicrotic parameters: a separate dicrotic wave.
+export const twoGaussian =
+  (dicroticRatio: number, delayS = 0.3, dicroticSigmaS = 0.08): PulseShape =>
+  (tS) =>
+    gaussian(tS, 0.06) + dicroticRatio * gaussian(tS - delayS, dicroticSigmaS);
+
+// Systolic runoff (exponential decay after the peak) with a dicrotic hump riding on it, so the notch
+// stays well above the diastolic foot, as in most adult finger PPG.
+export const runoff =
+  (decayS: number, humpRatio: number, delayS: number, humpSigmaS: number): PulseShape =>
+  (tS) =>
+    (tS < 0 ? gaussian(tS, 0.06) : Math.exp(-tS / decayS)) + humpRatio * gaussian(tS - delayS, humpSigmaS);
+
+export function pulseOf(beats: SyntheticBeat[], shape: PulseShape): (tS: number) => number {
+  return (tS) => {
+    let sum = 0;
+    for (const { peakS, amplitude } of beats)
+      if (Math.abs(tS - peakS) < 1.5) sum += amplitude * shape(tS - peakS);
+    return sum;
+  };
+}
+
+export interface CameraSpec {
+  fps: number;
+  seconds: number;
+  seed: number;
+  pulse: (tS: number) => number;
+  perfusion?: number; // a normal beat's height as a fraction of full scale
+  noise?: number; // per-frame noise SD, fraction of full scale
+  redLevel?: (tS: number) => number; // mean red (DC); values pushed above 1 clip
+  disturbance?: (tS: number) => number; // added to red, e.g. motion
+  keepFrame?: (tS: number) => boolean; // false drops the frame
+}
+
+// Red channel of a covered fingertip: more blood absorbs more red, so the pulse lowers R (DSP-3).
+export function cameraCapture(spec: CameraSpec) {
+  const random = draws(spec.seed);
+  const perfusion = spec.perfusion ?? 0.01;
+  const noise = spec.noise ?? 0.0002;
+  const offsets: number[] = [];
+  for (let k = 0; k < Math.round(spec.fps * spec.seconds); k++) {
+    // Frame-time jitter of ±1 ms, as phone timestamps show.
+    const tS = k === 0 ? 0 : k / spec.fps + random.uniform(-0.001, 0.001);
+    if (k === 0 || (spec.keepFrame?.(tS) ?? true)) offsets.push(tS);
+  }
+  return captureAt(offsets, (tS) => {
+    const red =
+      (spec.redLevel?.(tS) ?? 0.7) +
+      (spec.disturbance?.(tS) ?? 0) -
+      perfusion * spec.pulse(tS) +
+      noise * random.normal();
+    return { r: Math.min(1, Math.max(0, red)), g: 0.15, b: 0.05 };
+  });
+}
+
+export interface Analysis {
+  beats: ClassifiedBeat[];
+  segments: [number, number][]; // start and end, seconds from capture start
+}
+
+// The app's beat path: timebase, −R, cubic resampling, morphology band, DSP-7/8 detection, DSP-9.
+export function analyse(capture: ReturnType<typeof cameraCapture>, spans: RejectedSpan[]): Analysis {
+  const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
+  const timebase = buildTimebase(capture.samples, capture.stats);
+  const ppg = fingerSignals(timebase).primary;
+  const models = resampleCubic(timebase.tS, ppg, modelRateHz);
+  const shapes = resampleCubic(timebase.tS, ppg, shapeRateHz);
+  const analysis: Analysis = { beats: [], segments: [] };
+  models.forEach((modelSegment) => {
+    const startS = modelSegment.firstIndex / modelRateHz;
+    const endS = (modelSegment.firstIndex + modelSegment.values.length - 1) / modelRateHz;
+    // Under 2 s a segment cannot hold an Elgendi W2 window on each side of a beat.
+    if (endS - startS < 2) return;
+    const shapeSegment = shapes.find(
+      ({ firstIndex, values }) =>
+        firstIndex / shapeRateHz <= startS && (firstIndex + values.length - 1) / shapeRateHz >= endS,
+    )!;
+    const model = morphologySegment(modelSegment.values, modelRateHz, modelSegment.firstIndex);
+    const shape = morphologySegment(shapeSegment.values, shapeRateHz, shapeSegment.firstIndex);
+    analysis.beats.push(...classifyBeats(detectBeats(model, shape), shape, spans));
+    analysis.segments.push([startS, endS]);
+  });
+  return analysis;
+}
+
+// The detection nearest each true beat, if one lies within the tolerance.
+export function matchBeats(
+  analysis: Analysis,
+  truth: SyntheticBeat[],
+  toleranceS = 0.06,
+): (ClassifiedBeat | null)[] {
+  return truth.map(({ peakS }) => {
+    let best: ClassifiedBeat | null = null;
+    for (const beat of analysis.beats)
+      if (
+        Math.abs(beat.peakS - peakS) <= toleranceS &&
+        (!best || Math.abs(beat.peakS - peakS) < Math.abs(best.peakS - peakS))
+      )
+        best = beat;
+    return best;
+  });
+}
+
+// True beats that stay at least `marginS` away from segment edges and from every listed span.
+export function wellInside(
+  analysis: Analysis,
+  truth: SyntheticBeat[],
+  avoid: [number, number][],
+  marginS: number,
+) {
+  return truth.filter(
+    ({ peakS }) =>
+      analysis.segments.some(([startS, endS]) => peakS - startS >= marginS && endS - peakS >= marginS) &&
+      avoid.every(([startS, endS]) => peakS < startS - marginS || peakS > endS + marginS),
+  );
+}
+
+// Sinus rhythm with small beat-to-beat variation (SD 3% of RR).
+export function sinusBeats(random: Draws, bpm: number, firstS: number, lastS: number): SyntheticBeat[] {
+  const beats: SyntheticBeat[] = [];
+  for (let peakS = firstS; peakS < lastS; peakS += (60 / bpm) * (1 + 0.03 * random.normal()))
+    beats.push({ peakS, amplitude: 1 });
+  return beats;
+}

@@ -16,7 +16,7 @@ import {
   withPrematureBeats,
   type SyntheticBeat,
 } from './synthetic';
-import { pulseOf, runoff } from './synthetic-suite/frames';
+import { diastolicPeakRatio, pulseOf, runoff } from './synthetic-suite/frames';
 
 const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
 const RR_S = 60 / 72;
@@ -213,41 +213,43 @@ describe('DSP-9 normal and long pause', () => {
   });
 });
 
-// The dicrotic rule (e) of H-016 is withdrawn (ADR 0025): on BUT PPG it removed 3-5% of real beats. Small
-// beats on the previous beat's falling side are kept, whatever their foot level.
-describe('DSP-9 small beats on the falling side are kept', () => {
+// The dicrotic rule (e) of H-016 is withdrawn (ADR 0025: it removed real beats on BUT PPG). These tests
+// hold only what DSP-9 owes true beats: never removed or made an artifact. They make no claim about
+// dicrotic double detections, which DSP-D requires removing (test:synthetic).
+describe('DSP-9 true beats on or near the falling side are kept', () => {
   const beats = regularBeats(1, 29, 72);
   const { model, shape } = morphologyPair(beats, 0.3, 30);
   const detected = detectBeats(model, shape);
   const previous = detected[10]!;
 
-  function withCandidate(afterS: number, amplitudeRatio: number): ClassifiedBeat {
-    const candidate: DetectedBeat = {
-      ...previous,
-      peakS: previous.peakS + afterS,
-      onsetS: previous.peakS + afterS - 0.1,
-      amplitude: amplitudeRatio * previous.amplitude,
-    };
-    return classifyBeats([...detected.slice(0, 11), candidate, ...detected.slice(11)], shape, [])[11]!;
-  }
-
-  it('keeps a half-size candidate 0.3 s after a beat as atypical', () => {
-    expect(withCandidate(0.3, 0.5).beatClass).toBe('atypical');
-  });
-
   it('keeps a half-size premature beat 0.4 s after a beat as atypical', () => {
-    expect(withCandidate(0.4, 0.5).beatClass).toBe('atypical');
+    const premature: DetectedBeat = {
+      ...previous,
+      peakS: previous.peakS + 0.4,
+      onsetS: previous.peakS + 0.3,
+      amplitude: 0.5 * previous.amplitude,
+    };
+    const classified = classifyBeats([...detected.slice(0, 11), premature, ...detected.slice(11)], shape, []);
+    expect(classified[11]!.beatClass).toBe('atypical');
   });
 
-  it('removes no candidate of a runoff-and-hump pulse by its foot level', () => {
+  it('keeps every true beat of a runoff-and-hump pulse within the diastolic/systolic cap', () => {
+    const shapeOfPulse = runoff(0.1, 0.65, 0.3, 0.06);
+    expect(diastolicPeakRatio(shapeOfPulse)).toBeLessThanOrEqual(0.75);
     const truth = regularBeats(1, 29, 66);
-    const pulse = pulseOf(truth, runoff(0.3, 0.6, 0.3, 0.06));
+    const pulse = pulseOf(truth, shapeOfPulse);
     const wave = (rateHz: number) => Array.from({ length: 30 * rateHz }, (_, k) => pulse(k / rateHz));
     const hump = morphologySegment(wave(shapeRateHz), shapeRateHz);
-    const humpBeats = detectBeats(morphologySegment(wave(modelRateHz), modelRateHz), hump);
-    const classified = classifyBeats(humpBeats, hump, []);
-    expect(classified.length).toBeGreaterThan(truth.length + 20);
-    expect(classesOf(classified)['not-a-beat']).toBeUndefined();
+    const classified = classifyBeats(
+      detectBeats(morphologySegment(wave(modelRateHz), modelRateHz), hump),
+      hump,
+      [],
+    );
+    for (const { peakS } of truth) {
+      const matched = nearest(classified, peakS);
+      expect(Math.abs(matched.peakS - peakS)).toBeLessThan(0.02);
+      expect(['normal', 'atypical']).toContain(matched.beatClass);
+    }
   });
 
   it('keeps every premature beat of bigeminy (0.5 × amplitude at 0.6 RR) as atypical', () => {

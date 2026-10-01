@@ -96,7 +96,7 @@ describe('red team: DSP-1 timebase', () => {
   // KNOWN LIMITATION of the spec rule, not of the code: DSP-1 measures gaps against the median interval, so
   // a 60 fps camera that drops every third frame has a 33 ms median and no gap counts as dropped, though
   // a third of the frames are missing. CaptureStatus.droppedFrac (native, CAP-1) is the other guard.
-  it('KNOWN LIMITATION: dropping every third frame at 60 fps (26 of 79 gaps are 33 ms) flags nothing', () => {
+  it('KNOWN LIMITATION: dropping every third frame at 60 fps (40 of 79 gaps are 33 ms) flags nothing', () => {
     const { samples, stats } = captureAt(
       regularOffsets(60, 2).filter((_, k) => k % 3 !== 1),
       flatRed(0.6),

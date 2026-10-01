@@ -1,6 +1,7 @@
 import { type Href, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
+import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
 
@@ -14,14 +15,17 @@ export default function ModeScreen() {
   ];
   return (
     <RouteShell title={t('mode.title')}>
-      {modes.map((mode) => (
-        <ListRow
-          key={mode.title}
-          title={mode.title}
-          subtitle={mode.subtitle}
-          onPress={() => router.push(mode.href)}
-        />
-      ))}
+      <Card flush>
+        {modes.map((mode, index) => (
+          <ListRow
+            key={mode.title}
+            title={mode.title}
+            subtitle={mode.subtitle}
+            last={index === modes.length - 1}
+            onPress={() => router.push(mode.href)}
+          />
+        ))}
+      </Card>
     </RouteShell>
   );
 }

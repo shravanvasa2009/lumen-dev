@@ -7,6 +7,7 @@ export default function PhoneCheckScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      headerless
       title={t('phoneCheck.title')}
       subtitle={t('phoneCheck.subtitle')}
       sections={[

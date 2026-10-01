@@ -1,6 +1,7 @@
 import { type Href, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
+import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
 
@@ -18,10 +19,17 @@ export default function SettingsScreen() {
     { title: t('settings.lab'), href: '/settings/lab' },
   ];
   return (
-    <RouteShell title={t('settings.title')}>
-      {rows.map((row) => (
-        <ListRow key={row.title} title={row.title} onPress={() => router.push(row.href)} />
-      ))}
+    <RouteShell tabRoot title={t('settings.title')}>
+      <Card flush>
+        {rows.map((row, index) => (
+          <ListRow
+            key={row.title}
+            title={row.title}
+            last={index === rows.length - 1}
+            onPress={() => router.push(row.href)}
+          />
+        ))}
+      </Card>
     </RouteShell>
   );
 }

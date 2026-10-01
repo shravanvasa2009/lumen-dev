@@ -4,8 +4,11 @@ import Foundation
 // 1 s fps window, motion, per-frame work time, and the DSP-5 over-exposure watch. Owned and mutated only on the
 // capture queue, so it needs no lock. Payload keys follow LumenCapture.types.ts (Appendix A, ADR 0013).
 struct CaptureCounters {
-  // ADR 0029: a gap above 1.5 nominal intervals counts round(gap / interval) − 1 dropped frames.
+  // DSP-1 (spec §10, ADR 0029): a gap above 1.5 median intervals counts round(gap / median) − 1 dropped frames.
+  // The median covers the intervals that ended in the last 1 s; the nominal 1/fps interval stands in until 5 exist.
   static let dropGapFactor = 1.5
+  static let medianWindowNs: Int64 = 1_000_000_000
+  static let minIntervalsForMedian = 5
   static let fpsWindowNs: Int64 = 1_000_000_000
   // DSP-5 (spec §10): red above 0.95 after the lock triggers one exposure step down (ADR 0029). "Stays above"
   // is read as 0.5 s so a single bright frame does not move the exposure.
@@ -19,6 +22,7 @@ struct CaptureCounters {
 
   private var lastFrameNs: Int64?
   private var recentFrameNs: [Int64] = []
+  private var recentIntervals: [(endNs: Int64, ns: Double)] = []
   private var samples: [[String: Double]] = []
   private var stats: [[String: Double]] = []
   private var latestSinceStatus: FrameReduction?
@@ -42,9 +46,11 @@ struct CaptureCounters {
   mutating func addFrame(tNs: Int64, reduction: FrameReduction, exposureNs: Int64, workMs: Double) -> Bool {
     if let lastFrameNs {
       let gap = Double(tNs - lastFrameNs)
-      if gap > Self.dropGapFactor * nominalIntervalNs {
-        dropped += Int((gap / nominalIntervalNs).rounded()) - 1
+      let reference = referenceIntervalNs(at: tNs)
+      if gap > Self.dropGapFactor * reference {
+        dropped += Int((gap / reference).rounded()) - 1
       }
+      recentIntervals.append((endNs: tNs, ns: gap))
     }
     lastFrameNs = tNs
     frames += 1
@@ -105,6 +111,15 @@ struct CaptureCounters {
     workMsMax = 0
     workCount = 0
     return work
+  }
+
+  // Median of the intervals that ended in the 1 s before `tNs`, or the nominal interval while fewer than 5 exist.
+  private mutating func referenceIntervalNs(at tNs: Int64) -> Double {
+    recentIntervals.removeAll { $0.endNs <= tNs - Self.medianWindowNs }
+    guard recentIntervals.count >= Self.minIntervalsForMedian else { return nominalIntervalNs }
+    let sorted = recentIntervals.map { $0.ns }.sorted()
+    let middle = sorted.count / 2
+    return sorted.count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
   }
 
   private mutating func watchOverexposure(red: Double, tNs: Int64) -> Bool {

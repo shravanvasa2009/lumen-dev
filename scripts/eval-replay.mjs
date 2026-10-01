@@ -6,9 +6,11 @@ import { readCaptures } from './eval-replay/captures.mjs';
 import { buildEvidence } from './eval-replay/evidence.mjs';
 import { computeMetrics } from './eval-replay/metrics.mjs';
 import { compareMetrics } from './eval-replay/recompute.mjs';
+import { renderReport } from './eval-replay/report.mjs';
 
 // npm run eval:replay -- --captures <folder> [--out docs/validation/metrics.json]
-//   Reads every capture that tools/replay has processed and writes the Appendix B metrics file.
+//   Reads every capture that tools/replay has processed and writes the Appendix B metrics file, plus
+//   metrics.md beside it.
 // npm run eval:replay -- --recompute <independent metrics.json> --agent <who> [--out docs/validation/metrics.json]
 //   VER-1: records whether a second agent's independent recompute matches, and fails if it doesn't.
 // npm run eval:replay -- --evidence [--metrics docs/validation/metrics.json] [--out docs/validation/evidence.json]
@@ -33,6 +35,13 @@ function readMetrics(file, hint) {
   return metrics;
 }
 
+// metrics.md sits beside metrics.json and is rewritten with it, so the two never disagree.
+function writeMetrics(out, metrics) {
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, `${JSON.stringify(metrics, null, 2)}\n`);
+  fs.writeFileSync(`${out.replace(/\.json$/, '')}.md`, renderReport(metrics));
+}
+
 function recordRecompute(independentFile) {
   const out = argument('--out', METRICS_FILE);
   const agent = argument('--agent');
@@ -42,10 +51,7 @@ function recordRecompute(independentFile) {
     metrics,
     readMetrics(independentFile, 'pass the second agent’s metrics.json to --recompute'),
   );
-  fs.writeFileSync(
-    out,
-    `${JSON.stringify({ ...metrics, recompute: { agent, matches, differences } }, null, 2)}\n`,
-  );
+  writeMetrics(out, { ...metrics, recompute: { agent, matches, differences } });
   if (!matches) fail(`VER-1 recompute does not match:\n${differences.join('\n')}`);
   console.log(`eval:replay: VER-1 recompute by ${agent} matches → ${out}`);
 }
@@ -69,8 +75,7 @@ function replayCaptures(capturesDir) {
     { commit, date: new Date().toISOString().slice(0, 10) },
     console.log,
   );
-  fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, `${JSON.stringify(metrics, null, 2)}\n`);
+  writeMetrics(out, metrics);
   console.log(
     `eval:replay: ${captures.length} captures → ${out} (HR MAE ${metrics.hr.maeBpm} bpm over ${metrics.hr.people} people)`,
   );

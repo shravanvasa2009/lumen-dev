@@ -382,5 +382,15 @@
   "profile.betaBlocker": "Tomo un betabloqueador",
   "profile.pacemaker": "Tengo un marcapasos",
   "profile.afibReported": "Un médico me dijo que tengo fibrilación auricular",
-  "profile.athlete": "Soy deportista de resistencia"
+  "profile.athlete": "Soy deportista de resistencia",
+  "phoneCheck.fps": "{{fps}} fps",
+  "phoneCheck.torchAdjustable": "Ajustable",
+  "phoneCheck.torchOnOff": "Solo encendido / apagado",
+  "phoneCheck.torchNone": "No disponible",
+  "phoneCheck.locksAll": "Los tres",
+  "phoneCheck.locksSome": "{{locked}} de 3",
+  "phoneCheck.locksNone": "Ninguno",
+  "phoneCheck.notChecked": "Sin revisar",
+  "phoneCheck.timingLater": "Se mide en la práctica",
+  "phoneCheck.probeUnavailable": "Esta versión no puede usar la cámara, así que no se revisó nada."
 }

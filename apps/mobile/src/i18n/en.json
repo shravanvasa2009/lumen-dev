@@ -382,5 +382,15 @@
   "profile.betaBlocker": "I take a beta-blocker",
   "profile.pacemaker": "I have a pacemaker",
   "profile.afibReported": "A doctor told me I have AFib",
-  "profile.athlete": "I'm an endurance athlete"
+  "profile.athlete": "I'm an endurance athlete",
+  "phoneCheck.fps": "{{fps}} fps",
+  "phoneCheck.torchAdjustable": "Adjustable",
+  "phoneCheck.torchOnOff": "On / off only",
+  "phoneCheck.torchNone": "Not available",
+  "phoneCheck.locksAll": "All three",
+  "phoneCheck.locksSome": "{{locked}} of 3",
+  "phoneCheck.locksNone": "None",
+  "phoneCheck.notChecked": "Not checked",
+  "phoneCheck.timingLater": "Measured in practice",
+  "phoneCheck.probeUnavailable": "This build can't reach the camera, so nothing was checked."
 }

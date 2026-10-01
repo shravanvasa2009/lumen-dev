@@ -76,12 +76,19 @@ def _pointwise(windows: list[list[float]], combine: Callable[[list[float]], floa
     return [combine([window[k] for window in windows]) for k in range(len(windows[0]))]
 
 
-def _neighbours_of(items: list, p: int, count: int) -> list:
-    # 2 × count items around position p, without p itself: count on each side, and at either end the
-    # window shifts inward so it keeps 2 × count items (red-team v2, ADR 0025).
-    start = max(0, min(p - count, len(items) - 1 - 2 * count))
-    end = min(len(items), start + 2 * count + 1)
-    return items[start:p] + items[p + 1 : end]
+def _balanced_neighbours(items: list, p: int, count: int, minimum: int) -> list | None:
+    # The nearest `count` items at odd and at even offsets from p (p excluded), nearer first and the earlier
+    # side first on ties; both parities cut to the shorter count near an edge; None below `minimum` per
+    # parity (ADR 0025, decision 16).
+    odd: list = []
+    even: list = []
+    for distance in range(1, len(items)):
+        side = odd if distance % 2 == 1 else even
+        for j in (p - distance, p + distance):
+            if 0 <= j < len(items) and len(side) < count:
+                side.append(items[j])
+    per_parity = min(len(odd), len(even))
+    return None if per_parity < minimum else odd[:per_parity] + even[:per_parity]
 
 
 # DSP-9: class and long-pause flag for each beat of one segment; acquisition evidence comes only from the
@@ -144,18 +151,17 @@ def classify_beats(
 
     # "Early" (H-016): the interval to the previous beat is short against the median of up to `neighbours`
     # intervals on each side, all between consecutive beats that are not "not a beat".
+    def references(items: list, p: int) -> list | None:
+        return _balanced_neighbours(items, p, config["neighbours"], config["minNeighboursPerParity"])
+
     kept = [i for i in range(len(beats)) if classes[i] != "not-a-beat"]
-    kept_intervals = [
-        None if q == 0 else beats[i].peak_s - beats[kept[q - 1]].peak_s for q, i in enumerate(kept)
-    ]
+    # Interval q ends at beat kept[q + 1].
+    kept_intervals = [beats[i].peak_s - beats[kept[q]].peak_s for q, i in enumerate(kept[1:])]
     early_beats = set()
-    for q, i in enumerate(kept):
-        own_s = kept_intervals[q]
-        if own_s is None:
-            continue
-        others = [s for s in _neighbours_of(kept_intervals, q, config["neighbours"]) if s is not None]
-        if own_s < config["earlyIntervalRatio"] * _median(others):
-            early_beats.add(i)
+    for q, own_s in enumerate(kept_intervals):
+        others = references(kept_intervals, q)
+        if others is not None and own_s < config["earlyIntervalRatio"] * _median(others):
+            early_beats.add(kept[q + 1])
 
     candidates = [i for i in range(len(beats)) if classes[i] == "normal"]
     windows = [window_of(beats[i]) for i in candidates]
@@ -171,9 +177,10 @@ def classify_beats(
     ][: config["templateBeats"]]
     normal_windows: list[list[float]] = []
     for p, i in enumerate(candidates):
-        reference = _median(
-            [beats[j].amplitude for j in _neighbours_of(candidates, p, config["neighbours"]) if foot_seen(j)]
-        )
+        # The amplitude references are the candidates with an observed foot, plus this beat to place it.
+        pool = [j for j in candidates if j == i or foot_seen(j)]
+        others = references(pool, pool.index(i))
+        reference = math.nan if others is None else _median([beats[j].amplitude for j in others])
         ratio = _js_divide(beats[i].amplitude, reference)
         window = windows[p]
         if normal_windows:
@@ -217,8 +224,10 @@ def classify_beats(
         clean_intervals.append((i, beat.peak_s - beats[start].peak_s))
     long_pauses = set()
     for q, (end, length_s) in enumerate(clean_intervals):
-        reference = _median([other for _, other in _neighbours_of(clean_intervals, q, config["neighbours"])])
-        if length_s >= config["longPauseRatio"] * reference:
+        others = references(clean_intervals, q)
+        if others is not None and length_s >= config["longPauseRatio"] * _median(
+            [other for _, other in others]
+        ):
             long_pauses.add(end)
 
     return [

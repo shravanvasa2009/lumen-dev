@@ -194,3 +194,23 @@ def test_a_first_beat_whose_upstroke_began_before_the_segment_has_no_onset():
     assert detected[0].onset_s is None
     assert detected[0].max_upslope > 0
     assert all(beat.onset_s is not None for beat in detected[1:])
+
+
+# Parity-balanced reference windows (ADR 0025, decision 16).
+def test_a_12_s_bigeminy_segment_has_no_long_pause_anywhere_edges_included():
+    rr_s = 60 / 75
+    peaks, amplitudes, t_s = [], [], 0.5
+    while t_s < 11.3:
+        peaks += [t_s, t_s + 0.6 * rr_s]
+        amplitudes += [1.0, 0.45]
+        t_s += 2 * rr_s
+    segment = ResampledSegment(first_index=0, values=np.zeros(256 * 12))
+    classified = classify_beats(flat_beats(peaks, amplitudes), segment, [])
+    assert not any(beat.long_pause for beat in classified)
+    assert {beat.beat_class for beat in classified[::2]} == {"normal"}
+
+
+def test_fewer_than_2_plus_2_balanced_references_apply_no_amplitude_or_long_pause_rule():
+    segment = ResampledSegment(first_index=0, values=np.zeros(256 * 8))
+    classified = classify_beats(flat_beats([1.0, 2.0, 3.0, 5.5], [1.0, 0.3, 1.0, 1.0]), segment, [])
+    assert [(beat.beat_class, beat.long_pause) for beat in classified] == [("normal", False)] * 4

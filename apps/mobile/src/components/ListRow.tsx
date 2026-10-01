@@ -9,10 +9,12 @@ type ListRowProps = {
   title: string;
   subtitle?: string;
   trailing?: ReactNode;
+  // The last row of a grouped card has no divider under it.
+  last?: boolean;
   onPress?: () => void;
 };
 
-export function ListRow({ title, subtitle, trailing, onPress }: ListRowProps) {
+export function ListRow({ title, subtitle, trailing, last = false, onPress }: ListRowProps) {
   const { colors, spacing, control } = useTheme();
   return (
     <Pressable
@@ -24,8 +26,10 @@ export function ListRow({ title, subtitle, trailing, onPress }: ListRowProps) {
         {
           minHeight: control.minTarget,
           paddingVertical: spacing.md,
+          paddingHorizontal: spacing.lg,
           gap: spacing.md,
           borderBottomColor: colors.line,
+          borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
         },
       ]}
     >
@@ -43,6 +47,6 @@ export function ListRow({ title, subtitle, trailing, onPress }: ListRowProps) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: 'row', alignItems: 'center' },
   text: { flex: 1 },
 });

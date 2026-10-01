@@ -6,6 +6,7 @@ import tokens from '@/theme/tokens.json';
 
 import { AppText } from './AppText';
 import { Button } from './Button';
+import { Card } from './Card';
 import { ListRow } from './ListRow';
 import { Screen } from './Screen';
 
@@ -19,6 +20,14 @@ const metrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 };
+
+// The nearest ancestor that carries layout or box styling, skipping the text's own style.
+function styleAround(text: string) {
+  let node = screen.getByText(text).parent;
+  const isOwnStyle = (style: object | undefined) => !style || 'color' in style;
+  while (node && isOwnStyle(StyleSheet.flatten(node.props.style))) node = node.parent;
+  return StyleSheet.flatten(node?.props.style);
+}
 
 describe.each([
   ['dark', tokens.dark],
@@ -41,6 +50,64 @@ describe.each([
     const style = StyleSheet.flatten(node?.props.style);
     expect(style).toMatchObject({ backgroundColor: colors.bg });
     expect(style.padding).toBe(20);
+  });
+
+  it('Screen counts the top inset only when headerless', () => {
+    render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <Screen>
+          <AppText>with header</AppText>
+        </Screen>
+        <Screen headerless>
+          <AppText>no header</AppText>
+        </Screen>
+      </SafeAreaProvider>,
+    );
+    const edgesOf = (text: string) => {
+      let node = screen.getByText(text).parent;
+      while (node && node.props.edges === undefined) node = node.parent;
+      return node?.props.edges;
+    };
+    expect(edgesOf('with header')).toMatchObject({ top: 'off' });
+    expect(edgesOf('no header')).toMatchObject({ top: 'additive' });
+  });
+
+  it('Screen renders the footer after the body and centres the body on request', () => {
+    render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <Screen centered footer={<Button label="Go" onPress={jest.fn()} />}>
+          <AppText>body</AppText>
+        </Screen>
+      </SafeAreaProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Go' })).toBeOnTheScreen();
+    expect(styleAround('body')).toMatchObject({ justifyContent: 'center' });
+  });
+
+  it('Card paints the surface with a line border and the card radius', () => {
+    render(
+      <Card>
+        <AppText>boxed</AppText>
+      </Card>,
+    );
+    expect(styleAround('boxed')).toMatchObject({
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderRadius: tokens.radius.card,
+    });
+  });
+
+  it('ListRow draws a divider unless it is the last row of a group', () => {
+    render(
+      <>
+        <ListRow title="First" onPress={jest.fn()} />
+        <ListRow title="Final" last onPress={jest.fn()} />
+      </>,
+    );
+    const dividerOf = (name: string) =>
+      StyleSheet.flatten(screen.getByRole('button', { name }).props.style).borderBottomWidth;
+    expect(dividerOf('First')).toBeGreaterThan(0);
+    expect(dividerOf('Final')).toBe(0);
   });
 
   it('AppText applies the type scale and tone colour', () => {

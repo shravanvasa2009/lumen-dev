@@ -37,7 +37,7 @@
     "test:redteam": "node scripts/not-yet.mjs test:redteam",
     "test:routes": "npm run test:routes -w @lumen/mobile",
     "test:fallback": "node scripts/not-yet.mjs test:fallback",
-    "test:evidence": "node scripts/not-yet.mjs test:evidence",
+    "test:evidence": "npm run test:evidence -w @lumen/mobile",
     "i18n:check": "node scripts/check-i18n.mjs",
     "lint:strings": "node scripts/lint-strings.mjs",
     "test:notifications": "node scripts/not-yet.mjs test:notifications",

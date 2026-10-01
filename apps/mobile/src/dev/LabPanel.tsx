@@ -103,13 +103,13 @@ function ChoiceRow<T>({
     <View style={[styles.choices, { gap: spacing.sm }]}>
       {choices.map((choice) => {
         const selected = choice.value === chosen;
-        const off = disabled || choice.disabled === true;
+        const inactive = disabled || choice.disabled === true;
         return (
           <Pressable
             key={choice.key}
             accessibilityRole="button"
-            accessibilityState={{ selected, disabled: off }}
-            disabled={off}
+            accessibilityState={{ selected, disabled: inactive }}
+            disabled={inactive}
             onPress={() => onChoose(choice.value)}
             style={[
               styles.choice,
@@ -119,7 +119,7 @@ function ChoiceRow<T>({
                 borderRadius: radius.pill,
                 borderColor: selected ? colors.accentFill : colors.line2,
                 backgroundColor: selected ? colors.accentFill : 'transparent',
-                opacity: off ? 0.5 : 1,
+                opacity: inactive ? 0.5 : 1,
               },
             ]}
           >
@@ -197,7 +197,8 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const [phoneShown, setPhoneShown] = useState<Capabilities | null>(null);
   const [lensId, setLensId] = useState<string | undefined>(undefined);
   const [fpsChoice, setFpsChoice] = useState<FpsChoice>('default');
-  // Native's own default is the torch at full (ADR 0029 addendum); the panel starts from the same level.
+  // Native's own default is the torch at full (ADR 0029 addendum); the panel starts from the same level, and
+  // Start waits for the capabilities so a phone without a torch is never sent level 1.
   const [torchLevel, setTorchLevel] = useState(1);
   const [autoLock, setAutoLock] = useState(true);
   const [locking, setLocking] = useState(false);
@@ -335,7 +336,9 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           const newest = batch.samples[batch.samples.length - 1];
           if (
             newest &&
-            (lastEstimateNs.current === null || newest.tNs - lastEstimateNs.current >= LIVE_HR_EVERY_NS)
+            (lastEstimateNs.current === null ||
+              // abs: a backward clock step must not stall the estimate (Appendix A does not promise order).
+              Math.abs(newest.tNs - lastEstimateNs.current) >= LIVE_HR_EVERY_NS)
           ) {
             lastEstimateNs.current = newest.tNs;
             setLiveHr(readLiveHeartRate(liveWindow.current));
@@ -506,7 +509,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       <Button
         label={running ? t('lab.stop') : t('lab.start')}
         onPress={running ? stopCapture : startCapture}
-        disabled={switching}
+        disabled={switching || phoneShown === null}
       />
       <Button
         variant="secondary"

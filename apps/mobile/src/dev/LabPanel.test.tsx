@@ -56,7 +56,7 @@ afterEach(() => {
 });
 
 async function recordWholeReplay() {
-  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
   await press(en['lab.start']);
   await act(async () => {
     jest.advanceTimersByTime(2500);
@@ -75,7 +75,7 @@ test('says so when the build has neither the camera module nor a recording', () 
 });
 
 test('drives a ReplayCapture: permission, live trace, status, and frame count', async () => {
-  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
   expect(screen.getByText(en['lab.sourceReplay'])).toBeOnTheScreen();
 
   await press(en['lab.askPermission']);
@@ -137,7 +137,7 @@ test('a second Start press while the first is pending does not record every fram
       ({ status: 201, text: async () => JSON.stringify({ folder: 'f' }) }) as Response,
   );
   globalThis.fetch = fetchMock as unknown as typeof fetch;
-  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
   await act(async () => {
     const start = screen.getByRole('button', { name: en['lab.start'] });
     fireEvent.press(start);
@@ -167,6 +167,7 @@ test('stops the camera if the screen closes while start() is pending, and report
   const stop = jest.spyOn(replay, 'stop').mockRejectedValue(new Error('camera busy'));
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   const { unmount } = render(<LabPanel capture={replay} />);
+  await act(async () => undefined);
 
   await press(en['lab.start']);
   expect(screen.getByRole('button', { name: en['lab.start'] })).toBeDisabled();
@@ -181,7 +182,7 @@ test('stops the camera if the screen closes while start() is pending, and report
 });
 
 test('shows the thermal state from the status event', async () => {
-  render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await renderWithPhone(new ReplayCapture(syntheticRecording()));
   await press(en['lab.start']);
   await act(async () => {
     jest.advanceTimersByTime(500);
@@ -491,7 +492,7 @@ function pulseRecording(): RecordedCapture {
 }
 
 async function playFor(recording: RecordedCapture, ms: number) {
-  render(<LabPanel capture={new ReplayCapture(recording)} />);
+  await renderWithPhone(new ReplayCapture(recording));
   await press(en['lab.start']);
   await act(async () => {
     jest.advanceTimersByTime(ms);
@@ -504,7 +505,27 @@ test('shows the live heart rate and SNR from @lumen/core once 10 s of pulse have
 });
 
 test('shows a dash while core has no estimate', async () => {
-  await playFor(syntheticRecording(), 2500);
+  // 2.5 s of pulse: core runs on a window shorter than its 8 s segment and returns no estimate.
+  await playFor(pulseRecording(), 2500);
+  expect(screen.getByText(en['lab.liveHrNone'])).toBeOnTheScreen();
+});
+
+test('drops the old bpm when the clock steps back more than 1 s', async () => {
+  const recording = pulseRecording();
+  const { tNs, r, g, b } = recording.samples;
+  const steppedNs = Array.from({ length: 30 }, (_, i) => 1e12 - 20e9 + (i * 1e9) / 30);
+  recording.samples = {
+    tNs: [...tNs, ...steppedNs],
+    r: [...r, ...steppedNs.map(() => 0.6)],
+    g: [...g, ...steppedNs.map(() => 0.1)],
+    b: [...b, ...steppedNs.map(() => 0.1)],
+  };
+  await playFor(recording, 11900);
+  expect(screen.getByText(/^Live heart rate \(Lab only\): 72 bpm/)).toBeOnTheScreen();
+
+  await act(async () => {
+    jest.advanceTimersByTime(600);
+  });
   expect(screen.getByText(en['lab.liveHrNone'])).toBeOnTheScreen();
 });
 
@@ -514,6 +535,19 @@ test('shows the RangeError for repeated timestamps instead of a number', async (
   await playFor(recording, 12500);
   expect(screen.getByText(en['lab.liveHrNone'])).toBeOnTheScreen();
   expect(screen.getByText(new RegExp(`^${en['lab.liveHrError'].split('{{')[0]}`))).toBeOnTheScreen();
+});
+
+test('keeps Start disabled until the phone capabilities arrive, so a torchless phone is not sent level 1', async () => {
+  const recording = syntheticRecording();
+  recording.capabilities = { ...recording.capabilities, torch: { available: false, levels: false } };
+  const replay = new ReplayCapture(recording);
+  const start = jest.spyOn(replay, 'start');
+  render(<LabPanel capture={replay} />);
+  expect(screen.getByRole('button', { name: en['lab.start'] })).toBeDisabled();
+
+  await act(async () => undefined);
+  await press(en['lab.start']);
+  expect(start).toHaveBeenCalledWith({ torchLevel: 0 });
 });
 
 test('with no torch on the phone, the torch starts Off and only Off can be chosen (ADR 0029)', async () => {

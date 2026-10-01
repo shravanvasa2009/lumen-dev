@@ -1,3 +1,5 @@
+import { decidePasses } from './evidence.mjs';
+
 // VER-1 (spec §16, §22.1): before evidence.json is frozen, a second agent recomputes the key metrics from
 // the raw captures with its own code, and the two metrics.json files must agree.
 // metrics.json rounds every continuous value to 0.01 in its own unit (bpm, ms, %, breaths/min), so two
@@ -18,7 +20,7 @@ const COUNTS = [
   'ml5.sinusReadings',
   'ml5.falseIrregular',
 ];
-const VALUES = ['hr.maeBpm', 'intervals.maeMs', 'rmssd.withinPct', 'resp.maeBrpm'];
+const VALUES = ['hr.maeBpm', 'intervals.maeMs', 'rmssd.withinPct', 'rmssd.medianErrorPct', 'resp.maeBrpm'];
 // The CIs agree only when both sides run the same seeded subject bootstrap (2000 draws, seed 20261026,
 // mulberry32, linearly interpolated percentiles), which is part of the VER-1 protocol.
 const INTERVALS = ['hr.ci95', 'intervals.ci95'];
@@ -61,6 +63,11 @@ export function compareMetrics(primary, independent) {
   check(COUNTS, sameCount);
   check(VALUES, sameValue);
   check(INTERVALS, sameInterval);
+  // Values one rounding step apart can straddle a pass line (3.00 vs 3.01 bpm); the labels must still agree.
+  const [mine, theirs] = [decidePasses(primary), decidePasses(independent)];
+  for (const metric of Object.keys(mine))
+    if (mine[metric] !== theirs[metric])
+      differences.push(`passed.${metric}: ${mine[metric]} vs ${theirs[metric]}`);
   const tiers = new Set([...primary.perTier, ...independent.perTier].map((row) => row.tier));
   for (const tier of tiers) {
     const mine = primary.perTier.find((row) => row.tier === tier);

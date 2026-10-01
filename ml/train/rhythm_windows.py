@@ -36,10 +36,10 @@ READING_S = 90.0
 # Long-Term AF and MIT-BIH AF subjects carry hours of intervals each, a CinC 2017 subject one short
 # recording; the cap keeps a few long recordings from deciding what the model learns.
 WINDOWS_PER_SUBJECT_LABEL = 400
-# §11.3: σ from BUT PPG, worst case. Track C measured PPG-peak timing against the ECG on the 269 finger
-# records (2,178 beats, each record's median lag removed): robust SD (1.4826 x MAD) 38.4 ms, rounded up
-# to 40. It includes 30 Hz quantization and pulse-transit variation. Source: agent_com order
-# D.C_TASK-dsp7-8-python, reply 02:00 CDT, 2026-10-01. Each reading draws σ uniformly from this range.
+# §11.3: σ from BUT PPG. Each reading draws σ ~ U(0, 40 ms), bounded by the BUT PPG finger robust
+# per-beat SD (38.4 ms; pooled SD 49.3 ms) of PPG peaks vs ECG, measured by Track C on 269 finger
+# records and 2,178 beats (ADR 0025). The measurement includes 30 Hz quantization and pulse-transit
+# variation, so it is not phone timing jitter alone.
 JITTER_SD_RANGE_MS = (0.0, 40.0)
 
 _SIZE = DSP_CONFIG["dsp15"]["windowIntervals"]

@@ -13,11 +13,13 @@ const failures = [];
 // Each guard reads a file the template ships; before bootstrap a missing input is skipped, after it
 // is a failure.
 const GUARDS = {
-  'scope-guard.mjs': null, 'priv-check.mjs': null,
+  'scope-guard.mjs': null,
+  'priv-check.mjs': null,
   'check-contrast.mjs': 'apps/mobile/src/theme/tokens.json',
   'check-notification-copy.mjs': 'apps/mobile/src/i18n/lockscreen.json',
   'check-diabetes-copy.mjs': 'apps/mobile/src/i18n/diabetes.json',
-  'check-logo.mjs': 'apps/mobile/assets/brand', 'check-assets.mjs': 'apps/mobile/app.config.brand.json',
+  'check-logo.mjs': 'apps/mobile/assets/brand',
+  'check-assets.mjs': 'apps/mobile/app.config.brand.json',
 };
 for (const [guard, input] of Object.entries(GUARDS)) {
   if (input && !fs.existsSync(path.join(root, input))) {
@@ -38,7 +40,10 @@ for (const name of ['lint', 'typecheck', 'test:changed']) {
     continue;
   }
   const step = run('npm', ['run', name], { cwd: root });
-  if (step.code !== 0) failures.push(`npm run ${name} failed:\n${(step.stdout + step.stderr).split('\n').slice(-15).join('\n')}`);
+  if (step.code !== 0)
+    failures.push(
+      `npm run ${name} failed:\n${(step.stdout + step.stderr).split('\n').slice(-15).join('\n')}`,
+    );
 }
 if (failures.length) {
   console.error(failures.join('\n\n'));

@@ -3,15 +3,33 @@ import { pathToFileURL } from 'node:url';
 
 const TYPES = 'feat|fix|docs|test|refactor|perf|build|ci|chore|revert';
 const TAG = /\[(CAP|DSP|RESP|ML|VER|EVID|UI|UX|COMP|PRIV|SAFE|SCOPE|REL)-[A-Z0-9]+\]|\[M[0-6]\]|\[BOOT\]/;
-const HYPE = ['comprehensive', 'robust', 'seamless', 'seamlessly', 'powerful', 'enhance', 'enhanced', 'enhances',
-  'leverage', 'leverages', 'leveraging', 'significant', 'significantly', 'various'];
+const HYPE = [
+  'comprehensive',
+  'robust',
+  'seamless',
+  'seamlessly',
+  'powerful',
+  'enhance',
+  'enhanced',
+  'enhances',
+  'leverage',
+  'leverages',
+  'leveraging',
+  'significant',
+  'significantly',
+  'various',
+];
 
 export function commitMessageProblems(message) {
   const subject = message.split(/\r?\n/)[0].trim();
   const problems = [];
-  if (!new RegExp(`^(${TYPES})(\\([a-z0-9-]+\\))?: \\S`).test(subject)) problems.push(`subject must look like "type(scope): summary [REQ-ID]" (types: ${TYPES.replaceAll('|', ', ')})`);
+  if (!new RegExp(`^(${TYPES})(\\([a-z0-9-]+\\))?: \\S`).test(subject))
+    problems.push(
+      `subject must look like "type(scope): summary [REQ-ID]" (types: ${TYPES.replaceAll('|', ', ')})`,
+    );
   if (subject.length > 72) problems.push(`subject is ${subject.length} characters; the limit is 72`);
-  if (!TAG.test(subject)) problems.push('subject must cite a requirement tag such as [DSP-7], [M0], or [BOOT]');
+  if (!TAG.test(subject))
+    problems.push('subject must cite a requirement tag such as [DSP-7], [M0], or [BOOT]');
   const hype = HYPE.filter((word) => new RegExp(`\\b${word}\\b`, 'i').test(message));
   if (hype.length) problems.push(`remove hype words: ${hype.join(', ')}`);
   return problems;

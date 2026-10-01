@@ -23,7 +23,8 @@ for (const root of ROOTS) {
     const text = fs.readFileSync(file, 'utf8');
     const inDev = path.normalize(file).startsWith(DEV_DIR);
     if (NETWORK.test(text) && !inDev) violations.push(`${file}: network call outside ${DEV_DIR}`);
-    if (inDev && NETWORK.test(text) && !/__DEV__/.test(text)) violations.push(`${file}: network code without a __DEV__ guard`);
+    if (inDev && NETWORK.test(text) && !/__DEV__/.test(text))
+      violations.push(`${file}: network code without a __DEV__ guard`);
   }
 }
 if (violations.length) {

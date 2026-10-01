@@ -19,7 +19,8 @@ for (const theme of ['dark', 'light']) {
     for (const bg of pair.bg) {
       const value = ratio(tokens[theme][pair.fg], tokens[theme][bg]);
       checked += 1;
-      if (value < pair.min) failures.push(`${theme}: ${pair.fg} on ${bg} = ${value.toFixed(2)}:1 (needs ${pair.min}:1)`);
+      if (value < pair.min)
+        failures.push(`${theme}: ${pair.fg} on ${bg} = ${value.toFixed(2)}:1 (needs ${pair.min}:1)`);
     }
   }
 }

@@ -8,7 +8,8 @@ export function findWorkspace(start = process.cwd()) {
   if (process.env.LUMEN_WORKSPACE) return path.resolve(process.env.LUMEN_WORKSPACE);
   let dir = path.resolve(start);
   while (true) {
-    if (fs.existsSync(path.join(dir, 'HUMAN_STEPS.md')) && fs.existsSync(path.join(dir, '.claude'))) return dir;
+    if (fs.existsSync(path.join(dir, 'HUMAN_STEPS.md')) && fs.existsSync(path.join(dir, '.claude')))
+      return dir;
     const parent = path.dirname(dir);
     if (parent === dir) return null;
     dir = parent;
@@ -39,7 +40,12 @@ export function readJsonIfExists(file) {
 // shell: true on Windows so npm/npx/gh/eas resolve through their .cmd shims.
 export function run(cmd, args, options = {}) {
   const proc = spawnSync(cmd, args, { encoding: 'utf8', shell: process.platform === 'win32', ...options });
-  return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '', missing: proc.error?.code === 'ENOENT' };
+  return {
+    code: proc.status ?? 1,
+    stdout: proc.stdout ?? '',
+    stderr: proc.stderr ?? '',
+    missing: proc.error?.code === 'ENOENT',
+  };
 }
 
 export function npmScripts(repoRoot) {

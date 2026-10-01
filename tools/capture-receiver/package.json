@@ -1,1 +1,6 @@
-{ "name": "@lumen/capture-receiver", "private": true, "version": "0.1.0", "description": "Development-only receiver for Lab-mode captures" }
+{
+  "name": "@lumen/capture-receiver",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Development-only receiver for Lab-mode captures"
+}

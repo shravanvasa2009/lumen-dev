@@ -48,25 +48,25 @@ npx expo start --dev-client
 
 ## Useful scripts
 
-| Script | What it does |
-|---|---|
-| `npm run doctor` | Checks the development environment and prints fixes |
-| `npm run verify:fast` | Scope, privacy, style, contrast, lock-screen copy, diabetes wording, brand, lint, types, changed tests |
-| `npm run proof -- m0` … `m6`, `m4d` | Checks a milestone's acceptance criteria |
-| `npm run receiver` | Development-only receiver for Lab-mode captures |
+| Script                              | What it does                                                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `npm run doctor`                    | Checks the development environment and prints fixes                                                    |
+| `npm run verify:fast`               | Scope, privacy, style, contrast, lock-screen copy, diabetes wording, brand, lint, types, changed tests |
+| `npm run proof -- m0` … `m6`, `m4d` | Checks a milestone's acceptance criteria                                                               |
+| `npm run receiver`                  | Development-only receiver for Lab-mode captures                                                        |
 
 ## Repository layout
 
-| Path | Contents |
-|---|---|
-| `apps/mobile` | Expo app (routes, UI, storage) and the `lumen-capture` native module |
-| `packages/core` | Signal processing in pure TypeScript |
-| `packages/device-db` | Phone layouts and the rating formula |
-| `tools/replay` | Replays recorded captures through the same pipeline (validation) |
-| `tools/capture-receiver` | Development-only capture receiver |
-| `ml` | Python training and evaluation (uv) |
-| `models` | ONNX models, manifest, and model cards |
-| `docs/validation` | Aggregate validation results (no personal data) |
+| Path                     | Contents                                                             |
+| ------------------------ | -------------------------------------------------------------------- |
+| `apps/mobile`            | Expo app (routes, UI, storage) and the `lumen-capture` native module |
+| `packages/core`          | Signal processing in pure TypeScript                                 |
+| `packages/device-db`     | Phone layouts and the rating formula                                 |
+| `tools/replay`           | Replays recorded captures through the same pipeline (validation)     |
+| `tools/capture-receiver` | Development-only capture receiver                                    |
+| `ml`                     | Python training and evaluation (uv)                                  |
+| `models`                 | ONNX models, manifest, and model cards                               |
+| `docs/validation`        | Aggregate validation results (no personal data)                      |
 
 See `ARCHITECTURE.md` for how the pieces fit together.
 
@@ -75,7 +75,7 @@ See `ARCHITECTURE.md` for how the pieces fit together.
 Generated from `packages/device-db/devices.json` by `npm run devices:table`.
 
 | Phone | Tier | HR error vs ECG strap | Interval error | Notes |
-|---|---|---|---|---|
+| ----- | ---- | --------------------- | -------------- | ----- |
 
 ## Privacy
 

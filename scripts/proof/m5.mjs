@@ -15,12 +15,14 @@ export default function proveM5() {
     for (const key of ['hr', 'rhythm', 'hrv', 'resp']) {
       const entry = evidence.metrics?.[key];
       if (!entry) reasons.push(`evidence.json lacks ${key}`);
-      else if (entry.label !== 'experimental' && entry.ci95 == null && key !== 'resp') reasons.push(`${key} is labeled "${entry.label}" without a confidence interval`);
+      else if (entry.label !== 'experimental' && entry.ci95 == null && key !== 'resp')
+        reasons.push(`${key} is labeled "${entry.label}" without a confidence interval`);
     }
   }
   if (!metrics) reasons.push('docs/validation/metrics.json not found');
   else {
-    if (!metrics.perTier?.some((row) => row.phones > 0)) reasons.push('per-tier error table is empty (COMP-2)');
+    if (!metrics.perTier?.some((row) => row.phones > 0))
+      reasons.push('per-tier error table is empty (COMP-2)');
     if (metrics.recompute?.matches !== true) reasons.push('independent recompute has not matched (VER-1)');
     if (metrics.ux1?.firstReadings == null) reasons.push('UX-1 not measured');
     if (metrics.ml5?.sinusReadings == null) reasons.push('ML-5 not measured');

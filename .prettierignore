@@ -1,0 +1,8 @@
+# Protected files change only with the owner's approval (approve.mjs) or through npm run eval:replay.
+**/evidence.json
+models/manifest.json
+packages/core/test/golden/
+
+# Lockfiles are written by their package managers.
+package-lock.json
+ml/uv.lock

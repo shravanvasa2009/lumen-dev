@@ -32,6 +32,7 @@ ml/data/
 ml/.venv/
 ml/runs/
 __pycache__/
+.pytest_cache/
 *.pyc
 
 # Private recordings (health data) and personal or agent files

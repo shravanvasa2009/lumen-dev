@@ -4,9 +4,7 @@
     "displayName": "iPhone 16",
     "match": {
       "platform": "ios",
-      "modelIdentifiers": [
-        "<paste from DeviceProbe on a real iPhone 16>"
-      ]
+      "modelIdentifiers": ["<paste from DeviceProbe on a real iPhone 16>"]
     },
     "backLayout": {
       "lenses": [

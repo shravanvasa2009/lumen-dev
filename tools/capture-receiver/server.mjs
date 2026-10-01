@@ -12,19 +12,36 @@ const token = process.env.LUMEN_RECEIVER_TOKEN ?? crypto.randomBytes(6).toString
 const outDir = captureDir();
 const MAX_BYTES = 60 * 1024 * 1024;
 
-const slug = (text) => String(text ?? 'phone').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'phone';
+const slug = (text) =>
+  String(text ?? 'phone')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+    .slice(0, 24) || 'phone';
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
-const csv = (header, columns) => [header.join(','), ...columns[0].map((_, i) => columns.map((col) => col[i]).join(','))].join('\n') + '\n';
+const csv = (header, columns) =>
+  [header.join(','), ...columns[0].map((_, i) => columns.map((col) => col[i]).join(','))].join('\n') + '\n';
 
 function writeCapture(capture) {
   const { meta, samples, stats, polarRr } = capture;
   const lengths = [samples.tNs, samples.r, samples.g, samples.b].map((arr) => arr?.length);
-  if (!lengths[0] || lengths.some((len) => len !== lengths[0])) throw new Error('samples arrays are missing or have different lengths');
+  if (!lengths[0] || lengths.some((len) => len !== lengths[0]))
+    throw new Error('samples arrays are missing or have different lengths');
   const folder = path.join(outDir, `${stamp()}-${slug(meta?.modelId)}`);
   fs.mkdirSync(folder, { recursive: true });
-  fs.writeFileSync(path.join(folder, 'samples.csv'), csv(['t_ns', 'r', 'g', 'b'], [samples.tNs, samples.r, samples.g, samples.b]));
-  if (stats?.tNs?.length) fs.writeFileSync(path.join(folder, 'stats.csv'), csv(['t_ns', 'spatial_std_r', 'clip_frac', 'exposure_ns'], [stats.tNs, stats.spatialStdR, stats.clipFrac, stats.exposureNs]));
-  if (polarRr?.tNs?.length) fs.writeFileSync(path.join(folder, 'polar_rr.csv'), csv(['t_ns', 'rr_ms'], [polarRr.tNs, polarRr.rrMs]));
+  fs.writeFileSync(
+    path.join(folder, 'samples.csv'),
+    csv(['t_ns', 'r', 'g', 'b'], [samples.tNs, samples.r, samples.g, samples.b]),
+  );
+  if (stats?.tNs?.length)
+    fs.writeFileSync(
+      path.join(folder, 'stats.csv'),
+      csv(
+        ['t_ns', 'spatial_std_r', 'clip_frac', 'exposure_ns'],
+        [stats.tNs, stats.spatialStdR, stats.clipFrac, stats.exposureNs],
+      ),
+    );
+  if (polarRr?.tNs?.length)
+    fs.writeFileSync(path.join(folder, 'polar_rr.csv'), csv(['t_ns', 'rr_ms'], [polarRr.tNs, polarRr.rrMs]));
   fs.writeFileSync(path.join(folder, 'meta.json'), JSON.stringify(meta ?? {}, null, 2));
   return path.basename(folder);
 }
@@ -53,8 +70,13 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, '0.0.0.0', () => {
-  const addresses = Object.values(os.networkInterfaces()).flat().filter((net) => net?.family === 'IPv4' && !net.internal).map((net) => net.address);
+  const addresses = Object.values(os.networkInterfaces())
+    .flat()
+    .filter((net) => net?.family === 'IPv4' && !net.internal)
+    .map((net) => net.address);
   console.log(`Lumen capture receiver on port ${port}, saving to ${outDir}`);
-  console.log(`In Lab mode, set the PC address to one of: ${addresses.map((ip) => `${ip}:${port}`).join(', ') || '(no LAN address found)'}`);
+  console.log(
+    `In Lab mode, set the PC address to one of: ${addresses.map((ip) => `${ip}:${port}`).join(', ') || '(no LAN address found)'}`,
+  );
   console.log(`Token: ${token}`);
 });

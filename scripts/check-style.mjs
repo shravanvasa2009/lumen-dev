@@ -17,7 +17,7 @@ function* walk(dir, ext) {
   }
 }
 
-const words = (text) => (text.toLowerCase().match(/[a-z]{3,}/g) ?? []);
+const words = (text) => text.toLowerCase().match(/[a-z]{3,}/g) ?? [];
 function restates(comment, code) {
   const commentWords = words(comment);
   if (commentWords.length < 3) return false;
@@ -29,9 +29,11 @@ for (const file of walk('ml', /\.py$/)) {
   const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
   lines.forEach((line, i) => {
     if (GENERIC.test(line)) errors.push(`${file}:${i + 1}: generic name in "${line.trim()}"`);
-    if (/^\s*except\b.*:\s*$/.test(line) && /^\s*pass\s*$/.test(lines[i + 1] ?? '')) errors.push(`${file}:${i + 1}: except block that silently passes`);
+    if (/^\s*except\b.*:\s*$/.test(line) && /^\s*pass\s*$/.test(lines[i + 1] ?? ''))
+      errors.push(`${file}:${i + 1}: except block that silently passes`);
     const comment = line.match(/^\s*#\s*(.+)$/);
-    if (comment && restates(comment[1], lines[i + 1] ?? '')) warnings.push(`${file}:${i + 1}: comment may restate the code`);
+    if (comment && restates(comment[1], lines[i + 1] ?? ''))
+      warnings.push(`${file}:${i + 1}: comment may restate the code`);
   });
 }
 for (const root of ['apps', 'packages', 'tools']) {
@@ -39,7 +41,8 @@ for (const root of ['apps', 'packages', 'tools']) {
     const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
     lines.forEach((line, i) => {
       const comment = line.match(/^\s*\/\/\s*(.+)$/);
-      if (comment && restates(comment[1], lines[i + 1] ?? '')) warnings.push(`${file}:${i + 1}: comment may restate the code`);
+      if (comment && restates(comment[1], lines[i + 1] ?? ''))
+        warnings.push(`${file}:${i + 1}: comment may restate the code`);
     });
   }
 }

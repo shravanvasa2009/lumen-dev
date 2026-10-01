@@ -19,12 +19,15 @@
       }
     },
     "plugins": [
-      ["expo-splash-screen", {
-        "image": "./assets/brand/splash-icon-512.png",
-        "imageWidth": 160,
-        "backgroundColor": "#F3F5F9",
-        "dark": { "image": "./assets/brand/splash-icon-512.png", "backgroundColor": "#0B0E14" }
-      }],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/brand/splash-icon-512.png",
+          "imageWidth": 160,
+          "backgroundColor": "#F3F5F9",
+          "dark": { "image": "./assets/brand/splash-icon-512.png", "backgroundColor": "#0B0E14" }
+        }
+      ],
       ["expo-notifications", { "icon": "./assets/brand/notification-icon-96.png", "color": "#2EC4B6" }]
     ]
   }

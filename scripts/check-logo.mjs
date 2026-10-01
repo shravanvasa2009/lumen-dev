@@ -5,8 +5,15 @@ import path from 'node:path';
 // radial gradient; any source file with that signature, or a brand file other than the kit's, fails.
 const ROOTS = ['apps', 'packages', 'tools'];
 const SIGNATURES = [/radialGradient id="lg"/, /const logo = \(s = 150\)/, /rings?-logo/i];
-const KIT = new Set(['mark-solid.dark.svg', 'mark-solid.light.svg', 'mark-outline.dark.svg', 'mark-outline.light.svg',
-  'lockup-dark.svg', 'lockup-light.svg', 'mark-mono.svg']);
+const KIT = new Set([
+  'mark-solid.dark.svg',
+  'mark-solid.light.svg',
+  'mark-outline.dark.svg',
+  'mark-outline.light.svg',
+  'lockup-dark.svg',
+  'lockup-light.svg',
+  'mark-mono.svg',
+]);
 const failures = [];
 
 function* walk(dir) {
@@ -28,7 +35,9 @@ for (const root of ROOTS) {
 }
 const brandDir = 'apps/mobile/assets/brand';
 if (!fs.existsSync(brandDir)) failures.push(`${brandDir} is missing`);
-else for (const name of KIT) if (!fs.existsSync(path.join(brandDir, name))) failures.push(`${brandDir}/${name} is missing`);
+else
+  for (const name of KIT)
+    if (!fs.existsSync(path.join(brandDir, name))) failures.push(`${brandDir}/${name} is missing`);
 if (failures.length) {
   console.error(`BRAND-1 failed:\n${failures.join('\n')}`);
   process.exit(1);

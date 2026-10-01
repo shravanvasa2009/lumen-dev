@@ -5,9 +5,11 @@ import { captureDir, findWorkspace } from '../lib/workspace.mjs';
 // M0: a real capture from the iPhone, sent to the PC by the dev-only receiver, shows a usable pulse.
 function newestCapture(dir) {
   if (!fs.existsSync(dir)) return null;
-  const folders = fs.readdirSync(dir, { withFileTypes: true })
+  const folders = fs
+    .readdirSync(dir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(dir, entry.name, 'samples.csv')))
-    .map((entry) => entry.name).sort();
+    .map((entry) => entry.name)
+    .sort();
   return folders.length ? path.join(dir, folders.at(-1)) : null;
 }
 
@@ -15,7 +17,9 @@ function readSamples(folder) {
   const [header, ...rows] = fs.readFileSync(path.join(folder, 'samples.csv'), 'utf8').trim().split(/\r?\n/);
   const cols = header.split(',');
   const at = (name) => cols.indexOf(name);
-  return rows.map((row) => row.split(',').map(Number)).map((v) => ({ tNs: v[at('t_ns')], r: v[at('r')], g: v[at('g')], b: v[at('b')] }));
+  return rows
+    .map((row) => row.split(',').map(Number))
+    .map((v) => ({ tNs: v[at('t_ns')], r: v[at('r')], g: v[at('g')], b: v[at('b')] }));
 }
 
 // Pulse rate from the dominant frequency of the inverted red signal (0.6–3.5 Hz), after a moving-average detrend.
@@ -33,7 +37,8 @@ function pulseSpectrum(samples) {
   }
   const win = Math.round(1.5 * fs30);
   const detrended = uniform.map((value, i) => {
-    const from = Math.max(0, i - win), to = Math.min(uniform.length, i + win);
+    const from = Math.max(0, i - win),
+      to = Math.min(uniform.length, i + win);
     let sum = 0;
     for (let k = from; k < to; k++) sum += uniform[k];
     return value - sum / (to - from);
@@ -42,7 +47,8 @@ function pulseSpectrum(samples) {
   const n = segment.length;
   const powers = [];
   for (let f = 0.6; f <= 3.5; f += 0.01) {
-    let re = 0, im = 0;
+    let re = 0,
+      im = 0;
     for (let k = 0; k < n; k++) {
       const hann = 0.5 - 0.5 * Math.cos((2 * Math.PI * k) / (n - 1));
       re += segment[k] * hann * Math.cos((2 * Math.PI * f * k) / fs30);
@@ -59,7 +65,13 @@ function pulseSpectrum(samples) {
 export default function proveM0() {
   const reasons = [];
   const folder = newestCapture(captureDir());
-  if (!folder) return { status: 'FAIL', reasons: [`no capture folder with samples.csv in ${captureDir()} (send one from Lab mode with "Send to PC")`] };
+  if (!folder)
+    return {
+      status: 'FAIL',
+      reasons: [
+        `no capture folder with samples.csv in ${captureDir()} (send one from Lab mode with "Send to PC")`,
+      ],
+    };
   const samples = readSamples(folder);
   const duration = (samples.at(-1).tNs - samples[0].tNs) / 1e9;
   const fps = (samples.length - 1) / duration;
@@ -74,6 +86,7 @@ export default function proveM0() {
   }
   const ws = findWorkspace();
   const log = ws ? path.join(ws, 'docs', 'device-tests.md') : null;
-  if (!log || !/M0 confirmed/i.test(fs.readFileSync(log, 'utf8'))) reasons.push('owner has not written "M0 confirmed" in docs/device-tests.md');
+  if (!log || !/M0 confirmed/i.test(fs.readFileSync(log, 'utf8')))
+    reasons.push('owner has not written "M0 confirmed" in docs/device-tests.md');
   return { status: reasons.length ? 'FAIL' : 'PASS', reasons, detail: path.basename(folder) };
 }

@@ -5,7 +5,7 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { RouteShell } from '@/components/RouteShell';
 import { HomePreview } from '@/settings/HomePreview';
-import { setPreference, usePreferences } from '@/settings/preferences';
+import { setPreference, usePreferences } from '@/theme/preferences';
 import { Segmented } from '@/settings/Segmented';
 import { useTheme } from '@/theme';
 

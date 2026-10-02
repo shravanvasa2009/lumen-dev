@@ -81,13 +81,28 @@ export function savgolFilter(values: ArrayLike<number>, deriv: number): Float64A
 const isLocalMax = (y: Float64Array, i: number) => y[i - 1]! < y[i]! && y[i]! >= y[i + 1]!;
 const isLocalMin = (y: Float64Array, i: number) => y[i - 1]! > y[i]! && y[i]! <= y[i + 1]!;
 
+// End (exclusive) of the systolic span searched for the peak and the a–e waves.
+function systolicSpanEnd(): number {
+  const { leadFraction, systoleFraction, beatSamples } = DSP_CONFIG.dsp14;
+  return Math.floor((leadFraction + systoleFraction) * beatSamples + 0.5);
+}
+
+// The first highest sample of the smoothed beat within the systolic span; the a–e labels and the
+// diabetes-net shape features share it.
+export function systolicPeakIndex(smoothed: Float64Array): number {
+  const spanEnd = systolicSpanEnd();
+  let systolicPeak = 0;
+  for (let k = 1; k < spanEnd; k++) if (smoothed[k]! > smoothed[systolicPeak]!) systolicPeak = k;
+  return systolicPeak;
+}
+
 // a: the largest local maximum of the second derivative before the systolic peak; then b, c, d, e: the
 // first local minimum, maximum, minimum, maximum after it, in the spec's order. All within the systolic
 // span; a wave that is not found leaves it and every later wave null.
-function labelWaves(smoothed: Float64Array, secondDerivative: Float64Array, spanEnd: number): WaveLabels {
+function labelWaves(smoothed: Float64Array, secondDerivative: Float64Array): WaveLabels {
   const waves: WaveLabels = { a: null, b: null, c: null, d: null, e: null };
-  let systolicPeak = 0;
-  for (let k = 1; k < spanEnd; k++) if (smoothed[k]! > smoothed[systolicPeak]!) systolicPeak = k;
+  const spanEnd = systolicSpanEnd();
+  const systolicPeak = systolicPeakIndex(smoothed);
   for (let i = 1; i < systolicPeak; i++) {
     if (
       isLocalMax(secondDerivative, i) &&
@@ -116,8 +131,7 @@ export function ensembleBeat(
 ): PulseShape | null {
   if (onsets.length !== normal.length)
     throw new RangeError(`${onsets.length} onsets but ${normal.length} normal-beat flags`);
-  const { minNormalBeats, beatSamples, leadFraction, systoleFraction, minFps, maxPeriodRatio } =
-    DSP_CONFIG.dsp14;
+  const { minNormalBeats, beatSamples, leadFraction, minFps, maxPeriodRatio } = DSP_CONFIG.dsp14;
   // The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
   // nominal 60 fps session measures 59.9x.
   if (captureFps < minFps) return null;
@@ -159,12 +173,11 @@ export function ensembleBeat(
   const beat = sums.map((sum) => sum / beatsUsed);
   const smoothed = savgolFilter(beat, 0);
   const secondDerivative = savgolFilter(beat, 2);
-  const spanEnd = Math.floor((leadFraction + systoleFraction) * beatSamples + 0.5);
   return {
     beat,
     smoothed,
     secondDerivative,
-    waves: labelWaves(smoothed, secondDerivative, spanEnd),
+    waves: labelWaves(smoothed, secondDerivative),
     beatsUsed,
   };
 }

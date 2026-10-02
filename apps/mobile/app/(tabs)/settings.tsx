@@ -9,7 +9,7 @@ import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
 import { Toggle } from '@/settings/Toggle';
-import { usePreferences } from '@/settings/preferences';
+import { usePreferences } from '@/theme/preferences';
 
 // Seven quick taps open Lab mode; a pause longer than this starts the count over.
 const LAB_TAPS = 7;

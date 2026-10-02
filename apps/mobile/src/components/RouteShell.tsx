@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import type { EvidenceMetric } from '@/evidence';
 import { useTheme } from '@/theme';
@@ -21,6 +21,8 @@ type RouteShellProps = {
   // Tab roots carry the Display title; every other screen uses Title.
   tabRoot?: boolean;
   footer?: ReactNode;
+  // Sits beside the title, e.g. a DEV badge or the Learn language toggle.
+  trailing?: ReactNode;
 };
 
 export function RouteShell({
@@ -32,14 +34,23 @@ export function RouteShell({
   headerless = false,
   tabRoot = false,
   footer,
+  trailing,
 }: RouteShellProps) {
   const { spacing } = useTheme();
   return (
     <Screen headerless={headerless || tabRoot} footer={footer}>
       <ScrollView contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.xxxl }}>
-        <AppText variant={tabRoot ? 'display' : 'title'} tone={titleTone} accessibilityRole="header">
-          {title}
-        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <AppText
+            variant={tabRoot ? 'display' : 'title'}
+            tone={titleTone}
+            accessibilityRole="header"
+            style={{ flex: 1 }}
+          >
+            {title}
+          </AppText>
+          {trailing}
+        </View>
         {subtitle ? <AppText tone="textDim">{subtitle}</AppText> : null}
         {sections.map(({ heading, lines = [], metric }) => (
           <Card key={heading}>

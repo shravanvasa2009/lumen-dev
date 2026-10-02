@@ -13,6 +13,8 @@ type ListRowProps = {
   trailing?: ReactNode;
   last?: boolean;
   chevron?: boolean;
+  // A row that is announced but not available yet, e.g. "Coming soon"; it ignores presses.
+  disabled?: boolean;
   onPress?: () => void;
 };
 
@@ -23,13 +25,15 @@ export function ListRow({
   trailing,
   last = false,
   chevron = false,
+  disabled = false,
   onPress,
 }: ListRowProps) {
   const { colors, spacing, control } = useTheme();
   return (
     <Pressable
       accessibilityRole={onPress ? 'button' : undefined}
-      disabled={!onPress}
+      disabled={!onPress || disabled}
+      accessibilityState={{ disabled }}
       onPress={onPress}
       style={[
         styles.row,
@@ -40,6 +44,7 @@ export function ListRow({
           gap: spacing.md,
           borderBottomColor: colors.line,
           borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
+          opacity: disabled ? 0.5 : 1,
         },
       ]}
     >

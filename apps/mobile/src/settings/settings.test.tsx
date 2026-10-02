@@ -4,7 +4,7 @@ import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testin
 
 import en from '@/i18n/en.json';
 import { lockscreenStrings } from '@/i18n/lockscreen';
-import { setPreference } from '@/settings/preferences';
+import { setPreference } from '@/theme/preferences';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,

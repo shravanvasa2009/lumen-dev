@@ -444,6 +444,7 @@ dependencies = [
     { name = "scipy" },
     { name = "skl2onnx" },
     { name = "torch" },
+    { name = "vitaldb" },
     { name = "wfdb" },
 ]
 
@@ -467,6 +468,7 @@ requires-dist = [
     { name = "scipy", specifier = "==1.17.1" },
     { name = "skl2onnx", specifier = "==1.20.0" },
     { name = "torch", specifier = "==2.14.1" },
+    { name = "vitaldb", specifier = "==1.7.2" },
     { name = "wfdb", specifier = "==4.3.1" },
 ]
 
@@ -1222,6 +1224,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz", hash = "sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63", size = 458972, upload-time = "2026-09-15T19:29:36.253Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl", hash = "sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3", size = 135717, upload-time = "2026-09-15T19:29:34.577Z" },
+]
+
+[[package]]
+name = "vitaldb"
+version = "1.7.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "requests" },
+    { name = "wfdb" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f4/1c/f48900276672017f7f72f3d2c0b94ac435c80fc0907ec663cedb6be76cf3/vitaldb-1.7.2.tar.gz", hash = "sha256:70e0ce784b13d52bbf6a315b742ab06d5ed0599b8b01f76182971a391dd64130", size = 67723, upload-time = "2026-06-08T04:10:46.252Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/97/940bf86430760cec92aa59e4e0159030b4fe174f35377e8df88bf8f8da44/vitaldb-1.7.2-py3-none-any.whl", hash = "sha256:9037b11ca172bf3a674275f1fd89db03a02c92e8c9eed15b6cf80b328cd2cb2e", size = 68910, upload-time = "2026-06-08T04:10:47.376Z" },
 ]
 
 [[package]]

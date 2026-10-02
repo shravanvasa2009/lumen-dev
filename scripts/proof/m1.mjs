@@ -17,7 +17,7 @@ const REQUIRED = [
 const FAILURE_LINE = /^\s*(FAIL\b|●|✖|not ok\b|npm (error|ERR!)|\w*Error:)/;
 const EXCERPT_LINES = 30;
 
-function failureExcerpt(step) {
+export function failureExcerpt(step) {
   const lines = `${step.stdout}\n${step.stderr}`.split('\n').filter((line) => line.trim());
   const flagged = lines.filter((line) => FAILURE_LINE.test(line));
   return (flagged.length ? flagged.slice(0, EXCERPT_LINES) : lines.slice(-EXCERPT_LINES)).join('\n');

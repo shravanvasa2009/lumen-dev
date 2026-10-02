@@ -31,7 +31,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
   if (!rhythm || reading.intervalsMs.length === 0) {
     return (
       <Screen>
-        <DemoBanner synthetic={reading.synthetic} />
+        {reading.sample ? <DemoBanner synthetic={reading.synthetic} /> : null}
         <AppText variant="title" accessibilityRole="header">
           {t('result.inconclusive')}
         </AppText>
@@ -61,7 +61,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xxl }}>
-        <DemoBanner synthetic={reading.synthetic} />
+        {reading.sample ? <DemoBanner synthetic={reading.synthetic} /> : null}
         <AppText variant="title" accessibilityRole="header">
           {why.title}
         </AppText>

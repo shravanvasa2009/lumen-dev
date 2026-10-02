@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 
+import { saveReading } from '@/store/readings';
+
 import { analyzeKeptCapture, type AnalysisRequest } from './analyzeKeptCapture';
 import { type AnalysisProgress, pendingProgress } from './analysisProgress';
-import { saveFinishedReading } from './finishedReadings';
 import { keptCapture } from './keptCapture';
 import { DEFAULT_MODE } from './mode';
 
@@ -33,31 +34,21 @@ export function useReadingAnalysis(request: AnalysisRequest = DEFAULT_REQUEST): 
     analyzeKeptCapture(capture, { mode, restTimerDone }, (progress) => {
       latest = progress;
       if (active) setState({ phase: 'running', progress });
-    }).then(
-      ({ readingId, reading, recordedMs, progress }) => {
-        saveFinishedReading({
-          id: readingId,
-          mode,
-          createdAt: new Date(recordedMs),
-          synthetic: false,
-          scan: reading,
-          intervalsMs: [],
-          repeat: null,
-          diabetesDays: [],
-        });
-        if (active) setState({ phase: 'done', progress, readingId });
-      },
-      (error: unknown) => {
-        const reason = error instanceof Error ? error.message : String(error);
-        console.warn(`Reading analysis failed: ${reason}`);
-        if (active)
-          setState({
-            phase: 'failed',
-            progress: latest,
-            reason,
-          });
-      },
-    );
+    })
+      .then(async ({ readingId, recordedMs, context, models, reading, progress }) => {
+        await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
+        return { readingId, progress };
+      })
+      .then(
+        ({ readingId, progress }) => {
+          if (active) setState({ phase: 'done', progress, readingId });
+        },
+        (error: unknown) => {
+          const reason = error instanceof Error ? error.message : String(error);
+          console.warn(`Reading analysis failed: ${reason}`);
+          if (active) setState({ phase: 'failed', progress: latest, reason });
+        },
+      );
     return () => {
       active = false;
     };

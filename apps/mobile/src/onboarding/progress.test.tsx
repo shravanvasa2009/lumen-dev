@@ -9,6 +9,7 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(),
   useLastNotificationResponse: () => null,
+  setNotificationHandler: jest.fn(),
 }));
 
 // The mockups fill 1 segment on consent and count up by one per screen; Reminders shows all nine.

@@ -11,6 +11,7 @@ import tokens from '@/theme/tokens.json';
 jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
   useLastNotificationResponse: () => null,
+  setNotificationHandler: jest.fn(),
 }));
 
 fixClockAtMorning();

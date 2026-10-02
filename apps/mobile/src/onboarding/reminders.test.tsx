@@ -11,6 +11,7 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(),
   useLastNotificationResponse: () => null,
+  setNotificationHandler: jest.fn(),
 }));
 
 fixClockAtMorning();

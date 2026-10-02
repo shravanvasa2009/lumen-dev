@@ -2,6 +2,9 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
+import { useFixedMorning } from '@/testing/fixedMorning';
+
+useFixedMorning();
 
 describe('emergency screen', () => {
   afterEach(() => {
@@ -27,7 +30,7 @@ describe('emergency screen', () => {
   it('returns to Home when there is nothing to go back to', () => {
     renderRouter('./app', { initialUrl: '/emergency' });
     fireEvent.press(screen.getByRole('button', { name: en['emergency.okay'] }));
-    expect(screen.getByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
   it('shows the stroke signs and no made-up doctor number', () => {

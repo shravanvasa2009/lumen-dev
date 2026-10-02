@@ -34,6 +34,10 @@ if (personalTeam) {
     iosSigning.appleTeamId = teamId;
   }
 }
+// The app and its widget extension share the widget snapshot through this App Group (ADR 0005). It follows
+// the bundle ID, so a personal-team build gets its own group. @bacons/apple-targets copies it to the widget
+// target (targets/widget), and the lumen-widgets plugin writes it into Info.plist for the Swift code.
+const appGroup = `group.${iosSigning.bundleIdentifier}`;
 const capturePlugin = './modules/lumen-capture/app.plugin';
 // Lab mode's chest-strap reference (spec §9.5, ADR 0039). The H10 is found by its Heart Rate service, not by
 // location, and is only used in the foreground.
@@ -54,7 +58,12 @@ const config: ExpoConfig = {
   owner: 'lumen-capp-team',
   version: '0.1.0',
   orientation: 'portrait',
-  ios: { ...brand.ios, ...iosSigning, supportsTablet: false },
+  ios: {
+    ...brand.ios,
+    ...iosSigning,
+    supportsTablet: false,
+    entitlements: { 'com.apple.security.application-groups': [appGroup] },
+  },
   android: { ...brand.android, package: BUNDLE_ID },
   plugins: [
     'expo-router',
@@ -62,6 +71,9 @@ const config: ExpoConfig = {
     ...(brand.plugins ?? []),
     blePlugin,
     personalTeam ? [capturePlugin, { personalTeam: true }] : capturePlugin,
+    // Builds every folder under targets/ as an Apple target: the widget extension and its Live Activity UI.
+    '@bacons/apple-targets',
+    './modules/lumen-widgets/app.plugin',
   ],
   // No over-the-air updates: release builds make no network requests (PRIV-1).
   updates: { enabled: false },

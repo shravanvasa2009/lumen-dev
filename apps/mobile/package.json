@@ -13,6 +13,7 @@
     "test:widgets": "jest src/widgets"
   },
   "dependencies": {
+    "@bacons/apple-targets": "5.0.0",
     "@lumen/core": "0.1.0",
     "expo": "57.0.26",
     "expo-asset": "57.0.18",

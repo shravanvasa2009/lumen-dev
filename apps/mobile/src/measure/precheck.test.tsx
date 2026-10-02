@@ -26,7 +26,12 @@ describe('pre-check', () => {
     jest.useFakeTimers();
     view = renderRouter('./app', { initialUrl: '/measure/precheck?mode=quick' });
   });
-  afterEach(() => jest.useRealTimers());
+  // Unmount while the countdown's fake setTimeout is still installed, so its cleanup clears a timer it
+  // owns; unmounting after the switch back to real timers hangs the testing-library cleanup on Node 22.
+  afterEach(() => {
+    screen.unmount();
+    jest.useRealTimers();
+  });
 
   it('counts the two-minute rest down one second at a time', () => {
     expect(screen.getByText('2:00')).toBeOnTheScreen();

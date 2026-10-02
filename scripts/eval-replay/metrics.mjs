@@ -39,18 +39,27 @@ const START_MARGIN_BEATS = 5;
 function phoneBeatsBeforeStrap(capture) {
   if (capture.polarStartNs == null) return 0;
   const firstAfter = capture.phone.findIndex((beat) => beat.endNs > capture.polarStartNs);
-  return firstAfter === -1 ? 0 : Math.max(0, firstAfter - START_MARGIN_BEATS);
+  // Strap data that starts after the last phone beat shares no heartbeats with it.
+  return firstAfter === -1 ? null : Math.max(0, firstAfter - START_MARGIN_BEATS);
 }
 
 function alignmentOf(capture) {
   if (!hasPolar(capture) || !capture.phone.length || !isConclusive(capture)) return null;
   const skip = phoneBeatsBeforeStrap(capture);
+  if (skip === null) return null;
   const alignment = alignIntervals(
     capture.phone.slice(skip).map((beat) => beat.ibiMs),
     capture.polarRrMs,
     (p, q) => capture.phone[p + skip].accepted && polarUsable(capture.polarRrMs[q]),
   );
-  return alignment && { ...alignment, pairs: alignment.pairs.map(([p, q]) => [p + skip, q]) };
+  // Back to whole-reading phone indices: strap interval q = phone interval p + lag.
+  return (
+    alignment && {
+      ...alignment,
+      lag: alignment.lag - skip,
+      pairs: alignment.pairs.map(([p, q]) => [p + skip, q]),
+    }
+  );
 }
 
 // Only pairs where the phone kept the beat and the strap interval is in range are compared.

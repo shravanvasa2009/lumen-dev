@@ -634,6 +634,23 @@ test('after a dropout, the kept later stretch still pairs each beat with its own
     const { captures } = readCaptures(root);
     assert.equal(captures[0].strapDropouts, 1);
     assert.ok(captures[0].polarStartNs > 15e9);
-    assert.equal(computeMetrics(captures, { commit: 'abc', date: '2026-10-20' }).intervals.maeMs, 10);
+    const logged = [];
+    const metrics = computeMetrics(captures, { commit: 'abc', date: '2026-10-20' }, (line) =>
+      logged.push(line),
+    );
+    assert.equal(metrics.intervals.maeMs, 10);
+    // The lag is in whole-reading beats: the kept stretch starts well into the reading, so strap q = phone p + lag < 0.
+    const lag = Number(/lag (-?\d+) beats/.exec(logged.join('\n'))[1]);
+    assert.ok(lag < -10, `lag ${lag}`);
   }
+});
+
+test('strap data that starts after the last phone beat is not aligned at all', () => {
+  const late = capture({ subject: 'P1', hr: 62, polarHr: 60 });
+  late.phone = late.phone.map((beat, i) => ({ ...beat, endNs: (i + 1) * 1e9 }));
+  late.polarStartNs = 1e12;
+  const logged = [];
+  const metrics = computeMetrics([late], { commit: 'abc', date: '2026-10-20' }, (line) => logged.push(line));
+  assert.equal(metrics.intervals.maeMs, null);
+  assert.match(logged.join('\n'), /did not align/);
 });

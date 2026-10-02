@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { StyleSheet, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import tokens from '@/theme/tokens.json';
@@ -9,6 +9,7 @@ import { Button } from './Button';
 import { Card } from './Card';
 import { Icon, type IconName } from './Icon';
 import { ListRow } from './ListRow';
+import { RouteShell } from './RouteShell';
 import { Screen } from './Screen';
 
 let mockScheme: 'light' | 'dark';
@@ -110,17 +111,35 @@ describe.each([
     expect(dividerOf('Final')).toBe(0);
   });
 
-  it.each<IconName>(['home', 'trends', 'learn', 'settings', 'chevron', 'check', 'close', 'warning'])(
-    'Icon %s draws strokes in the colour it is given',
-    (name) => {
-      render(<Icon name={name} size={24} color={colors.accent} />);
-      const drawn = JSON.stringify(screen.toJSON());
-      expect(drawn).toContain('RNSVGPath');
-      // react-native-svg serialises a colour as opaque ARGB.
-      const opaqueArgb = Number.parseInt(colors.accent.slice(1), 16) + 0xff000000;
-      expect(drawn).toContain(`"stroke":{"type":0,"payload":${opaqueArgb}}`);
-    },
-  );
+  it.each<IconName>([
+    'home',
+    'trends',
+    'learn',
+    'settings',
+    'chevron',
+    'check',
+    'close',
+    'warning',
+    'share',
+    'noSignal',
+    'hint',
+  ])('Icon %s draws strokes in the colour it is given', (name) => {
+    render(<Icon name={name} size={24} color={colors.accent} />);
+    const drawn = JSON.stringify(screen.toJSON());
+    expect(drawn).toContain('RNSVGPath');
+    // react-native-svg serialises a colour as opaque ARGB.
+    const opaqueArgb = Number.parseInt(colors.accent.slice(1), 16) + 0xff000000;
+    expect(drawn).toContain(`"stroke":{"type":0,"payload":${opaqueArgb}}`);
+  });
+
+  it('the warning triangle fills with its colour and draws the exclamation in the mark colour', () => {
+    render(<Icon name="warning" size={72} color={colors.criticalText} mark={colors.bg} />);
+    const drawn = JSON.stringify(screen.toJSON());
+    const opaqueArgb = (hex: string) => Number.parseInt(hex.slice(1), 16) + 0xff000000;
+    expect(drawn).toContain(`"fill":{"type":0,"payload":${opaqueArgb(colors.criticalText)}}`);
+    expect(drawn).toContain(`"stroke":{"type":0,"payload":${opaqueArgb(colors.bg)}}`);
+    expect(drawn).toContain('no-hide-descendants');
+  });
 
   it('ListRow shows a chevron only when asked', () => {
     const { unmount } = render(<ListRow title="Goes" chevron onPress={jest.fn()} />);
@@ -219,5 +238,27 @@ describe.each([
     fireEvent.press(screen.getByRole('button', { name: /Phone/ }));
     expect(onPress).toHaveBeenCalledTimes(1);
     expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('ListRow dims a disabled row and ignores presses', () => {
+    const onPress = jest.fn();
+    render(<ListRow title="Coming soon" disabled onPress={onPress} />);
+    const row = screen.getByRole('button', { name: /Coming soon/ });
+    fireEvent.press(row);
+    expect(onPress).not.toHaveBeenCalled();
+    expect(row).toBeDisabled();
+    expect(StyleSheet.flatten(row.props.style).opacity).toBeLessThan(1);
+  });
+
+  it('RouteShell puts its trailing control beside the title', () => {
+    render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <RouteShell title="Lab" trailing={<Text>DEV</Text>} />
+      </SafeAreaProvider>,
+    );
+    let row = screen.getByRole('header', { name: 'Lab' }).parent;
+    while (row && StyleSheet.flatten(row.props.style)?.flexDirection !== 'row') row = row.parent;
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText('DEV')).toBeOnTheScreen();
   });
 });

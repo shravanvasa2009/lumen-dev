@@ -446,6 +446,7 @@
   "phoneCheck.locksSome": "{{locked}} of 3",
   "phoneCheck.locksNone": "None",
   "phoneCheck.notChecked": "Not checked",
+  "phoneCheck.checking": "Checking…",
   "phoneCheck.timingLater": "Measured in practice",
   "phoneCheck.probeUnavailable": "This build can't reach the camera, so nothing was checked.",
   "placement.subtitle": "Rear camera lens and flash, seen from the back of the phone",

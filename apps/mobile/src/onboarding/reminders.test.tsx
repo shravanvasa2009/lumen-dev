@@ -27,6 +27,13 @@ describe('reminders', () => {
     expect(screen.getByText(en['reminders.localOnly'])).toBeOnTheScreen();
   });
 
+  it('shows the neighbouring times without AM or PM, as in the mockup', () => {
+    renderRouter('./app', { initialUrl: '/reminders' });
+    expect(screen.getByText('7:00')).toBeOnTheScreen();
+    expect(screen.getByText('9:00')).toBeOnTheScreen();
+    expect(screen.getByText('8:00 AM')).toBeOnTheScreen();
+  });
+
   it('moves the time an hour at a time and wraps past midnight', () => {
     renderRouter('./app', { initialUrl: '/reminders' });
     fireEvent.press(screen.getByRole('button', { name: /^One hour later/ }));

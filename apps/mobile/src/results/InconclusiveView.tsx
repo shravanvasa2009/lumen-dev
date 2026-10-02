@@ -7,6 +7,7 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
+import { dominantCause } from '@/fix/causes';
 import type { MeasureMode } from '@/measure/mode';
 import { useTheme } from '@/theme';
 
@@ -37,6 +38,8 @@ export function InconclusiveView({ reading, mode }: InconclusiveViewProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors, spacing, control } = useTheme();
+  const cause = reading ? dominantCause(reading.scan.lostSeconds) : null;
+  const fixHref = `/measure/fix-technique?mode=${mode}${cause ? `&cause=${cause}` : ''}` as const;
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -45,11 +48,7 @@ export function InconclusiveView({ reading, mode }: InconclusiveViewProps) {
         footer={
           <>
             <NavButton label={t('inconclusive.retake')} href={`/measure/capture?mode=${mode}`} replace />
-            <NavButton
-              label={t('inconclusive.fix')}
-              href={`/measure/fix-technique?mode=${mode}`}
-              variant="secondary"
-            />
+            <NavButton label={t('inconclusive.fix')} href={fixHref} variant="secondary" />
             <Pressable
               accessibilityRole="button"
               onPress={() => router.replace('/measure/capture?mode=quick')}

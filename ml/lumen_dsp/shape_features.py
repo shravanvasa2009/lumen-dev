@@ -2,14 +2,14 @@ import math
 from collections.abc import Callable, Sequence
 
 from lumen_dsp.config import DSP_CONFIG
-from lumen_dsp.shape import PulseShape, systolic_peak_index
+from lumen_dsp.shape import PulseShape, is_local_max, is_local_min, systolic_peak_index, systolic_span_end
 
 # diabetes-net's 12 shape features (§11.4, ML-6), mirroring packages/core/src/shape-features.ts with the
 # same loops in the same order. The DSP-14 window is exactly one period: sample k sits at
 # onset + (k / 256 − lead fraction) × period, so the onset is at 25.6 and the lead-in (samples 0–25) is the
 # end of the previous period. Times are fractions of the period; amplitudes are measured on the smoothed
-# beat above the onset level, relative to the systolic peak. Undefined features are None; the model, not
-# this module, fills them with its training median.
+# beat above its minimum, relative to the systolic peak (ADR 0059). Undefined features are None; the
+# model, not this module, fills them with its training median.
 
 
 def _crossing(smoothed: Sequence[float], k: int, level: float) -> float:
@@ -31,11 +31,30 @@ def _peak_width(smoothed: Sequence[float], peak: int, level: float) -> float | N
     return None if rise is None or fall is None else (fall - rise) / len(smoothed)
 
 
-def _area_ratio(height: Callable[[int], float], onset: float, notch: int, samples: int) -> float | None:
-    # Trapezoids on heights above the onset level (0 at the onset). Systolic: onset → notch. Diastolic:
-    # notch → window end, then through the lead-in back to the onset (the same cycle's end, in phase).
+def _notch_index(smoothed: Sequence[float], second: Sequence[float], peak: int) -> int | None:
+    # As packages/core notchIndex: the first local minimum after the systolic peak and before the systolic
+    # span end that a local maximum (the diastolic peak) follows in the window; without one, the first
+    # positive local maximum of the second derivative in the span (the first upward bend).
+    span_end = systolic_span_end()
+    for k in range(peak + 1, span_end - 1):
+        if not is_local_min(smoothed, k):
+            continue
+        if any(is_local_max(smoothed, j) for j in range(k + 1, len(smoothed) - 1)):
+            return k
+        break
+    for k in range(peak + 1, span_end - 1):
+        if is_local_max(second, k) and second[k] > 0:
+            return k
+    return None
+
+
+def _area_ratio(
+    height: Callable[[int], float], onset: float, onset_height: float, notch: int, samples: int
+) -> float | None:
+    # Trapezoids on heights above the beat minimum. Systolic: onset → notch. Diastolic: notch → window end,
+    # then through the lead-in back to the onset (the same cycle's end, in phase).
     first = math.floor(onset)
-    systolic = height(first + 1) / 2 * (first + 1 - onset)
+    systolic = (onset_height + height(first + 1)) / 2 * (first + 1 - onset)
     for k in range(first + 1, notch):
         systolic += (height(k) + height(k + 1)) / 2
     diastolic = 0.0
@@ -44,7 +63,7 @@ def _area_ratio(height: Callable[[int], float], onset: float, notch: int, sample
     diastolic += (height(samples - 1) + height(0)) / 2
     for k in range(first):
         diastolic += (height(k) + height(k + 1)) / 2
-    diastolic += height(first) / 2 * (onset - first)
+    diastolic += (height(first) + onset_height) / 2 * (onset - first)
     return diastolic / systolic if systolic > 0 else None
 
 
@@ -64,22 +83,24 @@ def shape_features(pulse_shape: PulseShape) -> list[float | None]:
     samples = len(smoothed)
     onset = DSP_CONFIG["dsp14"]["leadFraction"] * samples
     first = math.floor(onset)
-    onset_level = smoothed[first] + (smoothed[first + 1] - smoothed[first]) * (onset - first)
+    # The 0.5 Hz high-pass of the morphology band pulls the diastolic tail, and a deep notch, below the
+    # onset level; the beat's minimum is the lowest point of the cycle, so every height above it is ≥ 0.
+    reference = min(smoothed)
 
     def height(k: int) -> float:
-        return smoothed[k] - onset_level
+        return smoothed[k] - reference
 
+    onset_height = height(first) + (height(first + 1) - height(first)) * (onset - first)
     peak = systolic_peak_index(smoothed)
     peak_height = height(peak)
     # A flat beat, or one whose highest systolic sample is not after the onset, has no systolic peak.
     has_peak = peak_height > 0 and peak > onset
-    # The notch is the e-wave; one before the systolic peak cannot be the dicrotic notch.
-    notch = waves.e if has_peak and waves.e is not None and waves.e > peak else None
+    notch = _notch_index(smoothed, second, peak) if has_peak else None
 
     upper_level, lower_level = DSP_CONFIG["diabetesFeatures"]["widthLevels"]
 
     def width(fraction: float) -> float | None:
-        return _peak_width(smoothed, peak, onset_level + fraction * peak_height) if has_peak else None
+        return _peak_width(smoothed, peak, reference + fraction * peak_height) if has_peak else None
 
     a = 0.0 if waves.a is None else second[waves.a]
 
@@ -100,5 +121,5 @@ def shape_features(pulse_shape: PulseShape) -> list[float | None]:
         d,
         e,
         None if b is None or c is None or d is None or e is None else b - c - d - e,
-        None if notch is None else _area_ratio(height, onset, notch, samples),
+        None if notch is None else _area_ratio(height, onset, onset_height, notch, samples),
     ]

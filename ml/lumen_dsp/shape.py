@@ -31,16 +31,16 @@ class PulseShape:
     beats_used: int
 
 
-def _is_local_max(y: np.ndarray, i: int) -> bool:
+def is_local_max(y: Sequence[float], i: int) -> bool:
     return y[i - 1] < y[i] >= y[i + 1]
 
 
-def _is_local_min(y: np.ndarray, i: int) -> bool:
+def is_local_min(y: Sequence[float], i: int) -> bool:
     return y[i - 1] > y[i] <= y[i + 1]
 
 
 def systolic_span_end() -> int:
-    # End (exclusive) of the systolic span searched for the peak and the a–e waves, as packages/core.
+    # End (exclusive) of the systolic span searched for the peak, the a–e waves, and the dicrotic notch.
     dsp14 = DSP_CONFIG["dsp14"]
     return math.floor((dsp14["leadFraction"] + dsp14["systoleFraction"]) * dsp14["beatSamples"] + 0.5)
 
@@ -63,7 +63,7 @@ def _label_waves(smoothed: np.ndarray, second: np.ndarray) -> WaveLabels:
     systolic_peak = systolic_peak_index(smoothed)
     a = None
     for i in range(1, systolic_peak):
-        if _is_local_max(second, i) and (a is None or second[i] > second[a]):
+        if is_local_max(second, i) and (a is None or second[i] > second[a]):
             a = i
     if a is None:
         return WaveLabels(None, None, None, None, None)
@@ -71,10 +71,10 @@ def _label_waves(smoothed: np.ndarray, second: np.ndarray) -> WaveLabels:
     def following(start: int, is_wave) -> int | None:
         return next((i for i in range(start + 1, span_end - 1) if is_wave(second, i)), None)
 
-    b = following(a, _is_local_min)
-    c = None if b is None else following(b, _is_local_max)
-    d = None if c is None else following(c, _is_local_min)
-    e = None if d is None else following(d, _is_local_max)
+    b = following(a, is_local_min)
+    c = None if b is None else following(b, is_local_max)
+    d = None if c is None else following(c, is_local_min)
+    e = None if d is None else following(d, is_local_max)
     return WaveLabels(a, b, c, d, e)
 
 

@@ -15,14 +15,15 @@ BEAT_SAMPLES = DSP_CONFIG["dsp14"]["beatSamples"]
 RATE_HZ = DSP_CONFIG["dsp2"]["shapeRateHz"]
 
 # Piecewise-linear beat through these (sample, height) corners, flat outside them; the onset at 25.6 sits
-# on the flat foot, so the onset level is exactly 0.
+# on the flat foot, so the onset level and the beat's minimum are exactly 0.
 CORNERS = [(26, 0.0), (77, 1.0), (130, 0.4), (150, 0.5), (230, 0.0)]
 WAVES = WaveLabels(a=30, b=40, c=60, d=90, e=130)
 WAVE_HEIGHTS = {"a": 2.0, "b": -1.0, "c": 0.5, "d": -0.4, "e": 0.3}
 
 
-def _piecewise_beat() -> np.ndarray:
-    positions, heights = zip(*CORNERS, strict=True)
+def _piecewise_beat(corners=CORNERS) -> np.ndarray:
+    # np.interp holds the end values outside the corners, as the TS helper does.
+    positions, heights = zip(*corners, strict=True)
     return np.interp(np.arange(BEAT_SAMPLES, dtype=float), positions, heights)
 
 
@@ -65,11 +66,27 @@ def test_lead_in_counts_in_the_diastolic_area():
     assert features[5] == pytest.approx(0.5, abs=1e-12)
 
 
-def test_no_e_wave_nulls_the_notch_features():
+def test_amplitudes_are_above_the_beat_minimum_when_the_tail_falls_below_the_onset():
+    # Tail falls to -0.1 at 230 and stays there; the lead-in stays at 0. Heights are value + 0.1, peak 1.1.
+    features = shape_features(_analytic_shape(beat=_piecewise_beat([*CORNERS[:4], (230, -0.1)])))
+    assert features[3] == pytest.approx((130 - 25.6) / 256, abs=1e-12)
+    assert features[4] == pytest.approx(0.5 / 1.1, abs=1e-12)
+    assert features[5] == pytest.approx(0.6 / 1.1, abs=1e-12)
+    # 50% level 0.45: up at 26 + 51 × 0.45, down at 77 + 53 × 0.55/0.6.
+    assert features[1] == pytest.approx((77 + 53 * 0.55 / 0.6 - (26 + 51 * 0.45)) / 256, abs=1e-12)
+    # 25% level 0.175: up at 26 + 51 × 0.175, down on the last fall at 150 + 80 × 0.325/0.6.
+    assert features[2] == pytest.approx((150 + 80 * 0.325 / 0.6 - (26 + 51 * 0.175)) / 256, abs=1e-12)
+    # Systolic 0.4 × 0.1 + 51 × 0.6 + 53 × 0.8 = 73.04; diastolic 20 × 0.55 + 80 × 0.3 + 0.05 + 2.5 + 0.06
+    # = 37.61 (the TS test spells out each term).
+    assert features[11] == pytest.approx(37.61 / 73.04, abs=1e-12)
+
+
+def test_no_e_wave_nulls_e_over_a_but_not_the_notch():
+    full = shape_features(_analytic_shape())
     features = shape_features(_analytic_shape(WaveLabels(a=30, b=40, c=60, d=90, e=None)))
-    assert features[0] is not None
     assert features[6:9] == [-0.5, 0.25, -0.2]
-    assert [features[i] for i in [3, 4, 5, 9, 10, 11]] == [None] * 6
+    assert [features[9], features[10]] == [None, None]
+    assert [features[i] for i in [3, 4, 5, 11]] == [full[i] for i in [3, 4, 5, 11]]
 
 
 def test_no_a_wave_nulls_the_second_derivative_features():
@@ -84,17 +101,53 @@ def test_non_positive_a_wave_nulls_the_ratios():
     assert shape_features(shape)[6:11] == [None] * 5
 
 
-def test_e_wave_before_the_peak_is_not_a_notch():
+def test_the_notch_does_not_follow_the_e_wave_label():
+    full = shape_features(_analytic_shape())
     features = shape_features(_analytic_shape(WaveLabels(a=30, b=40, c=60, d=90, e=70)))
+    assert [features[i] for i in [3, 4, 5, 11]] == [full[i] for i in [3, 4, 5, 11]]
+    assert features[9] == 0
+
+
+def _decay_beat() -> np.ndarray:
+    # From the notch corner (0.4 at 130) down to 0 at 230 without a second maximum.
+    beat = _piecewise_beat()
+    tail = np.arange(131, BEAT_SAMPLES)
+    beat[131:] = np.maximum(0, 0.4 - (tail - 130) * 0.004)
+    return beat
+
+
+def test_without_a_visible_notch_it_is_the_first_upward_bend():
+    # The only positive second-derivative maximum after the peak is the 0.3 at 130.
+    features = shape_features(_analytic_shape(beat=_decay_beat()))
+    assert features[3] == pytest.approx((130 - 25.6) / 256, abs=1e-12)
+    assert features[4] == pytest.approx(0.4, abs=1e-12)
+    assert features[5] == 0
+    assert features[11] == pytest.approx(20 / 62.6, abs=1e-12)  # 100 × 0.4/2 over 62.6
+
+
+def test_a_minimum_that_no_maximum_follows_is_not_the_notch():
+    # Minimum at 180 (in the span) with no diastolic peak after it: the notch is the bend at 130.
+    features = shape_features(_analytic_shape(beat=_piecewise_beat([*CORNERS[:3], (180, -0.1)])))
+    assert features[3] == pytest.approx((130 - 25.6) / 256, abs=1e-12)
+    assert features[4] == pytest.approx(0.5 / 1.1, abs=1e-12)
+    assert features[5] == 0
+
+
+def test_no_visible_notch_and_no_upward_bend_nulls_the_notch_features():
+    # Second derivative 0 at 130: its only maximum after the peak is the 0 at 91, not positive.
+    shape = _analytic_shape(beat=_decay_beat())
+    shape.second_derivative[130] = 0.0
+    features = shape_features(shape)
     assert [features[i] for i in [3, 4, 5, 11]] == [None] * 4
     assert features[9] == 0
 
 
-def test_decay_without_a_second_maximum_has_diastolic_peak_0():
-    beat = _piecewise_beat()
-    tail = np.arange(131, BEAT_SAMPLES)
-    beat[131:] = np.maximum(0, 0.4 - (tail - 130) * 0.004)
-    assert shape_features(_analytic_shape(beat=beat))[5] == 0
+def test_the_notch_is_not_searched_past_the_systolic_span():
+    # The only minimum after the peak is at 210 (span end 205), followed by a maximum at 225.
+    shape = _analytic_shape(beat=_piecewise_beat([(26, 0.0), (77, 1.0), (210, 0.2), (225, 0.3), (240, 0.0)]))
+    shape.second_derivative[130] = 0.0
+    features = shape_features(shape)
+    assert [features[i] for i in [3, 4, 5, 11]] == [None] * 4
 
 
 def test_flat_beat_nulls_the_amplitude_features():
@@ -131,9 +184,19 @@ def test_pinned_features_at_72_bpm():
     assert shape_features(_shape_at(30, 0.83)) == pytest.approx(EXPECTED_72_BPM, abs=1e-9)
 
 
-def test_no_e_wave_at_100_bpm():
+def test_physiologically_plausible_at_72_bpm():
+    features = shape_features(_shape_at(30, 0.83))
+    assert features[3] > features[0]
+    assert features[4] > 0
+    assert features[5] > features[4]  # the model has a dicrotic wave
+    assert features[11] > 0
+
+
+def test_no_e_wave_at_100_bpm_but_a_notch():
     features = shape_features(_shape_at(40, 0.6))
-    assert [features[i] for i in [3, 4, 5, 9, 10, 11]] == [None] * 6
+    assert [features[9], features[10]] == [None, None]
+    assert features[4] > 0
+    assert features[11] > 0
 
 
 def test_rise_time_reaches_the_band_passed_peak_at_100_bpm():
@@ -151,15 +214,15 @@ def test_rise_time_reaches_the_band_passed_peak_at_100_bpm():
 
 EXPECTED_72_BPM = [
     0.11484375,
-    0.16451583897228794,
-    0.22346678237348439,
-    0.59140625,
-    -0.13966421024181777,
-    0,
-    -1.4000593677131694,
-    0.42584557016188307,
-    -0.3535783449542628,
-    0.17803459393658358,
-    -1.650361186857373,
-    -0.45148603546110394,
+    0.18982567830283364,
+    0.2743389472115185,
+    0.3375,
+    0.17173834943772825,
+    0.31015381425592337,
+    -1.400059367713167,
+    0.4258455701618882,
+    -0.35357834495426554,
+    0.17803459393658908,
+    -1.6503611868573786,
+    0.33386818502684,
 ]

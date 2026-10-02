@@ -78,11 +78,11 @@ export function savgolFilter(values: ArrayLike<number>, deriv: number): Float64A
   return filtered;
 }
 
-const isLocalMax = (y: Float64Array, i: number) => y[i - 1]! < y[i]! && y[i]! >= y[i + 1]!;
-const isLocalMin = (y: Float64Array, i: number) => y[i - 1]! > y[i]! && y[i]! <= y[i + 1]!;
+export const isLocalMax = (y: Float64Array, i: number) => y[i - 1]! < y[i]! && y[i]! >= y[i + 1]!;
+export const isLocalMin = (y: Float64Array, i: number) => y[i - 1]! > y[i]! && y[i]! <= y[i + 1]!;
 
-// End (exclusive) of the systolic span searched for the peak and the a–e waves.
-function systolicSpanEnd(): number {
+// End (exclusive) of the systolic span searched for the peak, the a–e waves, and the dicrotic notch.
+export function systolicSpanEnd(): number {
   const { leadFraction, systoleFraction, beatSamples } = DSP_CONFIG.dsp14;
   return Math.floor((leadFraction + systoleFraction) * beatSamples + 0.5);
 }

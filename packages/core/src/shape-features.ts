@@ -1,11 +1,11 @@
 import { DSP_CONFIG } from './config';
-import { systolicPeakIndex, type PulseShape } from './pulse-shape';
+import { isLocalMax, isLocalMin, systolicPeakIndex, systolicSpanEnd, type PulseShape } from './pulse-shape';
 
 // diabetes-net's 12 shape features (§11.4, ML-6), mirrored by ml/lumen_dsp/shape_features.py. The DSP-14
 // window is exactly one period: sample k sits at onset + (k / 256 − lead fraction) × period, so the onset
 // is at 25.6 and the lead-in (samples 0–25) is the end of the previous period. Times are fractions of the
 // period, so they do not depend on fps or heart rate. Amplitudes are measured on the smoothed beat above
-// the onset level, relative to the systolic peak, so min–max normalization does not affect them.
+// its minimum, relative to the systolic peak, so a gain and an offset do not affect them (ADR 0059).
 // Undefined features are null; core never imputes (the model applies its training median).
 
 // Linear interpolation crossing of `level` between samples k and k + 1.
@@ -24,18 +24,42 @@ function peakWidth(smoothed: Float64Array, peak: number, level: number): number 
   return rise === null || fall === null ? null : (fall - rise) / smoothed.length;
 }
 
-// Diastolic area over systolic area, by the trapezoid rule on heights above the onset level (0 at the
-// onset itself). Systolic: onset → notch. Diastolic: notch → window end, then on through the lead-in back
-// to the onset, since the lead-in is the end of the same cardiac cycle in phase.
-function areaRatio(height: (k: number) => number, onset: number, notch: number, samples: number) {
+// The dicrotic notch marks aortic valve closure, the end of ejection, so it lies after the systolic peak
+// and before the end of the DSP-14 systolic span (onset + 0.7 period; ejection lasts about 35–55% of it).
+// A visible notch is the first local minimum there that a local maximum (the diastolic peak) follows in
+// the window. Without one (Dawber class 3–4) it is the first upward bend: the first positive local
+// maximum of the second derivative in the span. The a–e chain's e-wave is not used: on adult and older
+// pulses it falls in the diastolic decay, after the diastolic peak (ADR 0059).
+function notchIndex(smoothed: Float64Array, secondDerivative: Float64Array, peak: number): number | null {
+  const spanEnd = systolicSpanEnd();
+  for (let k = peak + 1; k < spanEnd - 1; k++) {
+    if (!isLocalMin(smoothed, k)) continue;
+    for (let j = k + 1; j < smoothed.length - 1; j++) if (isLocalMax(smoothed, j)) return k;
+    break;
+  }
+  for (let k = peak + 1; k < spanEnd - 1; k++)
+    if (isLocalMax(secondDerivative, k) && secondDerivative[k]! > 0) return k;
+  return null;
+}
+
+// Diastolic area over systolic area, by the trapezoid rule on heights above the beat minimum. Systolic:
+// onset → notch. Diastolic: notch → window end, then on through the lead-in back to the onset, since the
+// lead-in is the end of the same cardiac cycle in phase.
+function areaRatio(
+  height: (k: number) => number,
+  onset: number,
+  onsetHeight: number,
+  notch: number,
+  samples: number,
+) {
   const first = Math.floor(onset);
-  let systolic = (height(first + 1) / 2) * (first + 1 - onset);
+  let systolic = ((onsetHeight + height(first + 1)) / 2) * (first + 1 - onset);
   for (let k = first + 1; k < notch; k++) systolic += (height(k) + height(k + 1)) / 2;
   let diastolic = 0;
   for (let k = notch; k < samples - 1; k++) diastolic += (height(k) + height(k + 1)) / 2;
   diastolic += (height(samples - 1) + height(0)) / 2;
   for (let k = 0; k < first; k++) diastolic += (height(k) + height(k + 1)) / 2;
-  diastolic += (height(first) / 2) * (onset - first);
+  diastolic += ((height(first) + onsetHeight) / 2) * (onset - first);
   return systolic > 0 ? diastolic / systolic : null;
 }
 
@@ -53,18 +77,22 @@ export function shapeFeatures(shape: PulseShape): (number | null)[] {
   const samples = smoothed.length;
   const onset = DSP_CONFIG.dsp14.leadFraction * samples;
   const first = Math.floor(onset);
-  const onsetLevel = smoothed[first]! + (smoothed[first + 1]! - smoothed[first]!) * (onset - first);
-  const height = (k: number) => smoothed[k]! - onsetLevel;
+  // The 0.5 Hz high-pass of the DSP-6 morphology band pulls the diastolic tail, and a deep notch, below
+  // the onset level; the beat's minimum is the lowest point of the cycle on any band, so every height
+  // above it is ≥ 0.
+  let reference = smoothed[0]!;
+  for (const value of smoothed) reference = Math.min(reference, value);
+  const height = (k: number) => smoothed[k]! - reference;
+  const onsetHeight = height(first) + (height(first + 1) - height(first)) * (onset - first);
   const peak = systolicPeakIndex(smoothed);
   const peakHeight = height(peak);
   // A flat beat, or one whose highest systolic sample is not after the onset, has no systolic peak.
   const hasPeak = peakHeight > 0 && peak > onset;
-  // The notch is the e-wave; one before the systolic peak cannot be the dicrotic notch.
-  const notch = hasPeak && waves.e !== null && waves.e > peak ? waves.e : null;
+  const notch = hasPeak ? notchIndex(smoothed, secondDerivative, peak) : null;
 
   const [upperLevel, lowerLevel] = DSP_CONFIG.diabetesFeatures.widthLevels;
   const width = (fraction: number) =>
-    hasPeak ? peakWidth(smoothed, peak, onsetLevel + fraction * peakHeight) : null;
+    hasPeak ? peakWidth(smoothed, peak, reference + fraction * peakHeight) : null;
 
   const a = waves.a === null ? 0 : secondDerivative[waves.a]!;
   // Ratios to the a-wave mean nothing unless it is a positive maximum.
@@ -83,6 +111,6 @@ export function shapeFeatures(shape: PulseShape): (number | null)[] {
     d,
     e,
     b === null || c === null || d === null || e === null ? null : b - c - d - e,
-    notch === null ? null : areaRatio(height, onset, notch, samples),
+    notch === null ? null : areaRatio(height, onset, onsetHeight, notch, samples),
   ];
 }

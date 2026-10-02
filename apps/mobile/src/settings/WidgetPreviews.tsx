@@ -14,6 +14,11 @@ const LOCK_CIRCLE_SIZE = 64;
 // Sizes that mimic OS widget buttons; they are previews, not touch targets, so control.minTarget does not apply.
 const PILL_MIN_HEIGHT = 32;
 const BUTTON_COLUMN_WIDTH = 132;
+// Android home-screen cells: 2x2 is about 110 dp and 4x2 about 250 x 110 dp (res/xml/lumen_widget_*.xml).
+const ANDROID_SMALL_WIDTH = 120;
+const ANDROID_WIDGET_MIN_HEIGHT = 110;
+const ANDROID_RADIUS = 20;
+const ANDROID_PADDING = 12;
 
 function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
   const { colors, radius, spacing } = useTheme();
@@ -114,6 +119,113 @@ export function MediumWidgetPreview({ name, reading, unit, status, checkNow, ful
   );
 }
 
+function AndroidFrame({ children, width }: { children: ReactNode; width?: number }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        width,
+        minHeight: ANDROID_WIDGET_MIN_HEIGHT,
+        padding: ANDROID_PADDING,
+        borderRadius: ANDROID_RADIUS,
+        backgroundColor: colors.surface,
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
+function AndroidPill({ label, secondary }: { label: string; secondary?: boolean }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: 8,
+        borderRadius: ANDROID_RADIUS,
+        backgroundColor: secondary ? colors.line : colors.accentFill,
+      }}
+    >
+      <AppText
+        style={{
+          color: secondary ? colors.text : colors.onAccentFill,
+          fontSize: 14,
+          lineHeight: 20,
+          fontWeight: '500',
+        }}
+      >
+        {label}
+      </AppText>
+    </View>
+  );
+}
+
+type AndroidSmallProps = { name: string; status: string; lastCheck: string; checkNow: string };
+
+export function AndroidSmallWidgetPreview({ name, status, lastCheck, checkNow }: AndroidSmallProps) {
+  const { colors } = useTheme();
+  return (
+    <AndroidFrame width={ANDROID_SMALL_WIDTH}>
+      <AppText style={[styles.androidName, { color: colors.accentFill }]}>{name}</AppText>
+      <AppText style={styles.androidStatus}>{status}</AppText>
+      <AppText tone="textDim" style={styles.androidDetail}>
+        {lastCheck}
+      </AppText>
+      <View style={styles.androidPillSpace}>
+        <View style={styles.androidPillRow}>
+          <AndroidPill label={checkNow} />
+        </View>
+      </View>
+    </AndroidFrame>
+  );
+}
+
+type AndroidMediumProps = AndroidSmallProps & {
+  reading: string;
+  unit: string;
+  streak: string;
+  fullScan: string;
+};
+
+export function AndroidMediumWidgetPreview({
+  name,
+  reading,
+  unit,
+  status,
+  lastCheck,
+  streak,
+  checkNow,
+  fullScan,
+}: AndroidMediumProps) {
+  const { colors } = useTheme();
+  return (
+    <AndroidFrame>
+      <AppText style={[styles.androidName, { color: colors.accentFill }]}>{name}</AppText>
+      <View style={styles.readingRow}>
+        <AppText style={styles.androidReading}>{reading}</AppText>
+        <AppText tone="textDim" style={[styles.androidUnit, { marginLeft: 4 }]}>
+          {unit}
+        </AppText>
+      </View>
+      <AppText style={styles.androidStatus}>{status}</AppText>
+      <AppText tone="textDim" style={styles.androidDetail}>
+        {lastCheck}
+      </AppText>
+      <AppText tone="textDim" style={styles.androidDetail}>
+        {streak}
+      </AppText>
+      <View style={styles.androidPillSpace}>
+        <View style={[styles.androidPillRow, { gap: 8 }]}>
+          <AndroidPill label={checkNow} />
+          <AndroidPill label={fullScan} secondary />
+        </View>
+      </View>
+    </AndroidFrame>
+  );
+}
+
 type Scheme = 'light' | 'dark';
 
 // A lock screen looks the same in either app theme, so the lock-screen route passes its own scheme.
@@ -159,6 +271,13 @@ const styles = StyleSheet.create({
   spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   logoRow: { flexDirection: 'row', alignItems: 'center' },
   readingRow: { flexDirection: 'row', alignItems: 'baseline' },
+  androidName: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  androidReading: { fontSize: 34, lineHeight: 40, fontWeight: '700' },
+  androidUnit: { fontSize: 14, lineHeight: 20 },
+  androidStatus: { fontSize: 15, lineHeight: 20, fontWeight: '500' },
+  androidDetail: { fontSize: 12, lineHeight: 16 },
+  androidPillSpace: { flexGrow: 1, justifyContent: 'flex-end', paddingTop: 8 },
+  androidPillRow: { flexDirection: 'row' },
   dot: { width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2 },
   lockCircle: {
     width: LOCK_CIRCLE_SIZE,

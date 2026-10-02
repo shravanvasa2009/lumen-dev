@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
@@ -153,13 +153,52 @@ describe('Notifications', () => {
 });
 
 describe('Widget gallery', () => {
-  it('previews the home and lock-screen widgets with steps for each platform', () => {
+  const phoneOs = Platform.OS;
+  afterEach(() => {
+    Platform.OS = phoneOs;
+  });
+
+  const stepKeys = (prefix: string, count: number) =>
+    Array.from({ length: count }, (_, index) => `${prefix}${index + 1}` as keyof typeof en);
+
+  it('on iPhone shows the home and lock-screen previews with their steps', () => {
+    Platform.OS = 'ios';
     renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
     expect(screen.getByText(en['widgets.sample'])).toBeOnTheScreen();
-    expect(screen.getByText(en['widgets.howToAdd'])).toBeOnTheScreen();
-    expect(screen.getByText(en['widgets.androidBody'])).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.iphoneHome'])).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.iphoneLock'])).toBeOnTheScreen();
     expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
     expect(screen.getByText('64')).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.buttons'])).toBeOnTheScreen();
+    for (const [prefix, count] of [
+      ['widgets.iphoneHomeStep', 5],
+      ['widgets.iphoneLockStep', 4],
+    ] as const) {
+      stepKeys(prefix, count).forEach((key, index) => {
+        expect(screen.getByLabelText(`${index + 1}. ${en[key]}`)).toBeOnTheScreen();
+      });
+    }
+    expect(screen.getByRole('button', { name: en['widgets.lockScreenLink'] })).toBeOnTheScreen();
+    expect(screen.queryByText(en['widgets.android'])).toBeNull();
+    expect(screen.queryByLabelText(`2. ${en['widgets.androidStep2']}`)).toBeNull();
+  });
+
+  it('on Android shows the Android previews and steps, and no lock-screen section or link', () => {
+    Platform.OS = 'android';
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.getByText(en['widgets.sample'])).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.android'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
+    expect(screen.getByText(en['mode.full'])).toBeOnTheScreen();
+    expect(screen.getByText('64')).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.buttons'])).toBeOnTheScreen();
+    stepKeys('widgets.androidStep', 4).forEach((key, index) => {
+      expect(screen.getByLabelText(`${index + 1}. ${en[key]}`)).toBeOnTheScreen();
+    });
+    expect(screen.queryByText(en['widgets.iphoneHome'])).toBeNull();
+    expect(screen.queryByText(en['widgets.iphoneLock'])).toBeNull();
+    expect(screen.queryByText(/iPhone/)).toBeNull();
+    expect(screen.queryByRole('button', { name: en['widgets.lockScreenLink'] })).toBeNull();
   });
 
   it('hides the sample number when Hide values on widgets is on', () => {

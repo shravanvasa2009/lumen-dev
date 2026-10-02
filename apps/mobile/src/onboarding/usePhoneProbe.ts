@@ -8,7 +8,7 @@ export type PhoneProbe =
   // The capture module is not linked (Jest, Expo Go) or the probe threw.
   | { kind: 'unavailable' };
 
-function describe(error: unknown): string {
+function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -27,12 +27,12 @@ export function usePhoneProbe(): PhoneProbe {
     linked
       .requestPermission()
       .catch((error: unknown) => {
-        console.warn(`Camera permission request failed: ${describe(error)}`);
+        console.warn(`Camera permission request failed: ${reasonOf(error)}`);
       })
       .then(() => linked.getCapabilities())
       .then((capabilities) => current && setProbe({ kind: 'ready', capabilities }))
       .catch((error: unknown) => {
-        console.warn(`Phone probe failed: ${describe(error)}`);
+        console.warn(`Phone probe failed: ${reasonOf(error)}`);
         if (current) setProbe({ kind: 'unavailable' });
       });
     return () => {

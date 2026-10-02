@@ -1,6 +1,9 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+
+fixClockAtMorning();
 
 describe('inconclusive screen', () => {
   it('says how many clean seconds were collected and where the rest went', () => {
@@ -44,6 +47,6 @@ describe('inconclusive screen', () => {
   it('closes to Home', () => {
     renderRouter('./app', { initialUrl: '/measure/inconclusive' });
     fireEvent.press(screen.getByRole('button', { name: en['inconclusive.close'] }));
-    expect(screen.getByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 });

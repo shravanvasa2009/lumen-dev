@@ -2,12 +2,15 @@ import { requestPermissionsAsync } from 'expo-notifications';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'light',
 }));
 jest.mock('expo-notifications', () => ({ requestPermissionsAsync: jest.fn() }));
+
+fixClockAtMorning();
 
 const askPermission = jest.mocked(requestPermissionsAsync);
 
@@ -50,7 +53,7 @@ describe('reminders', () => {
     askPermission.mockResolvedValue({ granted: true } as Awaited<ReturnType<typeof requestPermissionsAsync>>);
     renderRouter('./app', { initialUrl: '/reminders' });
     fireEvent.press(screen.getByRole('button', { name: en['reminders.turnOn'] }));
-    expect(await screen.findByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
     expect(askPermission).toHaveBeenCalledTimes(1);
   });
 
@@ -59,7 +62,7 @@ describe('reminders', () => {
     askPermission.mockRejectedValue(new Error('no permission module'));
     renderRouter('./app', { initialUrl: '/reminders' });
     fireEvent.press(screen.getByRole('button', { name: en['reminders.turnOn'] }));
-    expect(await screen.findByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('no permission module'));
     warn.mockRestore();
   });
@@ -67,7 +70,7 @@ describe('reminders', () => {
   it('skips the permission request on Not now', () => {
     renderRouter('./app', { initialUrl: '/reminders' });
     fireEvent.press(screen.getByRole('button', { name: en['reminders.notNow'] }));
-    expect(screen.getByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
     expect(askPermission).not.toHaveBeenCalled();
   });
 });

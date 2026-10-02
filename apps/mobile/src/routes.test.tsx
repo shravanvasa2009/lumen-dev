@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
+import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
 import tokens from '@/theme/tokens.json';
 
@@ -10,6 +11,8 @@ import tokens from '@/theme/tokens.json';
 jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
 }));
+
+fixClockAtMorning();
 
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -34,7 +37,7 @@ const routes: readonly Route[] = [
   { file: '(onboarding)/how-to-sit', url: '/how-to-sit', title: 'howToSit.title', place: 'body' },
   { file: '(onboarding)/rating', url: '/rating', title: 'rating.title', place: 'body' },
   { file: '(onboarding)/reminders', url: '/reminders', title: 'reminders.title', place: 'body' },
-  { file: '(tabs)/index', url: '/', title: 'tabs.home', place: 'body' },
+  { file: '(tabs)/index', url: '/', title: 'home.greetingMorning', place: 'body' },
   { file: '(tabs)/trends', url: '/trends', title: 'trends.title', place: 'body' },
   { file: '(tabs)/learn', url: '/learn', title: 'learn.title', place: 'body' },
   { file: '(tabs)/settings', url: '/settings', title: 'settings.title', place: 'body' },
@@ -194,7 +197,7 @@ describe('navigation', () => {
       ['common.continue', 'reminders.title'],
     ]);
     fireEvent.press(screen.getByRole('button', { name: en['reminders.turnOn'] }));
-    expect(await screen.findByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
   it('walks Home through a measurement to results', () => {

@@ -1,11 +1,14 @@
 import { router } from 'expo-router';
-import { Linking } from 'react-native';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
+import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
 import { lockscreenStrings } from '@/i18n/lockscreen';
+import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { setPreference } from '@/theme/preferences';
+
+fixClockAtMorning();
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -177,7 +180,7 @@ describe('Doctor follow-up', () => {
     }
     expect(screen.getByText(en['followUp.whatToAskBody'])).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: en['followUp.booked'] }));
-    expect(screen.getByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
   it('opens the health-center finder only when the link is tapped', () => {

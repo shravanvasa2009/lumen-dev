@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from lumen_dsp.beats import DetectedBeat, elgendi_windows, js_round
 from lumen_dsp.config import DSP_CONFIG
+from lumen_dsp.median import median
 from lumen_dsp.resample import ResampledSegment
 
 # Mirrors packages/core/src/beat-classes.ts (DSP-9 with owner decision H-016, ADR 0025) with the same loops
@@ -24,15 +25,6 @@ class ClassifiedBeat:
     onset_s: float | None
     beat_class: str  # "not-a-beat" | "artifact" | "atypical" | "normal"
     long_pause: bool  # on the interval ending at this beat: kept for rhythm, not HRV
-
-
-def _median(values: Sequence[float]) -> float:
-    # packages/core/src/median.ts (numpy.median semantics); NaN for no values.
-    ordered = sorted(values)
-    if not ordered:
-        return math.nan
-    middle = len(ordered) // 2
-    return ordered[middle] if len(ordered) % 2 == 1 else (ordered[middle - 1] + ordered[middle]) / 2
 
 
 def _js_divide(numerator: float, denominator: float) -> float:
@@ -118,7 +110,7 @@ def classify_beats(
     # Median over the candidates outside rejected spans, including the ones the rule will remove; all
     # candidates if none qualify.
     clean_upslopes = [beat.max_upslope for beat in beats if not in_span(beat)]
-    upslope_floor = config["notABeatUpslopeRatio"] * _median(
+    upslope_floor = config["notABeatUpslopeRatio"] * median(
         clean_upslopes if clean_upslopes else [beat.max_upslope for beat in beats]
     )
     classes = ["not-a-beat" if beat.max_upslope < upslope_floor else "normal" for beat in beats]
@@ -160,7 +152,7 @@ def classify_beats(
     early_beats = set()
     for q, own_s in enumerate(kept_intervals):
         others = references(kept_intervals, q)
-        if others is not None and own_s < config["earlyIntervalRatio"] * _median(others):
+        if others is not None and own_s < config["earlyIntervalRatio"] * median(others):
             early_beats.add(kept[q + 1])
 
     candidates = [i for i in range(len(beats)) if classes[i] == "normal"]
@@ -180,13 +172,13 @@ def classify_beats(
         # The amplitude references are the candidates with an observed foot, plus this beat to place it.
         pool = [j for j in candidates if j == i or foot_seen(j)]
         others = references(pool, pool.index(i))
-        reference = math.nan if others is None else _median([beats[j].amplitude for j in others])
+        reference = math.nan if others is None else median([beats[j].amplitude for j in others])
         ratio = _js_divide(beats[i].amplitude, reference)
         window = windows[p]
         if normal_windows:
             template = _pointwise(normal_windows[-config["templateBeats"] :], _mean)
         elif seed_windows:
-            template = _pointwise(seed_windows, _median)
+            template = _pointwise(seed_windows, median)
         else:
             template = None
         similarity = _correlation(window, template) if window is not None and template is not None else None
@@ -225,7 +217,7 @@ def classify_beats(
     long_pauses = set()
     for q, (end, length_s) in enumerate(clean_intervals):
         others = references(clean_intervals, q)
-        if others is not None and length_s >= config["longPauseRatio"] * _median(
+        if others is not None and length_s >= config["longPauseRatio"] * median(
             [other for _, other in others]
         ):
             long_pauses.add(end)

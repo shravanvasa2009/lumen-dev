@@ -112,22 +112,31 @@ const batches: SampleBatch[] = [
   },
 ];
 
+// Starting a Node child process is the slow step: it took over 5 s with the whole mobile suite running in
+// parallel, so one receiver serves every test and only its startup gets the longer limit.
+const RECEIVER_START_MS = 30000;
+
 const stubbedFetch = globalThis.fetch;
 let captureDir: string;
+let port: number;
 let receiver: Child | undefined;
-beforeEach(() => {
-  globalThis.fetch = nodeFetch as unknown as typeof fetch;
+beforeAll(async () => {
   captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumen-receiver-'));
-});
-afterEach(() => {
-  globalThis.fetch = stubbedFetch;
+  port = await freePort();
+  receiver = await startReceiver(port, captureDir);
+}, RECEIVER_START_MS);
+afterAll(() => {
   receiver?.kill();
   fs.rmSync(captureDir, { recursive: true, force: true });
 });
+beforeEach(() => {
+  globalThis.fetch = nodeFetch as unknown as typeof fetch;
+});
+afterEach(() => {
+  globalThis.fetch = stubbedFetch;
+});
 
 test('a body from the Lab builder becomes samples.csv, stats.csv, and meta.json on the PC', async () => {
-  const port = await freePort();
-  receiver = await startReceiver(port, captureDir);
   const body = captureRequestBody(batches, {
     appVersion: '0.1.0',
     capabilities: {
@@ -153,8 +162,6 @@ test('a body from the Lab builder becomes samples.csv, stats.csv, and meta.json 
 });
 
 test('the receiver refuses a wrong token and the sender reports it', async () => {
-  const port = await freePort();
-  receiver = await startReceiver(port, captureDir);
   const body = captureRequestBody(batches, {
     capabilities: {
       platform: 'android',

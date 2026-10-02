@@ -527,32 +527,53 @@ test('the CLI writes evidence.json and the app copy only after a matching recomp
   assert.equal(fs.readFileSync(app, 'utf8'), fs.readFileSync(out, 'utf8'));
 });
 
-// polar_rr.csv rows written the way B's Lab recorder stamps them (order E.B polar-clock): the strap notifies
-// about once a second with every RR since the last notification; the newest RR ends when the notification
-// arrives (delay after the beat, plus bridge delay), and earlier ones step back by RR.
-function strapRows(intervalsMs, { periodMs = 1000, bridgeMs = 30, lost = [] } = {}) {
-  const rows = [];
+// polar_rr.csv rows written the way B's Lab recorder stamps them since PR #58 (stampStrapRr in
+// apps/mobile/src/dev/strapClock.ts): the strap notifies about once a second with every RR since the last
+// notification; the rows form one beat timeline anchored by the least-delayed arrival, and a new stretch with
+// its own anchor starts only where an arrival proves beats were lost.
+function strapRows(intervalsMs, { periodMs = 1000, lost = [] } = {}) {
+  const notifications = [];
   let beatMs = 0;
   let pending = [];
   let nextNotifyMs = periodMs;
-  intervalsMs.forEach((rr, i) => {
+  intervalsMs.forEach((rr) => {
     beatMs += rr;
     while (beatMs > nextNotifyMs) {
-      if (pending.length && !lost.includes(Math.round(nextNotifyMs / periodMs))) {
-        let endNs = (nextNotifyMs + bridgeMs) * 1e6;
-        const stamped = [];
-        for (let k = pending.length - 1; k >= 0; k -= 1) {
-          stamped.unshift({ t_ns: Math.round(endNs), rr_ms: pending[k] });
-          endNs -= pending[k] * 1e6;
-        }
-        rows.push(...stamped);
-      }
+      const n = Math.round(nextNotifyMs / periodMs);
+      // Bridge delay varies between 20 and 60 ms.
+      if (pending.length && !lost.includes(n))
+        notifications.push({ arrivalMs: nextNotifyMs + 20 + ((n * 7) % 5) * 10, rr: pending });
       pending = [];
       nextNotifyMs += periodMs;
     }
     pending.push(rr);
   });
-  return rows;
+  const stretches = [];
+  notifications.forEach(({ arrivalMs, rr }, i) => {
+    const nextRrMs = notifications[i + 1]?.rr[0] ?? rr.at(-1);
+    const stretch = stretches.at(-1);
+    const elapsedMs = stretch ? stretch.endsMs.at(-1) : 0;
+    let endMs = elapsedMs;
+    const endsMs = rr.map((value) => (endMs += value));
+    const startMs = arrivalMs - endsMs.at(-1);
+    if (stretch && startMs - stretch.startMs <= nextRrMs) {
+      stretch.startMs = Math.min(stretch.startMs, startMs);
+      stretch.endsMs.push(...endsMs);
+      stretch.rr.push(...rr);
+    } else {
+      const ownEndsMs = endsMs.map((endMs) => endMs - elapsedMs);
+      stretches.push({ startMs: arrivalMs - ownEndsMs.at(-1), endsMs: ownEndsMs, rr: [...rr] });
+    }
+  });
+  return stretches.flatMap(({ startMs, endsMs, rr }) =>
+    endsMs.map((endMs, k) => ({ t_ns: Math.round((startMs + endMs) * 1e6), rr_ms: rr[k] })),
+  );
+}
+
+// One unbroken beat timeline, for checking the dropout rule on exact steps.
+function timelineRows(intervalsMs) {
+  let endNs = 0;
+  return intervalsMs.map((rr) => ({ t_ns: (endNs += rr * 1e6), rr_ms: rr }));
 }
 
 function readStrap(t, rows) {
@@ -573,6 +594,18 @@ test('notification timing alone is never taken for a strap dropout, even at slow
     assert.equal(capture.strapDropouts, 0);
     assert.equal(capture.polarRrMs.length, rr.length - 1);
   }
+});
+
+test('one lost beat at 55 bpm is a dropout', (t) => {
+  const rows = timelineRows(Array.from({ length: 60 }, () => 1090));
+  rows.splice(30, 1);
+  assert.equal(readStrap(t, rows).strapDropouts, 1);
+});
+
+test('a late arrival tens of ms off the timeline is not a dropout', (t) => {
+  const rows = timelineRows(sequence(60));
+  rows.slice(30).forEach((row) => (row.t_ns += 24e6));
+  assert.equal(readStrap(t, rows).strapDropouts, 0);
 });
 
 test('a strap dropout keeps only the longest unbroken stretch, so no beat pairs across it', (t) => {
@@ -612,7 +645,12 @@ test('after a dropout, the kept later stretch still pairs each beat with its own
   // Paced breathing at 6.7 breaths/min repeats every 9 beats, so a sequence match alone can lock a whole
   // breath off.
   const paced = Array.from({ length: 120 }, (_, k) => 1000 + 80 * Math.sin((2 * Math.PI * k) / 9));
-  for (const rr of [randomWalk, paced]) {
+  // In the paced case Lab also restarts its timeline at notification 58 without a loss: an arrival came late
+  // just before a beat (strapClock.ts "Limits"). The rows then jump 773 ms, so that counts as a dropout too.
+  for (const [rr, dropouts] of [
+    [randomWalk, 1],
+    [paced, 2],
+  ]) {
     const root = tempDir(t);
     writeCaptureFolder(root, 'P1');
     const folder = path.join(root, 'P1');
@@ -632,7 +670,7 @@ test('after a dropout, the kept later stretch still pairs each beat with its own
       `t_ns,rr_ms\n${rows.map((row) => `${row.t_ns},${row.rr_ms}`).join('\n')}\n`,
     );
     const { captures } = readCaptures(root);
-    assert.equal(captures[0].strapDropouts, 1);
+    assert.equal(captures[0].strapDropouts, dropouts);
     assert.ok(captures[0].polarStartNs > 15e9);
     const logged = [];
     const metrics = computeMetrics(captures, { commit: 'abc', date: '2026-10-20' }, (line) =>

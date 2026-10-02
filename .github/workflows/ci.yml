@@ -45,8 +45,6 @@ jobs:
       - name: Commit format (commitlint)
         if: github.event_name == 'pull_request' && hashFiles('package-lock.json') != ''
         run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
-      # test:widgets gets its own step, as test:notifications has, when its track implements it;
-      # until then it exits 1 on purpose.
       - name: Lint, types, tests, dead code
         if: hashFiles('package-lock.json') != ''
         run: |
@@ -94,10 +92,13 @@ jobs:
       - name: Evidence labels (EVID-1)
         if: hashFiles('package-lock.json') != ''
         run: npm run test:evidence
-      # npm test already runs this; a separate step makes NOTIF-1 visible in the CI summary.
+      # npm test already runs these; separate steps make NOTIF-1 and WID-1 visible in the CI summary.
       - name: Notification schedule (NOTIF-1)
         if: hashFiles('package-lock.json') != ''
         run: npm run test:notifications
+      - name: Widget snapshot and deep links (WID-1)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:widgets
       - name: Golden parity, TypeScript vs Python (DSP-C)
         if: hashFiles('package-lock.json') != ''
         run: npm run golden:check
@@ -122,6 +123,10 @@ jobs:
           grep -q android.permission.CAMERA android/app/src/main/AndroidManifest.xml
           grep -q 'android.hardware.camera.flash" android:required="false"' android/app/src/main/AndroidManifest.xml
           grep -q aps-environment ios/*/*.entitlements
+          # §9.5: the strap's Bluetooth keeps its own purpose text (ble-plx otherwise writes a generic default)
+          # and never asks for location (ADR 0039).
+          grep -A1 NSBluetoothAlwaysUsageDescription ios/*/Info.plist | grep -q 'Used only in Lab mode to compare Lumen with a heart-rate chest strap.'
+          grep -q 'android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"' android/app/src/main/AndroidManifest.xml
       - name: Expo prebuild smoke test, free Apple ID mode (ADR 0034)
         if: hashFiles('apps/mobile/app.config.ts') != ''
         working-directory: apps/mobile
@@ -208,4 +213,7 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
+          # The default profile is a 480x800 Nexus One, about 320x533 dp. Lumen's scrolling screens then
+          # keep buttons and rows below the fold, where Maestro cannot see or tap them (it does not scroll).
+          profile: pixel_6
           script: npm run e2e:android

@@ -7,6 +7,10 @@ from pathlib import Path
 import onnx
 import onnxruntime
 import torch
+from sklearn.compose import ColumnTransformer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from export.provenance import (
     ALL_BAD_BASIS,
@@ -29,9 +33,14 @@ from export.specs import (
     release_specs,
     shipped_per_family,
 )
+from export.to_onnx import source_model
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
+# §11.10: when the rhythm model fails to load, the app runs this rule in code (@lumen/core) as "basic
+# analysis", so its manifest entry carries every number the rule needs, read from the trained pickle.
+CODED_FALLBACKS = ("rhythm-logistic",)
+RULE_METHOD = "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale"
 
 # Fixed wording from §11.2–11.4 and §11.11. Every number in a card comes from the training metrics file.
 CARD_TEXT = {
@@ -134,7 +143,37 @@ def default_opset(path: Path) -> int:
     )
 
 
-def manifest_entry(spec: ModelSpec, models_dir: Path, metrics: dict | None, commit: str, date: str) -> dict:
+def logistic_rule(pipeline: Pipeline, feature_order: list[str], labels: tuple[str, ...]) -> dict:
+    # Only the shape train.rhythm.fit_logistic fits is accepted: anything else would need other math in
+    # the app.
+    columns, logistic = pipeline[0], pipeline[-1]
+    if (
+        len(pipeline) != 2
+        or not isinstance(columns, ColumnTransformer)
+        or not isinstance(logistic, LogisticRegression)
+    ):
+        raise ProvenanceError(f"not a column-selecting logistic rule: {pipeline}")
+    (name, scaler, indices), *rest = columns.transformers_
+    if not isinstance(scaler, StandardScaler) or any(transformer != "drop" for _, transformer, _ in rest):
+        raise ProvenanceError(f"the rule must standardize one set of columns and drop the rest: {columns}")
+    if logistic.classes_.tolist() != list(range(len(labels))):
+        raise ProvenanceError(f"class indices {logistic.classes_.tolist()} do not match labels {labels}")
+    return {
+        "method": RULE_METHOD,
+        "features": [feature_order[index] for index in indices],
+        "featureIndices": [int(index) for index in indices],
+        "mean": scaler.mean_.tolist(),
+        "scale": scaler.scale_.tolist(),
+        "classes": list(labels),
+        # One row per class, in the order of "classes".
+        "coefficients": logistic.coef_.tolist(),
+        "intercepts": logistic.intercept_.tolist(),
+    }
+
+
+def manifest_entry(
+    spec: ModelSpec, models_dir: Path, metrics: dict | None, commit: str, date: str, rule: dict | None
+) -> dict:
     path = models_dir / f"{spec.file_stem}.onnx"
     return {
         "name": spec.name,
@@ -163,6 +202,7 @@ def manifest_entry(spec: ModelSpec, models_dir: Path, metrics: dict | None, comm
         "commit": commit,
         "date": date,
         "card": f"{spec.file_stem}.md",
+        **({"rule": rule} if rule else {}),
     }
 
 
@@ -532,7 +572,17 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
             trained_source(spec, runs_dir)
         metrics_by_name[spec.name] = metrics
         source_shas[spec.name] = metrics["sourceSha256"] if metrics else None
-    entries = [manifest_entry(spec, models_dir, metrics_by_name[spec.name], commit, date) for spec in specs]
+    rules = {
+        spec.name: logistic_rule(
+            source_model(spec, runs_dir, None), metrics_by_name[spec.name]["featureOrder"], spec.labels
+        )
+        for spec in specs
+        if spec.name in CODED_FALLBACKS and metrics_by_name[spec.name]
+    }
+    entries = [
+        manifest_entry(spec, models_dir, metrics_by_name[spec.name], commit, date, rules.get(spec.name))
+        for spec in specs
+    ]
     shipped_per_family(entries)
     check_ship_decisions(specs, metrics_by_name)
     check_threshold_bases(specs, metrics_by_name)

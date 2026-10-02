@@ -12,6 +12,15 @@
     "dcOrder": 2,
     "modelWindowS": 4
   },
+  "dsp4": {
+    "minRedRatio": 2,
+    "minRedMean": 0.3,
+    "maxSpatialStdR": 0.1,
+    "maxClipFrac": 0.05
+  },
+  "dsp5": {
+    "exposureChangeArtifactS": 1
+  },
   "dsp6": {
     "hrOrder": 4,
     "morphologyOrder": 2,
@@ -22,7 +31,8 @@
     "peakWindowS": 0.111,
     "beatWindowS": 0.667,
     "beta": 0.02,
-    "refineHalfWindowS": 0.015625
+    "refineHalfWindowS": 0.015625,
+    "minSegmentS": 2
   },
   "dsp8": {
     "minimumSearchS": 0.4
@@ -51,6 +61,30 @@
     "savgolOrder": 3,
     "minFps": 60
   },
+  "dsp10": {
+    "minCleanS": 30
+  },
+  "dsp11": {
+    "minCleanS": 15
+  },
+  "dsp12": {
+    "minFps": 60,
+    "neighbours": 5,
+    "maxNeighbourDeviation": 0.2,
+    "pnnThresholdS": 0.05,
+    "rmssdMinCleanS": 60,
+    "rmssdMinIntervals": 50,
+    "sdnnMinCleanS": 300
+  },
+  "dsp13": {
+    "seriesRateHz": 4,
+    "welchSegmentSamples": 128,
+    "welchOverlapSamples": 64,
+    "welchFftSamples": 512,
+    "bandHz": [0.1, 0.5],
+    "maxSpreadBrpm": 4,
+    "minCleanS": 60
+  },
   "dsp15": {
     "windowIntervals": 32,
     "windowStep": 16,
@@ -59,6 +93,44 @@
     "sampleEntropyM": 2,
     "sampleEntropyR": 0.2,
     "minUsableIntervals": 40
+  },
+  "rules": {
+    "slowRestingBpm": 50,
+    "slowRestingAdjustedBpm": 40,
+    "fastRestingBpm": 100,
+    "restingMinCleanS": 30,
+    "fastRegularBpm": [130, 220],
+    "fastRegularMaxNormalizedRmssd": 0.03,
+    "rhythmMinCleanS": 60,
+    "uncertainBelowTopProb": 0.6,
+    "possibleAfPositives": 2,
+    "possibleAfReadings": 3,
+    "possibleAfWindowHours": 24,
+    "diabetesMinReadings": 2,
+    "diabetesMinCleanS": 90,
+    "personalBandMinReadings": 7,
+    "personalBandIqrs": 1.5,
+    "pulseShapeMinNormalBeats": 20,
+    "pulseShapeMinFps": 60
+  },
+  "confidence": {
+    "highCoverage": 0.9,
+    "moderateCoverage": 0.7,
+    "highTopProb": 0.8
+  },
+  "live": {
+    "maxReadingS": 360,
+    "frameMargin": 0.25,
+    "waveformS": 6,
+    "sqiEveryS": 1,
+    "motionRmsThreshold": 0.05,
+    "leakRedRatio": 2.5,
+    "coldHandsAfterS": 10,
+    "perfusionWindowS": 4,
+    "defaultPerfusionFloorPct": 0.2,
+    "coachEnterS": 0.5,
+    "coachMinShowS": 2,
+    "coachExitS": 1
   },
   "liveHr": {
     "windowS": 10,

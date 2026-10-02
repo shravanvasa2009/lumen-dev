@@ -144,7 +144,7 @@ const demoHrFlag: FixtureReading = {
     lostSeconds: { motion: 0, pressure: 0, coverage: 0, coldHands: 0 },
     notChecked: ['bp', 'spo2', 'heartAttack'],
   },
-  // 64 bpm intervals rescaled to 112 bpm.
+  // §8.5: rescaled from the 64 bpm intervals, so no longer a recording; hence `synthetic: true`.
   intervalsMs: regularIntervalsMs.map((ms) => Math.round((ms * 64) / 112)),
   repeat: null,
   diabetesDays: [],

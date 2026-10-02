@@ -25,6 +25,8 @@ name: Every flag leads to the emergency screen
 - tapOn: 'Yes'
 - assertVisible: 'Get help now'
 - assertVisible: 'Call 911'
-# No flag: the question must not appear.
+# No acute flag: the question must not appear. The demo reading's diabetes pattern stays in Experimental
+# until evidence.json passes the diabetes metric (ADR 0046), so this step needs updating once it does.
 - openLink: lumen://results/demo
+- assertVisible: 'Regular rhythm, 64 bpm.'
 - assertNotVisible: 'Quick safety check'

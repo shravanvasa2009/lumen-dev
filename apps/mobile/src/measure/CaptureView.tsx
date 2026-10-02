@@ -43,7 +43,7 @@ export function CaptureView({ mode, live, onCancel, onStop }: CaptureViewProps) 
       : `${t('capture.cameraOn', { seconds: Math.floor(live.elapsedS) })} ${t('capture.waiting')}.`);
 
   return (
-    <Screen headerless>
+    <Screen headerless footer={<Button variant="secondary" label={t('capture.stop')} onPress={onStop} />}>
       <ScrollView contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.xxxl }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
           <Pressable
@@ -156,8 +156,6 @@ export function CaptureView({ mode, live, onCancel, onStop }: CaptureViewProps) 
             ) : null}
           </View>
         ) : null}
-
-        <Button variant="secondary" label={t('capture.stop')} onPress={onStop} />
       </ScrollView>
     </Screen>
   );

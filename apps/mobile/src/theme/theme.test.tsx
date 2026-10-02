@@ -63,7 +63,7 @@ describe('useTheme', () => {
     expect(theme.current.control.primaryButtonHeight).toBe(52);
   });
 
-  it.each(['emergencyBg', 'scrim', 'plotPanel'] as const)(
+  it.each(['emergencyBg', 'scrim', 'plotPanel', 'onPlot'] as const)(
     'defines %s in both themes as a hex colour',
     (name) => {
       expect(tokens.light[name]).toMatch(/^#[0-9A-F]{6}([0-9A-F]{2})?$/);

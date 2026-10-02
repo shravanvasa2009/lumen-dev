@@ -76,4 +76,45 @@ describe('phone check', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('camera busy'));
     warn.mockRestore();
   });
+
+  describe('camera permission', () => {
+    afterEach(() => {
+      mockRequestPermission.mockReset();
+      mockRequestPermission.mockImplementation(() => Promise.resolve({ granted: true }));
+    });
+
+    it('asks for the camera before reading capabilities', async () => {
+      const calls: string[] = [];
+      mockRequestPermission.mockImplementation(() => {
+        calls.push('requestPermission');
+        return Promise.resolve({ granted: true });
+      });
+      mockGetCapabilities.mockImplementation(() => {
+        calls.push('getCapabilities');
+        return Promise.resolve(probedPhone);
+      });
+      renderRouter('./app', { initialUrl: '/phone-check' });
+      expect(await screen.findByText('60 fps')).toBeOnTheScreen();
+      expect(calls).toEqual(['requestPermission', 'getCapabilities']);
+    });
+
+    it('still finishes the probe when the camera is refused', async () => {
+      mockRequestPermission.mockImplementation(() => Promise.resolve({ granted: false }));
+      mockGetCapabilities.mockResolvedValue(probedPhone);
+      renderRouter('./app', { initialUrl: '/phone-check' });
+      expect(await screen.findByText('60 fps')).toBeOnTheScreen();
+      expect(screen.getByText('2 of 3')).toBeOnTheScreen();
+      expect(screen.queryByText(en['phoneCheck.probeUnavailable'])).not.toBeOnTheScreen();
+    });
+
+    it('reports a failed permission request and still finishes the probe', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+      mockRequestPermission.mockImplementation(() => Promise.reject(new Error('prompt crashed')));
+      mockGetCapabilities.mockResolvedValue(probedPhone);
+      renderRouter('./app', { initialUrl: '/phone-check' });
+      expect(await screen.findByText('60 fps')).toBeOnTheScreen();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('prompt crashed'));
+      warn.mockRestore();
+    });
+  });
 });

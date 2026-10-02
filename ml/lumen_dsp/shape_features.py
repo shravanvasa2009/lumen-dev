@@ -2,7 +2,7 @@ import math
 from collections.abc import Callable, Sequence
 
 from lumen_dsp.config import DSP_CONFIG
-from lumen_dsp.shape import PulseShape
+from lumen_dsp.shape import PulseShape, systolic_peak_index
 
 # diabetes-net's 12 shape features (§11.4, ML-6), mirroring packages/core/src/shape-features.ts with the
 # same loops in the same order. The DSP-14 window is exactly one period: sample k sits at
@@ -10,17 +10,6 @@ from lumen_dsp.shape import PulseShape
 # end of the previous period. Times are fractions of the period; amplitudes are measured on the smoothed
 # beat above the onset level, relative to the systolic peak. Undefined features are None; the model, not
 # this module, fills them with its training median.
-
-
-def systolic_peak_index(smoothed: Sequence[float]) -> int:
-    # The first highest sample within the systolic span, as packages/core systolicPeakIndex.
-    dsp14 = DSP_CONFIG["dsp14"]
-    span_end = math.floor((dsp14["leadFraction"] + dsp14["systoleFraction"]) * dsp14["beatSamples"] + 0.5)
-    peak = 0
-    for k in range(1, span_end):
-        if smoothed[k] > smoothed[peak]:
-            peak = k
-    return peak
 
 
 def _crossing(smoothed: Sequence[float], k: int, level: float) -> float:

@@ -39,14 +39,28 @@ def _is_local_min(y: np.ndarray, i: int) -> bool:
     return y[i - 1] > y[i] <= y[i + 1]
 
 
-def _label_waves(smoothed: np.ndarray, second: np.ndarray, span_end: int) -> WaveLabels:
+def systolic_span_end() -> int:
+    # End (exclusive) of the systolic span searched for the peak and the a–e waves, as packages/core.
+    dsp14 = DSP_CONFIG["dsp14"]
+    return math.floor((dsp14["leadFraction"] + dsp14["systoleFraction"]) * dsp14["beatSamples"] + 0.5)
+
+
+def systolic_peak_index(smoothed: Sequence[float]) -> int:
+    # The first highest sample of the smoothed beat within the systolic span; the a–e labels and the
+    # diabetes-net shape features share it, as packages/core systolicPeakIndex.
+    peak = 0
+    for k in range(1, systolic_span_end()):
+        if smoothed[k] > smoothed[peak]:
+            peak = k
+    return peak
+
+
+def _label_waves(smoothed: np.ndarray, second: np.ndarray) -> WaveLabels:
     # a: the largest local maximum of the second derivative before the systolic peak; then b, c, d, e: the
     # first local minimum, maximum, minimum, maximum after it, in the spec's order. All within the systolic
     # span; a wave that is not found leaves it and every later wave None.
-    systolic_peak = 0
-    for k in range(1, span_end):
-        if smoothed[k] > smoothed[systolic_peak]:
-            systolic_peak = k
+    span_end = systolic_span_end()
+    systolic_peak = systolic_peak_index(smoothed)
     a = None
     for i in range(1, systolic_peak):
         if _is_local_max(second, i) and (a is None or second[i] > second[a]):
@@ -114,5 +128,4 @@ def ensemble_beat(
     window, order = dsp14["savgolWindow"], dsp14["savgolOrder"]
     smoothed = signal.savgol_filter(beat, window, order, deriv=0, mode="interp")
     second = signal.savgol_filter(beat, window, order, deriv=2, mode="interp")
-    span_end = math.floor((lead + dsp14["systoleFraction"]) * samples + 0.5)
-    return PulseShape(beat, smoothed, second, _label_waves(smoothed, second, span_end), beats_used)
+    return PulseShape(beat, smoothed, second, _label_waves(smoothed, second), beats_used)

@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { StyleSheet, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import tokens from '@/theme/tokens.json';
@@ -9,6 +9,7 @@ import { Button } from './Button';
 import { Card } from './Card';
 import { Icon, type IconName } from './Icon';
 import { ListRow } from './ListRow';
+import { RouteShell } from './RouteShell';
 import { Screen } from './Screen';
 
 let mockScheme: 'light' | 'dark';
@@ -236,5 +237,27 @@ describe.each([
     fireEvent.press(screen.getByRole('button', { name: /Phone/ }));
     expect(onPress).toHaveBeenCalledTimes(1);
     expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('ListRow dims a disabled row and ignores presses', () => {
+    const onPress = jest.fn();
+    render(<ListRow title="Coming soon" disabled onPress={onPress} />);
+    const row = screen.getByRole('button', { name: /Coming soon/ });
+    fireEvent.press(row);
+    expect(onPress).not.toHaveBeenCalled();
+    expect(row).toBeDisabled();
+    expect(StyleSheet.flatten(row.props.style).opacity).toBeLessThan(1);
+  });
+
+  it('RouteShell puts its trailing control beside the title', () => {
+    render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <RouteShell title="Lab" trailing={<Text>DEV</Text>} />
+      </SafeAreaProvider>,
+    );
+    let row = screen.getByRole('header', { name: 'Lab' }).parent;
+    while (row && StyleSheet.flatten(row.props.style)?.flexDirection !== 'row') row = row.parent;
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText('DEV')).toBeOnTheScreen();
   });
 });

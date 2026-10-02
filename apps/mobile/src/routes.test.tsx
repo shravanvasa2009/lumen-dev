@@ -1,4 +1,5 @@
-import { fireEvent, getMockContext, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, getMockContext, renderRouter, screen } from 'expo-router/testing-library';
+import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
@@ -156,7 +157,9 @@ describe('navigation', () => {
     expect(screen.getByRole('header', { name: en['precheck.title'] })).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: en['precheck.start'] }));
     expect(screen.getByRole('header', { name: en['mode.quick'] })).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['capture.finish'] }));
+    // Capture ends only on clean seconds, which the emulator cannot produce, so the next screen is opened
+    // by its route.
+    act(() => router.push('/measure/processing'));
     fireEvent.press(screen.getByRole('button', { name: en['processing.seeResults'] }));
     expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
   });
@@ -175,7 +178,7 @@ describe('navigation', () => {
 
   it('loops from a failed capture through Fix my technique back to capture', () => {
     followButtons('/measure/capture?mode=quick', [
-      ['capture.noSignal', 'result.inconclusive'],
+      ['capture.stop', 'result.inconclusive'],
       ['inconclusive.fix', 'fix.title'],
       ['fix.done', 'mode.quick'],
     ]);

@@ -19,23 +19,23 @@ export function SeatedIllustration({ phoneLabel, elbowLabel }: SeatedIllustratio
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Rect x={20} y={128} width={260} height={10} rx={5} fill={colors.surface3} />
+      <Rect x={20} y={128} width={260} height={10} rx={5} fill={colors.line2} />
       <Rect x={40} y={138} width={10} height={52} fill={colors.surface3} />
       <Rect x={250} y={138} width={10} height={52} fill={colors.surface3} />
-      <Circle cx={100} cy={32} r={20} fill={colors.textFaint} />
+      <Circle cx={100} cy={32} r={20} fill={colors.illustrationSkin} />
       <Path
         d="M112 58 Q92 76 96 124"
-        stroke={colors.badgePublicFg}
+        stroke={colors.illustrationTorso}
         strokeWidth={18}
         strokeLinecap="round"
         fill="none"
       />
       <Line
-        x1={90}
-        y1={74}
+        x1={104}
+        y1={72}
         x2={130}
         y2={120}
-        stroke={colors.textFaint}
+        stroke={colors.illustrationSkin}
         strokeWidth={8}
         strokeLinecap="round"
       />
@@ -44,7 +44,7 @@ export function SeatedIllustration({ phoneLabel, elbowLabel }: SeatedIllustratio
         y1={120}
         x2={190}
         y2={100}
-        stroke={colors.textFaint}
+        stroke={colors.illustrationSkin}
         strokeWidth={8}
         strokeLinecap="round"
       />
@@ -55,7 +55,7 @@ export function SeatedIllustration({ phoneLabel, elbowLabel }: SeatedIllustratio
         width={22}
         height={42}
         rx={5}
-        fill="none"
+        fill={colors.bg}
         stroke={colors.accent}
         strokeWidth={2.5}
       />
@@ -63,7 +63,7 @@ export function SeatedIllustration({ phoneLabel, elbowLabel }: SeatedIllustratio
       <SvgText x={218} y={90} fill={colors.accent} fontSize={LABEL_SIZE}>
         {phoneLabel}
       </SvgText>
-      <SvgText x={140} y={158} fill={colors.accent} fontSize={LABEL_SIZE}>
+      <SvgText x={140} y={152} fill={colors.accent} fontSize={LABEL_SIZE}>
         {elbowLabel}
       </SvgText>
     </Svg>

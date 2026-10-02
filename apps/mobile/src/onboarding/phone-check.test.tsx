@@ -10,10 +10,13 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 }));
 
 const mockGetCapabilities = jest.fn<Promise<Capabilities>, []>();
+const mockRequestPermission = jest.fn(() => Promise.resolve({ granted: true }));
 let mockModuleLinked = true;
 jest.mock('../../modules/lumen-capture/src', () => ({
   get LumenCapture() {
-    return mockModuleLinked ? { getCapabilities: mockGetCapabilities } : null;
+    return mockModuleLinked
+      ? { getCapabilities: mockGetCapabilities, requestPermission: mockRequestPermission }
+      : null;
   },
 }));
 
@@ -49,6 +52,13 @@ describe('phone check', () => {
     expect(screen.queryByText(en['phoneCheck.probeUnavailable'])).not.toBeOnTheScreen();
     // One tick each for frame rate, flashlight and lenses; exposure lock is 2 of 3 and timing is pending.
     expect(screen.root.findAll((node) => String(node.type) === 'RNSVGSvgView')).toHaveLength(3);
+  });
+
+  it('shows Checking while the probe is still running', () => {
+    mockGetCapabilities.mockReturnValue(new Promise(() => undefined));
+    renderRouter('./app', { initialUrl: '/phone-check' });
+    expect(screen.getAllByText(en['phoneCheck.checking'])).toHaveLength(5);
+    expect(screen.queryByText(en['phoneCheck.notChecked'])).not.toBeOnTheScreen();
   });
 
   it('marks every row as not checked when the capture module is not linked', () => {

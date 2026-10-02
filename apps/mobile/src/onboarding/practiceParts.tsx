@@ -1,5 +1,8 @@
+import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { AppText } from '@/components/AppText';
 import { useTheme } from '@/theme';
 
 const PREVIEW_SIZE = 190;
@@ -34,9 +37,14 @@ export function FingerPreview({ detected }: { detected: boolean }) {
   );
 }
 
-// Weak to Strong coupling bar; it has no marker until capture drives it (A1 group 4).
-export function SignalMeter() {
+// Keeps the marker inside the bar at both ends.
+const MARKER_INSET_PCT = 4;
+const MARKER_SPAN_PCT = 100 - 2 * MARKER_INSET_PCT;
+
+// Weak to Strong coupling bar. The marker shows `level` (0 to 1) and is left out while there is none.
+export function SignalMeter({ level = null }: { level?: number | null }) {
   const { colors } = useTheme();
+  const marked = level === null ? null : Math.min(1, Math.max(0, level));
   return (
     <Svg
       width="100%"
@@ -51,40 +59,82 @@ export function SignalMeter() {
         </LinearGradient>
       </Defs>
       <Rect width="100%" height={METER_HEIGHT} rx={METER_HEIGHT / 2} fill="url(#signal-scale)" />
+      {marked === null ? null : (
+        <Circle
+          testID="signal-marker"
+          cx={`${MARKER_INSET_PCT + marked * MARKER_SPAN_PCT}%`}
+          cy={METER_HEIGHT / 2}
+          r={METER_HEIGHT / 2 - 4}
+          fill={colors.text}
+          stroke={colors.bg}
+          strokeWidth={2}
+        />
+      )}
     </Svg>
   );
 }
 
-export function ProgressRing({ fraction }: { fraction: number }) {
+// The Weak, OK, Strong labels under the meter.
+export function SignalScale() {
+  const { t } = useTranslation();
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+      <AppText variant="caption" tone="textDim">
+        {t('signal.weak')}
+      </AppText>
+      <AppText variant="caption" tone="textDim">
+        {t('signal.ok')}
+      </AppText>
+      <AppText variant="caption" tone="accent" style={{ fontWeight: '600' }}>
+        {t('signal.strong')}
+      </AppText>
+    </View>
+  );
+}
+
+type RingProps = {
+  fraction: number;
+  size?: number;
+  strokeWidth?: number;
+  // Amber while the count is held, as on the capture screen.
+  paused?: boolean;
+};
+
+export function ProgressRing({
+  fraction,
+  size = RING_SIZE,
+  strokeWidth = RING_STROKE,
+  paused = false,
+}: RingProps) {
   const { colors } = useTheme();
-  const radius = (RING_SIZE - RING_STROKE) / 2;
+  const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   return (
     <Svg
-      width={RING_SIZE}
-      height={RING_SIZE}
+      width={size}
+      height={size}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
       <Circle
-        cx={RING_SIZE / 2}
-        cy={RING_SIZE / 2}
+        cx={size / 2}
+        cy={size / 2}
         r={radius}
         stroke={colors.surface3}
-        strokeWidth={RING_STROKE}
+        strokeWidth={strokeWidth}
         fill="none"
       />
       <Circle
-        cx={RING_SIZE / 2}
-        cy={RING_SIZE / 2}
+        cx={size / 2}
+        cy={size / 2}
         r={radius}
-        stroke={colors.accent}
-        strokeWidth={RING_STROKE}
+        stroke={paused ? colors.flag : colors.accent}
+        strokeWidth={strokeWidth}
         strokeLinecap="round"
         fill="none"
-        strokeDasharray={`${circumference * fraction} ${circumference}`}
+        strokeDasharray={`${circumference * Math.min(1, Math.max(0, fraction))} ${circumference}`}
         rotation={-90}
-        origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+        origin={`${size / 2}, ${size / 2}`}
       />
     </Svg>
   );

@@ -1,9 +1,8 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, View } from 'react-native';
 
-import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Icon, type IconName } from '@/components/Icon';
@@ -54,10 +53,8 @@ export default function PrecheckScreen() {
         />
       }
     >
+      <Stack.Screen options={{ title: t('precheck.title') }} />
       <ScrollView contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.lg }}>
-        <AppText variant="title" accessibilityRole="header">
-          {t('precheck.title')}
-        </AppText>
         <View style={{ alignItems: 'center', gap: spacing.sm }}>
           <RestRing
             elapsed={1 - remaining / REST_SECONDS}

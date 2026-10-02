@@ -4,6 +4,7 @@ import i18n from 'i18next';
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { expectNavTitle } from '@/testing/navHeader';
 import { makeReading } from '@/testing/reading';
 
 import { LatestResultCard } from './LatestResultCard';
@@ -40,7 +41,6 @@ describe('Home', () => {
   });
 
   it.each([
-    ['Change mode', () => screen.getByRole('button', { name: en['home.changeMode'] }), 'mode.title'],
     [
       'the latest result',
       () => screen.getByRole('button', { name: new RegExp(`^${en['home.latestResult']}`) }),
@@ -57,9 +57,14 @@ describe('Home', () => {
     expect(screen.getByRole('header', { name: en[title] })).toBeOnTheScreen();
   });
 
+  it('reaches the mode list from Change mode', () => {
+    fireEvent.press(screen.getByRole('button', { name: en['home.changeMode'] }));
+    expectNavTitle(en['mode.title']);
+  });
+
   it('opens the widget gallery from the promo', () => {
     fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${en['home.promoTitle']}`) }));
-    expect(screen.getByRole('header', { name: en['widgets.title'] })).toBeOnTheScreen();
+    expectNavTitle(en['widgets.title']);
   });
 
   it('dismisses the promo with the close icon', () => {

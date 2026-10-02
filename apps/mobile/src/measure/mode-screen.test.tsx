@@ -1,6 +1,7 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { expectNavTitle } from '@/testing/navHeader';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -22,7 +23,7 @@ describe('choose a mode', () => {
 
   it('opens the pre-check for Full Scan', () => {
     fireEvent.press(screen.getByRole('button', { name: en['mode.full'] }));
-    expect(screen.getByRole('header', { name: en['precheck.title'] })).toBeOnTheScreen();
+    expectNavTitle(en['precheck.title']);
   });
 
   it('opens the standing test', () => {

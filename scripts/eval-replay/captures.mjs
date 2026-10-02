@@ -51,10 +51,12 @@ function strapInsideCapture(folder, polar, span) {
 // A Bluetooth dropout loses strap notifications, and with them whole beats. Beat times are running sums of
 // intervals, so every beat after a dropout would pair with the wrong heartbeat.
 // Lab writes the rows as one beat timeline (PR #58): within a stretch each t_ns is the previous one plus its
-// RR, to the ns. A step longer than that starts a new stretch, either after lost beats (at least about one RR
-// of excess) or after an unusually late arrival (tens of ms). 250 ms (ADR 0037) catches a single lost beat at
-// any heart rate up to 240 bpm and ignores the late arrivals. How many beats were lost is unknown to within a
-// beat, so no filler can restore the timing: the longest unbroken stretch is kept and the rest dropped.
+// RR, to the ns. A longer step starts a new stretch, after lost beats (at least about one RR of excess) or
+// when Lab restarts its timeline without a loss after a late arrival (anywhere up to about one RR off,
+// strapClock.ts "Limits"). 250 ms (ADR 0037) catches a single lost beat at any heart rate up to 240 bpm.
+// Restarts it also catches cost only data, never a wrong pairing, since the timing across them is off too.
+// How many beats were lost is unknown to within a beat, so no filler can restore the timing: the longest
+// unbroken stretch is kept and the rest dropped.
 const DROPOUT_MS = 250;
 
 function longestUnbrokenStretch(rows) {

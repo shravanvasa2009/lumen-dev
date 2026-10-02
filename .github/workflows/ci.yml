@@ -208,10 +208,11 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
-          # The default profile boots at 320x640 dp (run 37045872239 logs 320x640, 160 dpi). Lumen's scrolling screens then
-          # keep buttons and rows below the fold, where Maestro cannot see or tap them (it does not scroll).
+          # The default profile boots at 320x640 dp (run 37045872239 logs 320x640, 160 dpi). Lumen's
+          # scrolling screens then keep buttons and rows below the fold, where Maestro cannot see or tap
+          # them (it does not scroll).
           profile: pixel_6
-          # On failure, keep the device log (a startup crash shows there) next to Maestro's output.
+          # On failure, keep the whole device log next to Maestro's output (its own log covers one flow).
           script: npm run e2e:android || (adb logcat -d > "$HOME/.maestro/tests/logcat.txt"; exit 1)
       # Maestro saves a screenshot and the view hierarchy for each failed step under ~/.maestro/tests; CI
       # failures were otherwise text-only. https://github.com/actions/upload-artifact

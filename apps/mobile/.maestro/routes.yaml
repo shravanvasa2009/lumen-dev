@@ -6,14 +6,20 @@ name: Every route opens
 ---
 # Capture and Practice ask for the camera; granting it at launch keeps the Android dialog off the screen.
 # https://docs.maestro.dev/api-reference/commands/launchapp
-- launchApp:
-    clearState: true
-    permissions:
-      camera: allow
-# launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
-- extendedWaitUntil:
-    visible: 'Change mode'
-    timeout: 60000
+# A late teardown of the previous flow's app can kill the new launch (run 37060488120: 'Killing ...
+# remove task' 26 ms after start), so only the launch and the first wait are retried.
+# https://docs.maestro.dev/reference/commands-available/retry
+- retry:
+    maxRetries: 2
+    commands:
+      - launchApp:
+          clearState: true
+          permissions:
+            camera: allow
+      # launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
+      - extendedWaitUntil:
+          visible: 'Change mode'
+          timeout: 60000
 - openLink: lumen://welcome
 - assertVisible: 'Lumen'
 - openLink: lumen://consent

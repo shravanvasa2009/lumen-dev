@@ -35,6 +35,10 @@ const NATIVE_NETWORK = new RegExp(
     '\\borg\\.chromium\\.net\\.',
   ].join('|'),
 );
+// ADR 0054: the Care map, opened only by the user, loads map tiles from OpenFreeMap. That host is allowed
+// in the /care-map route and its screen code, and nowhere else (so never during a reading).
+const TILE_HOST = /tiles\.openfreemap\.org/;
+const CARE_MAP_PATHS = ['apps/mobile/app/care-map.tsx', 'apps/mobile/src/care/'];
 const INTERNET_PERMISSION = /android\.permission\.INTERNET/;
 
 // Tracked and not-ignored files, so a hand-written file can't hide under a folder name such as build.
@@ -59,6 +63,8 @@ for (const file of files) {
     if (NATIVE_NETWORK.test(text)) violations.push(`${file}: native network call (none are allowed)`);
     continue;
   }
+  if (TILE_HOST.test(text) && !CARE_MAP_PATHS.some((allowed) => file.startsWith(allowed)))
+    violations.push(`${file}: map tile host outside the /care-map route`);
   const inDev = file.startsWith(DEV_DIR);
   if (NETWORK.test(text) && !inDev) violations.push(`${file}: network call outside ${DEV_DIR}`);
   if (inDev && NETWORK.test(text) && !/__DEV__/.test(text))

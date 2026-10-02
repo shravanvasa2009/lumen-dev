@@ -1,9 +1,9 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import i18n from 'i18next';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
-import i18n from 'i18next';
-import { useFixedMorning } from '@/testing/fixedMorning';
+import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { makeReading } from '@/testing/reading';
 
 import { LatestResultCard } from './LatestResultCard';
@@ -14,7 +14,7 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => 'light',
 }));
 
-useFixedMorning();
+fixClockAtMorning();
 
 describe('Home', () => {
   beforeEach(() => {

@@ -1,13 +1,13 @@
 import { router } from 'expo-router';
-import { Linking } from 'react-native';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
+import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
-import { useFixedMorning } from '@/testing/fixedMorning';
 import { lockscreenStrings } from '@/i18n/lockscreen';
+import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { setPreference } from '@/theme/preferences';
 
-useFixedMorning();
+fixClockAtMorning();
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,

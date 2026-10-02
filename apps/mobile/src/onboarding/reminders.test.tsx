@@ -2,7 +2,7 @@ import { requestPermissionsAsync } from 'expo-notifications';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
-import { useFixedMorning } from '@/testing/fixedMorning';
+import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -10,7 +10,7 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 }));
 jest.mock('expo-notifications', () => ({ requestPermissionsAsync: jest.fn() }));
 
-useFixedMorning();
+fixClockAtMorning();
 
 const askPermission = jest.mocked(requestPermissionsAsync);
 

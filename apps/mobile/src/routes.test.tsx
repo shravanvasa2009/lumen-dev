@@ -2,7 +2,7 @@ import { fireEvent, getMockContext, renderRouter, screen } from 'expo-router/tes
 import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
-import { useFixedMorning } from '@/testing/fixedMorning';
+import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import tokens from '@/theme/tokens.json';
 
 // Turn on reminders asks the system for notification permission before it leaves the screen.
@@ -10,7 +10,7 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
 }));
 
-useFixedMorning();
+fixClockAtMorning();
 
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({

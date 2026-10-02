@@ -2,9 +2,9 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
-import { useFixedMorning } from '@/testing/fixedMorning';
+import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 
-useFixedMorning();
+fixClockAtMorning();
 
 describe('emergency screen', () => {
   afterEach(() => {

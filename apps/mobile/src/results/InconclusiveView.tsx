@@ -13,7 +13,7 @@ import { useTheme } from '@/theme';
 
 import type { FixtureReading } from './fixtures';
 import { DemoBanner } from './DemoBanner';
-import { Glyph } from './Glyph';
+import { Icon } from '@/components/Icon';
 import { LostTime, lostCauses, secondsLost } from './LostTime';
 
 function summary(t: TFunction, reading: FixtureReading | undefined): string {
@@ -68,12 +68,12 @@ export function InconclusiveView({ reading, mode }: InconclusiveViewProps) {
           onPress={() => router.replace('/')}
           style={{ position: 'absolute', top: 0, left: 0 }}
         >
-          <Glyph name="close" size={control.chevronSize + 4} color={colors.textDim} />
+          <Icon name="close" size={control.chevronSize + 4} color={colors.textDim} />
         </Pressable>
         <View style={{ flex: 1, justifyContent: 'center', gap: spacing.lg }}>
           {reading ? <DemoBanner synthetic={reading.synthetic} /> : null}
           <View style={{ alignItems: 'center', gap: spacing.sm }}>
-            <Glyph name="noSignal" size={56} color={colors.flag} />
+            <Icon name="noSignal" size={56} color={colors.flag} />
             <AppText variant="title" accessibilityRole="header" style={{ textAlign: 'center' }}>
               {t('result.inconclusive')}
             </AppText>
@@ -85,7 +85,7 @@ export function InconclusiveView({ reading, mode }: InconclusiveViewProps) {
           <Card>
             {[t('inconclusive.tipElbows'), t('inconclusive.tipBreathe')].map((tip) => (
               <View key={tip} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-                <Glyph name="hint" size={20} color={colors.accent} />
+                <Icon name="hint" size={20} color={colors.accent} />
                 <AppText style={{ flex: 1 }}>{tip}</AppText>
               </View>
             ))}

@@ -23,7 +23,7 @@ export default function PrecheckScreen() {
   const { t } = useTranslation();
   const { colors, spacing, control } = useTheme();
   const mode = parseMode(useLocalSearchParams<{ mode?: string }>().mode);
-  const { remaining, skip } = useRestTimer(REST_SECONDS);
+  const { remaining, finished, skip } = useRestTimer(REST_SECONDS);
   const [selected, setSelected] = useState<ReadonlySet<Context>>(new Set());
   const chips: readonly { context: Context; label: string; icon?: IconName }[] = [
     { context: 'caffeine', label: t('precheck.caffeine'), icon: 'cup' },
@@ -43,7 +43,17 @@ export default function PrecheckScreen() {
   };
 
   return (
-    <Screen footer={<NavButton label={t('precheck.start')} href={`/measure/capture?mode=${mode}`} />}>
+    <Screen
+      footer={
+        <NavButton
+          label={t('precheck.start')}
+          href={{
+            pathname: '/measure/capture',
+            params: { mode, restDone: String(finished), context: [...selected].join(',') },
+          }}
+        />
+      }
+    >
       <ScrollView contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.lg }}>
         <AppText variant="title" accessibilityRole="header">
           {t('precheck.title')}

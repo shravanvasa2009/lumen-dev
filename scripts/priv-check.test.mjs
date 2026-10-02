@@ -116,3 +116,38 @@ test('the OpenFreeMap tile host is allowed for the /care-map route only', (t) =>
     assert.match(run.stderr, /map tile host outside the \/care-map route/, file);
   }
 });
+
+test('only the exact care-map route file is allowed, not look-alike paths', (t) => {
+  const style = "const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';\n";
+  for (const file of ['apps/mobile/app/care-map.tsx.ts', 'apps/mobile/app/care-map.tsx/x.ts']) {
+    const run = runOn(t, { [file]: style });
+    assert.equal(run.status, 1, file);
+    assert.match(run.stderr, /map tile host outside/, file);
+  }
+});
+
+test('the map library and care code may be imported only inside the care-map paths', (t) => {
+  const allowed = runOn(t, {
+    'apps/mobile/app/care-map.tsx': "import { CareMapScreen } from '@/care/CareMapScreen';\n",
+    'apps/mobile/src/care/CareMapView.tsx': "import { Map } from '@maplibre/maplibre-react-native';\n",
+    'apps/mobile/src/care/CareMapScreen.tsx': "import { CareMapView } from './CareMapView';\n",
+  });
+  assert.equal(allowed.status, 0, allowed.stderr);
+  const forms = {
+    'apps/mobile/app/measure.tsx': "import { CareMapScreen } from '@/care/CareMapScreen';\n",
+    'apps/mobile/src/measure/Screen.tsx': "import { Map } from '@maplibre/maplibre-react-native';\n",
+    'apps/mobile/src/results/Card.tsx': "import { clinics } from '../care/clinics';\n",
+    'apps/mobile/src/results/Dyn.tsx': "const care = await import('../care');\n",
+    'apps/mobile/src/results/Req.tsx': "const lib = require('@maplibre/maplibre-react-native/lib');\n",
+    'apps/mobile/app/care.tsx': "export { x } from '@/care/clinics';\n",
+  };
+  for (const [file, contents] of Object.entries(forms)) {
+    const run = runOn(t, { [file]: contents });
+    assert.equal(run.status, 1, file);
+    assert.match(run.stderr, /imports the map library or care code/, file);
+  }
+  const unrelated = runOn(t, {
+    'apps/mobile/src/results/Card.tsx': "import { caregiver } from './caregiver';\n",
+  });
+  assert.equal(unrelated.status, 0, unrelated.stderr);
+});

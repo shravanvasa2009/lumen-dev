@@ -35,6 +35,11 @@ describe('app.config personal-team mode (BOOT)', () => {
     expect(config.plugins).toContain('./modules/lumen-capture/app.plugin');
   });
 
+  // Without it, prebuild leaves the Glance receivers out of the manifest and the picker has no widgets.
+  it('lists the Android widget plugin (WID-1)', () => {
+    expect(loadConfig({}).plugins).toContain('./modules/lumen-widgets/app.plugin');
+  });
+
   it('ignores LUMEN_IOS_TEAM_ID unless personal-team mode is on', () => {
     expect(loadConfig({ LUMEN_IOS_TEAM_ID: 'ABCDE12345' })).toEqual(loadConfig({}));
   });

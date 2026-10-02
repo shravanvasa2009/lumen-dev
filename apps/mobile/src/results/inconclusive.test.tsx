@@ -2,8 +2,11 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 fixClockAtMorning();
+
+preloadAppRoutes();
 
 describe('inconclusive screen', () => {
   it('says how many clean seconds were collected and where the rest went', () => {

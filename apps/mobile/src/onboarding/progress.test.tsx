@@ -1,5 +1,7 @@
 import { renderRouter, screen } from 'expo-router/testing-library';
 
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'dark',
@@ -21,6 +23,8 @@ const steps = [
 ] as const;
 
 jest.setTimeout(30_000);
+
+preloadAppRoutes();
 
 describe('onboarding progress bar', () => {
   it.each(steps)('%s fills %i of 9 segments', (url, step) => {

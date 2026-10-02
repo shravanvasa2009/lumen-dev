@@ -16,6 +16,8 @@ from export.specs import MODELS_DIR, OPSET, SPECS
 from export.to_onnx import export_classifier, export_model, export_torch, source_model
 from export.verify_onnx import edge_cases, parity_entry, parity_report, seeded_inputs
 from tests.training_artifacts import fit_baseline, save_trained
+from train.rhythm import LOGISTIC_FEATURES
+from train.rhythm_windows import FEATURE_NAMES
 
 SEED = 11
 BASELINES = sorted(name for name, spec in SPECS.items() if spec.kind == "classifier")
@@ -248,3 +250,29 @@ def test_baseline_export_matches_predict_proba(tmp_path, classifier, classes, ou
     assert np.abs(probabilities - expected).max() <= TOLERANCE
     domains = [entry.domain for entry in onnx.load(str(path)).opset_import]
     assert len(domains) == len(set(domains))
+
+
+@pytest.mark.parametrize("name", BASELINES)
+def test_classifiers_export_one_float_probability_tensor(tmp_path, name):
+    # onnxruntime-react-native hands only tensors to JavaScript: no ZipMap and no label output.
+    spec = SPECS[name]
+    model = onnx.load(str(export_model(spec, fit_baseline(spec), tmp_path)))
+    assert "ZipMap" not in {node.op_type for node in model.graph.node}
+    (output,) = model.graph.output
+    assert output.name == next(iter(spec.outputs))
+    assert output.type.tensor_type.elem_type == onnx.TensorProto.FLOAT
+
+
+def test_logistic_rule_export_reads_only_its_three_features(tmp_path):
+    spec = SPECS["rhythm-logistic"]
+    pipeline = fit_baseline(spec)
+    session = ort.InferenceSession(str(export_model(spec, pipeline, tmp_path)))
+    features = seeded_inputs(spec)["features"]
+    others = [index for index, name in enumerate(FEATURE_NAMES) if name not in LOGISTIC_FEATURES]
+    changed = features.copy()
+    changed[:, others] = 99.0
+    (probabilities,) = session.run(None, {"features": features})
+    (unchanged,) = session.run(None, {"features": changed})
+    np.testing.assert_array_equal(probabilities, unchanged)
+    assert probabilities.shape == (len(features), 3)
+    assert np.abs(probabilities - pipeline.predict_proba(features)).max() <= TOLERANCE

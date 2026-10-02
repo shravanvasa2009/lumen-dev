@@ -48,3 +48,39 @@ export {
 } from './beats';
 export { classifyBeats } from './beat-classes';
 export { ensembleBeat, savgolFilter, type PulseShape, type WaveLabels } from './pulse-shape';
+export {
+  cleanSeconds,
+  heartRate,
+  hrv,
+  measureBeats,
+  perfusionIndex,
+  type Hrv,
+  type MeasuredBeat,
+} from './reading-metrics';
+export {
+  breathingRate,
+  breathingSeries,
+  welchPsd,
+  type BreathingRate,
+  type ModulationSeries,
+  type WelchSpectrum,
+} from './breathing';
+export {
+  analyzeReading,
+  type BeatInterval,
+  type NsSpan,
+  type ReadingAnalysis,
+  type ReadingContext,
+  type SqiScores,
+  type Tier,
+} from './reading';
+export {
+  buildReadingResult,
+  type DiabetesOutputs,
+  type EvidenceFile,
+  type ModelOutputs,
+  type PastReading,
+  type Profile,
+  type RhythmOutputs,
+} from './reading-result';
+export { createLiveSession, type LiveSessionConfig } from './live';

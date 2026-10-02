@@ -12,6 +12,7 @@ from onnxmltools.convert.lightgbm.operator_converters.LightGbm import convert_li
 from skl2onnx.common.data_types import FloatTensorType
 from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_shapes
 from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
 from torch import nn
 
 from export.provenance import trained_source
@@ -60,7 +61,8 @@ def export_torch(spec: ModelSpec, model: nn.Module, out_dir: Path) -> Path:
     return path
 
 
-Classifier = LGBMClassifier | LogisticRegression
+# A Pipeline is rhythm-logistic: column selection, StandardScaler, then LogisticRegression.
+Classifier = LGBMClassifier | LogisticRegression | Pipeline
 SourceModel = nn.Module | Classifier
 
 
@@ -141,11 +143,14 @@ def _expose_probabilities(
 
 
 def export_classifier(classifier: Classifier, input_name: str, output_name: str, path: Path) -> Path:
+    # zipmap is an option of the classifier itself, so inside a Pipeline it is keyed by the final step's
+    # id (convert_sklearn, "Converters options": https://onnx.ai/sklearn-onnx/api_summary.html).
+    estimator = classifier[-1] if isinstance(classifier, Pipeline) else classifier
     model_proto = skl2onnx.convert_sklearn(
         classifier,
         initial_types=[(input_name, FloatTensorType([None, classifier.n_features_in_]))],
         target_opset={"": OPSET, "ai.onnx.ml": ML_OPSET},
-        options={id(classifier): {"zipmap": False}},
+        options={id(estimator): {"zipmap": False}},
     )
     binary = len(classifier.classes_) == 2
     path.parent.mkdir(parents=True, exist_ok=True)

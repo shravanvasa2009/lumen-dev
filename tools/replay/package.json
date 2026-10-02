@@ -2,5 +2,10 @@
   "name": "@lumen/replay",
   "private": true,
   "version": "0.1.0",
-  "description": "Node CLI that replays captures through @lumen/core"
+  "description": "Node CLI that replays captures through @lumen/core",
+  "type": "module",
+  "scripts": {
+    "replay": "node src/cli.mjs",
+    "test": "node --test test/replay.test.mjs"
+  }
 }

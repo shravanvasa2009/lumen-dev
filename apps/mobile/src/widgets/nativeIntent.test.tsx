@@ -11,6 +11,7 @@ const links = [
   { link: 'lumen://check?mode=quick', path: '/measure/precheck', mode: 'quick' },
   { link: 'lumen://check?mode=full', path: '/measure/precheck', mode: 'full' },
   { link: 'lumen://check?source=widget&mode=full', path: '/measure/precheck', mode: 'full' },
+  { link: 'LUMEN://Check?Mode=Full', path: '/measure/precheck', mode: 'full' },
   { link: 'lumen://standing', path: '/measure/standing-test', mode: undefined },
 ] as const;
 

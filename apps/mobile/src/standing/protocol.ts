@@ -33,6 +33,8 @@ export type TestView = {
   lyingRemainingMs: number;
   standingElapsedMs: number;
   nextReadingAtMs: number | null;
+  // Time until the next reading opens (baseline or standing), for the live timer; null when none is left.
+  nextReadingInMs: number | null;
   dueSlot: ReadingSlot | null;
   baseline: number | null;
   latest: number | null;
@@ -103,6 +105,11 @@ export function viewAt(state: TestState, nowMs: number): TestView {
   const nextReading = state.standing.find(
     ({ minute, bpm }) => bpm === null && standingElapsedMs < minute * MINUTE_MS,
   );
+  // Elapsed test times when each reading still to take opens; a missed baseline is already in the past.
+  const nextOpensAtMs = [
+    ...(state.baseline === null ? [BASELINE_STARTS_MS] : []),
+    ...state.standing.filter(({ bpm }) => bpm === null).map(({ minute }) => LYING_MS + minute * MINUTE_MS),
+  ].find((opensAtMs) => opensAtMs > elapsedMs);
   const taken = state.standing.flatMap(({ bpm, atMs }) =>
     bpm === null || atMs === null ? [] : [{ minute: atMs / MINUTE_MS, bpm }],
   );
@@ -116,6 +123,8 @@ export function viewAt(state: TestState, nowMs: number): TestView {
     standingElapsedMs,
     nextReadingAtMs:
       (stage === 'standing' || stage === 'final') && nextReading ? nextReading.minute * MINUTE_MS : null,
+    nextReadingInMs:
+      state.startedAt !== null && live && nextOpensAtMs !== undefined ? nextOpensAtMs - elapsedMs : null,
     dueSlot,
     baseline: state.baseline,
     latest,

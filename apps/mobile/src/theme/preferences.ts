@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import { publishWidgets } from '@/widgets/publish';
+
 export type Appearance = 'system' | 'light' | 'dark';
 
 type Preferences = {
@@ -26,4 +28,7 @@ export function usePreferences() {
 export function setPreference<Key extends keyof Preferences>(key: Key, value: Preferences[Key]) {
   current = { ...current, [key]: value };
   listeners.forEach((listener) => listener());
+  // The widget snapshot carries both (Appendix B). A failed write is not caught here: React Native reports
+  // the unhandled rejection, and the widget keeps its previous snapshot.
+  if (key === 'hideWidgetValues' || key === 'appearance') void publishWidgets(current);
 }

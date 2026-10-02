@@ -11,6 +11,7 @@
     "widget.status.doctor": "Doctor visit suggested",
     "live.standing.title": "Standing test",
     "live.standing.next": "Next reading in {{countdown}}",
+    "live.standing.measureNow": "Measure now",
     "live.standing.tap": "Tap to measure"
   },
   "es": {
@@ -25,6 +26,7 @@
     "widget.status.doctor": "Se sugiere ver a un médico",
     "live.standing.title": "Prueba de pie",
     "live.standing.next": "Próxima medición en {{countdown}}",
+    "live.standing.measureNow": "Medir ahora",
     "live.standing.tap": "Toca para medir"
   }
 }

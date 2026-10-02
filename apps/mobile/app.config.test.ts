@@ -81,6 +81,23 @@ describe('app.config personal-team mode (BOOT)', () => {
   });
 });
 
+describe('app.config widgets and the standing-test Live Activity (WID-1, LIVE-1)', () => {
+  it.each([
+    [{}, 'group.io.github.shravanvasa2009.heartcheck'],
+    [{ LUMEN_IOS_PERSONAL_TEAM: '1' }, 'group.io.github.shravanvasa2009.heartcheck.dev'],
+  ])('gives each bundle ID its own App Group (%p)', (env, appGroup) => {
+    expect(loadConfig(env).ios?.entitlements).toEqual({
+      'com.apple.security.application-groups': [appGroup],
+    });
+  });
+
+  it('builds the widget target and the widget module on both platforms', () => {
+    const { plugins } = loadConfig({});
+    expect(plugins).toContain('@bacons/apple-targets');
+    expect(plugins).toContain('./modules/lumen-widgets/app.plugin');
+  });
+});
+
 describe('app.config Bluetooth for the Lab chest strap', () => {
   it('uses the spec §9.5 purpose string and never asks for location on Android 12+', () => {
     expect(loadConfig({}).plugins).toContainEqual([

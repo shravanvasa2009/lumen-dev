@@ -111,3 +111,41 @@ describe('lumen-widgets config plugin (WID-1, PRIV-1)', () => {
     expect(receiverNamed(manifest, MEDIUM)).toHaveLength(1);
   });
 });
+
+describe('lumen-widgets config plugin on iOS (WID-1, LIVE-1)', () => {
+  let projectRoot: string;
+
+  beforeEach(() => {
+    projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lumen-widgets-ios-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  });
+
+  async function iosAfter(entitlements: Record<string, unknown>): Promise<ExpoConfig> {
+    const config = withLumenWidgets({
+      name: 'Lumen',
+      slug: 'lumen-test',
+      ios: { bundleIdentifier: 'test.lumen', entitlements },
+      _internal: { projectRoot },
+    });
+    return compileModsAsync(config, { projectRoot, introspect: true, platforms: ['ios'] });
+  }
+
+  it(
+    'writes the App Group from the entitlements into Info.plist and turns on Live Activities',
+    async () => {
+      const config = await iosAfter({ 'com.apple.security.application-groups': ['group.test.lumen'] });
+      expect(config.ios?.infoPlist).toMatchObject({
+        LumenAppGroup: 'group.test.lumen',
+        NSSupportsLiveActivities: true,
+      });
+    },
+    COLD_INTROSPECTION_MS,
+  );
+
+  it('refuses to build without an App Group, which the widget extension needs to read the snapshot', async () => {
+    await expect(iosAfter({})).rejects.toThrow(/com\.apple\.security\.application-groups/);
+  });
+});

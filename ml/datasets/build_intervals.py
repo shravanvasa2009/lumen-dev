@@ -166,10 +166,7 @@ def annotated_records(directory: Path) -> list[str]:
     return sorted((directory / "RECORDS").read_text(encoding="utf-8").split())
 
 
-def cinc_record_episodes(record_path: Path, label: Label) -> tuple[float, list[Episode]]:
-    recording = wfdb.rdrecord(str(record_path), channels=[0])
-    signal = recording.p_signal[:, 0]
-    fs = float(recording.fs)
+def r_peak_samples(signal: np.ndarray, fs: float) -> np.ndarray:
     # XQRS over gqrs: on 50 real CinC 2017 records (every 170th) XQRS took 1.1 s and gqrs 1.8 s for
     # 2,095 vs 2,089 beats, so XQRS is faster with the same yield. The whole set runs in minutes.
     peaks = wfdb.processing.xqrs_detect(signal, fs, verbose=False)
@@ -177,7 +174,14 @@ def cinc_record_episodes(record_path: Path, label: Label) -> tuple[float, list[E
     peaks = wfdb.processing.correct_peaks(
         signal, peaks, search_radius=int(0.05 * fs), smooth_window_size=int(0.1 * fs), peak_dir="compare"
     )
-    peaks = np.unique(peaks[peaks >= 0])
+    return np.unique(peaks[peaks >= 0])
+
+
+def cinc_record_episodes(record_path: Path, label: Label) -> tuple[float, list[Episode]]:
+    recording = wfdb.rdrecord(str(record_path), channels=[0])
+    signal = recording.p_signal[:, 0]
+    fs = float(recording.fs)
+    peaks = r_peak_samples(signal, fs)
     segment_ids = np.zeros(len(peaks), dtype=int)
     labels = np.full(len(peaks), label)
     premature = np.zeros(len(peaks), dtype=bool)

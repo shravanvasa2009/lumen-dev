@@ -1,27 +1,23 @@
-import { useTranslation } from 'react-i18next';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 
-import { AppText } from '@/components/AppText';
-import { NavButton } from '@/components/NavButton';
-import { RouteShell } from '@/components/RouteShell';
+import { parseMode } from '@/measure/mode';
+import { ProcessingView } from '@/measure/ProcessingView';
+import { useReadingAnalysis } from '@/measure/useReadingAnalysis';
 
 export default function ProcessingScreen() {
-  const { t } = useTranslation();
-  return (
-    <RouteShell
-      headerless
-      title={t('processing.title')}
-      subtitle={t('processing.subtitle')}
-      sections={[
-        {
-          heading: t('processing.cleaned'),
-          lines: [t('processing.rhythm'), t('processing.breathing'), t('processing.baseline')],
-        },
-      ]}
-    >
-      <AppText variant="caption" tone="textDim">
-        {t('processing.onPhone')}
-      </AppText>
-      <NavButton label={t('processing.seeResults')} href="/results/demo" replace />
-    </RouteShell>
-  );
+  const router = useRouter();
+  const params = useLocalSearchParams<{ mode?: string; restDone?: string; context?: string }>();
+  const analysis = useReadingAnalysis({
+    mode: parseMode(params.mode),
+    restDone: params.restDone,
+    context: params.context,
+  });
+
+  const readingId = analysis.phase === 'done' ? analysis.readingId : null;
+  useEffect(() => {
+    if (readingId !== null) router.replace(`/results/${readingId}`);
+  }, [readingId, router]);
+
+  return <ProcessingView analysis={analysis} />;
 }

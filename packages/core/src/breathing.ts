@@ -188,7 +188,7 @@ function peakBrpm(runs: ResampledSegment[]): number | null {
 /** DSP-13: breathing rate in br/min from three modulations, fused only when they agree; null < 60 clean s. */
 export function breathingRate(segments: MeasuredBeat[][], cleanS: number): BreathingRate | null {
   const { minCleanS, maxSpreadBrpm } = DSP_CONFIG.dsp13;
-  if (cleanS < minCleanS) return null;
+  if (!(cleanS >= minCleanS)) return null; // NaN fails
   const series = breathingSeries(segments);
   const intensityBrpm = peakBrpm(series.intensity);
   const amplitudeBrpm = peakBrpm(series.amplitude);

@@ -87,8 +87,8 @@ def ensemble_beat(
     dsp14 = DSP_CONFIG["dsp14"]
     samples, lead = dsp14["beatSamples"], dsp14["leadFraction"]
     # The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
-    # nominal 60 fps session measures 59.9x.
-    if capture_fps < dsp14["minFps"]:
+    # nominal 60 fps session measures 59.9x. Written so that NaN fails the gate.
+    if not capture_fps >= dsp14["minFps"]:
         return None
     values = [float(value) for value in morphology_256]
     starts = [float(onset) for onset in onsets]
@@ -109,6 +109,10 @@ def ensemble_beat(
         first = onset - lead * period
         last = onset + ((samples - 1) / samples - lead) * period
         if period > longest_period or first < 0 or math.floor(last) + 1 > len(values) - 1:
+            continue
+        # One non-finite sample would turn the whole average into NaN, so its beat is skipped like one that
+        # runs off the signal (ADR 0059).
+        if not all(math.isfinite(values[j]) for j in range(math.floor(first), math.floor(last) + 2)):
             continue
         raw = []
         for k in range(samples):

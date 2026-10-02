@@ -124,6 +124,7 @@ def test_disagreement_reports_nothing_and_agreement_within_4_reports_the_mean():
 def test_minimum_data():
     beats = [breathing_beats(120, 72, all_at(15))]
     assert breathing_rate(beats, 59.9) is None
+    assert breathing_rate(beats, math.nan) is None
     assert breathing_rate(beats, 60) is not None
     short_runs = [
         replace(beat, beat_class="artifact") if i % 30 == 29 else beat

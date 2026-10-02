@@ -7,7 +7,8 @@ import type { ResampledSegment } from './resample';
 import type { RhythmClass } from './results';
 
 // Readings arrive as one beat list per DSP-2 segment (classifyBeats output); no interval ever spans two
-// segments, since the gap between them may hide beats. Sums run in index order so ml/lumen_dsp/metrics.py
+// segments, since the gap between them may hide beats. Every clean-seconds and fps gate is written as
+// !(value >= floor) so that NaN fails it. Sums run in index order so ml/lumen_dsp/metrics.py
 // gives the same doubles.
 
 export interface MeasuredBeat extends ClassifiedBeat {
@@ -58,7 +59,7 @@ export function measureBeats(
 
 /** DSP-10: perfusion index in percent, the median over normal beats of amplitude / |DC|. */
 export function perfusionIndex(segments: MeasuredBeat[][], cleanS: number): number | null {
-  if (cleanS < DSP_CONFIG.dsp10.minCleanS) return null;
+  if (!(cleanS >= DSP_CONFIG.dsp10.minCleanS)) return null;
   const ratios = segments
     .flat()
     .filter((beat) => beat.beatClass === 'normal')
@@ -74,11 +75,13 @@ function beatPairs<T extends ClassifiedBeat>(segment: T[]): [T, T][] {
 
 /** DSP-11: heart rate in bpm, 60 / the median interval between consecutive non-artifact beats. */
 export function heartRate(segments: ClassifiedBeat[][], cleanS: number): number | null {
-  if (cleanS < DSP_CONFIG.dsp11.minCleanS) return null;
+  if (!(cleanS >= DSP_CONFIG.dsp11.minCleanS)) return null;
   const intervalsS = segments.flatMap((segment) =>
     beatPairs(segment)
       .filter(([from, to]) => from.beatClass !== 'artifact' && to.beatClass !== 'artifact')
-      .map(([from, to]) => to.peakS - from.peakS),
+      .map(([from, to]) => to.peakS - from.peakS)
+      // Two beats at the same or reversed times are one beat found twice, not a cardiac cycle.
+      .filter((intervalS) => intervalS > 0),
   );
   return intervalsS.length > 0 ? 60 / median(intervalsS) : null;
 }
@@ -139,7 +142,7 @@ export function hrv(
   cleanS: number,
 ): Hrv | null {
   const config = DSP_CONFIG.dsp12;
-  if (rhythm !== 'sinus' || captureFps < config.minFps) return null;
+  if (rhythm !== 'sinus' || !(captureFps >= config.minFps)) return null;
   const runs = filteredRuns(nnRuns(segments));
   const intervalsS = runs.flat();
   const differences = runs.flatMap((run) => run.slice(1).map((intervalS, i) => intervalS - run[i]!));

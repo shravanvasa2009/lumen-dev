@@ -103,9 +103,16 @@ describe('DSP-11 heart rate', () => {
     const beats = beatsFrom(new Array(20).fill(0.8));
     expect(DSP_CONFIG.dsp11.minCleanS).toBe(15);
     expect(heartRate([beats], 14.999)).toBeNull();
+    expect(heartRate([beats], NaN)).toBeNull();
     expect(heartRate([beats], 15)).toBeCloseTo(75, 9);
     expect(heartRate([beatsFrom([])], 60)).toBeNull();
     expect(heartRate([beatsFrom(new Array(5).fill(0.8), { 5: 'artifact' })], 60)).toBeCloseTo(75, 9);
+  });
+
+  it('leaves out zero and negative intervals (a beat detected twice, or out of order)', () => {
+    expect(heartRate([beatsFrom([0])], 60)).toBeNull();
+    // Intervals 0.8, 0, −0.1, 0.9: the median of 0.8 and 0.9 is 0.85 (with the other two it would be 0.4).
+    expect(heartRate([beatsFrom([0.8, 0, -0.1, 0.9])], 60)).toBeCloseTo(60 / 0.85, 9);
   });
 });
 
@@ -133,6 +140,7 @@ describe('DSP-10 perfusion index', () => {
     const beats = beatsFrom(new Array(40).fill(1));
     expect(DSP_CONFIG.dsp10.minCleanS).toBe(30);
     expect(perfusionIndex([beats], 29.9)).toBeNull();
+    expect(perfusionIndex([beats], NaN)).toBeNull();
     expect(
       perfusionIndex([beats.map((beat) => ({ ...beat, beatClass: 'atypical' as const }))], 40),
     ).toBeNull();
@@ -258,6 +266,7 @@ describe('DSP-12 HRV', () => {
     expect(hrv(beats, 'af', 60, 70)).toBeNull();
     expect(hrv(beats, 'other', 60, 70)).toBeNull();
     expect(hrv(beats, 'sinus', 59.9, 70)).toBeNull();
+    expect(hrv(beats, 'sinus', NaN, 70)).toBeNull();
     expect(hrv(beats, 'sinus', 60, 70)).not.toBeNull();
   });
 

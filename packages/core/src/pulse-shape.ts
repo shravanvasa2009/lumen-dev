@@ -122,6 +122,11 @@ function labelWaves(smoothed: Float64Array, secondDerivative: Float64Array): Wav
   return waves;
 }
 
+function allFinite(values: ArrayLike<number>, from: number, to: number): boolean {
+  for (let j = from; j <= to; j++) if (!Number.isFinite(values[j]!)) return false;
+  return true;
+}
+
 /** DSP-14: ensemble beat of ≥ 20 normal beats of the 0.5–8 Hz morphology band at 256 Hz, with a–e labels. */
 export function ensembleBeat(
   morphology256: ArrayLike<number>,
@@ -133,8 +138,8 @@ export function ensembleBeat(
     throw new RangeError(`${onsets.length} onsets but ${normal.length} normal-beat flags`);
   const { minNormalBeats, beatSamples, leadFraction, minFps, maxPeriodRatio } = DSP_CONFIG.dsp14;
   // The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
-  // nominal 60 fps session measures 59.9x.
-  if (captureFps < minFps) return null;
+  // nominal 60 fps session measures 59.9x. Written so that NaN fails the gate.
+  if (!(captureFps >= minFps)) return null;
 
   // A beat runs from its onset to the next one, so both beats must be normal.
   const candidates: number[] = [];
@@ -152,6 +157,9 @@ export function ensembleBeat(
     const first = onset - leadFraction * period;
     const last = onset + ((beatSamples - 1) / beatSamples - leadFraction) * period;
     if (period > longestPeriod || first < 0 || Math.floor(last) + 1 > morphology256.length - 1) continue;
+    // One non-finite sample would turn the whole average into NaN, so its beat is skipped like one that
+    // runs off the signal (ADR 0059).
+    if (!allFinite(morphology256, Math.floor(first), Math.floor(last) + 1)) continue;
     const raw = new Float64Array(beatSamples);
     for (let k = 0; k < beatSamples; k++) {
       const x = onset + (k / beatSamples - leadFraction) * period;

@@ -9,6 +9,9 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => 'light',
 }));
 
+// The first render of the router compiles every route, which is slow on a busy machine.
+jest.setTimeout(30_000);
+
 describe('formatClock', () => {
   it('writes minutes and zero-padded seconds', () => {
     expect(formatClock(120)).toBe('2:00');

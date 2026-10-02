@@ -10,7 +10,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
-import { SectionLabel } from '@/components/SectionLabel';
+import { SectionLabel } from '@/settings/SectionLabel';
 import { ContextChip } from '@/measure/ContextChip';
 import { parseMode } from '@/measure/mode';
 import { RestRing } from '@/measure/RestRing';

@@ -504,7 +504,19 @@ describe('readingInput hands analyzeReading what the session saw (H-025)', () =>
     expect(moving.readingInput().motionSpans).toEqual(spansNs(moving, 'motion'));
   });
 
-  it('a flat window the model never saw is a score of 0 once SQI-Net runs (ADR 0023)', () => {
+  it('without SQI-Net, the saved result rejects the same flat windows as the live screen (ADR 0023)', () => {
+    const flat = frames({ seconds: 40, flat: (tS) => tS >= 10 && tS < 20 });
+    const { session: flatSession } = play(flat);
+    const input = flatSession.readingInput();
+    expect(input.sqi).toBeNull();
+    const fromSession = analyzeInput(flatSession);
+    expect(spansOf(flatSession, 'quality').length).toBeGreaterThan(0);
+    expect(fromSession.rejectedSpans).toEqual(flatSession.rejectedSpans);
+    expect(fromSession.cleanSeconds).toBe(flatSession.cleanSeconds);
+    expect(fromSession.sqiAvailable).toBe(false);
+  });
+
+  it('sqi.windows holds only model scores; flat windows come from the frames, counted once', () => {
     const flat = frames({ seconds: 40, flat: (tS) => tS >= 10 && tS < 20 });
     let scored = false;
     const { session: flatSession } = play(flat, {
@@ -515,12 +527,58 @@ describe('readingInput hands analyzeReading what the session saw (H-025)', () =>
         }
       },
     });
-    const { sqi } = flatSession.readingInput();
-    const zeros = sqi!.windows.filter((window) => window.pClean === 0);
-    expect(zeros.length).toBeGreaterThan(0);
-    expect(zeros.length).toBe(spansOf(flatSession, 'quality').length);
+    expect(flatSession.readingInput().sqi).toEqual({
+      threshold: CONFIG.sqiThreshold,
+      windows: [{ endNs: toNs(30), pClean: 0.9 }],
+    });
     const fromSession = analyzeInput(flatSession);
     expect(fromSession.rejectedSpans).toEqual(flatSession.rejectedSpans);
+    expect(fromSession.cleanSeconds).toBe(flatSession.cleanSeconds);
+  });
+
+  describe('motion, cold hands, a low SQI score, and flat frames in one capture', () => {
+    // A 0.0002 pulse is under the 0.2% perfusion floor, so cold hands opens at the 10 s check and stays.
+    const mixed = frames({ seconds: 45, pulseDepth: 0.0002, flat: (tS) => tS >= 30 && tS < 37 });
+    let scored = false;
+    const { session: mixedSession } = play(mixed, {
+      moving: (tS) => tS >= 20 && tS < 23,
+      onBatch: (live, tS) => {
+        if (!scored && tS >= 25) {
+          live.setSqi(25, 0.1);
+          scored = true;
+        }
+      },
+    });
+    const frameNs = (k: number) => mixed.samples[k]!.tNs;
+
+    it('the saved spans and clean seconds equal the live ones', () => {
+      const fromSession = analyzeInput(mixedSession);
+      const reasons = new Set(fromSession.rejectedSpans.map((span) => span.reason));
+      expect([...reasons].sort()).toEqual(['coldHands', 'motion', 'quality']);
+      expect(fromSession.rejectedSpans).toEqual(mixedSession.rejectedSpans);
+      expect(fromSession.cleanSeconds).toBe(mixedSession.cleanSeconds);
+    });
+
+    it('puts span edges on frame times', () => {
+      const input = mixedSession.readingInput();
+      // Statuses land after each 100 ms batch: the 20 s one after the batch of frames 1200–1205, the calm
+      // 23 s one after frames 1380–1385. The cold-hands check runs at the first frame at or after 10 s.
+      expect(input.motionSpans).toEqual([{ startNs: frameNs(1205), endNs: frameNs(1385) }]);
+      expect(input.coldHandsSpans[0]!.startNs).toBe(frameNs(600));
+      expect(input.coldHandsSpans.at(-1)!.endNs).toBe(frameNs(mixed.samples.length - 1));
+      expect(input.sqi).toEqual({
+        threshold: CONFIG.sqiThreshold,
+        windows: [{ endNs: toNs(25), pClean: 0.1 }],
+      });
+      const quality = analyzeInput(mixedSession).rejectedSpans.filter((span) => span.reason === 'quality');
+      expect(quality[0]).toEqual({ startS: 21, endS: 25, reason: 'quality' });
+      // The flat windows lie wholly inside frames 1800–2219 (30 s to 36.98 s).
+      expect(quality.length).toBeGreaterThan(1);
+      for (const span of quality.slice(1)) {
+        expect(span.startS).toBeGreaterThanOrEqual(30);
+        expect(span.endS).toBeLessThanOrEqual(2219 / 60);
+      }
+    });
   });
 
   it('gives equal results when called twice, and callers cannot change the session through them', () => {

@@ -2,11 +2,10 @@ import type { CaptureStatus, FrameStat, Sample, SampleBatch } from './capture';
 import { DSP_CONFIG } from './config';
 import { frameProblem } from './contact';
 import { butterBandpass, CausalFilter, type SosSection } from './filters';
-import { sqiModelInput } from './finger-signal';
 import type { CoachingKey, LiveSession, RejectedSpan, SqiWindow } from './live-session';
+import { modelWindowAt, nextModelTickS, usableFrom } from './model-window';
 import type { NsSpan, SqiScores } from './reading';
 import { cleanSeconds as cleanTime } from './reading-metrics';
-import { resampleCubic } from './resample';
 
 export interface LiveSessionConfig {
   captureFps: number; // the capture format's frame rate; sizes the buffers and designs the live filter
@@ -95,7 +94,8 @@ class Session implements LiveSession {
   private openContact: OpenSpan | null = null;
   private openMotionNs: number | null = null;
   private openColdHandsNs: number | null = null;
-  // Every window score from setSqi, plus flat windows as 0 (ADR 0023); endS on the 64 Hz grid.
+  // Every setSqi score; endS on the 64 Hz grid. Flat windows are not here: analyzeReading finds them in the
+  // frames, as tick does.
   private readonly scores: { endS: number; pClean: number }[] = [];
   private modelRan = false;
 
@@ -180,8 +180,7 @@ class Session implements LiveSession {
 
     if (tS >= this.nextTickS) {
       this.tick(tS);
-      const { sqiEveryS } = DSP_CONFIG.live;
-      this.nextTickS = (Math.floor(tS / sqiEveryS) + 1) * sqiEveryS;
+      this.nextTickS = nextModelTickS(tS);
     }
     this.updateCoaching();
   }
@@ -209,53 +208,15 @@ class Session implements LiveSession {
     this.quality.push({ startS: windowEndS - windowS, endS: windowEndS, reason: 'quality' });
   }
 
-  // First buffered frame at or after fromS, if the frames from there to the newest are covered and
-  // gap-free; null otherwise or when the capture does not reach back to fromS.
-  private usableFrom(fromS: number): number | null {
-    if (this.count === 0 || this.tS[0]! > fromS) return null;
-    let first = this.count - 1;
-    while (first > 0 && this.tS[first - 1]! >= fromS) first--;
-    if (first > 0) first--; // one frame before fromS, so a spline covers fromS itself
-    for (let i = first; i < this.count; i++) {
-      if (!this.covered[i]) return null;
-      if (i > first && this.tS[i]! - this.tS[i - 1]! > DSP_CONFIG.dsp2.maxGapS) return null;
-    }
-    return first;
-  }
-
   // Once per sqiEveryS: the SQI-Net window (§11.2, ADR 0023) and the cold-hands check (§7).
   private tick(tS: number): void {
-    const { modelRateHz } = DSP_CONFIG.dsp2;
-    const samples = DSP_CONFIG.dsp3.modelWindowS * modelRateHz;
-    this.latestWindow = null;
-    // Two grid steps of slack so the 64 Hz grid holds 256 points ending at or before tS.
-    const first = this.usableFrom(tS - (samples + 1) / modelRateHz);
-    if (first !== null) {
-      const times = this.tS.slice(first, this.count);
-      const red = this.red.slice(first, this.count);
-      const [segment] = resampleCubic(
-        times,
-        red.map((value) => -value),
-        modelRateHz,
-      );
-      if (segment && segment.values.length >= samples) {
-        const values = segment.values.slice(-samples);
-        const endS = (segment.firstIndex + segment.values.length - 1) / modelRateHz;
-        // Flatness is judged on the frames: a spline through equal values can round to tiny wiggles that
-        // z-scoring would blow up into noise.
-        const flat = red.every((value) => value === red[0]);
-        const input = !flat && values.every(Number.isFinite) ? sqiModelInput(values) : null;
-        // ADR 0023: a flat (or broken) window never reaches the model and counts as rejected.
-        if (input) this.latestWindow = { endS, input };
-        else {
-          this.scores.push({ endS, pClean: 0 });
-          this.rejectWindow(endS);
-        }
-      }
-    }
+    const window = modelWindowAt(this.tS, this.red, this.covered, this.count);
+    this.latestWindow = window?.input ? { endS: window.endS, input: window.input } : null;
+    if (window && !window.input) this.rejectWindow(window.endS);
 
     const { coldHandsAfterS, perfusionWindowS } = DSP_CONFIG.live;
-    const from = tS >= coldHandsAfterS ? this.usableFrom(tS - perfusionWindowS) : null;
+    const from =
+      tS >= coldHandsAfterS ? usableFrom(this.tS, this.covered, this.count, tS - perfusionWindowS) : null;
     let cold = false;
     if (from !== null) {
       let low = Infinity;
@@ -316,8 +277,7 @@ class Session implements LiveSession {
   // Fresh copies throughout: the caller may keep or change what it gets while the session goes on.
   readingInput(): ReturnType<LiveSession['readingInput']> {
     const startNs = this.startNs ?? 0;
-    // Null until SQI-Net has scored a window: sqiAvailable caps confidence, and flat windows alone must not
-    // lift that cap. Without the model, the saved result therefore lacks the live flat-window spans.
+    // Null until SQI-Net has scored a window, so sqiAvailable keeps capping confidence when it never ran.
     const sqi: SqiScores | null = this.modelRan
       ? {
           threshold: this.config.sqiThreshold,

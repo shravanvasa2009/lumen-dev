@@ -5,7 +5,7 @@ export function parseMode(raw: string | string[] | undefined): MeasureMode {
   return raw === 'quick' ? 'quick' : 'full';
 }
 
-// Clean seconds each mode needs before the reading can finish (spec §6.2; mockups 13 and 14).
+// Clean seconds each mode needs before the reading can finish (spec §12 Modes; mockups 13 and 14).
 export function cleanSecondsNeeded(mode: MeasureMode): number {
   return mode === 'quick' ? 30 : 90;
 }

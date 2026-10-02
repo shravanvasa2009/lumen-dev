@@ -31,7 +31,10 @@ export function ClinicCard({
   const { colors, radius, spacing } = useTheme();
   const miles = t('careMap.miles', { miles: clinic.miles.toFixed(1) });
   return (
-    <View style={{ borderRadius: radius.card, borderWidth: selected ? 2 : 0, borderColor: colors.accent }}>
+    <View
+      testID={`clinic-card-${clinic.id}`}
+      style={{ borderRadius: radius.card, borderWidth: selected ? 2 : 0, borderColor: colors.accent }}
+    >
       <Card>
         <AppText variant="headline">{clinic.name}</AppText>
         <AppText tone="textDim">

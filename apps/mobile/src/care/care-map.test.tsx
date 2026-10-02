@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule } from 'expo';
 import * as Location from 'expo-location';
-import { act, fireEvent, renderHook, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderHook, renderRouter, screen, within } from 'expo-router/testing-library';
 import { Dimensions, Linking, Platform, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
@@ -71,6 +71,8 @@ function saveDoctorPhone(phone: string | null) {
 
 afterEach(() => {
   jest.restoreAllMocks();
+  jest.mocked(requireOptionalNativeModule).mockReturnValue(null);
+  act(() => Dimensions.set({ window: originalWindow }));
   saveDoctorPhone(null);
 });
 
@@ -180,7 +182,6 @@ describe('Care map with location allowed', () => {
     const stopPropagation = jest.fn();
     fireEvent.press(screen.getByTestId('pin-doctor-0'), { stopPropagation });
     expect(stopPropagation).toHaveBeenCalledTimes(1);
-    jest.mocked(requireOptionalNativeModule).mockReturnValue(null);
   });
 
   it('sizes the map to the window and folds it away while the ZIP field is in use', async () => {
@@ -194,7 +195,6 @@ describe('Care map with location allowed', () => {
     expect(frameHeight()).toBe(0);
     fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'blur');
     expect(frameHeight()).toBeGreaterThan(0);
-    act(() => Dimensions.set({ window: originalWindow }));
   });
 
   it('dials the clinic with a tel: link', async () => {
@@ -234,8 +234,11 @@ describe('Care map with location allowed', () => {
     await act(async () =>
       fireEvent.press(screen.getAllByRole('button', { name: en['careMap.directions'] })[1]!),
     );
-    const alerts = screen.getAllByText(en['careMap.mapsFailed']);
-    expect(alerts).toHaveLength(1);
+    const second = nearestClinics(HOUSTON)[1]!;
+    expect(screen.getAllByText(en['careMap.mapsFailed'])).toHaveLength(1);
+    expect(
+      within(screen.getByTestId(`clinic-card-${second.id}`)).getByText(en['careMap.mapsFailed']),
+    ).toBeOnTheScreen();
     expect(screen.getAllByRole('button', { name: en['careMap.directions'] })).toHaveLength(20);
   });
 

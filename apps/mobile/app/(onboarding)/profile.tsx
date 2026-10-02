@@ -7,6 +7,7 @@ import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
+import { isValidPhone, useDoctorPhone } from '@/profile/doctorPhone';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { Segmented } from '@/settings/Segmented';
 import { Toggle } from '@/settings/Toggle';
@@ -22,6 +23,8 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const { colors, spacing, radius, control } = useTheme();
   const [ageText, setAgeText] = useState('');
+  const { phone, setPhone } = useDoctorPhone();
+  const [phoneText, setPhoneText] = useState(phone ?? '');
   const [sex, setSex] = useState<Sex | null>(null);
   const [notes, setNotes] = useState<Record<HealthNote, boolean>>({
     betaBlocker: false,
@@ -31,12 +34,19 @@ export default function ProfileScreen() {
   });
   const ageEntered = ageText !== '';
   const ageValid = ageEntered && Number(ageText) >= MIN_AGE;
+  const phoneInvalid = phoneText.trim() !== '' && !isValidPhone(phoneText.trim());
   const noteRows: readonly { note: HealthNote; title: string }[] = [
     { note: 'betaBlocker', title: t('profile.betaBlocker') },
     { note: 'pacemaker', title: t('profile.pacemaker') },
     { note: 'afibReported', title: t('profile.afibReported') },
     { note: 'athlete', title: t('profile.athlete') },
   ];
+  // Only a valid number is saved; an empty or invalid field leaves the doctor's phone unset.
+  function updateDoctorPhone(text: string) {
+    setPhoneText(text);
+    const trimmed = text.trim();
+    setPhone(isValidPhone(trimmed) ? trimmed : null);
+  }
   return (
     <OnboardingStep
       step={2}
@@ -77,6 +87,38 @@ export default function ProfileScreen() {
         {ageEntered && !ageValid ? (
           <AppText variant="caption" tone="textDim">
             {t('profile.ageTooYoung')}
+          </AppText>
+        ) : null}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            minHeight: control.primaryButtonHeight,
+            paddingHorizontal: spacing.lg,
+            borderRadius: radius.card,
+            borderWidth: 1,
+            borderColor: colors.line,
+            backgroundColor: colors.surface2,
+          }}
+        >
+          <AppText tone="textDim" style={{ flexShrink: 1 }}>
+            {t('profile.doctorPhone')}
+          </AppText>
+          <TextInput
+            accessibilityLabel={t('profile.doctorPhone')}
+            placeholder={t('profile.doctorPhonePlaceholder')}
+            placeholderTextColor={colors.textFaint}
+            keyboardType="phone-pad"
+            maxLength={24}
+            value={phoneText}
+            onChangeText={updateDoctorPhone}
+            style={{ flex: 1, textAlign: 'right', fontSize: 16, color: colors.text }}
+          />
+        </View>
+        {phoneInvalid ? (
+          <AppText variant="caption" tone="textDim">
+            {t('profile.doctorPhoneInvalid')}
           </AppText>
         ) : null}
         <Segmented

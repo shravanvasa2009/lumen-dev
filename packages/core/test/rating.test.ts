@@ -194,13 +194,21 @@ describe('§5.2 tiers', () => {
     expect([atTen.components.coupling, atTen.ambient, atTen.tier]).toEqual([10, false, 'basic']);
   });
 
-  it('ambient-light mode below 25 points is Not supported', () => {
+  it('ambient-light mode is Limited even below 25 points (§5.2, §4.6)', () => {
     // 6 + 8 = 14.
     const rating = rateDevice(
       phone(24, NO_LOCKS),
       practice({ frameIntervalSdMs: 8, coupling: { perfusionIndexPct: 0.5, snrDb: 6 } }),
     );
-    expect([rating.score, rating.ambient, rating.tier]).toEqual([14, true, 'unsupported']);
+    expect([rating.score, rating.ambient, rating.tier, rating.hardFail]).toEqual([14, true, 'limited', null]);
+  });
+
+  it('a hard fail still wins over ambient-light mode', () => {
+    const rating = rateDevice(
+      { ...phone(20), torch: { available: false } },
+      practice({ coupling: { perfusionIndexPct: 0.5, snrDb: 6 } }),
+    );
+    expect([rating.ambient, rating.hardFail, rating.tier]).toEqual([true, 'below-24-fps', 'unsupported']);
   });
 
   it('a phone without a usable torch is ambient-light only', () => {
@@ -222,6 +230,39 @@ describe('§5.2 tiers', () => {
       0,
     ]);
     expect(rating.unlocks).toEqual([]);
+  });
+});
+
+// The achieved-fps tolerance (H-039, owner decision pending) moves these edges; each is pinned through
+// the tier or hard fail, so changing the tolerance shows up here.
+describe('§5.2 tiers at the achieved-fps edges (H-039)', () => {
+  it('rates a phone Full at the 60 fps level', () => {
+    // 24 + 35 + 15 + 20 = 94.
+    const rating = rateDevice(phone(60), practice());
+    expect([rating.fpsLevel, rating.score, rating.tier]).toEqual([60, 94, 'full']);
+  });
+
+  it('Full cap: achieved 59.5 is Full, 59.49 is Basic', () => {
+    const at595 = rateDevice(phone(60), practice({ achievedFps: 59.5 }));
+    expect([at595.fpsLevel, at595.score, at595.tier]).toEqual([60, 94, 'full']);
+    // 14 + 35 + 15 + 20 = 84.
+    const at5949 = rateDevice(phone(60), practice({ achievedFps: 59.49 }));
+    expect([at5949.fpsLevel, at5949.score, at5949.tier]).toEqual([30, 84, 'basic']);
+  });
+
+  it('Basic needs 30: achieved 29.5 is Basic, 29.49 is Limited', () => {
+    const at295 = rateDevice(phone(30), practice({ achievedFps: 29.5 }));
+    expect([at295.fpsLevel, at295.score, at295.tier]).toEqual([30, 84, 'basic']);
+    // 6 + 35 + 15 + 20 = 76.
+    const at2949 = rateDevice(phone(30), practice({ achievedFps: 29.49 }));
+    expect([at2949.fpsLevel, at2949.score, at2949.tier]).toEqual([24, 76, 'limited']);
+  });
+
+  it('hard fail: achieved 23.5 is not one, 23.49 is', () => {
+    const at235 = rateDevice(phone(24), practice({ achievedFps: 23.5 }));
+    expect([at235.hardFail, at235.fpsLevel, at235.tier]).toEqual([null, 24, 'limited']);
+    const at2349 = rateDevice(phone(24), practice({ achievedFps: 23.49 }));
+    expect([at2349.hardFail, at2349.fpsLevel, at2349.tier]).toEqual(['below-24-fps', null, 'unsupported']);
   });
 });
 

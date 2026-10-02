@@ -22,7 +22,8 @@ export interface RatingMeasures {
 
 export type RatingTier = Tier | 'unsupported';
 export type HardFail = 'no-rear-camera' | 'below-24-fps' | 'no-pulse';
-// One key per §5.2 table row; Basic's Full Scan omits HRV and pulse shape because those keys are absent.
+// §5.2 table rows split into separately lockable modes; Basic's Full Scan omits HRV and pulse shape
+// because those keys are absent.
 export type RatingMode =
   | 'quickCheck'
   | 'rhythmFlags'
@@ -109,9 +110,10 @@ function timingPoints(frameIntervalSdMs: number | null): number {
 
 function tierFor(score: number, fpsLevel: number, ambient: boolean): RatingTier {
   const config = DSP_CONFIG.rating;
-  // Score < 25 is Not supported even in ambient mode; ambient mode only caps the tier (ADR 0058).
-  if (score < config.limitedMinScore) return 'unsupported';
+  // §5.2 "Limited: score ≥ 25, or ambient-light mode" and §4.6: ambient mode is Limited at any score
+  // (hard fails are decided before this).
   if (ambient) return 'limited';
+  if (score < config.limitedMinScore) return 'unsupported';
   if (score >= config.fullMinScore && fpsLevel >= config.fullMinFps) return 'full';
   if (score >= config.basicMinScore && fpsLevel >= config.basicMinFps) return 'basic';
   return 'limited';
@@ -133,8 +135,8 @@ export function rateDevice(capabilities: RatingCapabilities, measures: RatingMea
     if (lens === undefined) throw new Error(`rateDevice: lens ${measures.lensId} is not in the probe`);
   }
 
-  const frameRate = lens === undefined ? null : frameRateLevel(lens.maxFps, measures.achievedFps);
-  const fpsLevel = frameRate === null ? null : frameRate.minFps;
+  const frameRateMatch = lens === undefined ? null : frameRateLevel(lens.maxFps, measures.achievedFps);
+  const fpsLevel = frameRateMatch === null ? null : frameRateMatch.minFps;
   const { ambientBelowCouplingPoints } = DSP_CONFIG.rating;
   const coupling =
     measures.coupling === null
@@ -143,7 +145,7 @@ export function rateDevice(capabilities: RatingCapabilities, measures: RatingMea
         ? 0
         : couplingPoints(measures.coupling.perfusionIndexPct, measures.coupling.snrDb);
   const components = {
-    frameRate: frameRate === null ? 0 : frameRate.points,
+    frameRate: frameRateMatch === null ? 0 : frameRateMatch.points,
     coupling,
     locks: lockPoints(capabilities.locks),
     timing: timingPoints(measures.frameIntervalSdMs),

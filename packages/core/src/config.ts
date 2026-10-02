@@ -223,8 +223,9 @@ export const DSP_CONFIG = {
       { minFps: 30, points: 14 },
       { minFps: 24, points: 6 },
     ],
-    // Not given by the spec (ADR 0058): a practice capture at a 60 fps format measures 59.6–60, not
-    // exactly 60, so the achieved rate reaches a level when it is within this many fps of it.
+    // Not given by the spec (ADR 0058); owner decision H-039 pending. A practice capture at a 60 fps
+    // format measures 59.6–60, not exactly 60, so the achieved rate reaches a level when it is within
+    // this many fps of it. This loosens every "≥ N fps" test in §5.1/§5.2; 0 makes them strict.
     achievedFpsToleranceFps: 0.5,
     // §5.1 coupling: couplingPoints × min(1, PI / fullPi) × min(1, SNR / fullSnr), floored.
     couplingPoints: 35,

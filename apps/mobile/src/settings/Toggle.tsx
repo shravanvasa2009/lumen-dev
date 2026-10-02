@@ -15,23 +15,26 @@ const TRACK_WIDTH = 46;
 const TRACK_HEIGHT = 28;
 const THUMB_SIZE = 22;
 const THUMB_INSET = (TRACK_HEIGHT - THUMB_SIZE) / 2;
+const DISABLED_OPACITY = 0.5;
 
 export function Toggle({ label, value, onValueChange, disabled = false }: ToggleProps) {
-  const { colors, radius } = useTheme();
+  const { colors, radius, control } = useTheme();
+  // The pill is 28 pt tall; the touch area grows to the minimum target without changing the drawing.
+  const touchSlop = (control.minTarget - TRACK_HEIGHT) / 2;
   return (
     <Pressable
       accessibilityRole="switch"
       accessibilityLabel={label}
       accessibilityState={{ checked: value, disabled }}
       disabled={disabled}
-      hitSlop={8}
+      hitSlop={touchSlop}
       onPress={() => onValueChange?.(!value)}
       style={[
         styles.track,
         {
           backgroundColor: value ? colors.accent : colors.surface3,
           borderRadius: radius.pill,
-          opacity: disabled ? 0.5 : 1,
+          opacity: disabled ? DISABLED_OPACITY : 1,
         },
       ]}
     >

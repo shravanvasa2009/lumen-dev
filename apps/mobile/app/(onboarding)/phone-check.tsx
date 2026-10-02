@@ -8,6 +8,7 @@ import { Icon } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
+import { useReduceMotion } from '@/onboarding/useReduceMotion';
 import { usePhoneProbe, type PhoneProbe } from '@/onboarding/usePhoneProbe';
 import { useTheme } from '@/theme';
 
@@ -18,26 +19,28 @@ const BAR_HEIGHT = 8;
 type RowStatus = 'pass' | 'fail' | 'pending' | 'checking';
 type CapabilityRow = { title: string; value: string; status: RowStatus };
 
+// The tick fills the whole icon column; the dot and ring are smaller so they read as a state, not an icon.
+const MARK_DIAMETER = 12;
 const MARK_RING = 2;
 
-// Colour alone never carries the state: the value text beside each mark says it too, and red is
-// reserved for the emergency screen, so a failed row uses the flag colour.
+// Colour alone never carries the state: the value text beside each mark says it too. Red is reserved
+// for the emergency screen, so a failed row uses the flag colour.
 function StatusMark({ status }: { status: RowStatus }) {
   const { colors, control } = useTheme();
-  const size = control.chevronSize;
-  const markSize = size - 2 * MARK_RING * 2;
+  const reduceMotion = useReduceMotion();
+  const showSpinner = status === 'checking' && !reduceMotion;
   return (
-    <View style={{ width: size, alignItems: 'center' }}>
+    <View style={{ width: control.chevronSize, alignItems: 'center' }}>
       {status === 'pass' ? (
-        <Icon name="check" size={size} color={colors.accent} />
-      ) : status === 'checking' ? (
+        <Icon name="check" size={control.chevronSize} color={colors.accent} />
+      ) : showSpinner ? (
         <ActivityIndicator size="small" color={colors.textFaint} />
       ) : (
         <View
           style={{
-            width: markSize,
-            height: markSize,
-            borderRadius: markSize / 2,
+            width: MARK_DIAMETER,
+            height: MARK_DIAMETER,
+            borderRadius: MARK_DIAMETER / 2,
             borderWidth: MARK_RING,
             borderColor: status === 'fail' ? colors.flag : colors.textFaint,
             backgroundColor: status === 'fail' ? colors.flag : 'transparent',

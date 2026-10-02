@@ -39,8 +39,12 @@ export default function RemindersScreen() {
       .map((part) => part.value)
       .join('')
       .trim();
-  const before = timeOf(hour - 1);
-  const after = timeOf(hour + 1);
+  // Each time is formatted once: the screen shows neighbours without AM/PM, screen readers get it in full.
+  const selected = timeOf(hour);
+  const spokenBefore = timeOf(hour - 1);
+  const spokenAfter = timeOf(hour + 1);
+  const shownBefore = timeOf(hour - 1, false);
+  const shownAfter = timeOf(hour + 1, false);
   const reminderRows: readonly { reminder: Reminder; title: string }[] = [
     { reminder: 'daily', title: t('notifications.daily') },
     { reminder: 'followUp', title: t('notifications.followUp') },
@@ -75,27 +79,27 @@ export default function RemindersScreen() {
         <View style={{ alignItems: 'center', gap: spacing.xs }}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('reminders.earlier', { time: before })}
+            accessibilityLabel={t('reminders.earlier', { time: spokenBefore })}
             onPress={() => setHour((current) => (current + HOURS_PER_DAY - 1) % HOURS_PER_DAY)}
           >
             <AppText variant="title" tone="textDim">
-              {timeOf(hour - 1, false)}
+              {shownBefore}
             </AppText>
           </Pressable>
           <AppText
             variant="display"
             style={styles.selectedTime}
-            accessibilityLabel={t('reminders.timeSelected', { time: timeOf(hour) })}
+            accessibilityLabel={t('reminders.timeSelected', { time: selected })}
           >
-            {timeOf(hour)}
+            {selected}
           </AppText>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('reminders.later', { time: after })}
+            accessibilityLabel={t('reminders.later', { time: spokenAfter })}
             onPress={() => setHour((current) => (current + 1) % HOURS_PER_DAY)}
           >
             <AppText variant="title" tone="textDim">
-              {timeOf(hour + 1, false)}
+              {shownAfter}
             </AppText>
           </Pressable>
         </View>

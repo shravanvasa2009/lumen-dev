@@ -92,7 +92,8 @@ def load_split(split_file: Path = SPLIT_FILE) -> dict[str, list[int]]:
 
 
 def holdout_caseids(clinical: pd.DataFrame, holdout: Sequence[int]) -> dict[int, int]:
-    # Subject to case by the same one-surgery-per-patient rule that locked the holdout; no label value is used or returned.
+    # Subject to case by the same one-surgery-per-patient rule that locked the holdout; no label value is
+    # used or returned.
     cases = eligible_cases(clinical)
     by_subject = dict(zip(cases["subjectid"].astype(int), cases["caseid"].astype(int), strict=True))
     missing = [subject for subject in holdout if subject not in by_subject]

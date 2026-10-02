@@ -118,6 +118,10 @@ jobs:
           grep -q android.permission.CAMERA android/app/src/main/AndroidManifest.xml
           grep -q 'android.hardware.camera.flash" android:required="false"' android/app/src/main/AndroidManifest.xml
           grep -q aps-environment ios/*/*.entitlements
+          # §9.5: the strap's Bluetooth keeps its own purpose text (ble-plx otherwise writes a generic default)
+          # and never asks for location (ADR 0039).
+          grep -A1 NSBluetoothAlwaysUsageDescription ios/*/Info.plist | grep -q 'Used only in Lab mode to compare Lumen with a heart-rate chest strap.'
+          grep -q 'android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"' android/app/src/main/AndroidManifest.xml
       - name: Expo prebuild smoke test, free Apple ID mode (ADR 0034)
         if: hashFiles('apps/mobile/app.config.ts') != ''
         working-directory: apps/mobile

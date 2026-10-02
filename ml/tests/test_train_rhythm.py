@@ -10,7 +10,7 @@ from export import to_onnx, verify_onnx
 from export.provenance import TOLERANCE, ProvenanceError, load_metrics, trained_source
 from export.specs import SPECS
 from nets.rhythm_net import LABELS
-from train import rhythm, rhythm_calibration, rhythm_windows
+from train import rhythm, rhythm_calibration, rhythm_logistic, rhythm_windows
 from train.rhythm import (
     TARGET_SPECIFICITY,
     evaluate,
@@ -25,6 +25,7 @@ from train.rhythm import (
 from train.rhythm_windows import ATYPICAL_INDEX, NEUTRAL_ATYPICAL_FRACTION, WindowSet
 
 AF, SINUS, OTHER = (LABELS.index(label) for label in ("af", "sinus", "other"))
+RHYTHM_MODELS = ("rhythm-net", "rhythm-lgbm", "rhythm-logistic")
 
 
 def windows_for(rows):
@@ -281,6 +282,7 @@ def test_training_writes_metrics_the_manifest_accepts(trained_run):
     lgbm = load_metrics(SPECS["rhythm-lgbm"], trained_run)
     trained_source(SPECS["rhythm-net"], trained_run)
     trained_source(SPECS["rhythm-lgbm"], trained_run)
+    trained_source(SPECS["rhythm-logistic"], trained_run)
     assert network["trainedOn"] == ["afdb", "cinc2017", "mitdb"]
     assert 0 < network["threshold"]["af"] <= 1
     assert {row["model"] for row in network["ablation"]} == {"rhythm-net", "rhythm-lgbm", "rhythm-logistic"}
@@ -309,7 +311,7 @@ def test_trained_lightgbm_ignores_the_neutralized_feature(trained_run):
 
 def test_trained_models_export_within_parity(trained_run, tmp_path):
     out_dir = tmp_path / "onnx"
-    for name in ("rhythm-net", "rhythm-lgbm"):
+    for name in RHYTHM_MODELS:
         to_onnx.main(["--name", name, "--runs-dir", str(trained_run), "--out-dir", str(out_dir)])
         verify_onnx.main(["--name", name, "--runs-dir", str(trained_run), "--models-dir", str(out_dir)])
         parity = json.loads((out_dir / "parity.json").read_text(encoding="utf-8"))
@@ -327,7 +329,7 @@ def test_reliability_bins_weight_windows_and_skip_empty_bins():
 
 
 def test_every_rhythm_model_records_calibration_keyed_to_its_file(trained_run):
-    for name in ("rhythm-net", "rhythm-lgbm"):
+    for name in RHYTHM_MODELS:
         metrics = load_metrics(SPECS[name], trained_run)
         calibration = metrics["calibration"]
         assert calibration["sourceSha256"] == metrics["sourceSha256"]
@@ -341,7 +343,8 @@ def test_every_rhythm_model_records_calibration_keyed_to_its_file(trained_run):
         )
         # The top class of 3 is never below 1/3.
         assert calibration["reliabilityTop"][0]["low"] >= 0.3
-    assert load_metrics(SPECS["rhythm-lgbm"], trained_run)["calibration"]["method"].startswith("none")
+    for name in ("rhythm-lgbm", "rhythm-logistic"):
+        assert load_metrics(SPECS[name], trained_run)["calibration"]["method"].startswith("none")
 
 
 def val_cache(runs_dir, name="val.npz"):
@@ -354,7 +357,7 @@ def metrics_windows(runs_dir):
 
 
 def test_calibration_measured_after_training_matches_the_training_record(trained_run):
-    recorded = {name: load_metrics(SPECS[name], trained_run) for name in ("rhythm-net", "rhythm-lgbm")}
+    recorded = {name: load_metrics(SPECS[name], trained_run) for name in RHYTHM_MODELS}
     rhythm_calibration.main(["--runs-dir", str(trained_run), "--windows", str(val_cache(trained_run))])
     for name, before in recorded.items():
         after = load_metrics(SPECS[name], trained_run)
@@ -390,3 +393,46 @@ def test_calibration_refuses_a_model_file_changed_after_training(trained_run):
                 "rhythm-lgbm",
             ]
         )
+
+
+def _refit_rule(runs_dir):
+    rhythm_logistic.main(["--runs-dir", str(runs_dir), "--windows-dir", str(val_cache(runs_dir).parent)])
+
+
+def test_the_rule_refitted_on_the_run_cache_matches_its_training_record(trained_run):
+    spec = SPECS["rhythm-logistic"]
+    before = load_metrics(spec, trained_run)
+    trained = pickle.loads((trained_run / spec.source_file).read_bytes())
+    for path in (trained_run / spec.source_file, trained_run / f"{spec.file_stem}.json"):
+        path.unlink()
+    _refit_rule(trained_run)
+    after = load_metrics(spec, trained_run)
+    refitted = trained_source(spec, trained_run)
+    assert after["calibration"]["measuredBy"] == rhythm_logistic.MEASURED_BY
+    unkeyed = ("sourceSha256", "measuredBy")
+    assert {key: value for key, value in after.items() if key not in ("sourceSha256", "calibration")} == {
+        key: value for key, value in before.items() if key not in ("sourceSha256", "calibration")
+    }
+    assert {key: value for key, value in after["calibration"].items() if key not in unkeyed} == {
+        key: value for key, value in before["calibration"].items() if key not in unkeyed
+    }
+    features = np.random.default_rng(5).normal(size=(40, 8)).astype(np.float32)
+    np.testing.assert_array_equal(
+        pickle.loads(refitted.read_bytes()).predict_proba(features), trained.predict_proba(features)
+    )
+
+
+def test_a_refit_that_misses_the_recorded_row_writes_nothing(trained_run):
+    spec = SPECS["rhythm-logistic"]
+    lgbm_path = trained_run / f"{SPECS['rhythm-lgbm'].file_stem}.json"
+    lgbm = json.loads(lgbm_path.read_text(encoding="utf-8"))
+    for row in lgbm["ablation"]:
+        if row["model"] == spec.name:
+            row["τ_AF"] = "0.0001"
+    lgbm_path.write_text(json.dumps(lgbm), encoding="utf-8")
+    for path in (trained_run / spec.source_file, trained_run / f"{spec.file_stem}.json"):
+        path.unlink()
+    with pytest.raises(ProvenanceError, match="the run recorded"):
+        _refit_rule(trained_run)
+    assert not (trained_run / spec.source_file).exists()
+    assert not (trained_run / f"{spec.file_stem}.json").exists()

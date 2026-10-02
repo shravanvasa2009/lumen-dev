@@ -127,8 +127,9 @@ _DIABETES = ModelSpec(
     role="gate",
 )
 # §11.1–11.4 baselines on the networks' feature inputs, with the same output names, so the app can
-# swap one in without code changes, and with the same role, so sqi-rule is a guard too. The rhythm
-# logistic rule has no entry: it is compared in training (train.rhythm) but never exported. sqi-rule is
+# swap one in without code changes, and with the same role, so sqi-rule is a guard too. rhythm-logistic
+# is §11.1's rhythm fallback rule, which the app runs in code when the rhythm model fails to load; its
+# manifest entry also carries the rule's coefficients for that (export/write_manifest.py). sqi-rule is
 # §11.1's rule SQI without the acquisition checks, which need camera frames: a logistic regression on the
 # window's skewness and whether its spectral-peak heart rate is in range (train/sqi.py, RULE_FEATURES).
 _BASELINES = tuple(
@@ -138,6 +139,8 @@ _BASELINES = tuple(
         (_SQI, "sqi-rule", {"features": [1, SQI_RULE_FEATURES]}, False),
         # ADR 0031: rhythm-lgbm beat Rhythm-Net on development subjects, so it is the v1 rhythm model.
         (_RHYTHM, "rhythm-lgbm", {"features": [1, FEATURES]}, True),
+        # Takes the whole feature vector, though it reads only three of the features (train.rhythm).
+        (_RHYTHM, "rhythm-logistic", {"features": [1, FEATURES]}, False),
         (_DIABETES, "diabetes-lgbm", {"shapeFeatures": [1, SHAPE_FEATURES]}, False),
         (_DIABETES, "diabetes-logistic", {"shapeFeatures": [1, SHAPE_FEATURES]}, False),
     )

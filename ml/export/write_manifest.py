@@ -157,8 +157,10 @@ def logistic_rule(pipeline: Pipeline, feature_order: list[str], labels: tuple[st
         or not isinstance(logistic, LogisticRegression)
     ):
         raise ProvenanceError(f"not a column-selecting logistic rule: {pipeline}")
-    (name, scaler, indices), *rest = columns.transformers_
-    if not isinstance(scaler, StandardScaler) or any(transformer != "drop" for _, transformer, _ in rest):
+    (_, scaler, indices), *rest = columns.transformers_
+    # The app computes z = (x - mean) / scale, so a scaler that skips either step would be misread.
+    standardizes = isinstance(scaler, StandardScaler) and scaler.with_mean and scaler.with_std
+    if not standardizes or any(transformer != "drop" for _, transformer, _ in rest):
         raise ProvenanceError(f"the rule must standardize one set of columns and drop the rest: {columns}")
     if logistic.classes_.tolist() != list(range(len(labels))):
         raise ProvenanceError(f"class indices {logistic.classes_.tolist()} do not match labels {labels}")

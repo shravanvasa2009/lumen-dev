@@ -6,6 +6,7 @@ import numpy as np
 import onnxruntime as ort
 import pytest
 import torch
+from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
@@ -264,6 +265,16 @@ def test_a_rule_without_column_selection_is_refused():
     unselected = make_pipeline(StandardScaler(), LogisticRegression()).fit(features, np.arange(90) % 3)
     with pytest.raises(ProvenanceError, match="column-selecting"):
         logistic_rule(unselected, list(FEATURE_NAMES), spec.labels)
+
+
+@pytest.mark.parametrize("scaler", [StandardScaler(with_mean=False), StandardScaler(with_std=False)])
+def test_a_rule_that_does_not_fully_standardize_is_refused(scaler):
+    spec = SPECS["rhythm-lgbm"]
+    features = np.random.default_rng(2).normal(size=(90, 8))
+    columns = ColumnTransformer([("rule", scaler, [0, 1, 2])], remainder="drop")
+    rule = make_pipeline(columns, LogisticRegression()).fit(features, np.arange(90) % 3)
+    with pytest.raises(ProvenanceError, match="must standardize"):
+        logistic_rule(rule, list(FEATURE_NAMES), spec.labels)
 
 
 @pytest.mark.parametrize(

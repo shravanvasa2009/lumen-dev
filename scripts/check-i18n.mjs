@@ -15,6 +15,10 @@ const PLACEHOLDER = /\{\{\s*([^,}\s]+)[^}]*\}\}/g;
 const placeholders = (text) => new Set([...text.matchAll(PLACEHOLDER)].map((match) => match[1]));
 const sameSet = (left, right) => left.size === right.size && [...left].every((item) => right.has(item));
 
+// i18next plural forms: t('k', { count }) reads k_one, k_other and the like, so the code names only k.
+const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
+const hasKey = (texts, key) => key in texts || `${key}_other` in texts;
+
 // The call is t(...) or i18n.t(...); a non-literal key cannot be checked or counted as used, so it fails.
 function isTranslationCall(node) {
   if (!ts.isCallExpression(node)) return false;
@@ -51,7 +55,7 @@ function findProblems(copy, keyLines, sources) {
     const useKey = (keyNode, node) => {
       if (ts.isStringLiteralLike(keyNode)) {
         usedKeys.add(keyNode.text);
-        if (!(keyNode.text in copy.en) || !(keyNode.text in copy.es))
+        if (!hasKey(copy.en, keyNode.text) || !hasKey(copy.es, keyNode.text))
           failures.push(
             `${file}:${lineOf(sourceFile, node)}: key "${keyNode.text}" is not in both en.json and es.json`,
           );
@@ -72,7 +76,7 @@ function findProblems(copy, keyLines, sources) {
 
   for (const language of Object.keys(COPY_FILES)) {
     for (const key of Object.keys(copy[language])) {
-      if (!usedKeys.has(key))
+      if (!usedKeys.has(key.replace(PLURAL_SUFFIX, '')) && !usedKeys.has(key))
         failures.push(`${where(language, key)}: "${key}" is not used by any screen or component`);
     }
   }
@@ -84,6 +88,10 @@ function selfTest() {
   const noLines = { en: new Map(), es: new Map() };
   const screen = (body) => [{ file: 'probe.tsx', text: body }];
   const good = { en: { 'a.b': 'Hi {{name}}' }, es: { 'a.b': 'Hola {{name}}' } };
+  const plural = {
+    en: { 'a.n_one': '{{count}} item', 'a.n_other': '{{count}} items' },
+    es: { 'a.n_one': '{{count}} cosa', 'a.n_other': '{{count}} cosas' },
+  };
   const probes = [
     ['a key missing from es', { en: { 'a.b': 'x' }, es: {} }, "t('a.b')"],
     [
@@ -94,12 +102,15 @@ function selfTest() {
     ['an unused key', good, 'const unused = 1;'],
     ['an unresolved t() key', good, "t('a.b'); t('a.missing');"],
     ['a dynamic t() key', good, "t('a.b'); t(name);"],
+    ['an unused plural key', plural, 'const unused = 1;'],
   ];
   const wrong = probes
     .filter(([, copy, body]) => findProblems(copy, noLines, screen(body)).length === 0)
     .map(([what]) => `check missed ${what}`);
   if (findProblems(good, noLines, screen("t('a.b', { name })")).length > 0)
     wrong.push('check rejected a valid key and placeholder set');
+  if (findProblems(plural, noLines, screen("t('a.n', { count })")).length > 0)
+    wrong.push('check rejected plural forms');
   return wrong;
 }
 

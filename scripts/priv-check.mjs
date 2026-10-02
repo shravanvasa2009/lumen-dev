@@ -44,7 +44,7 @@ const TILE_HOST = /tiles\.openfreemap\.org/;
 const CARE_MAP_ROUTE = 'apps/mobile/app/care-map.tsx';
 const CARE_MAP_DIR = 'apps/mobile/src/care/';
 const MAP_LIBRARY = '@maplibre/maplibre-react-native';
-const IMPORT_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*['"]([^'"]+)['"]/g;
+const IMPORT_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*['"`]([^'"`]+)['"`]/g;
 
 function inCareMap(file) {
   return file === CARE_MAP_ROUTE || file.startsWith(CARE_MAP_DIR);
@@ -56,9 +56,15 @@ function importsCareMapCode(file, text) {
     if (specifier === '@/care' || specifier.startsWith('@/care/')) return true;
     if (!specifier.startsWith('.')) return false;
     const target = path.posix.join(path.posix.dirname(file), specifier);
-    return target === CARE_MAP_DIR.slice(0, -1) || target.startsWith(CARE_MAP_DIR);
+    return (
+      target === CARE_MAP_DIR.slice(0, -1) ||
+      target.startsWith(CARE_MAP_DIR) ||
+      target === CARE_MAP_ROUTE ||
+      `${target}.tsx` === CARE_MAP_ROUTE
+    );
   });
 }
+
 const INTERNET_PERMISSION = /android\.permission\.INTERNET/;
 
 // Tracked and not-ignored files, so a hand-written file can't hide under a folder name such as build.

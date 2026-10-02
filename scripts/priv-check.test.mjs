@@ -140,6 +140,9 @@ test('the map library and care code may be imported only inside the care-map pat
     'apps/mobile/src/results/Dyn.tsx': "const care = await import('../care');\n",
     'apps/mobile/src/results/Req.tsx': "const lib = require('@maplibre/maplibre-react-native/lib');\n",
     'apps/mobile/app/care.tsx': "export { x } from '@/care/clinics';\n",
+    'apps/mobile/app/open-map.tsx': "import CareMap from './care-map';\n",
+    'apps/mobile/app/open-map-ext.tsx': "import CareMap from './care-map.tsx';\n",
+    'apps/mobile/src/results/Template.tsx': 'const care = await import(`@/care/x`);\n',
   };
   for (const [file, contents] of Object.entries(forms)) {
     const run = runOn(t, { [file]: contents });

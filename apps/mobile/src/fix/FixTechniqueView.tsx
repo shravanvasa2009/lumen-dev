@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
@@ -16,7 +16,7 @@ import { useTheme } from '@/theme';
 import type { FixCause } from './causes';
 import { FingertipPair } from './FingertipPair';
 
-// Spec §8.3: every targeted lesson ends with a 20-second steady practice.
+// Spec §8.3: motion, pressure and coverage practise for 20 s; cold hands waits for PI above the device floor.
 const STEADY_SECONDS_NEEDED = 20;
 
 // No capture controller feeds the app yet, so the practice shows its starting state: no steady seconds.
@@ -26,25 +26,21 @@ type FixTechniqueViewProps = { mode: MeasureMode; cause: FixCause | null };
 
 export function FixTechniqueView({ mode, cause }: FixTechniqueViewProps) {
   const { t } = useTranslation();
-  const { colors, spacing } = useTheme();
+  const { spacing } = useTheme();
   const copy = {
     pressure: {
-      name: t('fix.cause.pressure'),
       why: t('fix.why.pressure'),
       tryHeading: t('fix.tryCover'),
     },
     motion: {
-      name: t('fix.cause.motion'),
       why: t('fix.why.motion'),
       tryHeading: t('fix.try.motion'),
     },
     coverage: {
-      name: t('fix.cause.coverage'),
       why: t('fix.why.coverage'),
       tryHeading: t('fix.try.coverage'),
     },
     coldHands: {
-      name: t('fix.cause.coldHands'),
       why: t('fix.why.coldHands'),
       tryHeading: t('fix.try.coldHands'),
     },
@@ -57,8 +53,7 @@ export function FixTechniqueView({ mode, cause }: FixTechniqueViewProps) {
       <AppText>
         {cause ? (
           <>
-            {t('fix.lead')} <AppText style={{ color: colors.flag, fontWeight: '700' }}>{copy.name}</AppText>.{' '}
-            {copy.why}
+            <LeadSentence cause={cause} /> {copy.why}
           </>
         ) : (
           t('fix.introGeneric')
@@ -89,12 +84,18 @@ export function FixTechniqueView({ mode, cause }: FixTechniqueViewProps) {
           </View>
         </View>
       </Card>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md }}>
-        <ProgressRing fraction={steadySeconds / STEADY_SECONDS_NEEDED} />
-        <AppText variant="headline">
-          {t('practice.progress', { done: steadySeconds, total: STEADY_SECONDS_NEEDED })}
-        </AppText>
-      </View>
+      {cause === 'coldHands' ? (
+        <AppText variant="headline">{t('fix.goal.coldHands')}</AppText>
+      ) : (
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md }}
+        >
+          <ProgressRing fraction={steadySeconds / STEADY_SECONDS_NEEDED} />
+          <AppText variant="headline">
+            {t('practice.progress', { done: steadySeconds, total: STEADY_SECONDS_NEEDED })}
+          </AppText>
+        </View>
+      )}
       <AppText variant="caption" tone="textDim">
         {t('practice.pending')}
       </AppText>
@@ -114,5 +115,20 @@ function lessonVisual(t: TFunction, cause: FixCause | null): ReactNode {
       return null;
     default:
       return <FingertipPair />;
+  }
+}
+
+function LeadSentence({ cause }: { cause: FixCause }) {
+  const { colors } = useTheme();
+  const components = { cause: <AppText style={{ color: colors.flag, fontWeight: '700' }} /> };
+  switch (cause) {
+    case 'motion':
+      return <Trans i18nKey="fix.lead.motion" components={components} />;
+    case 'coverage':
+      return <Trans i18nKey="fix.lead.coverage" components={components} />;
+    case 'coldHands':
+      return <Trans i18nKey="fix.lead.coldHands" components={components} />;
+    case 'pressure':
+      return <Trans i18nKey="fix.lead.pressure" components={components} />;
   }
 }

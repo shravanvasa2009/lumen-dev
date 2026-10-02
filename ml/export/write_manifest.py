@@ -36,6 +36,8 @@ from export.specs import (
 from export.to_onnx import source_model
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
+# Where the spec states each family's "ship the network only if it beats the baselines" rule.
+SHIP_RULE_SECTION = {"sqi": "§11.1", "rhythm": "§11.3", "diabetes": "§11.4"}
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
 # §11.10: when the rhythm model fails to load, the app runs this rule in code (@lumen/core) as "basic
 # analysis", so its manifest entry carries every number the rule needs, read from the trained pickle.
@@ -203,6 +205,9 @@ def manifest_entry(
         "date": date,
         "card": f"{spec.file_stem}.md",
         **({"rule": rule} if rule else {}),
+        # ML-6: the app fills a missing input feature with the dev-train median the model was trained with,
+        # and must feed the features in this order; neither is inside the ONNX file.
+        **{key: metrics[key] for key in ("featureOrder", "fillMedians") if metrics and key in metrics},
     }
 
 
@@ -349,7 +354,7 @@ def _ship_note(spec: ModelSpec, metrics: dict | None) -> str:
                 f" The development ablation picked it ({decision['criterion']}; network minus "
                 f"{decision['bestBaseline']}: {difference['estimate']:.4f}, "
                 f"95% CI {difference['low']:.4f} to {difference['high']:.4f}), "
-                "so it ships per §11.3 (ADR 0031)."
+                f"so it ships per {SHIP_RULE_SECTION[spec.family]} (ADR 0031)."
             )
         return f"\n\nThis is the shipped {spec.family} model: the app loads it.{why}"
     decision = (metrics or {}).get("shipDecision")

@@ -265,12 +265,14 @@ def test_trained_models_export_verify_and_reach_the_manifest(trained, tmp_path):
         assert entry["threshold"] == metrics["threshold"]
         assert entry["development"] == metrics["development"]
         assert entry["trainedOn"] == ["vitaldb"]
+        assert entry["fillMedians"] == metrics["fillMedians"]
+        assert entry["featureOrder"] == metrics["featureOrder"]
         card = (models_dir / entry["card"]).read_text(encoding="utf-8")
         ablation = card.split("## Ablation", 1)[1].split("\n## ", 1)[0]
         assert all(f"| {model} |" in ablation for model in (*DIABETES_MODELS, HR_ONLY))
         assert THRESHOLD_RULE in card
     assert entries["diabetes-net"]["ships"] is True
-    assert "ships per §11.3" in (models_dir / entries["diabetes-net"]["card"]).read_text(encoding="utf-8")
+    assert "ships per §11.4" in (models_dir / entries["diabetes-net"]["card"]).read_text(encoding="utf-8")
 
 
 def test_training_is_repeatable(trained):

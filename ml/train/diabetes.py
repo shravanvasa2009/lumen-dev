@@ -44,13 +44,13 @@ LGBM = SPECS["diabetes-lgbm"]
 # never exported.
 HR_ONLY = "hr-summary-logistic"
 SEED = 20261026
-# ADR 0057 (proposed): τ_DM is the lowest threshold whose dev-val subject-level specificity meets the
+# ADR 0061 (proposed): τ_DM is the lowest threshold whose dev-val subject-level specificity meets the
 # specificity part of ML-6's external floor (≥ 85%), so it keeps the most sensitivity that floor allows.
 TARGET_SPECIFICITY = 0.85
 THRESHOLD_RULE = (
     f"τ_DM is the lowest threshold at which dev-val subject-level specificity is at least "
     f"{TARGET_SPECIFICITY:.0%}; a subject's score is the mean probability over that subject's 90 s "
-    "segments (ADR 0057, proposed)."
+    "segments (ADR 0061, proposed)."
 )
 # §11.4 "The evidence gate (ML-6)": PPV and NPV at these hypothetical prevalences.
 PREVALENCES = (0.05, 0.116, 0.20)

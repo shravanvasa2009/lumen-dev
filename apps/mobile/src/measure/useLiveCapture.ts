@@ -13,7 +13,7 @@ import {
 // The live waveform card shows the last 6 s (spec §12).
 const WAVEFORM_WINDOW_NS = 6e9;
 
-export type LivePhase =
+type LivePhase =
   // The capture module is not linked (Jest, Expo Go).
   'unavailable' | 'starting' | 'running' | 'denied' | 'failed';
 

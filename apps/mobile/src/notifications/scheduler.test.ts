@@ -6,9 +6,14 @@ import {
   setNotificationChannelAsync,
 } from 'expo-notifications';
 
+import { memoryFiles } from '@/testing/memoryFiles';
+
 import copy from '../i18n/lockscreen.json';
-import type { NotificationPrefs, NotificationTriggers, PlanRequest } from './plan';
+import type { NotificationPrefs, NotificationTriggers } from './plan';
+import { loadScheduleRecord } from './record';
 import { syncNotifications } from './scheduler';
+
+jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').expoFileSystem);
 
 // The system's pending requests, keyed by identifier, as the native side keeps them.
 const mockPending = new Map<string, NotificationRequestInput>();
@@ -45,7 +50,9 @@ const BUSY: NotificationTriggers = {
   lastPhoneCheckAt: at('2026-09-20T12:00:00-05:00'),
 };
 
-const request = (overrides: Partial<PlanRequest> = {}): PlanRequest => ({
+type SyncRequest = Parameters<typeof syncNotifications>[0];
+
+const request = (overrides: Partial<SyncRequest> = {}): SyncRequest => ({
   prefs: ALL_ON,
   triggers: BUSY,
   now: at(NOW),
@@ -58,6 +65,7 @@ const pendingOfPrefix = (prefix: string) => pendingIds().filter((id) => id.start
 
 beforeEach(() => {
   mockPending.clear();
+  memoryFiles.clear();
   jest.clearAllMocks();
 });
 
@@ -160,5 +168,28 @@ describe('syncNotifications', () => {
     await expect(syncNotifications(request(), 'en')).rejects.toThrow('scheduling refused');
     await syncNotifications(request(), 'en');
     expect(pendingOfPrefix('daily').length).toBeGreaterThan(0);
+  });
+
+  it('records what it scheduled and counts what fired when it syncs again', async () => {
+    const onlyDaily = { ...ALL_ON, enabled: { ...ALL_ON.enabled, confirmation: false, retest: false } };
+    const noTriggers = { ...BUSY, confirmationFor: null, standingStartedAt: null, lastPhoneCheckAt: null };
+    await syncNotifications(
+      request({ prefs: onlyDaily, triggers: noTriggers, now: at('2026-10-08T07:00:00-05:00') }),
+      'en',
+    );
+    expect(loadScheduleRecord().map(({ id }) => id)).toContain('daily-2026-10-08T08:00');
+
+    // The daily check fired at 8:00; moving it to the evening must not send a second one today.
+    await syncNotifications(
+      request({
+        prefs: { ...onlyDaily, dailyTime: { hour: 20, minute: 0 } },
+        triggers: noTriggers,
+        now: at('2026-10-08T09:00:00-05:00'),
+      }),
+      'en',
+    );
+    expect(pendingOfPrefix('daily')).not.toContain('daily-2026-10-08T20:00');
+    expect(pendingOfPrefix('daily')).toContain('daily-2026-10-09T20:00');
+    expect(loadScheduleRecord().filter(({ fireAt }) => fireAt.startsWith('2026-10-08'))).toHaveLength(2);
   });
 });

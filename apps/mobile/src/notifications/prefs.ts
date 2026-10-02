@@ -57,7 +57,8 @@ export function loadNotificationPrefs(): NotificationPrefs {
     return prefsFrom(JSON.parse(text));
   } catch (error) {
     // A damaged file must not stop the app opening; defaults apply and the next save replaces it.
-    console.warn(`Notification settings could not be read, using defaults: ${String(error)}`);
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`Notification settings could not be read, using defaults: ${reason}`);
     return DEFAULT_PREFS;
   }
 }

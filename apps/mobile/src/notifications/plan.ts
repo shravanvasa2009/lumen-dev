@@ -3,6 +3,9 @@ import { addDays, type ClockTime, instantAt, isoWithOffset, localDateKey, localP
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
+// Only today's fired reminders count against the cap; two days covers a local day of 25 hours and a
+// change of time zone.
+const RECORD_KEEP_MS = 48 * HOUR_MS;
 
 // §9.6: at most 3 a day and nothing more than 30 days ahead.
 const DAILY_CAP = 3;
@@ -34,13 +37,6 @@ export type NotificationTriggers = {
   lastPhoneCheckAt: number | null;
 };
 
-export type PlanRequest = {
-  prefs: NotificationPrefs;
-  triggers: NotificationTriggers;
-  now: number;
-  timeZone: string;
-};
-
 // Appendix B notification schedule entry.
 export type PlannedNotification = {
   id: string;
@@ -48,6 +44,15 @@ export type PlannedNotification = {
   fireAt: string;
   route: string;
   createdFor: string;
+};
+
+export type PlanRequest = {
+  prefs: NotificationPrefs;
+  triggers: NotificationTriggers;
+  now: number;
+  timeZone: string;
+  // What earlier syncs actually scheduled (see scheduleRecord), so the cap counts real deliveries.
+  previousSchedule: readonly PlannedNotification[];
 };
 
 // The phone re-test lives on the "Your phone" screen, next to the rating it refreshes.
@@ -101,7 +106,9 @@ function sameClockDaysLater(atMs: number, days: number, timeZone: string): numbe
   return instantAt(addDays(parts, days), parts, timeZone);
 }
 
-function cappedCandidates({ prefs, triggers, now, timeZone }: PlanRequest): Candidate[] {
+const dayOf = (atMs: number, timeZone: string) => localDateKey(localPartsAt(atMs, timeZone));
+
+function cappedCandidates({ prefs, triggers, now, timeZone, previousSchedule }: PlanRequest): Candidate[] {
   const { enabled, dailyTime, quietHours } = prefs;
   const today = localPartsAt(now, timeZone);
   const candidates: Candidate[] = [];
@@ -147,22 +154,39 @@ function cappedCandidates({ prefs, triggers, now, timeZone }: PlanRequest): Cand
   const horizonMs = sameClockDaysLater(now, HORIZON_DAYS, timeZone);
   const shifted = candidates
     .map((candidate) => ({ ...candidate, atMs: afterQuietHours(candidate.atMs, quietHours, timeZone) }))
-    .filter(({ atMs }) => atMs <= horizonMs);
+    .filter(({ atMs }) => atMs > now && atMs <= horizonMs);
 
-  // Ones already due today have fired (or were skipped) and cannot be taken back, so they use up today's
-  // allowance before any new one does.
-  const rank = ({ type, atMs }: Candidate) => (atMs <= now ? -1 : CAP_PRIORITY.indexOf(type));
+  // Reminders an earlier sync scheduled for a time now past have fired and cannot be taken back, so they
+  // use up their day's allowance first. They come from the record, not the current settings and triggers,
+  // which may have changed since.
   const perDay = new Map<string, number>();
-  return shifted
-    .sort((first, second) => rank(first) - rank(second) || first.atMs - second.atMs)
-    .filter(({ atMs }) => {
-      const day = localDateKey(localPartsAt(atMs, timeZone));
-      const count = perDay.get(day) ?? 0;
-      if (count >= DAILY_CAP) return false;
-      perDay.set(day, count + 1);
-      return true;
-    })
-    .filter(({ atMs }) => atMs > now);
+  const firedKeys = new Set<string>();
+  for (const { type, fireAt, createdFor } of previousSchedule) {
+    const firedAt = Date.parse(fireAt);
+    if (type === 'standing' || firedAt > now) continue;
+    const day = dayOf(firedAt, timeZone);
+    perDay.set(day, (perDay.get(day) ?? 0) + 1);
+    firedKeys.add(`${type}|${createdFor}|${day}`);
+  }
+
+  return (
+    shifted
+      // One that already went out today is not sent again, e.g. the daily check after its time moves later.
+      .filter(
+        ({ type, createdFor, atMs }) => !firedKeys.has(`${type}|${createdFor}|${dayOf(atMs, timeZone)}`),
+      )
+      .sort(
+        (first, second) =>
+          CAP_PRIORITY.indexOf(first.type) - CAP_PRIORITY.indexOf(second.type) || first.atMs - second.atMs,
+      )
+      .filter(({ atMs }) => {
+        const day = dayOf(atMs, timeZone);
+        const count = perDay.get(day) ?? 0;
+        if (count >= DAILY_CAP) return false;
+        perDay.set(day, count + 1);
+        return true;
+      })
+  );
 }
 
 // Standing-test alerts are exempt from quiet hours and the daily cap (owner decision): the protocol
@@ -190,4 +214,18 @@ export function planNotifications(request: PlanRequest): PlannedNotification[] {
         createdFor,
       };
     });
+}
+
+// The record the next sync counts from: the last two days' fired reminders plus everything just planned.
+// Requests still pending are left out of the old record because each sync cancels them.
+export function scheduleRecord(
+  previousSchedule: readonly PlannedNotification[],
+  planned: readonly PlannedNotification[],
+  now: number,
+): PlannedNotification[] {
+  const fired = previousSchedule.filter(({ fireAt }) => {
+    const firedAt = Date.parse(fireAt);
+    return firedAt <= now && firedAt > now - RECORD_KEEP_MS;
+  });
+  return [...fired, ...planned];
 }

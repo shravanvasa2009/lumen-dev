@@ -1,35 +1,10 @@
+import { memoryFiles } from '@/testing/memoryFiles';
+
 import { loadNotificationPrefs, saveNotificationPrefs } from './prefs';
 
-// Files in the app's document folder, keyed by name.
-const mockFiles = new Map<string, string>();
+jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').expoFileSystem);
 
-jest.mock('expo-file-system', () => {
-  class File {
-    name: string;
-    constructor(_directory: unknown, name: string) {
-      this.name = name;
-    }
-    get exists() {
-      return mockFiles.has(this.name);
-    }
-    create() {
-      if (mockFiles.has(this.name)) throw new Error(`${this.name} already exists`);
-      mockFiles.set(this.name, '');
-    }
-    textSync() {
-      const text = mockFiles.get(this.name);
-      if (text === undefined) throw new Error(`${this.name} does not exist`);
-      return text;
-    }
-    write(text: string) {
-      if (!mockFiles.has(this.name)) throw new Error(`${this.name} does not exist`);
-      mockFiles.set(this.name, text);
-    }
-  }
-  return { File, Paths: { document: 'documents' } };
-});
-
-beforeEach(() => mockFiles.clear());
+beforeEach(() => memoryFiles.clear());
 
 describe('notification prefs', () => {
   it('starts with the daily check off at 8:00, the rest on, and quiet hours 9:00 pm to 7:00 am', () => {
@@ -53,7 +28,7 @@ describe('notification prefs', () => {
   });
 
   it('fills in fields an older or edited file lacks or holds wrongly', () => {
-    mockFiles.set(
+    memoryFiles.set(
       'notification-prefs.json',
       JSON.stringify({
         enabled: { daily: true, retest: 'yes' },
@@ -70,7 +45,7 @@ describe('notification prefs', () => {
 
   it('reports a damaged file and falls back to the defaults', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    mockFiles.set('notification-prefs.json', '{"enabled":');
+    memoryFiles.set('notification-prefs.json', '{"enabled":');
     expect(loadNotificationPrefs().enabled.daily).toBe(false);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('Notification settings could not be read'));
     warn.mockRestore();

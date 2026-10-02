@@ -3,6 +3,8 @@ import {
   type NotificationTriggers,
   type NotificationType,
   planNotifications,
+  type PlannedNotification,
+  scheduleRecord,
 } from './plan';
 
 const CHICAGO = 'America/Chicago';
@@ -22,9 +24,18 @@ type PlanInput = {
   dailyTime?: NotificationPrefs['dailyTime'];
   quietHours?: NotificationPrefs['quietHours'];
   timeZone?: string;
+  previousSchedule?: readonly PlannedNotification[];
 };
 
-function plan({ now, on, triggers = {}, dailyTime, quietHours, timeZone = CHICAGO }: PlanInput) {
+function plan({
+  now,
+  on,
+  triggers = {},
+  dailyTime,
+  quietHours,
+  timeZone = CHICAGO,
+  previousSchedule = [],
+}: PlanInput) {
   const types: readonly NotificationType[] = [
     'daily',
     'confirmation',
@@ -43,8 +54,23 @@ function plan({ now, on, triggers = {}, dailyTime, quietHours, timeZone = CHICAG
     triggers: { ...NO_TRIGGERS, ...triggers },
     now: at(now),
     timeZone,
+    previousSchedule,
   });
 }
+
+// Runs syncs one after another, each starting from the record the one before saved, as the scheduler does.
+function syncInTurn(...syncs: readonly PlanInput[]) {
+  return syncs.reduce<{ planned: PlannedNotification[]; record: PlannedNotification[] }>(
+    ({ record }, input) => {
+      const planned = plan({ ...input, previousSchedule: record });
+      return { planned, record: scheduleRecord(record, planned, at(input.now)) };
+    },
+    { planned: [], record: [] },
+  );
+}
+
+const typesOn = (day: string, entries: readonly PlannedNotification[]) =>
+  entries.filter(({ fireAt }) => fireAt.startsWith(day)).map(({ type }) => type);
 
 const fireTimes = (entries: ReturnType<typeof plan>) => entries.map(({ fireAt }) => fireAt);
 const NO_QUIET_HOURS = { start: { hour: 0, minute: 0 }, end: { hour: 0, minute: 0 } };
@@ -264,14 +290,70 @@ describe('3 per day', () => {
     ]);
   });
 
-  it('counts a reminder already due today, then keeps doctor follow-up and confirmation over the re-test', () => {
-    const entries = plan({
-      now: '2026-10-12T09:00:00-05:00',
-      on: ['daily', 'confirmation', 'doctor-followup', 'retest'],
-      triggers: crowdedDay,
-    });
-    const onCrowdedDay = entries.filter(({ fireAt }) => fireAt.startsWith('2026-10-12'));
-    expect(onCrowdedDay.map(({ type }) => type)).toEqual(['confirmation', 'doctor-followup']);
+  const ALL_CAPPED: readonly NotificationType[] = ['daily', 'confirmation', 'doctor-followup', 'retest'];
+
+  it('keeps what an earlier sync scheduled when it syncs again later the same day', () => {
+    const { planned, record } = syncInTurn(
+      { now: '2026-10-12T06:31:00-05:00', on: ALL_CAPPED, triggers: crowdedDay },
+      { now: '2026-10-12T09:00:00-05:00', on: ALL_CAPPED, triggers: crowdedDay },
+    );
+    expect(typesOn('2026-10-12', planned)).toEqual(['confirmation', 'doctor-followup', 'retest']);
+    expect(typesOn('2026-10-12', record)).toEqual(['confirmation', 'doctor-followup', 'retest']);
+  });
+
+  it('counts a reminder that fired earlier today, then keeps doctor follow-up and confirmation', () => {
+    const { planned } = syncInTurn(
+      { now: '2026-10-12T07:00:00-05:00', on: ['daily'] },
+      { now: '2026-10-12T09:00:00-05:00', on: ALL_CAPPED, triggers: crowdedDay },
+    );
+    expect(typesOn('2026-10-12', planned)).toEqual(['confirmation', 'doctor-followup']);
+  });
+
+  it('does not send the daily check twice when its time moves later after it fired', () => {
+    const { planned } = syncInTurn(
+      { now: '2026-10-05T07:00:00-05:00', on: ['daily'] },
+      { now: '2026-10-05T09:00:00-05:00', on: ['daily'], dailyTime: { hour: 20, minute: 0 } },
+    );
+    expect(planned[0]?.fireAt).toBe('2026-10-06T20:00:00-05:00');
+  });
+
+  it('keeps a crowded day at 3 when the daily time moves after the daily check fired', () => {
+    const { record } = syncInTurn(
+      { now: '2026-10-12T07:00:00-05:00', on: ['daily'] },
+      {
+        now: '2026-10-12T09:00:00-05:00',
+        on: ALL_CAPPED,
+        triggers: crowdedDay,
+        dailyTime: { hour: 20, minute: 0 },
+      },
+    );
+    expect(typesOn('2026-10-12', record)).toEqual(['daily', 'confirmation', 'doctor-followup']);
+  });
+
+  it('still counts a same-day confirmation that fired before its trigger was cleared', () => {
+    const evening = { hour: 20, minute: 0 };
+    const { record } = syncInTurn(
+      { now: '2026-10-12T06:31:00-05:00', on: ALL_CAPPED, triggers: crowdedDay, dailyTime: evening },
+      {
+        now: '2026-10-12T11:00:00-05:00',
+        on: ALL_CAPPED,
+        triggers: { ...crowdedDay, confirmationFor: null },
+        dailyTime: evening,
+      },
+    );
+    expect(typesOn('2026-10-12', record)).toEqual(['confirmation', 'doctor-followup', 'retest']);
+  });
+
+  it('does not count standing-test alerts that fired earlier today', () => {
+    const { planned } = syncInTurn(
+      {
+        now: '2026-10-12T06:00:00-05:00',
+        on: ['standing'],
+        triggers: { standingStartedAt: at('2026-10-12T06:00:00-05:00') },
+      },
+      { now: '2026-10-12T06:31:00-05:00', on: ALL_CAPPED, triggers: crowdedDay },
+    );
+    expect(typesOn('2026-10-12', planned)).toEqual(['confirmation', 'doctor-followup', 'retest']);
   });
 
   it('never puts more than 3 reminders on one local day', () => {
@@ -295,6 +377,32 @@ describe('3 per day', () => {
     const onCrowdedDay = entries.filter(({ fireAt }) => fireAt.startsWith('2026-10-12'));
     expect(onCrowdedDay.filter(({ type }) => type === 'standing')).toHaveLength(4);
     expect(onCrowdedDay.filter(({ type }) => type !== 'standing')).toHaveLength(3);
+  });
+});
+
+describe('schedule record', () => {
+  const entry = (type: NotificationType, fireAt: string): PlannedNotification => ({
+    id: `${type}-${fireAt.slice(0, 16)}`,
+    type,
+    fireAt,
+    route: '/follow-up',
+    createdFor: 'reading-1',
+  });
+
+  it('keeps the last two days of fired reminders and replaces pending ones with the new plan', () => {
+    const now = at('2026-10-12T09:00:00-05:00');
+    const previous = [
+      entry('doctor-followup', '2026-10-10T08:59:00-05:00'),
+      entry('daily', '2026-10-10T09:01:00-05:00'),
+      entry('daily', '2026-10-12T09:00:00-05:00'),
+      entry('retest', '2026-10-12T17:00:00-05:00'),
+    ];
+    const planned = [entry('retest', '2026-10-13T17:00:00-05:00')];
+    expect(scheduleRecord(previous, planned, now).map(({ fireAt }) => fireAt)).toEqual([
+      '2026-10-10T09:01:00-05:00',
+      '2026-10-12T09:00:00-05:00',
+      '2026-10-13T17:00:00-05:00',
+    ]);
   });
 });
 

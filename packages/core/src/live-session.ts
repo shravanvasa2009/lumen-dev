@@ -38,8 +38,8 @@ export interface SqiWindow {
 export interface LiveSession {
   pushSamples(batch: SampleBatch): void;
   pushStatus(status: CaptureStatus): void;
-  // SQI-Net runs in the app every 1 s on the last 4 s window (§11.2). Pass sqiWindow.endS unchanged: it
-  // is a 64 Hz grid time, which readingInput turns into whole ns exactly.
+  // SQI-Net runs in the app every 1 s on the last 4 s window (§11.2). Pass sqiWindow.endS unchanged; an
+  // end that is not a whole ns throws a RangeError, because readingInput could not hand it on exactly.
   setSqi(windowEndS: number, pClean: number): void;
   readonly cleanSeconds: number;
   readonly recentWaveform: { tS: number[]; ppg: number[] }; // last 6 s

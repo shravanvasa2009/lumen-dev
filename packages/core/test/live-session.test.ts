@@ -314,6 +314,14 @@ describe('LiveSession input checks and buffer size', () => {
     );
   });
 
+  it('refuses an SQI window end finer than 1 ns, which readingInput could not hand on exactly', () => {
+    const { session } = play(frames({ seconds: 12 }));
+    expect(() => session.setSqi(10 + 1 / 3, 0.1)).toThrow(RangeError);
+    expect(session.readingInput().sqi).toBeNull();
+    session.setSqi(10.3, 0.1);
+    expect(spansOf(session, 'quality')).toEqual([{ startS: 10.3 - 4, endS: 10.3, reason: 'quality' }]);
+  });
+
   it('refuses a capture rate whose Nyquist frequency is not above the 8 Hz morphology band edge', () => {
     expect(() => createLiveSession({ ...CONFIG, captureFps: 16 })).toThrow(RangeError);
     expect(() => createLiveSession({ ...CONFIG, captureFps: 24 })).not.toThrow();

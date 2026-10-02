@@ -50,9 +50,11 @@ export function ProcessingView({ analysis }: { analysis: AnalysisState }) {
       headerless
       footer={
         <>
-          {unavailable ? (
+          {unavailable || analysis.phase === 'failed' ? (
             <>
-              <NavButton label={t('processing.seeSample')} href={SAMPLE_RESULTS} replace />
+              {unavailable ? (
+                <NavButton label={t('processing.seeSample')} href={SAMPLE_RESULTS} replace />
+              ) : null}
               <Button label={t('processing.backHome')} variant="link" onPress={() => router.replace('/')} />
             </>
           ) : null}
@@ -81,7 +83,11 @@ export function ProcessingView({ analysis }: { analysis: AnalysisState }) {
             {t('processing.title')}
           </AppText>
           <AppText tone="textDim" style={{ textAlign: 'center' }}>
-            {unavailable ? t('processing.unavailable') : t('processing.subtitle')}
+            {analysis.phase === 'unavailable'
+              ? t('processing.unavailable')
+              : analysis.phase === 'failed'
+                ? t('processing.failed', { reason: analysis.reason })
+                : t('processing.subtitle')}
           </AppText>
         </View>
 

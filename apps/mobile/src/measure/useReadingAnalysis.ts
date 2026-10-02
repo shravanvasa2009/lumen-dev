@@ -1,13 +1,57 @@
-import type { AnalysisProgress } from './analysisProgress';
+import { useEffect, useState } from 'react';
+
+import { analyzeKeptCapture, type AnalysisRequest } from './analyzeKeptCapture';
+import { type AnalysisProgress, pendingProgress } from './analysisProgress';
+import { saveFinishedReading } from './finishedReadings';
+import { keptCapture, type KeptCapture } from './keptCapture';
+import { DEFAULT_MODE } from './mode';
 
 export type AnalysisState =
   | { phase: 'unavailable' }
   | { phase: 'running'; progress: AnalysisProgress }
-  | { phase: 'done'; progress: AnalysisProgress; readingId: string };
+  | { phase: 'done'; progress: AnalysisProgress; readingId: string }
+  | { phase: 'failed'; progress: AnalysisProgress; reason: string };
 
-// The place where the Processing screen gets its steps. analyzeReading and the ML runtime (ADR 0041,
-// ADR 0050) are not on main, so nothing can be analysed and this always reports unavailable rather than
-// inventing progress. Once they land, it runs them here and reports each step as it ends.
-export function useReadingAnalysis(): AnalysisState {
-  return { phase: 'unavailable' };
+// The Processing route always passes what pre-check recorded; this is only for a caller that has none.
+const DEFAULT_REQUEST: AnalysisRequest = { mode: DEFAULT_MODE, restTimerDone: false };
+
+function useAnalysisOf(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest): AnalysisState {
+  const [state, setState] = useState<AnalysisState>({ phase: 'running', progress: pendingProgress });
+
+  useEffect(() => {
+    let active = true;
+    let latest = pendingProgress;
+    analyzeKeptCapture(capture, { mode, restTimerDone }, (progress) => {
+      latest = progress;
+      if (active) setState({ phase: 'running', progress });
+    }).then(
+      ({ readingId, reading, progress }) => {
+        saveFinishedReading(readingId, reading);
+        if (active) setState({ phase: 'done', progress, readingId });
+      },
+      (error: unknown) => {
+        if (active)
+          setState({
+            phase: 'failed',
+            progress: latest,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [capture, mode, restTimerDone]);
+
+  return state;
+}
+
+// The Processing screen's steps. The capture was kept by useLiveCapture; with none (the module is not linked,
+// or nothing was recorded) there is nothing to analyse and the state stays unavailable rather than inventing
+// progress. Only the capture screen writes the store and it is gone before Processing mounts, so within one
+// mount the branch below never changes and the hooks run in the same order every render.
+export function useReadingAnalysis(request: AnalysisRequest = DEFAULT_REQUEST): AnalysisState {
+  const capture = keptCapture();
+  if (capture === null) return { phase: 'unavailable' };
+  return useAnalysisOf(capture, request);
 }

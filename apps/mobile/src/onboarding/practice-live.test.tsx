@@ -19,6 +19,8 @@ const running: LiveCapture = {
   elapsedS: 5,
   cleanSeconds: null,
   coachingKey: null,
+  recentWaveform: { tS: [], ppg: [] },
+  rejectedSpans: [],
 };
 
 describe('practice with a running capture', () => {

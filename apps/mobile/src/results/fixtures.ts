@@ -9,6 +9,8 @@ export type FixtureReading = {
   mode: MeasureMode;
   createdAt: Date;
   // §8.5: the irregular demo's intervals are hand-written synthetic values, not recorded from a person.
+  // False for a reading taken on this phone, which must never carry the sample-data banner (§8.5).
+  sample: boolean;
   synthetic: boolean;
   scan: ReadingResult;
   intervalsMs: readonly number[];
@@ -39,6 +41,7 @@ const demo: FixtureReading = {
   id: 'demo',
   mode: 'full',
   createdAt: at(7, 42),
+  sample: true,
   synthetic: false,
   scan: {
     headlineKey: 'result.regular',
@@ -77,6 +80,7 @@ const demoFlag: FixtureReading = {
   id: 'demo-flag',
   mode: 'quick',
   createdAt: at(12, 30),
+  sample: true,
   synthetic: true,
   scan: {
     headlineKey: 'result.irregularRetake',
@@ -104,6 +108,7 @@ const demoInconclusive: FixtureReading = {
   id: 'demo-inconclusive',
   mode: 'full',
   createdAt: at(6, 58),
+  sample: true,
   synthetic: false,
   scan: {
     headlineKey: 'result.inconclusive',
@@ -127,6 +132,7 @@ const demoHrFlag: FixtureReading = {
   id: 'demo-hr-flag',
   mode: 'quick',
   createdAt: new Date(demoDay.year, demoDay.month, demoDay.day - 1, 9, 15),
+  sample: true,
   synthetic: true,
   scan: {
     headlineKey: 'result.regular',

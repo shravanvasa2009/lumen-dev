@@ -1,4 +1,4 @@
-import { renderRouter, screen } from 'expo-router/testing-library';
+import { renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { processColor } from 'react-native';
 
 import en from '@/i18n/en.json';
@@ -99,9 +99,9 @@ describe.each([
     expect(screen.queryByText(en['demo.synthetic'])).toBeNull();
   });
 
-  it('shows no chart for an unknown id', () => {
+  it('shows no chart for an unknown id', async () => {
     openWhy('missing');
-    expectNavTitle(en['result.inconclusive']);
+    await waitFor(() => expectNavTitle(en['result.inconclusive']));
     expect(screen.queryByText(en['why.poincare'])).toBeNull();
   });
 });

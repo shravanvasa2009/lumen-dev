@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 
+import { saveReading } from '@/store/readings';
+
 import { analyzeKeptCapture, type AnalysisRequest } from './analyzeKeptCapture';
 import { type AnalysisProgress, pendingProgress } from './analysisProgress';
-import { saveFinishedReading } from './finishedReadings';
 import { keptCapture, type KeptCapture } from './keptCapture';
 import { DEFAULT_MODE } from './mode';
 
@@ -24,20 +25,24 @@ function useAnalysisOf(capture: KeptCapture, { mode, restTimerDone }: AnalysisRe
     analyzeKeptCapture(capture, { mode, restTimerDone }, (progress) => {
       latest = progress;
       if (active) setState({ phase: 'running', progress });
-    }).then(
-      ({ readingId, reading, progress }) => {
-        saveFinishedReading(readingId, reading);
-        if (active) setState({ phase: 'done', progress, readingId });
-      },
-      (error: unknown) => {
-        if (active)
-          setState({
-            phase: 'failed',
-            progress: latest,
-            reason: error instanceof Error ? error.message : String(error),
-          });
-      },
-    );
+    })
+      .then(async ({ readingId, recordedMs, context, models, reading, progress }) => {
+        await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
+        return { readingId, progress };
+      })
+      .then(
+        ({ readingId, progress }) => {
+          if (active) setState({ phase: 'done', progress, readingId });
+        },
+        (error: unknown) => {
+          if (active)
+            setState({
+              phase: 'failed',
+              progress: latest,
+              reason: error instanceof Error ? error.message : String(error),
+            });
+        },
+      );
     return () => {
       active = false;
     };

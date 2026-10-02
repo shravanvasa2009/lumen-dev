@@ -10,17 +10,21 @@ import {
 
 import evidence from '../../assets/evidence.json';
 import { classifyRhythm } from '../ml/runtime';
+import { loadProfile } from '../store/profile';
 import { type AnalysisProgress, pendingProgress } from './analysisProgress';
 import type { KeptCapture } from './keptCapture';
 import type { MeasureMode } from './mode';
 
 export type AnalysisRequest = { mode: MeasureMode; restTimerDone: boolean };
 
-export type AnalysedReading = { readingId: string; reading: ReadingResult; progress: AnalysisProgress };
-
-// Nothing stores a profile or earlier readings yet (the SQLite store is a later task), so no condition is
-// assumed and no history rule can fire.
-const NO_PROFILE = { athlete: false, betaBlocker: false, pacemaker: false, knownAf: false };
+export type AnalysedReading = {
+  readingId: string;
+  recordedMs: number;
+  context: ReadingContext;
+  models: ModelOutputs;
+  reading: ReadingResult;
+  progress: AnalysisProgress;
+};
 
 // One turn of the event loop, so the screen draws a step as active before the next blocking step starts.
 const letScreenDraw = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -96,8 +100,9 @@ export async function analyzeKeptCapture(
 
   report(step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'active' }, counts));
   await letScreenDraw();
-  const reading = buildReadingResult(analysis, models, evidence, NO_PROFILE, []);
+  const profile = await loadProfile();
+  const reading = buildReadingResult(analysis, models, evidence, profile, []);
 
   const finished = step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'done' }, counts);
-  return { readingId: `reading-${recordedMs}`, reading, progress: finished };
+  return { readingId: `reading-${recordedMs}`, recordedMs, context, models, reading, progress: finished };
 }

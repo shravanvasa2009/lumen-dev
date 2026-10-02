@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
+import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { ReplayCapture, type RecordedCapture } from '../../modules/lumen-capture/src';
+import { storedReadingById } from '@/store/readings';
 
-import { finishedReading } from './finishedReadings';
 import { keepCapture, keptCapture } from './keptCapture';
 import { useLiveCapture } from './useLiveCapture';
 import { useReadingAnalysis } from './useReadingAnalysis';
@@ -64,6 +65,7 @@ async function replayFor(recording: RecordedCapture, seconds: number) {
 beforeEach(() => {
   jest.useFakeTimers();
   keepCapture(null);
+  emptyMockDatabases();
 });
 afterEach(() => jest.useRealTimers());
 
@@ -139,8 +141,10 @@ describe('reading analysis of a kept capture', () => {
       baseline: 'done',
     });
     expect(phases).toContain('running');
-    const reading = finishedReading(done.readingId);
-    if (!reading) throw new Error('the finished reading was not saved');
+    const saved = await storedReadingById(done.readingId);
+    if (!saved) throw new Error('the finished reading was not saved');
+    const reading = saved.outcome;
+    expect(saved.mode).toBe('quick');
     expect(done.progress.beats).toBe(reading.beats);
     expect(done.progress.rejectedBeats).toBe(reading.rejectedBeats);
     expect(reading.cleanSeconds).toBeGreaterThan(35);

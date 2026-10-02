@@ -98,7 +98,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
       }
     >
       <ScrollView contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xxl }}>
-        <DemoBanner synthetic={reading.synthetic} />
+        {reading.sample ? <DemoBanner synthetic={reading.synthetic} /> : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <AppText variant="title" accessibilityRole="header">
             {t('results.title')}

@@ -1,9 +1,12 @@
 import { renderHook } from '@testing-library/react-native';
-import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { useDoctorPhone } from '@/profile/doctorPhone';
+import { loadProfile } from '@/store/profile';
+
+import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -16,6 +19,8 @@ const ageField = () => screen.getByLabelText(en['profile.age']);
 const phoneField = () => screen.getByLabelText(en['profile.doctorPhone']);
 
 describe('profile', () => {
+  beforeEach(emptyMockDatabases);
+
   afterEach(() => {
     const { result: doctorPhone } = renderHook(() => useDoctorPhone());
     act(() => doctorPhone.current.setPhone(null));
@@ -61,6 +66,24 @@ describe('profile', () => {
     const athlete = screen.getByRole('switch', { name: en['profile.athlete'] });
     fireEvent(athlete, 'valueChange', true);
     expect(screen.getByRole('switch', { name: en['profile.athlete'] })).toBeChecked();
+  });
+
+  it('saves a health note as it is flipped and shows it again on the next visit', async () => {
+    const first = renderRouter('./app', { initialUrl: '/profile' });
+    fireEvent(screen.getByRole('switch', { name: en['profile.pacemaker'] }), 'valueChange', true);
+    fireEvent(screen.getByRole('switch', { name: en['profile.afibReported'] }), 'valueChange', true);
+    await waitFor(async () =>
+      expect(await loadProfile()).toEqual({
+        athlete: false,
+        betaBlocker: false,
+        pacemaker: true,
+        knownAf: true,
+      }),
+    );
+    first.unmount();
+    renderRouter('./app', { initialUrl: '/profile' });
+    await waitFor(() => expect(screen.getByRole('switch', { name: en['profile.pacemaker'] })).toBeChecked());
+    expect(screen.getByRole('switch', { name: en['profile.betaBlocker'] })).not.toBeChecked();
   });
 
   it('has an optional doctor phone field with a phone keypad that never blocks Continue', () => {

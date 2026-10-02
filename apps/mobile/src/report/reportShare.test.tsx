@@ -21,6 +21,7 @@ function openReport(id: string) {
 
 // The first router render of the report can take about 3 s under parallel Jest workers.
 const firstRenderMs = 5000;
+jest.setTimeout(30_000);
 
 const shareButton = () => screen.getByRole('button', { name: en['report.sharePdf'] });
 

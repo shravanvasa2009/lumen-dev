@@ -35,6 +35,7 @@
   "profile.basics": "Basics",
   "profile.healthNotes": "Health notes",
   "profile.note": "These change thresholds. A pacemaker turns off rhythm screening.",
+  "profile.saveFailed": "Could not save that answer. Try again.",
   "phoneCheck.title": "Checking your phone",
   "phoneCheck.subtitle": "About 10 seconds. Keep the app open.",
   "phoneCheck.cameraSpeed": "Rear camera speed",

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
@@ -185,9 +185,9 @@ describe.each([
     expect(screen.queryByText(en['safety.title'])).toBeNull();
   });
 
-  it('shows no numbers for an unknown id', () => {
+  it('shows no numbers for an unknown id', async () => {
     openResults('missing');
-    expect(screen.getByText(en['result.inconclusive'])).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByText(en['result.inconclusive'])).toBeOnTheScreen());
     expect(screen.queryByText(/bpm|\bms\b/)).toBeNull();
     expect(screen.queryByRole('button', { name: en['results.share'] })).toBeNull();
   });

@@ -278,7 +278,8 @@ export function analyzeReading(
   const segments = beatSegments(timebase, rejectedSpans);
   const bySegment = intervalsBySegment(segments, timebase.startNs);
   const { intervalsS, spansArtifact, atypicalBeats } = rhythmInputs(segments);
-  const windows = rhythmWindows(intervalsS, spansArtifact, atypicalBeats);
+  // rhythmWindows takes one flag per beat; with no beat at all there is nothing to window.
+  const windows = atypicalBeats.length > 0 ? rhythmWindows(intervalsS, spansArtifact, atypicalBeats) : [];
 
   return {
     context,

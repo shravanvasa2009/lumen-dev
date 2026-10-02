@@ -2,12 +2,15 @@ import { fireEvent, getMockContext, renderRouter, screen } from 'expo-router/tes
 import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
+import { useFixedMorning } from '@/testing/fixedMorning';
 import tokens from '@/theme/tokens.json';
 
 // Turn on reminders asks the system for notification permission before it leaves the screen.
 jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
 }));
+
+useFixedMorning();
 
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -28,7 +31,7 @@ const routes: readonly Route[] = [
   { file: '(onboarding)/how-to-sit', url: '/how-to-sit', title: 'howToSit.title' },
   { file: '(onboarding)/rating', url: '/rating', title: 'rating.title' },
   { file: '(onboarding)/reminders', url: '/reminders', title: 'reminders.title' },
-  { file: '(tabs)/index', url: '/', title: 'tabs.home' },
+  { file: '(tabs)/index', url: '/', title: 'home.greetingMorning' },
   { file: '(tabs)/trends', url: '/trends', title: 'trends.title' },
   { file: '(tabs)/learn', url: '/learn', title: 'learn.title' },
   { file: '(tabs)/settings', url: '/settings', title: 'settings.title' },
@@ -144,7 +147,7 @@ describe('navigation', () => {
       ['common.continue', 'reminders.title'],
     ]);
     fireEvent.press(screen.getByRole('button', { name: en['reminders.turnOn'] }));
-    expect(await screen.findByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
   it('walks Home through a measurement to results', () => {

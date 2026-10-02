@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
 import tokens from '@/theme/tokens.json';
 
 // Turn on reminders asks the system for notification permission before it leaves the screen.
@@ -19,48 +20,90 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => mockScheme,
 }));
 
-type Route = { file: string; url: string; title: keyof typeof en };
+// 'nav' titles sit in the centred native nav bar; 'body' titles are drawn in the screen (tab roots, the
+// onboarding steps, hero screens, and the screens still to be moved by their owner).
+type TitlePlace = 'nav' | 'body';
+
+type Route = { file: string; url: string; title: keyof typeof en; place: TitlePlace };
 
 // One row per screen of spec §12.2. Capture appears twice because mode=full and mode=quick are two screens.
 const routes: readonly Route[] = [
-  { file: '(onboarding)/welcome', url: '/welcome', title: 'app.name' },
-  { file: '(onboarding)/consent', url: '/consent', title: 'consent.title' },
-  { file: '(onboarding)/profile', url: '/profile', title: 'profile.title' },
-  { file: '(onboarding)/phone-check', url: '/phone-check', title: 'phoneCheck.title' },
-  { file: '(onboarding)/placement', url: '/placement', title: 'placement.title' },
-  { file: '(onboarding)/practice', url: '/practice', title: 'practice.title' },
-  { file: '(onboarding)/how-to-sit', url: '/how-to-sit', title: 'howToSit.title' },
-  { file: '(onboarding)/rating', url: '/rating', title: 'rating.title' },
-  { file: '(onboarding)/reminders', url: '/reminders', title: 'reminders.title' },
-  { file: '(tabs)/index', url: '/', title: 'home.greetingMorning' },
-  { file: '(tabs)/trends', url: '/trends', title: 'trends.title' },
-  { file: '(tabs)/learn', url: '/learn', title: 'learn.title' },
-  { file: '(tabs)/settings', url: '/settings', title: 'settings.title' },
-  { file: 'measure/mode', url: '/measure/mode', title: 'mode.title' },
-  { file: 'measure/precheck', url: '/measure/precheck?mode=full', title: 'precheck.title' },
-  { file: 'measure/capture', url: '/measure/capture?mode=full', title: 'mode.full' },
-  { file: 'measure/capture', url: '/measure/capture?mode=quick', title: 'mode.quick' },
-  { file: 'measure/processing', url: '/measure/processing', title: 'processing.title' },
-  { file: 'results/[id]/index', url: '/results/demo', title: 'results.title' },
-  { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.titleRegular' },
-  { file: 'measure/inconclusive', url: '/measure/inconclusive', title: 'result.inconclusive' },
-  { file: 'emergency', url: '/emergency', title: 'emergency.title' },
-  { file: 'measure/standing-test', url: '/measure/standing-test', title: 'standing.title' },
-  { file: 'report/[id]', url: '/report/demo', title: 'report.title' },
-  { file: 'learn/[slug]', url: '/learn/what-is-afib', title: 'learn.lessonAfib' },
-  { file: 'settings/phone', url: '/settings/phone', title: 'phoneRating.title' },
-  { file: 'settings/lab', url: '/settings/lab', title: 'lab.title' },
-  { file: 'measure/fix-technique', url: '/measure/fix-technique', title: 'fix.title' },
-  { file: 'settings/accuracy', url: '/settings/accuracy', title: 'accuracy.title' },
-  { file: 'settings/appearance', url: '/settings/appearance', title: 'appearance.title' },
-  { file: 'settings/notifications', url: '/settings/notifications', title: 'notifications.title' },
-  { file: 'settings/widgets/index', url: '/settings/widgets', title: 'widgets.title' },
-  { file: 'settings/widgets/lock-screen', url: '/settings/widgets/lock-screen', title: 'lockScreen.title' },
-  { file: 'follow-up', url: '/follow-up', title: 'followUp.title' },
+  { file: '(onboarding)/welcome', url: '/welcome', title: 'app.name', place: 'body' },
+  { file: '(onboarding)/consent', url: '/consent', title: 'consent.title', place: 'body' },
+  { file: '(onboarding)/profile', url: '/profile', title: 'profile.title', place: 'body' },
+  { file: '(onboarding)/phone-check', url: '/phone-check', title: 'phoneCheck.title', place: 'body' },
+  { file: '(onboarding)/placement', url: '/placement', title: 'placement.title', place: 'body' },
+  { file: '(onboarding)/practice', url: '/practice', title: 'practice.title', place: 'body' },
+  { file: '(onboarding)/how-to-sit', url: '/how-to-sit', title: 'howToSit.title', place: 'body' },
+  { file: '(onboarding)/rating', url: '/rating', title: 'rating.title', place: 'body' },
+  { file: '(onboarding)/reminders', url: '/reminders', title: 'reminders.title', place: 'body' },
+  { file: '(tabs)/index', url: '/', title: 'home.greetingMorning', place: 'body' },
+  { file: '(tabs)/trends', url: '/trends', title: 'trends.title', place: 'body' },
+  { file: '(tabs)/learn', url: '/learn', title: 'learn.title', place: 'body' },
+  { file: '(tabs)/settings', url: '/settings', title: 'settings.title', place: 'body' },
+  { file: 'measure/mode', url: '/measure/mode', title: 'mode.title', place: 'nav' },
+  { file: 'measure/precheck', url: '/measure/precheck?mode=full', title: 'precheck.title', place: 'nav' },
+  { file: 'measure/capture', url: '/measure/capture?mode=full', title: 'mode.full', place: 'body' },
+  { file: 'measure/capture', url: '/measure/capture?mode=quick', title: 'mode.quick', place: 'body' },
+  { file: 'measure/processing', url: '/measure/processing', title: 'processing.title', place: 'body' },
+  { file: 'results/[id]/index', url: '/results/demo', title: 'results.title', place: 'body' },
+  { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.titleRegular', place: 'body' },
+  { file: 'measure/inconclusive', url: '/measure/inconclusive', title: 'result.inconclusive', place: 'body' },
+  { file: 'emergency', url: '/emergency', title: 'emergency.title', place: 'body' },
+  { file: 'measure/standing-test', url: '/measure/standing-test', title: 'standing.title', place: 'body' },
+  { file: 'report/[id]', url: '/report/demo', title: 'report.title', place: 'nav' },
+  { file: 'learn/[slug]', url: '/learn/what-is-afib', title: 'learn.lessonAfib', place: 'nav' },
+  { file: 'settings/phone', url: '/settings/phone', title: 'phoneRating.title', place: 'nav' },
+  { file: 'settings/lab', url: '/settings/lab', title: 'lab.title', place: 'nav' },
+  { file: 'measure/fix-technique', url: '/measure/fix-technique', title: 'fix.title', place: 'nav' },
+  { file: 'settings/accuracy', url: '/settings/accuracy', title: 'accuracy.title', place: 'nav' },
+  { file: 'settings/appearance', url: '/settings/appearance', title: 'appearance.title', place: 'nav' },
+  {
+    file: 'settings/notifications',
+    url: '/settings/notifications',
+    title: 'notifications.title',
+    place: 'nav',
+  },
+  { file: 'settings/widgets/index', url: '/settings/widgets', title: 'widgets.title', place: 'nav' },
+  {
+    file: 'settings/widgets/lock-screen',
+    url: '/settings/widgets/lock-screen',
+    title: 'lockScreen.title',
+    place: 'nav',
+  },
+  { file: 'follow-up', url: '/follow-up', title: 'followUp.title', place: 'body' },
 ];
 
 // Resolved against the working directory, which is apps/mobile when the mobile workspace runs jest.
 const appDirectory = './app';
+
+// What the native header config must carry for a centred title: iOS always centres, so the checkable parts
+// are the title, its Headline size and text colour, the teal chevron, no back text, and no shadow.
+function navHeaderLook(title: string, colors: typeof tokens.dark) {
+  return {
+    title,
+    titleColor: colors.text,
+    titleFontSize: tokens.type.headline.size,
+    color: colors.accent,
+    backTitleVisible: false,
+    hideShadow: true,
+  };
+}
+
+function placeOf(title: keyof typeof en): TitlePlace {
+  const route = routes.find((candidate) => candidate.title === title);
+  if (!route) throw new Error(`no route in the table has the title ${title}`);
+  return route.place;
+}
+
+// A nav-bar title is read from the focused native header; a body title from the screen's heading role.
+function expectTitleOnScreen(title: keyof typeof en) {
+  if (placeOf(title) === 'nav') {
+    expectNavTitle(en[title]);
+  } else {
+    expect(screen.getByRole('header', { name: en[title] })).toBeOnTheScreen();
+  }
+}
 
 function routeFilesUnder(directory: string): string[] {
   return getMockContext(directory)
@@ -89,13 +132,19 @@ describe.each([
     mockScheme = scheme;
   });
 
-  it.each(routes)('renders $url with its translated title', ({ url, title }) => {
+  it.each(routes)('renders $url with its translated title', ({ url, title, place }) => {
     renderRouter(appDirectory, { initialUrl: url });
-    const heading = screen.getByRole('header', { name: en[title] });
     const isEmergency = url === '/emergency';
-    expect(StyleSheet.flatten(heading.props.style)).toMatchObject({
-      color: isEmergency ? colors.criticalText : colors.text,
-    });
+    if (place === 'nav') {
+      expect(focusedNavHeader()).toMatchObject(navHeaderLook(en[title], colors));
+      expect(screen.queryByRole('header', { name: en[title] })).toBeNull();
+    } else {
+      const heading = screen.getByRole('header', { name: en[title] });
+      expect(focusedNavHeader()?.title).not.toBe(en[title]);
+      expect(StyleSheet.flatten(heading.props.style)).toMatchObject({
+        color: isEmergency ? colors.criticalText : colors.text,
+      });
+    }
 
     // Red is reserved for the emergency screen (SAFE-1); the serialized tree holds every style colour.
     const drawn = JSON.stringify(screen.toJSON());
@@ -125,7 +174,7 @@ describe('navigation', () => {
   function pressThrough(steps: readonly Step[]) {
     for (const [button, nextTitle] of steps) {
       fireEvent.press(screen.getByRole('button', { name: en[button] }));
-      expect(screen.getByRole('header', { name: en[nextTitle] })).toBeOnTheScreen();
+      expectTitleOnScreen(nextTitle);
     }
   }
 
@@ -154,9 +203,9 @@ describe('navigation', () => {
   it('walks Home through a measurement to results', () => {
     followButtons('/', [['home.measure', 'mode.title']]);
     fireEvent.press(screen.getByText(en['mode.quick']));
-    expect(screen.getByRole('header', { name: en['precheck.title'] })).toBeOnTheScreen();
+    expectTitleOnScreen('precheck.title');
     fireEvent.press(screen.getByRole('button', { name: en['precheck.start'] }));
-    expect(screen.getByRole('header', { name: en['mode.quick'] })).toBeOnTheScreen();
+    expectTitleOnScreen('mode.quick');
     // Capture ends only on clean seconds, which the emulator cannot produce, so the next screen is opened
     // by its route.
     act(() => router.push('/measure/processing'));

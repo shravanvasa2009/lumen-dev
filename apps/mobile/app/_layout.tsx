@@ -4,18 +4,26 @@ import { StatusBar } from 'expo-status-bar';
 import '@/i18n';
 import { useTheme } from '@/theme';
 
-// Each screen draws its own translated title in its body, so the native header only carries the back button.
+// Pushed screens show a centred nav-bar title and a teal back chevron, as the mockups do; RouteShell sets the title.
 export default function RootLayout() {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, type } = useTheme();
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
-          headerTitle: '',
+          // Screens that still draw their own body title leave the nav-bar title empty.
+          title: '',
+          headerTitleAlign: 'center',
+          headerTitleStyle: {
+            color: colors.text,
+            fontSize: type.headline.size,
+            fontWeight: type.headline.weight,
+          },
+          headerBackButtonDisplayMode: 'minimal',
           headerShadowVisible: false,
           headerStyle: { backgroundColor: colors.bg },
-          headerTintColor: colors.text,
+          headerTintColor: colors.accent,
           contentStyle: { backgroundColor: colors.bg },
         }}
       >

@@ -2,6 +2,7 @@ import { renderRouter, screen } from 'expo-router/testing-library';
 import { processColor } from 'react-native';
 
 import en from '@/i18n/en.json';
+import { expectNavTitle } from '@/testing/navHeader';
 import tokens from '@/theme/tokens.json';
 
 let mockScheme: 'light' | 'dark';
@@ -100,7 +101,7 @@ describe.each([
 
   it('shows no chart for an unknown id', () => {
     openWhy('missing');
-    expect(screen.getByRole('header', { name: en['result.inconclusive'] })).toBeOnTheScreen();
+    expectNavTitle(en['result.inconclusive']);
     expect(screen.queryByText(en['why.poincare'])).toBeNull();
   });
 });

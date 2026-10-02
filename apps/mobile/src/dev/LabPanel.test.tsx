@@ -6,8 +6,19 @@ import tokens from '@/theme/tokens.json';
 import { ReplayCapture, type LabDiagnostics, type RecordedCapture } from '../../modules/lumen-capture/src';
 
 import { LabPanel } from './LabPanel';
+import type { StrapEvents } from './polarStrap';
 
 import '@/i18n';
+
+// The Bluetooth side is tested in polarStrap.test.ts; here a fake strap hands the panel its events.
+let mockStrapEvents: StrapEvents | undefined;
+const mockStrapDisconnect = jest.fn(async () => undefined);
+jest.mock('./polarStrap', () => ({
+  connectStrap: jest.fn(async (strapEvents: StrapEvents) => {
+    mockStrapEvents = strapEvents;
+    return { name: 'Polar H10 SYNTHETIC', disconnect: mockStrapDisconnect };
+  }),
+}));
 
 let mockScheme: 'light' | 'dark' = 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -591,4 +602,53 @@ test('a lens without a torch disables every torch choice but Off until another l
 
   await press(en['lab.lensDefault']);
   expect(level(1)).toBeEnabled();
+});
+
+test('records strap RR during a capture and sends it as polarRr on the camera clock', async () => {
+  const fetchMock = jest.fn(
+    async (_url: string, _init: { body: string }) =>
+      ({ status: 201, text: async () => JSON.stringify({ folder: 'f' }) }) as Response,
+  );
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  const { unmount } = render(<LabPanel capture={new ReplayCapture(syntheticRecording())} />);
+  await act(async () => undefined);
+  await press(en['lab.strapConnect']);
+  expect(screen.getByText(fill(en['lab.strapConnected'], { name: 'Polar H10 SYNTHETIC' }))).toBeOnTheScreen();
+
+  await press(en['lab.start']);
+  await act(async () => {
+    jest.advanceTimersByTime(1000);
+  });
+  // SYNTHETIC strap packet: one RR interval of 833 ms.
+  act(() => mockStrapEvents?.onMeasurement({ bpm: 72, contact: 'detected', rrMs: [833] }));
+  expect(screen.getByText(fill(en['lab.strapHr'], { bpm: 72 }))).toBeOnTheScreen();
+  await act(async () => {
+    jest.advanceTimersByTime(1500);
+  });
+  await press(en['lab.stop']);
+  expect(screen.getByText(fill(en['lab.strapRecorded'], { count: 1 }))).toBeOnTheScreen();
+
+  typeReceiver('10.0.2.2:8787', 'abc123');
+  await press(en['lab.send']);
+  const sent = JSON.parse(fetchMock.mock.calls[0]?.[1].body ?? '{}');
+  const frameTimes = syntheticRecording().samples.tNs;
+  expect(sent.polarRr.rrMs).toEqual([833]);
+  expect(sent.polarRr.tNs).toHaveLength(1);
+  expect(sent.polarRr.tNs[0]).toBeGreaterThanOrEqual(frameTimes[0]!);
+  expect(sent.polarRr.tNs[0]).toBeLessThanOrEqual(frameTimes[frameTimes.length - 1]!);
+
+  unmount();
+  expect(mockStrapDisconnect).toHaveBeenCalled();
+});
+
+test('a capture without a strap sends no polarRr', async () => {
+  const fetchMock = jest.fn(
+    async (_url: string, _init: { body: string }) =>
+      ({ status: 201, text: async () => JSON.stringify({ folder: 'f' }) }) as Response,
+  );
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  await recordWholeReplay();
+  typeReceiver('10.0.2.2:8787', 'abc123');
+  await press(en['lab.send']);
+  expect(JSON.parse(fetchMock.mock.calls[0]?.[1].body ?? '{}')).not.toHaveProperty('polarRr');
 });

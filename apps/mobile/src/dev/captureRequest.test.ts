@@ -74,3 +74,9 @@ test('reports torchLevel 0 when the native module says the torch is off', () => 
   const body = captureRequestBody(batches, { capabilities, summary, lab: { ...lab, torchOn: false } });
   expect(body.meta.torchLevel).toBe(0);
 });
+
+test('passes strap RR through as polarRr when a strap was recorded', () => {
+  const polarRr = { tNs: [1500, 2300], rrMs: [800, 812.5] };
+  const body = captureRequestBody(batches, { capabilities, summary, polarRr });
+  expect(body.polarRr).toStrictEqual(polarRr);
+});

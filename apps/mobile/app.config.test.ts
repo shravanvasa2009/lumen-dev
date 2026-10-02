@@ -73,3 +73,16 @@ describe('app.config personal-team mode (BOOT)', () => {
     expect(() => loadConfig({ LUMEN_IOS_PERSONAL_TEAM: flag })).toThrow(/LUMEN_IOS_PERSONAL_TEAM/);
   });
 });
+
+describe('app.config Bluetooth for the Lab chest strap', () => {
+  it('uses the spec §9.5 purpose string and never asks for location on Android 12+', () => {
+    expect(loadConfig({}).plugins).toContainEqual([
+      'react-native-ble-plx',
+      {
+        isBackgroundEnabled: false,
+        neverForLocation: true,
+        bluetoothAlwaysPermission: 'Used only in Lab mode to compare Lumen with a heart-rate chest strap.',
+      },
+    ]);
+  });
+});

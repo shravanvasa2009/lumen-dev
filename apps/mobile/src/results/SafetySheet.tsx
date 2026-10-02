@@ -14,7 +14,7 @@ type SafetySheetProps = { visible: boolean; onDismiss: () => void };
 export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { colors, isDark, radius, spacing, control } = useTheme();
+  const { colors, radius, spacing, control } = useTheme();
   const openEmergency = () => {
     onDismiss();
     router.push('/emergency');
@@ -31,8 +31,7 @@ export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
             right: 0,
             bottom: 0,
             left: 0,
-            backgroundColor: isDark ? colors.bg : colors.text,
-            opacity: 0.6,
+            backgroundColor: colors.scrim,
           }}
         />
         <View

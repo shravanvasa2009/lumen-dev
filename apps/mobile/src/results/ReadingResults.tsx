@@ -15,7 +15,7 @@ import { DemoBanner } from './DemoBanner';
 import { ExperimentalCard } from './ExperimentalCard';
 import type { FixtureReading } from './fixtures';
 import { formatClock, formatDay } from './format';
-import { Glyph } from './Glyph';
+import { Icon } from '@/components/Icon';
 import { MetricCard } from './MetricCard';
 import { rhythmWords } from './rhythmWords';
 import { SafetySheet } from './SafetySheet';
@@ -109,7 +109,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
             hitSlop={spacing.md}
             onPress={() => router.push(`/report/${reading.id}`)}
           >
-            <Glyph name="share" size={24} color={colors.accent} />
+            <Icon name="share" size={24} color={colors.accent} />
           </Pressable>
         </View>
 

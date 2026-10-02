@@ -1,6 +1,10 @@
 import type { ReadingResult } from '@lumen/core';
 
-export type StoredReading = { takenAt: number; outcome: ReadingResult };
+import type { MeasureMode } from '@/measure/mode';
+
+// mode is the check that took the reading. A reading without one counts as a Quick Check, so it can never
+// clear the widget's doctor status (spec §9.6, ADR 0005).
+export type StoredReading = { takenAt: number; outcome: ReadingResult; mode?: MeasureMode };
 
 export type TileMetric = 'hr' | 'rmssd' | 'resp';
 

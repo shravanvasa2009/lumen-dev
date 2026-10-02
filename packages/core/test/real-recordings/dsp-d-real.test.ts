@@ -20,6 +20,10 @@ const SCALES = Array.from({ length: 25 }, (_, i) => 0.97 + 0.0025 * i);
 const LAGS_S = Array.from({ length: 151 }, (_, i) => -0.5 + 0.01 * i);
 const MATCH_S = 0.1;
 const EDGE_S = 1;
+// Owner decision H-028 option A (ADR 0025 definition): an extra detection is an unmatched candidate
+// 0.15–0.35 s after a matched one, where a dicrotic double sits. It is timed from the matched candidate, not
+// the mapped QRS, so the per-record alignment error does not move it. B and C are printed for the record.
+const DICROTIC_AFTER_S: [number, number] = [0.15, 0.35];
 
 const CASE_TIMEOUT_MS = 600_000;
 
@@ -28,8 +32,10 @@ interface Counts {
   referenceBeats: number;
   missed: number;
   removed: number; // reference beats whose nearest candidate within 0.1 s is not-a-beat
-  extras: number; // candidates more than 0.1 s from every mapped QRS, at any delay
-  extrasKept: number; // extras not classed not-a-beat
+  extras: number; // A: unmatched candidates 0.15–0.35 s after a matched candidate
+  extrasKept: number; // A: extras not classed not-a-beat (asserted)
+  netExtrasKept: number; // B: per record, kept candidates minus reference beats, floored at 0
+  anyDelayExtrasKept: number; // C: kept candidates more than 0.1 s from every mapped QRS
 }
 const emptyCounts = (): Counts => ({
   records: 0,
@@ -38,6 +44,8 @@ const emptyCounts = (): Counts => ({
   removed: 0,
   extras: 0,
   extrasKept: 0,
+  netExtrasKept: 0,
+  anyDelayExtrasKept: 0,
 });
 
 function analyseRecord(record: ButPpgRecord): Analysis {
@@ -94,20 +102,35 @@ function countRecord(record: ButPpgRecord, counts: Counts) {
     if (!nearest) counts.missed++;
     else if (nearest.beatClass === 'not-a-beat') counts.removed++;
   }
+  const [afterMinS, afterMaxS] = DICROTIC_AFTER_S;
+  const isMatched = (peakS: number) => referenceS.some((tS) => Math.abs(peakS - tS) <= MATCH_S);
+  const matchedPeaksS = beats.map(({ peakS }) => peakS).filter(isMatched);
+  let keptInside = 0;
   for (const beat of beats) {
     if (!inside(beat.peakS)) continue;
-    if (referenceS.some((tS) => Math.abs(beat.peakS - tS) <= MATCH_S)) continue;
+    const kept = beat.beatClass !== 'not-a-beat';
+    if (kept) keptInside++;
+    if (isMatched(beat.peakS)) continue;
+    if (kept) counts.anyDelayExtrasKept++;
+    const afterMatched = matchedPeaksS.some(
+      (peakS) => beat.peakS - peakS >= afterMinS && beat.peakS - peakS <= afterMaxS,
+    );
+    if (!afterMatched) continue;
     counts.extras++;
-    if (beat.beatClass !== 'not-a-beat') counts.extrasKept++;
+    if (kept) counts.extrasKept++;
   }
+  counts.netExtrasKept += Math.max(0, keptInside - referenceS.filter(inside).length);
 }
 
 const percent = (part: number, whole: number) => `${((100 * part) / whole).toFixed(2)}%`;
 const describeCounts = (label: string, counts: Counts) =>
   `${label}: ${counts.records} records, ${counts.referenceBeats} reference beats; ` +
   `real beats removed ${percent(counts.removed, counts.referenceBeats)} (${counts.removed}), ` +
-  `extras kept ${percent(counts.extrasKept, counts.referenceBeats)} (${counts.extrasKept} of ` +
-  `${counts.extras} extras), missed ${percent(counts.missed, counts.referenceBeats)} (${counts.missed})`;
+  `extras kept (A, 0.15–0.35 s after a matched beat) ${percent(counts.extrasKept, counts.referenceBeats)} ` +
+  `(${counts.extrasKept} of ${counts.extras}), net per record (B) ` +
+  `${percent(counts.netExtrasKept, counts.referenceBeats)}, any delay (C) ` +
+  `${percent(counts.anyDelayExtrasKept, counts.referenceBeats)}, ` +
+  `missed ${percent(counts.missed, counts.referenceBeats)} (${counts.missed})`;
 
 describe('DSP-D on BUT PPG 2.0.0 (quality 1, no motion; ADR 0025 report half asserted)', () => {
   const groups = {
@@ -148,7 +171,7 @@ describe('DSP-D on BUT PPG 2.0.0 (quality 1, no motion; ADR 0025 report half ass
     expect(groups.report.removed / groups.report.referenceBeats).toBeLessThanOrEqual(MAX_REMOVED);
   });
 
-  it('keeps extra detections below 5% of beats', () => {
+  it('keeps dicrotic extra detections (H-028 option A) below 5% of beats', () => {
     expect(groups.report.extrasKept / groups.report.referenceBeats).toBeLessThan(MAX_EXTRAS_KEPT);
   });
 });

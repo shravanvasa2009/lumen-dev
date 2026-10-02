@@ -4,8 +4,12 @@
 appId: io.github.shravanvasa2009.heartcheck
 name: Home through a measurement to results, emergency, report, why, and fix-technique
 ---
+# Capture and Practice ask for the camera; granting it at launch keeps the Android dialog off the screen.
+# https://docs.maestro.dev/api-reference/commands/launchapp
 - launchApp:
     clearState: true
+    permissions:
+      camera: allow
 # launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
 - extendedWaitUntil:
     visible: 'Change mode'

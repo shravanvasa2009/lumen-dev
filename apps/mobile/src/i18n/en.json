@@ -107,6 +107,7 @@
   "trends.emptyTitle": "No readings yet",
   "trends.emptyBody": "Take a reading and your trends will appear here.",
   "trends.demoNote": "These sample readings were written by hand to show how Trends looks. They are not saved and not yours.",
+  "trends.synthetic": "Synthetic",
   "learn.title": "Learn",
   "learn.lessonPulse": "How Lumen reads your pulse",
   "learn.lessonAfib": "What is AFib — and why it matters",

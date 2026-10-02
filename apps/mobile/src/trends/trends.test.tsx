@@ -139,6 +139,13 @@ describe('Trends content', () => {
     expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
   });
 
+  it('tags only the synthetic fixture row, in both languages', () => {
+    openView(demoHistory);
+    expect(screen.getAllByText(en['trends.synthetic'])).toHaveLength(1);
+    expect(readingById('demo-flag')?.synthetic).toBe(true);
+    expect(es['trends.synthetic']).not.toBe(en['trends.synthetic']);
+  });
+
   it('has the same keys in Spanish', () => {
     for (const key of Object.keys(en).filter((name) => name.startsWith('trends.'))) {
       expect(es).toHaveProperty([key]);

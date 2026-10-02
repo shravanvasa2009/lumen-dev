@@ -107,6 +107,7 @@
   "trends.emptyTitle": "Aún no hay mediciones",
   "trends.emptyBody": "Haz una medición y tus tendencias aparecerán aquí.",
   "trends.demoNote": "Estas mediciones de ejemplo se escribieron a mano para mostrar cómo se ven las tendencias. No se guardan y no son tuyas.",
+  "trends.synthetic": "Sintético",
   "learn.title": "Aprender",
   "learn.lessonPulse": "Cómo lee Lumen tu pulso",
   "learn.lessonAfib": "Qué es la fibrilación auricular y por qué importa",

@@ -2,7 +2,7 @@ import { NativeModule, requireOptionalNativeModule } from 'expo';
 
 // What the standing-test live timer shows (LIVE-1): the Android ongoing notification and the iOS Live Activity.
 // Every string comes from lockscreen.json, so neither carries a value or a condition name (WID-2).
-export type StandingTimerContent = {
+type StandingTimerContent = {
   // Android only: the notification channel's name and the "Measure now" action button.
   channelName: string;
   actionLabel: string;

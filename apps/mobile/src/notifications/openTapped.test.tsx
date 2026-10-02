@@ -1,7 +1,7 @@
 import { DEFAULT_ACTION_IDENTIFIER, type NotificationResponse } from 'expo-notifications';
 import { renderRouter } from 'expo-router/testing-library';
 
-import { appPathFor } from './openTapped';
+import { redirectSystemPath } from '../deepLinks';
 
 let mockResponse: NotificationResponse | null = null;
 
@@ -39,16 +39,17 @@ function tapped(url: string, actionIdentifier = DEFAULT_ACTION_IDENTIFIER): Noti
   };
 }
 
-describe('appPathFor', () => {
+describe('notification routes', () => {
   it.each([
     ['lumen://check', '/measure/precheck?mode=quick'],
+    ['lumen://check/', '/measure/precheck?mode=quick'],
     ['lumen://check?mode=full', '/measure/precheck?mode=full'],
     ['lumen://check?mode=quick', '/measure/precheck?mode=quick'],
     ['lumen://standing', '/measure/standing-test'],
     ['/follow-up', '/follow-up'],
     ['/settings/phone', '/settings/phone'],
   ])('opens %s at %s', (link, path) => {
-    expect(appPathFor(link)).toBe(path);
+    expect(redirectSystemPath({ path: link })).toBe(path);
   });
 });
 

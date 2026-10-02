@@ -41,11 +41,10 @@ function detrendLinear(values: Float64Array): Float64Array {
   return values.map((value, k) => value - mean - slope * (k - tMean));
 }
 
-/**
- * DSP-13: Welch PSD equal to scipy.signal.welch(x, fs=4, window='hann', nperseg=128, noverlap=64,
- * nfft=512, detrend='linear', return_onesided=True, scaling='density', average='mean').
- * https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.welch.html
- */
+// Equal to scipy.signal.welch(x, fs=4, window='hann', nperseg=128, noverlap=64, nfft=512,
+// detrend='linear', return_onesided=True, scaling='density', average='mean').
+// https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.welch.html
+/** DSP-13: Welch power spectral density of a 4 Hz modulation series. */
 export function welchPsd(series: ArrayLike<number>): WelchSpectrum {
   const {
     seriesRateHz: rateHz,

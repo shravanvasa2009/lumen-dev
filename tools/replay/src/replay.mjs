@@ -95,7 +95,7 @@ function intervalsCsv(intervals) {
   return `${['t_ns,ibi_ms,accepted,nn', ...rows].join('\n')}\n`;
 }
 
-/** Replays one capture folder through @lumen/core and writes replay-result.json and replay-intervals.csv. */
+// Writes replay-result.json and replay-intervals.csv into the capture folder (Track C/E contract).
 export async function replayFolder(folder, { rhythmFromLabel = false } = {}) {
   const core = await loadCore();
   const { samples, stats, meta } = readCapture(folder);

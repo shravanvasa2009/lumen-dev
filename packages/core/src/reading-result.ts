@@ -239,10 +239,8 @@ function headline(hr: HrMetric | null, rhythm: RhythmCall | null): HeadlineKey {
   return rhythm.metric.class === 'sinus' ? 'result.regular' : 'result.irregularRetake';
 }
 
-/**
- * Appendix B Results JSON for one reading: §10.1 decision rules, §6.2 floors, §7 confidence, and evidence
- * labels from evidence.json only (EVID-1).
- */
+// Evidence labels come from evidence.json only (EVID-1).
+/** Appendix B Results JSON for one reading: §10.1 rules, §6.2 floors, and §7 confidence. */
 export function buildReadingResult(
   analysis: ReadingAnalysis,
   models: ModelOutputs,

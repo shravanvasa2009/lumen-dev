@@ -10,7 +10,7 @@ const HAS_EXTENSION = /\.[cm]?[jt]s$|\.json$/;
 
 let hooked = false;
 
-/** Loads @lumen/core from source; the same functions the app runs. */
+// Loads @lumen/core from source: the same functions the app runs.
 export async function loadCore() {
   if (!process.features.typescript)
     throw new Error(`Node ${process.version} cannot strip TypeScript types; use Node 22.18 or later`);

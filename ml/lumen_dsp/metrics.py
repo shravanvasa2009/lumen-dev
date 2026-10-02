@@ -2,7 +2,9 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from lumen_dsp.beats import js_round
 from lumen_dsp.config import DSP_CONFIG
+from lumen_dsp.median import median
 from lumen_dsp.resample import ResampledSegment
 from lumen_dsp.signals import dc_level
 
@@ -17,7 +19,7 @@ class MeasuredBeat:
     long_pause: bool  # DSP-9 long pause on the interval ending at this beat
     amplitude: float  # DSP-8 peak minus onset level (the preceding minimum), morphology band
     intensity: float  # raw −R at the peak: the DSP-13 intensity (baseline) series
-    dc: float  # DSP-3 DC level of −R at the peak; negative, since −R is
+    dc: float  # DSP-3 DC level of −R at the peak; negative because −R is negative
 
 
 @dataclass(frozen=True)
@@ -26,20 +28,6 @@ class Hrv:
     sdnn_ms: float | None
     pnn50: float | None  # fraction of successive differences over 50 ms
     nn_intervals: int  # NN intervals left after the 20% filter
-
-
-def median(values: Sequence[float]) -> float:
-    # Same arithmetic as packages/core/src/median.ts: the mean of the two middle values for an even count.
-    ordered = sorted(values)
-    if not ordered:
-        return math.nan
-    middle = len(ordered) >> 1
-    return ordered[middle] if len(ordered) % 2 == 1 else (ordered[middle - 1] + ordered[middle]) / 2
-
-
-def js_round(value: float) -> int:
-    # JavaScript Math.round (half up), not Python's half-to-even round().
-    return math.floor(value + 0.5)
 
 
 # Time in [start_s, end_s] not covered by any rejected span (overlaps counted once).

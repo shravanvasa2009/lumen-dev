@@ -13,7 +13,7 @@ import type { RhythmClass } from './results';
 export interface MeasuredBeat extends ClassifiedBeat {
   amplitude: number; // DSP-8 peak minus onset level (the preceding minimum), morphology band
   intensity: number; // raw −R at the peak: the DSP-13 intensity (baseline) series
-  dc: number; // DSP-3 DC level of −R at the peak; negative, since −R is
+  dc: number; // DSP-3 DC level of −R at the peak; negative because −R is negative
 }
 
 export interface Hrv {
@@ -129,10 +129,9 @@ function filteredRuns(runs: number[][]): number[][] {
   return kept;
 }
 
-/**
- * DSP-12: RMSSD, SDNN, and pNN50 from NN intervals; null unless the rhythm is sinus and the capture
- * format runs at ≥ 60 fps. Each value is null below its own clean-data floor.
- */
+// Null unless the rhythm is sinus and the capture format runs at ≥ 60 fps; each value is also null below
+// its own clean-data floor.
+/** DSP-12: RMSSD, SDNN, and pNN50 from NN intervals. */
 export function hrv(
   segments: ClassifiedBeat[][],
   rhythm: RhythmClass,

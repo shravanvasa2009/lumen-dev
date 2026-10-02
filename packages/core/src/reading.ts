@@ -219,7 +219,7 @@ function rhythmInputs(segments: MeasuredBeat[][]) {
   return { intervalsS, spansArtifact, atypicalBeats: beats.map((beat) => beat.beatClass === 'atypical') };
 }
 
-// RMSSD / mean over accepted intervals, in ms; successive differences only between accepted neighbours
+// RMSSD / mean interval over accepted intervals (unitless); successive differences only between accepted neighbours
 // of one segment, which share a beat.
 function normalizedRmssdOf(bySegment: BeatInterval[][]): number | null {
   let total = 0;
@@ -240,10 +240,7 @@ function normalizedRmssdOf(bySegment: BeatInterval[][]): number | null {
   return differences > 0 ? Math.sqrt(squares / differences) / (total / count) : null;
 }
 
-/**
- * The reading pipeline from Appendix A samples and frame stats to everything the decision rules need:
- * DSP-1 to DSP-13 and DSP-15, with acquisition spans from DSP-4, DSP-5, motion, and SQI scores.
- */
+/** DSP-1 to DSP-13 and DSP-15 over one capture, with DSP-4/DSP-5, motion, and SQI rejected spans. */
 export function analyzeReading(
   capture: { samples: Sample[]; stats: FrameStat[] },
   context: ReadingContext,

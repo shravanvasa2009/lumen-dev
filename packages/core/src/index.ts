@@ -84,3 +84,13 @@ export {
   type RhythmOutputs,
 } from './reading-result';
 export { createLiveSession, type LiveSessionConfig } from './live';
+export {
+  rateDevice,
+  tierUnlocks,
+  type DeviceRating,
+  type HardFail,
+  type RatingCapabilities,
+  type RatingMeasures,
+  type RatingMode,
+  type RatingTier,
+} from './rating';

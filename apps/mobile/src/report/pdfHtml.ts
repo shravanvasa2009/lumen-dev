@@ -72,8 +72,8 @@ type ReportPdf = {
 function pageHtml(
   { t, language, demo }: Pick<ReportPdf, 't' | 'language' | 'demo'>,
   page: FixtureReading,
+  diabetes: ReturnType<typeof diabetesFor>,
 ): string {
-  const diabetes = diabetesFor([page], evidenceFor('diabetes').measured);
   const { rhythm, hr } = page.scan.metrics;
   const flagLines = [
     rhythm?.flag ? t('report.flagRhythmOne') : null,
@@ -121,7 +121,12 @@ function pageHtml(
 // measurements have no section (§12.5), and the evidence paragraph comes from evidence.json through the
 // shared helpers.
 export function buildReportHtml({ t, language, reading, dayReadings, demo }: ReportPdf): string {
-  const pages = pdfPageReadings(reading, dayReadings).map((page) => pageHtml({ t, language, demo }, page));
+  // The estimate is a multi-day pattern held on one reading of the day, so it is read from the whole day,
+  // as the card does, and repeated on every page so each printed page stands alone.
+  const diabetes = diabetesFor(dayReadings, evidenceFor('diabetes').measured);
+  const pages = pdfPageReadings(reading, dayReadings).map((page) =>
+    pageHtml({ t, language, demo }, page, diabetes),
+  );
   return [
     `<!DOCTYPE html><html lang="${escapeHtml(language)}"><head><meta charset="utf-8"><title>${escapeHtml(t('report.heading'))}</title><style>${stylesheet}</style></head><body>`,
     ...pages,

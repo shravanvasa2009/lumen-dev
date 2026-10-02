@@ -38,11 +38,15 @@ jest.mock('@/accuracy/readAccuracy', () => {
   return { ...actual, bundledAccuracy: actual.readAccuracy(mockPassedFile()) };
 });
 
+const demo = readingById('demo') as FixtureReading;
+const flaggedReading = readingById('demo-flag') as FixtureReading;
+const englishT = i18next.getFixedT('en');
+const diabetesSentence = 'Seen on 2 readings (Sep 25, Sep 27). Not a diagnostic test.';
+
 describe('buildReportHtml with a passed evidence file (EVID-1)', () => {
-  it('takes labels and figures from the file alone, and leaves the diabetes line off a reading without an estimate', () => {
-    const demo = readingById('demo') as FixtureReading;
+  it('takes labels and figures from the file alone and prints the card diabetes line', () => {
     const html = buildReportHtml({
-      t: i18next.getFixedT('en'),
+      t: englishT,
       language: 'en',
       reading: demo,
       dayReadings: readingsOnDay(demo.createdAt),
@@ -50,7 +54,19 @@ describe('buildReportHtml with a passed evidence file (EVID-1)', () => {
     });
     expect(html).toMatch(/Heart rate: Checked vs reference\. Average error 1\.6 bpm\./);
     expect(html).toMatch(/Rhythm check: Tested on public data\. Sensitivity/);
-    expect(html.includes('Diabetes pattern:')).toBe(false);
+    expect(html).toContain(`Diabetes pattern:</b> ${diabetesSentence}`);
     expect(html).not.toMatch(/HRV|extra beats|pulse shape/i);
+  });
+
+  it('repeats the diabetes line on every page', () => {
+    const html = buildReportHtml({
+      t: englishT,
+      language: 'en',
+      reading: demo,
+      dayReadings: [demo, flaggedReading, { ...flaggedReading, id: 'demo-flag-2' }],
+      demo: true,
+    });
+    expect(html.match(/<section class="page">/g)).toHaveLength(2);
+    expect(html.split(diabetesSentence)).toHaveLength(3);
   });
 });

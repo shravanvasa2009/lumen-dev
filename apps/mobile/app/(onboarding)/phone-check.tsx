@@ -23,7 +23,7 @@ type CapabilityRow = { title: string; value: string; status: RowStatus };
 const MARK_DIAMETER = 12;
 const MARK_RING = 2;
 
-// Colour alone never carries the state: the value text beside each mark says it too. Red is reserved
+// Colour alone never carries the state: each mark has its own shape (tick, dot, ring). Red is reserved
 // for the emergency screen, so a failed row uses the flag colour.
 function StatusMark({ status }: { status: RowStatus }) {
   const { colors, control } = useTheme();

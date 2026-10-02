@@ -24,7 +24,7 @@ name: Home through a measurement to results, emergency, report, why, and fix-tec
 # Capture ends only on clean seconds, which the emulator cannot produce, so open the next screen by link.
 - openLink: lumen://measure/processing
 - assertVisible: 'Analyzing your reading'
-- tapOn: 'See results'
+- tapOn: 'See a sample result'
 - assertVisible: 'Results'
 # The demo reading has no heart-rate or rhythm flag, so the safety question comes from the flagged one.
 - openLink: lumen://results/demo-flag

@@ -209,7 +209,7 @@ describe('navigation', () => {
     // Capture ends only on clean seconds, which the emulator cannot produce, so the next screen is opened
     // by its route.
     act(() => router.push('/measure/processing'));
-    fireEvent.press(screen.getByRole('button', { name: en['processing.seeResults'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['processing.seeSample'] }));
     expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
   });
 

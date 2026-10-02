@@ -204,4 +204,7 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
+          # The default profile is a 480x800 Nexus One, about 320x533 dp. Lumen's scrolling screens then
+          # keep buttons and rows below the fold, where Maestro cannot see or tap them (it does not scroll).
+          profile: pixel_6
           script: npm run e2e:android

@@ -56,6 +56,12 @@ def _metrics_problems(spec: ModelSpec, metrics: dict) -> list[str]:
         problems.append("development needs subjects > 0 and metrics with numeric estimate, low, and high")
     if not (isinstance(metrics.get("sourceSha256"), str) and _SHA256.fullmatch(metrics["sourceSha256"])):
         problems.append(f"sourceSha256 must be the sha256 of {spec.source_file}")
+    calibration = metrics.get("calibration") or {}
+    # train.rhythm and train.rhythm_calibration key each calibration to the weights it measured, so a
+    # block copied from another model's metrics, or one with any table but no key, is refused.
+    keyed = any(key in calibration for key in ("reliabilityAf", "reliabilityTop", "sourceSha256"))
+    if keyed and calibration.get("sourceSha256") != metrics.get("sourceSha256"):
+        problems.append("calibration.sourceSha256 must equal sourceSha256: it was measured on another model")
     return problems
 
 
@@ -128,18 +134,33 @@ def check_parity(models_dir: Path, manifest_entries: list[dict], source_shas: di
 
 
 def threshold_approval(spec: ModelSpec, basis: str | None) -> str | None:
-    # The owner's recorded decision for this model's threshold basis, or None if there is none.
+    # The owner's recorded decision for this model's threshold basis in this model's role, or None. An
+    # approval given for one role never unlocks another: H-024 option B accepts SQI-Net's basis for a
+    # reject-only guard, so it cannot make SQI-Net the quality gate.
     approval = OWNER_APPROVED_THRESHOLD_BASES.get(spec.name)
-    return approval["decision"] if approval and approval["basis"] == basis else None
+    if approval and approval["basis"] == basis and approval.get("role") == spec.role:
+        return approval["decision"]
+    return None
+
+
+def _unapproved_basis(spec: ModelSpec, basis: str) -> str:
+    approval = OWNER_APPROVED_THRESHOLD_BASES.get(spec.name)
+    if approval and approval["basis"] == basis:
+        return (
+            f"{spec.name} ships as a {spec.role} with threshold basis {basis!r}, but the owner approved that "
+            f"basis only for role {approval.get('role')!r} ({approval['decision']})"
+        )
+    return f"{spec.name} ships with threshold basis {basis!r}, which the owner has not approved"
 
 
 def check_threshold_bases(specs: list[ModelSpec], metrics_by_name: dict[str, dict | None]) -> None:
-    # ADR 0038 item 7 (τ set without quality-0 windows) is proposed, not accepted: the owner decides it in
-    # HUMAN_STEPS H-024. A shipped model may use a basis other than "all-bad" only once that decision is
-    # recorded in export/specs.py; a metrics file claiming approval on its own proves nothing. It fails
-    # closed: train.sqi always records its basis, so a shipped SQI model without one is refused. Rhythm and
-    # diabetes thresholds are outside ADR 0038 and record no basis. No metrics at all means an untrained
-    # pipeline check, which write_manifest allows only outside models/ and which has no threshold.
+    # ADR 0038 item 7 (τ set without quality-0 windows) needs the owner's decision (HUMAN_STEPS H-024). A
+    # shipped model may use a basis other than "all-bad" only once that decision is recorded in
+    # export/specs.py for the same basis and the model's role; a metrics file claiming approval on its own
+    # proves nothing. It fails closed: train.sqi always records its basis, so a shipped SQI model without
+    # one is refused. Rhythm and diabetes thresholds are outside ADR 0038 and record no basis. No metrics
+    # at all means an untrained pipeline check, which write_manifest allows only outside models/ and which
+    # has no threshold.
     problems = []
     for spec in specs:
         metrics = metrics_by_name.get(spec.name)
@@ -152,9 +173,7 @@ def check_threshold_bases(specs: list[ModelSpec], metrics_by_name: dict[str, dic
             continue
         approved = threshold_approval(spec, basis)
         if basis != ALL_BAD_BASIS and approved is None:
-            problems.append(
-                f"{spec.name} ships with threshold basis {basis!r}, which the owner has not approved"
-            )
+            problems.append(_unapproved_basis(spec, basis))
         claimed = metrics.get("ownerApproval")
         if claimed is not None and claimed != approved:
             problems.append(
@@ -164,5 +183,6 @@ def check_threshold_bases(specs: list[ModelSpec], metrics_by_name: dict[str, dic
     if problems:
         raise ProvenanceError(
             "; ".join(problems) + ". The owner decides this in HUMAN_STEPS H-024 (ADR 0038); record the "
-            "decision in OWNER_APPROVED_THRESHOLD_BASES in export/specs.py, or retrain with an all-bad basis."
+            "decision, with its basis and role, in OWNER_APPROVED_THRESHOLD_BASES in export/specs.py, or "
+            "retrain with an all-bad basis."
         )

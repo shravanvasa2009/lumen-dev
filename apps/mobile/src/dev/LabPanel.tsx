@@ -21,9 +21,12 @@ import {
   type SampleBatch,
 } from '../../modules/lumen-capture/src';
 
-import { captureRequestBody } from './captureRequest';
+import { captureRequestBody, type PolarRr } from './captureRequest';
+import type { HeartRateMeasurement } from './heartRateMeasurement';
 import { keepLiveWindow, readLiveHeartRate, type LiveHeartRate } from './liveHeartRate';
+import { connectStrap, type StrapConnection } from './polarStrap';
 import { sendCapture } from './sendCapture';
+import { jsClockNs, lowerOffsetNs, stampStrapRr, type StrapNotification } from './strapClock';
 
 // About 5 s at 60 fps or 10 s at 30 fps: enough to see several pulses.
 const TRACE_POINTS = 300;
@@ -42,11 +45,21 @@ const TORCH_ON_OFF = [0, 1];
 const LIVE_HR_EVERY_NS = 1e9;
 
 type Subscription = { remove(): void };
-type Recorded = { capabilities: Capabilities; summary: CaptureSummary; lab?: LabDiagnostics };
+type Recorded = {
+  capabilities: Capabilities;
+  summary: CaptureSummary;
+  lab?: LabDiagnostics;
+  polarRr?: PolarRr;
+};
 type SendState =
   | { kind: 'idle' }
   | { kind: 'sending' }
   | { kind: 'sent'; folder: string }
+  | { kind: 'failed'; reason: string };
+type StrapState =
+  | { kind: 'off' }
+  | { kind: 'connecting' }
+  | { kind: 'connected'; name: string }
   | { kind: 'failed'; reason: string };
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -54,6 +67,12 @@ const reasonOf = (error: unknown) => (error instanceof Error ? error.message : S
 // Used once the screen is gone, so a failure can only go to the dev console.
 function stopUnattended(capture: LumenCaptureModule) {
   capture.stop().catch((error: unknown) => console.warn(`Lab capture did not stop: ${reasonOf(error)}`));
+}
+
+function disconnectUnattended(connection: StrapConnection) {
+  connection
+    .disconnect()
+    .catch((error: unknown) => console.warn(`Chest strap did not disconnect: ${reasonOf(error)}`));
 }
 
 // Raw red means scaled to the visible window's own range, so the pulse is visible at any brightness. This
@@ -204,6 +223,11 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const [locking, setLocking] = useState(false);
   const [lockDone, setLockDone] = useState(false);
   const autoLockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const strap = useRef<StrapConnection | null>(null);
+  const strapNotifications = useRef<StrapNotification[]>([]);
+  const strapOffsetNs = useRef<number | null>(null);
+  const [strapState, setStrapState] = useState<StrapState>({ kind: 'off' });
+  const [strapReading, setStrapReading] = useState<HeartRateMeasurement | null>(null);
 
   const cancelAutoLock = () => {
     if (autoLockTimer.current) clearTimeout(autoLockTimer.current);
@@ -225,6 +249,14 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       if (capturing.current && capture) stopUnattended(capture);
     };
   }, [capture]);
+
+  useEffect(
+    () => () => {
+      if (strap.current) disconnectUnattended(strap.current);
+      strap.current = null;
+    },
+    [],
+  );
 
   // The lens and torch choices come from the phone itself, never from a typed list (spec §4.3).
   useEffect(() => {
@@ -319,6 +351,8 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       liveWindow.current = [];
       lastEstimateNs.current = null;
       lastLab.current = undefined;
+      strapNotifications.current = [];
+      strapOffsetNs.current = null;
       setLiveHr({ kind: 'none' });
       setTrace([]);
       setFrames(0);
@@ -334,6 +368,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           setFrames((count) => count + batch.samples.length);
           liveWindow.current = keepLiveWindow(liveWindow.current, batch.samples);
           const newest = batch.samples[batch.samples.length - 1];
+          if (newest) strapOffsetNs.current = lowerOffsetNs(strapOffsetNs.current, jsClockNs(), newest.tNs);
           if (
             newest &&
             (lastEstimateNs.current === null ||
@@ -385,12 +420,60 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       const summary = await capture.stop();
       removeListeners();
       setRunning(false);
-      if (phone.current) setRecorded({ capabilities: phone.current, summary, lab: lastLab.current });
+      if (phone.current)
+        setRecorded({
+          capabilities: phone.current,
+          summary,
+          lab: lastLab.current,
+          polarRr: stampStrapRr(strapNotifications.current, strapOffsetNs.current),
+        });
     } catch (error) {
       capturing.current = true;
       reportFailure(error);
     } finally {
       endSwitch();
+    }
+  };
+
+  const connectToStrap = async () => {
+    setStrapState({ kind: 'connecting' });
+    try {
+      const connection = await connectStrap({
+        onMeasurement: (measurement) => {
+          // Stamped on arrival; strapClock maps this JS time onto the camera clock when the capture stops.
+          if (capturing.current && measurement.rrMs.length)
+            strapNotifications.current.push({ jsNs: jsClockNs(), rrMs: measurement.rrMs });
+          if (mounted.current) setStrapReading(measurement);
+        },
+        onLost: (reason) => {
+          strap.current = null;
+          if (!mounted.current) return;
+          setStrapReading(null);
+          setStrapState({ kind: 'failed', reason });
+        },
+      });
+      if (!mounted.current) {
+        // Closing the screen does not cancel a scan or connect in flight (up to 15 s); the strap is
+        // released here once it connects. Acceptable in the dev-only Lab.
+        disconnectUnattended(connection);
+        return;
+      }
+      strap.current = connection;
+      setStrapState({ kind: 'connected', name: connection.name });
+    } catch (error) {
+      if (mounted.current) setStrapState({ kind: 'failed', reason: reasonOf(error) });
+    }
+  };
+
+  const disconnectStrap = async () => {
+    const connection = strap.current;
+    strap.current = null;
+    setStrapReading(null);
+    setStrapState({ kind: 'off' });
+    try {
+      await connection?.disconnect();
+    } catch (error) {
+      if (mounted.current) setStrapState({ kind: 'failed', reason: reasonOf(error) });
     }
   };
 
@@ -538,6 +621,35 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           : t('lab.liveHrNone')}
       </AppText>
       {liveHr.kind === 'error' ? <AppText>{t('lab.liveHrError', { reason: liveHr.reason })}</AppText> : null}
+
+      <AppText variant="headline">{t('lab.strap')}</AppText>
+      <Button
+        variant="secondary"
+        label={
+          strapState.kind === 'connected'
+            ? t('lab.strapDisconnect')
+            : strapState.kind === 'connecting'
+              ? t('lab.strapConnecting')
+              : t('lab.strapConnect')
+        }
+        onPress={strapState.kind === 'connected' ? disconnectStrap : connectToStrap}
+        disabled={strapState.kind === 'connecting'}
+      />
+      {strapState.kind === 'connected' ? (
+        <>
+          <AppText tone="textDim">{t('lab.strapConnected', { name: strapState.name })}</AppText>
+          <AppText>
+            {strapReading ? t('lab.strapHr', { bpm: strapReading.bpm }) : t('lab.strapHrNone')}
+          </AppText>
+          {strapReading?.contact === 'notDetected' ? <AppText>{t('lab.strapNoContact')}</AppText> : null}
+        </>
+      ) : null}
+      {strapState.kind === 'failed' ? (
+        <AppText>{t('lab.strapFailed', { reason: strapState.reason })}</AppText>
+      ) : null}
+      {recorded?.polarRr ? (
+        <AppText tone="textDim">{t('lab.strapRecorded', { count: recorded.polarRr.rrMs.length })}</AppText>
+      ) : null}
 
       <AppText variant="headline">{t('lab.diagnostics')}</AppText>
       {lab ? <Diagnostics lab={lab} /> : <AppText tone="textDim">{t('lab.noDiagnostics')}</AppText>}

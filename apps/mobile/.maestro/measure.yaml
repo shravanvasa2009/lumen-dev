@@ -4,8 +4,12 @@
 appId: io.github.shravanvasa2009.heartcheck
 name: Home through a measurement to results, emergency, report, why, and fix-technique
 ---
+# Capture and Practice ask for the camera; granting it at launch keeps the Android dialog off the screen.
+# https://docs.maestro.dev/api-reference/commands/launchapp
 - launchApp:
     clearState: true
+    permissions:
+      camera: allow
 # launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
 - extendedWaitUntil:
     visible: 'Change mode'
@@ -17,36 +21,26 @@ name: Home through a measurement to results, emergency, report, why, and fix-tec
 - assertVisible: 'Before you start'
 - tapOn: 'Start reading'
 - assertVisible: 'Quick Check'
-- tapOn: 'Finish reading'
+# Capture ends only on clean seconds, which the emulator cannot produce, so open the next screen by link.
+- openLink: lumen://measure/processing
 - assertVisible: 'Analyzing your reading'
-- tapOn: 'See results'
+- tapOn: 'See a sample result'
 - assertVisible: 'Results'
-# On short screens (the CI emulator) this button sits below the fold.
-- scrollUntilVisible:
-    element:
-      text: 'Yes'
-    direction: DOWN
+# The demo reading has no heart-rate or rhythm flag, so the safety question comes from the flagged one.
+- openLink: lumen://results/demo-flag
+- assertVisible: 'Quick safety check'
 - tapOn: 'Yes'
 - assertVisible: 'Get help now'
 - openLink: lumen://results/demo
-# On short screens (the CI emulator) this button sits below the fold.
-- scrollUntilVisible:
-    element:
-      text: 'Share'
-    direction: DOWN
+# Share and Show me why are pinned below the cards, so they are visible without scrolling.
 - tapOn: 'Share'
 - assertVisible: 'Doctor report'
 - openLink: lumen://results/demo
-# On short screens (the CI emulator) this button sits below the fold.
-- scrollUntilVisible:
-    element:
-      text: 'Show me why'
-    direction: DOWN
 - tapOn: 'Show me why'
-# The button and the destination share the words "Show me why", so check a line only the destination has.
-- assertVisible: 'Beat-to-beat intervals \(ms\)'
+# The destination's title; the curly quotes around "regular" are matched with dots.
+- assertVisible: 'Why .regular.\?'
 - openLink: lumen://measure/capture?mode=quick
-- tapOn: "Can't get a clean signal\\?"
+- tapOn: 'Stop reading'
 - assertVisible: 'Not enough clean signal\.'
 - tapOn: 'Fix my technique \(2 min\)'
 - assertVisible: 'Fix my technique'

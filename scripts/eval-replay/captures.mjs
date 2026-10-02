@@ -48,6 +48,31 @@ function strapInsideCapture(folder, polar, span) {
   return inside;
 }
 
+// A Bluetooth dropout loses strap notifications, and with them whole beats. Beat times are running sums of
+// intervals, so every beat after a dropout would pair with the wrong heartbeat.
+// Rows are stamped per notification, earlier RRs in one stepped back by RR (order E.B polar-clock), so within
+// a notification t_ns steps by exactly its RR, and between two the step also carries the change in how long
+// after its last beat each arrived: up to one RR, at most 2000 ms for a usable strap beat, plus bridge delay.
+// Only a larger step is certainly lost beats, and how many is then unknown to within a beat, so no filler
+// can restore the timing: the longest unbroken stretch is kept and the rest dropped.
+const DROPOUT_MS = 2000 + 250;
+
+function longestUnbrokenStretch(rows) {
+  const stretches = [[]];
+  rows.forEach((row, i) => {
+    if (i > 0 && (row.t_ns - rows[i - 1].t_ns) / 1e6 - row.rr_ms > DROPOUT_MS) stretches.push([]);
+    stretches.at(-1).push(row);
+  });
+  const longest = stretches.reduce((best, stretch) => (stretch.length > best.length ? stretch : best));
+  // Where the kept stretch begins (its first interval's start), so alignment can start there too.
+  const first = longest[0];
+  return {
+    polarRrMs: longest.map((row) => row.rr_ms),
+    polarStartNs: first ? first.t_ns - first.rr_ms * 1e6 : null,
+    strapDropouts: stretches.length - 1,
+  };
+}
+
 function readCapture(folder) {
   const phone = readCsv(folder, 'replay-intervals.csv', ['t_ns', 'ibi_ms', 'accepted']);
   if (!phone) throw new Error(`${folder}: replay-result.json has no replay-intervals.csv beside it`);
@@ -57,8 +82,10 @@ function readCapture(folder) {
     folder: path.basename(folder),
     meta: JSON.parse(fs.readFileSync(path.join(folder, 'meta.json'), 'utf8')),
     reading: JSON.parse(fs.readFileSync(path.join(folder, RESULT), 'utf8')),
-    phone: phone.map((row) => ({ ibiMs: row.ibi_ms, accepted: row.accepted === 1 })),
-    polarRrMs: polar && strapInsideCapture(folder, polar, span).map((row) => row.rr_ms),
+    phone: phone.map((row) => ({ endNs: row.t_ns, ibiMs: row.ibi_ms, accepted: row.accepted === 1 })),
+    ...(polar
+      ? longestUnbrokenStretch(strapInsideCapture(folder, polar, span))
+      : { polarRrMs: null, polarStartNs: null, strapDropouts: 0 }),
   };
 }
 

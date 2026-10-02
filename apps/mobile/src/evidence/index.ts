@@ -13,7 +13,7 @@ export type MetricEvidence = {
 
 const weakest: MetricEvidence = { label: 'experimental', measured: false };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
@@ -33,6 +33,14 @@ export function readEvidence(file: unknown): Record<EvidenceMetric, MetricEviden
     EvidenceMetric,
     MetricEvidence
   >;
+}
+
+// The raw record of one metric, for screens that show its figures. It applies no gating: each caller decides
+// whether its figures depend on the label (readEvidence) or not (rhythm explainer figures).
+export function metricRecord(file: unknown, metric: EvidenceMetric): Record<string, unknown> {
+  const metrics = isRecord(file) && isRecord(file.metrics) ? file.metrics : {};
+  const record = metrics[metric];
+  return isRecord(record) ? record : {};
 }
 
 const bundled = readEvidence(bundledEvidence);

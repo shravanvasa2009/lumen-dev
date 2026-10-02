@@ -1,21 +1,34 @@
 import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
 
+import { AppText } from '@/components/AppText';
+import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
-import { RouteShell } from '@/components/RouteShell';
+import { OnboardingStep } from '@/components/OnboardingStep';
+import { PhoneBackIllustration } from '@/components/PhoneBackIllustration';
+import { useTheme } from '@/theme';
 
 export default function PlacementScreen() {
   const { t } = useTranslation();
+  const { spacing } = useTheme();
+  const tips = [t('placement.tipCover'), t('placement.tipCase'), t('placement.tipWipe')];
   return (
-    <RouteShell
+    <OnboardingStep
+      step={4}
       title={t('placement.title')}
-      subtitle={t('placement.flashOutsideBump')}
-      sections={[
-        { heading: t('placement.lens') },
-        { heading: t('placement.flash') },
-        { heading: t('placement.tipCover'), lines: [t('placement.tipCase'), t('placement.tipWipe')] },
-      ]}
+      subtitle={t('placement.subtitle')}
+      footer={<NavButton label={t('placement.start')} href="/practice" />}
     >
-      <NavButton label={t('placement.start')} href="/practice" />
-    </RouteShell>
+      <PhoneBackIllustration lensLabel={t('placement.lens')} flashLabel={t('placement.flash')} />
+      <Card>
+        <AppText variant="headline">{t('placement.flashOutsideBump')}</AppText>
+        {tips.map((tip) => (
+          <View key={tip} style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <AppText tone="textDim">•</AppText>
+            <AppText tone="textDim">{tip}</AppText>
+          </View>
+        ))}
+      </Card>
+    </OnboardingStep>
   );
 }

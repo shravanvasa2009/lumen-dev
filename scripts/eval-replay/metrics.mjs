@@ -1,5 +1,5 @@
 import { alignIntervals } from './align.mjs';
-import { mean, rmssd, subjectBootstrap } from './stats.mjs';
+import { mean, median, rmssd, subjectBootstrap } from './stats.mjs';
 
 // Which readings count: only conclusive ones feed error metrics; DSP-A uses resting sessions only;
 // strap intervals outside 30–200 bpm are strap artifacts and are never a reference.
@@ -31,12 +31,34 @@ function hrError(capture) {
   return Math.abs(phoneHr - 60000 / mean(capture.polarRrMs.filter(polarUsable)));
 }
 
+// Sequence alignment searches only ±10 beats, so when the strap data starts later in the reading (the
+// longest stretch after a dropout), alignment starts at the phone beat the shared clock puts there. The margin
+// covers the strap's notification delay (under its ~1 s notification period) with room to spare.
+const START_MARGIN_BEATS = 5;
+
+function phoneBeatsBeforeStrap(capture) {
+  if (capture.polarStartNs == null) return 0;
+  const firstAfter = capture.phone.findIndex((beat) => beat.endNs > capture.polarStartNs);
+  // Strap data that starts after the last phone beat shares no heartbeats with it.
+  return firstAfter === -1 ? null : Math.max(0, firstAfter - START_MARGIN_BEATS);
+}
+
 function alignmentOf(capture) {
   if (!hasPolar(capture) || !capture.phone.length || !isConclusive(capture)) return null;
-  return alignIntervals(
-    capture.phone.map((beat) => beat.ibiMs),
+  const skip = phoneBeatsBeforeStrap(capture);
+  if (skip === null) return null;
+  const alignment = alignIntervals(
+    capture.phone.slice(skip).map((beat) => beat.ibiMs),
     capture.polarRrMs,
-    (p, q) => capture.phone[p].accepted && polarUsable(capture.polarRrMs[q]),
+    (p, q) => capture.phone[p + skip].accepted && polarUsable(capture.polarRrMs[q]),
+  );
+  // Back to whole-reading phone indices: strap interval q = phone interval p + lag.
+  return (
+    alignment && {
+      ...alignment,
+      lag: alignment.lag - skip,
+      pairs: alignment.pairs.map(([p, q]) => [p + skip, q]),
+    }
   );
 }
 
@@ -52,13 +74,13 @@ function intervalError(capture, alignment) {
 }
 
 // The app's own RMSSD against the strap's RMSSD over the matched segment (DSP-B checks what the card shows).
-function rmssdWithinTolerance(capture, alignment) {
+function rmssdRelativeError(capture, alignment) {
   const shown = capture.reading.metrics?.rmssd?.value;
   if (shown == null || !alignment?.pairs.length) return null;
   const segment = capture.polarRrMs.slice(alignment.pairs[0][1], alignment.pairs.at(-1)[1] + 1);
   const reference = rmssd(segment, segment.map(polarUsable));
   if (!reference) return null;
-  return Math.abs(shown - reference) / reference <= RMSSD_TOLERANCE;
+  return Math.abs(shown - reference) / reference;
 }
 
 function summarize(rows) {
@@ -85,8 +107,8 @@ export function computeMetrics(captures, { commit, date }, log = () => {}) {
   );
   const rmssdRows = aligned
     .filter(({ capture }) => capture.meta.fps >= RMSSD_MIN_FPS)
-    .map(({ capture, alignment }) => ({ capture, within: rmssdWithinTolerance(capture, alignment) }))
-    .filter((row) => row.within != null);
+    .map(({ capture, alignment }) => ({ capture, error: rmssdRelativeError(capture, alignment) }))
+    .filter((row) => row.error != null);
   const resp = summarize(
     captures.map((capture) => {
       const paced = capture.meta.labels?.pacedBrpm;
@@ -131,8 +153,12 @@ export function computeMetrics(captures, { commit, date }, log = () => {}) {
     intervals: { maeMs: round(intervals.value), ci95: roundPair(intervals.ci95) },
     rmssd: {
       withinPct: round(
-        rmssdRows.length ? (100 * rmssdRows.filter((row) => row.within).length) / rmssdRows.length : null,
+        rmssdRows.length
+          ? (100 * rmssdRows.filter((row) => row.error <= RMSSD_TOLERANCE).length) / rmssdRows.length
+          : null,
       ),
+      // DSP-B's pass rule uses the median across readings (ADR 0044).
+      medianErrorPct: round(rmssdRows.length ? 100 * median(rmssdRows.map((row) => row.error)) : null),
       people: distinct(rmssdRows.map((row) => subjectOf(row.capture))),
     },
     resp: { maeBrpm: round(resp.value), people: distinct(resp.rows.map((row) => subjectOf(row.capture))) },

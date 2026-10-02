@@ -482,12 +482,17 @@ def with_ci(units: Units, metric: Metric) -> dict | None:
     }
 
 
+def af_threshold(subjects: Units) -> float:
+    # §10.1: τ_AF on the subject-level scores, for at least 95% specificity on the non-AF subjects.
+    return threshold_for_specificity(subjects.scores[~subjects.is_af], TARGET_SPECIFICITY)
+
+
 def evaluate(probs: np.ndarray, val: WindowSet, premature_probs: np.ndarray, premature: WindowSet) -> dict:
     # Every model is scored in float64, as the app averages float32 outputs in JavaScript doubles.
     probs, premature_probs = probs.astype(np.float64), premature_probs.astype(np.float64)
     scores = probs[:, AF]
     subjects = subject_units(scores, val)
-    tau = threshold_for_specificity(subjects.scores[~subjects.is_af], TARGET_SPECIFICITY)
+    tau = af_threshold(subjects)
     specificity = specificity_at(tau)(subjects.is_af, subjects.scores)
     if specificity < TARGET_SPECIFICITY:
         raise ValueError(
@@ -568,31 +573,58 @@ def _weighted_nll(probs: np.ndarray, labels: np.ndarray, weights: np.ndarray) ->
     return float(-np.average(np.log(picked), weights=weights))
 
 
-def calibration_summary(raw_probs: np.ndarray, probs: np.ndarray, val: WindowSet, temperature: float) -> dict:
-    # Weighted like training and temperature scaling: equal labels, then datasets, then subjects.
-    weights = sample_weights(val).astype(np.float64)
-    is_af = val.labels == AF
-    scores = probs[:, AF]
-    bins = np.clip((scores * RELIABILITY_BINS).astype(int), 0, RELIABILITY_BINS - 1)
-    summary: dict[str, float | str] = {
-        "method": "temperature scaling on dev-val windows, weighted by label, dataset, and subject",
-        "temperature": temperature,
-        "devValWeightedNllBefore": _weighted_nll(raw_probs, val.labels, weights),
-        "devValWeightedNllAfter": _weighted_nll(probs, val.labels, weights),
-    }
-    calibration_error = 0.0
+def reliability(confidence: np.ndarray, hit: np.ndarray, weights: np.ndarray) -> tuple[list[dict], float]:
+    # Equal-width bins over 0-1; empty bins are left out. Returns the rows and the expected calibration
+    # error, the weight-share-weighted mean of |mean predicted - observed| over the bins.
+    bins = np.clip((confidence * RELIABILITY_BINS).astype(int), 0, RELIABILITY_BINS - 1)
+    rows, calibration_error = [], 0.0
     for index in range(RELIABILITY_BINS):
         members = bins == index
         if not members.any():
             continue
-        predicted = float(np.average(scores[members], weights=weights[members]))
-        observed = float(np.average(is_af[members], weights=weights[members]))
+        predicted = float(np.average(confidence[members], weights=weights[members]))
+        observed = float(np.average(hit[members], weights=weights[members]))
         calibration_error += weights[members].sum() / weights.sum() * abs(predicted - observed)
-        summary[f"P(AF) {index / RELIABILITY_BINS:.1f}-{(index + 1) / RELIABILITY_BINS:.1f}"] = (
-            f"{int(members.sum())} windows, mean predicted {predicted:.3f}, observed AF {observed:.3f}"
+        rows.append(
+            {
+                "low": index / RELIABILITY_BINS,
+                "high": (index + 1) / RELIABILITY_BINS,
+                "windows": int(members.sum()),
+                "predicted": predicted,
+                "observed": observed,
+            }
         )
-    summary["windowExpectedCalibrationErrorAf"] = calibration_error
-    return summary
+    return rows, calibration_error
+
+
+def temperature_record(raw_probs: np.ndarray, val: WindowSet, temperature: float) -> dict:
+    return {
+        "method": "temperature scaling on dev-val windows, weighted by label, dataset, and subject",
+        "temperature": temperature,
+        "devValWeightedNllBefore": _weighted_nll(
+            raw_probs, val.labels, sample_weights(val).astype(np.float64)
+        ),
+    }
+
+
+# rhythm-lgbm is not recalibrated in v1; its reliability tables show how far it is from calibrated.
+UNCALIBRATED = {"method": "none: the model's own class probabilities, not recalibrated"}
+
+
+def calibration_summary(probs: np.ndarray, val: WindowSet, recalibration: dict) -> dict:
+    # Weighted like training and temperature scaling: equal labels, then datasets, then subjects. The
+    # AF table is about τ_AF; the top-class table is about the abstain rule (top probability < 0.6).
+    weights = sample_weights(val).astype(np.float64)
+    af_rows, af_error = reliability(probs[:, AF], val.labels == AF, weights)
+    top_rows, top_error = reliability(probs.max(axis=1), probs.argmax(axis=1) == val.labels, weights)
+    return {
+        **recalibration,
+        "devValWeightedNll": _weighted_nll(probs, val.labels, weights),
+        "windowExpectedCalibrationErrorAf": af_error,
+        "windowExpectedCalibrationErrorTop": top_error,
+        "reliabilityAf": af_rows,
+        "reliabilityTop": top_rows,
+    }
 
 
 def _formatted(metric: dict | None) -> str:
@@ -680,8 +712,9 @@ def training_notes(sets: WindowSets, cap: int, seed: int, decision: dict) -> lis
     ]
 
 
-def _metrics_file(source: Path, evaluation: dict, sets: WindowSets, shared: dict) -> dict:
+def _metrics_file(source: Path, evaluation: dict, sets: WindowSets, calibration: dict, shared: dict) -> dict:
     trained_on = sorted({subject.split(":")[0] for subject in sets.train.subjects})
+    source_sha = sha256_of(source)
     return {
         # Format 2 always carries development.prematureBeatSet, which write_manifest then requires.
         "metricsFormat": 2,
@@ -698,8 +731,10 @@ def _metrics_file(source: Path, evaluation: dict, sets: WindowSets, shared: dict
                 "windows": len(sets.premature.labels),
             },
         },
-        "sourceSha256": sha256_of(source),
+        "sourceSha256": source_sha,
         "featureOrder": list(FEATURE_NAMES),
+        # Keyed to the weights it measured, so write_manifest refuses it next to any other model file.
+        "calibration": {"sourceSha256": source_sha, "measuredBy": "python -m train.rhythm", **calibration},
         **shared,
     }
 
@@ -761,22 +796,22 @@ def main(argv: list[str] | None = None) -> None:
         "processSeconds": time.perf_counter() - started,
         "networkEpochs": history,
     }
+    calibrations = {
+        NETWORK.name: temperature_record(raw_probs, sets.val, temperature),
+        LGBM.name: UNCALIBRATED,
+    }
     outputs = [
         (
-            NETWORK,
+            spec,
             _metrics_file(
-                network_path,
-                evaluations[NETWORK.name],
+                path,
+                evaluations[spec.name],
                 sets,
-                {
-                    **shared,
-                    "calibration": calibration_summary(
-                        raw_probs, probs[NETWORK.name][0], sets.val, temperature
-                    ),
-                },
+                calibration_summary(probs[spec.name][0], sets.val, calibrations[spec.name]),
+                shared,
             ),
-        ),
-        (LGBM, _metrics_file(lgbm_path, evaluations[LGBM.name], sets, shared)),
+        )
+        for spec, path in ((NETWORK, network_path), (LGBM, lgbm_path))
     ]
     for spec, metrics in outputs:
         (args.runs_dir / f"{spec.file_stem}.json").write_text(

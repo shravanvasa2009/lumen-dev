@@ -1,0 +1,101 @@
+import { median, personalBand } from './baseline';
+import { demoHistory, demoNow } from './demoHistory';
+import { chartAxis, trendSeries, type HistoryReading } from './series';
+
+function reading(day: number, hr: number | null, rmssd: number | null = null): HistoryReading {
+  return {
+    id: `r${day}-${hr}`,
+    createdAt: new Date(2026, 8, day, 7, 30),
+    mode: rmssd === null ? 'quick' : 'full',
+    hr,
+    rmssd,
+    resp: null,
+    rhythm: 'sinus',
+    caffeine: false,
+  };
+}
+
+describe('median and personal band', () => {
+  it('takes the middle value, and the mean of the middle pair for an even count', () => {
+    expect(median([])).toBeNull();
+    expect(median([70, 60, 65])).toBe(65);
+    expect(median([60, 62, 64, 70])).toBe(63);
+  });
+
+  it('is still learning below 7 readings (§7)', () => {
+    expect(personalBand([60, 61, 62, 63, 64, 65])).toBeNull();
+  });
+
+  it('is the median plus and minus 1.5 times the interquartile range (§7)', () => {
+    // Sorted: 60 61 62 64 66 68 70. Quartiles by interpolation are 61.5 and 67, so IQR = 5.5.
+    const band = personalBand([64, 60, 70, 62, 68, 61, 66]);
+    expect(band).toEqual({ low: 64 - 8.25, high: 64 + 8.25 });
+  });
+
+  it('collapses to the median when every reading is the same', () => {
+    expect(personalBand([60, 60, 60, 60, 60, 60, 60])).toEqual({ low: 60, high: 60 });
+  });
+});
+
+describe('trendSeries', () => {
+  const now = new Date(2026, 8, 30, 12, 0);
+
+  it('keeps only readings with the metric inside the range, oldest first', () => {
+    const readings = [reading(29, 70), reading(2, 64), reading(20, null), reading(25, 66)];
+    const series = trendSeries(readings, 'hr', '7d', now);
+    expect(series.points.map((point) => point.value)).toEqual([66, 70]);
+    expect(series.median).toBe(68);
+    expect(series.band).toBeNull();
+  });
+
+  it('widens with the range', () => {
+    const readings = [reading(2, 64), reading(25, 66)];
+    expect(trendSeries(readings, 'hr', '7d', now).points).toHaveLength(1);
+    expect(trendSeries(readings, 'hr', '30d', now).points).toHaveLength(2);
+  });
+
+  it('ignores readings after now', () => {
+    expect(trendSeries([reading(30, 64)], 'hr', '7d', new Date(2026, 8, 29)).points).toEqual([]);
+  });
+
+  it('computes the band from the shown readings once there are 7', () => {
+    const readings = [64, 60, 70, 62, 68, 61, 66].map((hr, index) => reading(24 + index, hr));
+    expect(trendSeries(readings, 'hr', '30d', now).band).not.toBeNull();
+    expect(trendSeries(readings, 'hr', '7d', now).band).not.toBeNull();
+    expect(trendSeries(readings.slice(0, 6), 'hr', '30d', now).band).toBeNull();
+  });
+
+  it('gives an empty series for no readings', () => {
+    expect(trendSeries([], 'hr', '30d', now)).toEqual({ points: [], median: null, band: null });
+  });
+});
+
+describe('demo history', () => {
+  it('has 24 sample readings, 12 of them Full Scans, all inside the 30-day range', () => {
+    expect(demoHistory).toHaveLength(24);
+    expect(trendSeries(demoHistory, 'hr', '30d', demoNow).points).toHaveLength(24);
+    expect(trendSeries(demoHistory, 'hrv', '30d', demoNow).points).toHaveLength(12);
+  });
+
+  it('has a band over 30 days and none over 7 days of HRV', () => {
+    const hr = trendSeries(demoHistory, 'hr', '30d', demoNow);
+    expect(hr.median).toBe(64);
+    expect(hr.band).not.toBeNull();
+    expect(trendSeries(demoHistory, 'hrv', '7d', demoNow).band).toBeNull();
+  });
+});
+
+describe('chartAxis', () => {
+  it('uses gridlines every 5 for a tight heart-rate range', () => {
+    expect(chartAxis([58, 64, 71])).toEqual({ low: 55, high: 75, step: 5 });
+  });
+
+  it('uses steps of 1 for breathing rates', () => {
+    expect(chartAxis([13, 14, 16])).toEqual({ low: 13, high: 16, step: 1 });
+  });
+
+  it('keeps an axis for a single value', () => {
+    const { low, high } = chartAxis([64]);
+    expect(high).toBeGreaterThan(low);
+  });
+});

@@ -16,8 +16,18 @@ const placeholders = (text) => new Set([...text.matchAll(PLACEHOLDER)].map((matc
 const sameSet = (left, right) => left.size === right.size && [...left].every((item) => right.has(item));
 
 // i18next plural forms: t('k', { count }) reads k_one, k_other and the like, so the code names only k.
+// Without count i18next would show the raw key, and a family missing _one prints "1 heartbeats".
 const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
-const hasKey = (texts, key) => key in texts || `${key}_other` in texts;
+const isPluralFamily = (texts, key) => `${key}_one` in texts && `${key}_other` in texts;
+
+function passesCount(callNode) {
+  const options = callNode.arguments[1];
+  return (
+    options !== undefined &&
+    ts.isObjectLiteralExpression(options) &&
+    options.properties.some((property) => property.name !== undefined && property.name.getText() === 'count')
+  );
+}
 
 // The call is t(...) or i18n.t(...); a non-literal key cannot be checked or counted as used, so it fails.
 function isTranslationCall(node) {
@@ -52,13 +62,19 @@ function findProblems(copy, keyLines, sources) {
   const usedKeys = new Set();
   for (const { file, text } of sources) {
     const sourceFile = parseSource(file, text);
-    const useKey = (keyNode, node) => {
+    const useKey = (keyNode, node, withCount) => {
       if (ts.isStringLiteralLike(keyNode)) {
-        usedKeys.add(keyNode.text);
-        if (!hasKey(copy.en, keyNode.text) || !hasKey(copy.es, keyNode.text))
+        const key = keyNode.text;
+        usedKeys.add(key);
+        const exists = (texts) => key in texts || (withCount && isPluralFamily(texts, key));
+        if (!exists(copy.en) || !exists(copy.es)) {
+          const needsCount = !withCount && `${key}_other` in copy.en && `${key}_other` in copy.es;
           failures.push(
-            `${file}:${lineOf(sourceFile, node)}: key "${keyNode.text}" is not in both en.json and es.json`,
+            needsCount
+              ? `${file}:${lineOf(sourceFile, node)}: plural key "${key}" is used without a count option`
+              : `${file}:${lineOf(sourceFile, node)}: key "${key}" is not in both en.json and es.json`,
           );
+        }
       } else {
         failures.push(
           `${file}:${lineOf(sourceFile, node)}: translation key is not a string literal, so it cannot be checked`,
@@ -66,16 +82,19 @@ function findProblems(copy, keyLines, sources) {
       }
     };
     visitNodes(sourceFile, (node) => {
-      if (isTranslationCall(node) && node.arguments[0]) useKey(node.arguments[0], node);
+      if (isTranslationCall(node) && node.arguments[0]) useKey(node.arguments[0], node, passesCount(node));
       if (ts.isJsxAttribute(node) && node.name.text === 'i18nKey' && node.initializer) {
         const keyNode = ts.isJsxExpression(node.initializer) ? node.initializer.expression : node.initializer;
-        if (keyNode) useKey(keyNode, node);
+        if (keyNode) useKey(keyNode, node, false);
       }
     });
   }
 
   for (const language of Object.keys(COPY_FILES)) {
     for (const key of Object.keys(copy[language])) {
+      const base = key.replace(PLURAL_SUFFIX, '');
+      if (base !== key && !(isPluralFamily(copy.en, base) && isPluralFamily(copy.es, base)))
+        failures.push(`${where(language, key)}: plural "${base}" needs _one and _other in en.json and es.json`);
       if (!usedKeys.has(key.replace(PLURAL_SUFFIX, '')) && !usedKeys.has(key))
         failures.push(`${where(language, key)}: "${key}" is not used by any screen or component`);
     }
@@ -103,6 +122,17 @@ function selfTest() {
     ['an unresolved t() key', good, "t('a.b'); t('a.missing');"],
     ['a dynamic t() key', good, "t('a.b'); t(name);"],
     ['an unused plural key', plural, 'const unused = 1;'],
+    ['a plural key used without count', plural, "t('a.n');"],
+    [
+      'a plural family without _one',
+      { en: { 'a.n_other': '{{count}} items' }, es: plural.es },
+      "t('a.n', { count });",
+    ],
+    [
+      'a plural family without _one in es',
+      { en: plural.en, es: { 'a.n_other': '{{count}} cosas' } },
+      "t('a.n', { count });",
+    ],
   ];
   const wrong = probes
     .filter(([, copy, body]) => findProblems(copy, noLines, screen(body)).length === 0)

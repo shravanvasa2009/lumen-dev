@@ -4,6 +4,11 @@ import { StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import tokens from '@/theme/tokens.json';
 
+// Turn on reminders asks the system for notification permission before it leaves the screen.
+jest.mock('expo-notifications', () => ({
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
+}));
+
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -111,26 +116,35 @@ describe('navigation', () => {
     mockScheme = 'dark';
   });
 
-  function followButtons(startUrl: string, steps: readonly (readonly [keyof typeof en, keyof typeof en])[]) {
-    renderRouter(appDirectory, { initialUrl: startUrl });
+  type Step = readonly [keyof typeof en, keyof typeof en];
+
+  function pressThrough(steps: readonly Step[]) {
     for (const [button, nextTitle] of steps) {
       fireEvent.press(screen.getByRole('button', { name: en[button] }));
       expect(screen.getByRole('header', { name: en[nextTitle] })).toBeOnTheScreen();
     }
   }
 
-  it('walks the onboarding chain from welcome to Home', () => {
-    followButtons('/welcome', [
-      ['welcome.getStarted', 'consent.title'],
-      ['common.continue', 'profile.title'],
+  function followButtons(startUrl: string, steps: readonly Step[]) {
+    renderRouter(appDirectory, { initialUrl: startUrl });
+    pressThrough(steps);
+  }
+
+  it('walks the onboarding chain from welcome to Home', async () => {
+    followButtons('/welcome', [['welcome.getStarted', 'consent.title']]);
+    fireEvent.press(screen.getByRole('checkbox', { name: en['consent.understand'] }));
+    pressThrough([['common.continue', 'profile.title']]);
+    fireEvent.changeText(screen.getByLabelText(en['profile.age']), '42');
+    pressThrough([
       ['common.continue', 'phoneCheck.title'],
       ['phoneCheck.next', 'placement.title'],
       ['placement.start', 'practice.title'],
       ['common.continue', 'howToSit.title'],
       ['common.continue', 'rating.title'],
       ['common.continue', 'reminders.title'],
-      ['reminders.turnOn', 'tabs.home'],
     ]);
+    fireEvent.press(screen.getByRole('button', { name: en['reminders.turnOn'] }));
+    expect(await screen.findByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
   });
 
   it('walks Home through a measurement to results', () => {

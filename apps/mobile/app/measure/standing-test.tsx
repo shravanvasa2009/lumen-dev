@@ -1,23 +1,8 @@
-import { useTranslation } from 'react-i18next';
+import { StandingTestScreen } from '@/standing/StandingTestScreen';
 
-import { AppText } from '@/components/AppText';
-import { NavButton } from '@/components/NavButton';
-import { RouteShell } from '@/components/RouteShell';
+// No reading source exists in this build yet, so the screen shows the plan and cannot start.
+const NO_READING_SOURCE = { now: Date.now, readHeartRate: null };
 
-export default function StandingTestScreen() {
-  const { t } = useTranslation();
-  return (
-    <RouteShell
-      title={t('standing.title')}
-      sections={[
-        { heading: t('standing.lying') },
-        { heading: t('standing.now') },
-        { heading: t('standing.rise') },
-      ]}
-    >
-      <AppText tone="textDim">{t('standing.interval')}</AppText>
-      <AppText>{t('standing.safety')}</AppText>
-      <NavButton label={t('standing.stop')} href="/" variant="secondary" replace />
-    </RouteShell>
-  );
+export default function StandingTestRoute() {
+  return <StandingTestScreen source={NO_READING_SOURCE} />;
 }

@@ -7,15 +7,23 @@ type Option<Value extends string> = { value: Value; label: string; hint?: string
 
 type SegmentedProps<Value extends string> = {
   options: readonly Option<Value>[];
-  selected: Value;
+  // Null while nothing is chosen yet.
+  selected: Value | null;
+  label?: string;
   onSelect: (value: Value) => void;
 };
 
-export function Segmented<Value extends string>({ options, selected, onSelect }: SegmentedProps<Value>) {
+export function Segmented<Value extends string>({
+  options,
+  selected,
+  onSelect,
+  label,
+}: SegmentedProps<Value>) {
   const { colors, control, radius, spacing } = useTheme();
   return (
     <View
       accessibilityRole="radiogroup"
+      accessibilityLabel={label}
       style={{
         flexDirection: 'row',
         padding: spacing.xs,

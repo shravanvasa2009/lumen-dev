@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { requestPermissionsAsync } from 'expo-notifications';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
@@ -17,6 +17,9 @@ import { useTheme } from '@/theme';
 const DEFAULT_HOUR = 8;
 const HOURS_PER_DAY = 24;
 
+// Mockup 09 sets the chosen time well above the 34 pt display size.
+const styles = StyleSheet.create({ selectedTime: { fontSize: 48, lineHeight: 56 } });
+
 type Reminder = 'daily' | 'followUp' | 'doctor';
 
 export default function RemindersScreen() {
@@ -29,13 +32,19 @@ export default function RemindersScreen() {
     followUp: true,
     doctor: true,
   });
-  const timeOf = (hourOfDay: number) =>
-    new Date(2000, 0, 1, (hourOfDay + HOURS_PER_DAY) % HOURS_PER_DAY).toLocaleTimeString(i18n.language, {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  const before = timeOf(hour - 1);
-  const after = timeOf(hour + 1);
+  const timeOf = (hourOfDay: number, withPeriod = true) =>
+    new Intl.DateTimeFormat(i18n.language, { hour: 'numeric', minute: '2-digit' })
+      .formatToParts(new Date(2000, 0, 1, (hourOfDay + HOURS_PER_DAY) % HOURS_PER_DAY))
+      .filter((part) => withPeriod || part.type !== 'dayPeriod')
+      .map((part) => part.value)
+      .join('')
+      .trim();
+  // Each time is formatted once: the screen shows neighbours without AM/PM, screen readers get it in full.
+  const selected = timeOf(hour);
+  const spokenBefore = timeOf(hour - 1);
+  const spokenAfter = timeOf(hour + 1);
+  const shownBefore = timeOf(hour - 1, false);
+  const shownAfter = timeOf(hour + 1, false);
   const reminderRows: readonly { reminder: Reminder; title: string }[] = [
     { reminder: 'daily', title: t('notifications.daily') },
     { reminder: 'followUp', title: t('notifications.followUp') },
@@ -70,23 +79,27 @@ export default function RemindersScreen() {
         <View style={{ alignItems: 'center', gap: spacing.xs }}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('reminders.earlier', { time: before })}
+            accessibilityLabel={t('reminders.earlier', { time: spokenBefore })}
             onPress={() => setHour((current) => (current + HOURS_PER_DAY - 1) % HOURS_PER_DAY)}
           >
             <AppText variant="title" tone="textDim">
-              {before}
+              {shownBefore}
             </AppText>
           </Pressable>
-          <AppText variant="display" accessibilityLabel={t('reminders.timeSelected', { time: timeOf(hour) })}>
-            {timeOf(hour)}
+          <AppText
+            variant="display"
+            style={styles.selectedTime}
+            accessibilityLabel={t('reminders.timeSelected', { time: selected })}
+          >
+            {selected}
           </AppText>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('reminders.later', { time: after })}
+            accessibilityLabel={t('reminders.later', { time: spokenAfter })}
             onPress={() => setHour((current) => (current + 1) % HOURS_PER_DAY)}
           >
             <AppText variant="title" tone="textDim">
-              {after}
+              {shownAfter}
             </AppText>
           </Pressable>
         </View>

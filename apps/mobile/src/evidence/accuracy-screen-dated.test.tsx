@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Stack } from 'expo-router';
+import { renderRouter, screen } from 'expo-router/testing-library';
 
 import AccuracyScreen from '../../app/settings/accuracy';
 import en from '@/i18n/en.json';
@@ -22,17 +22,8 @@ jest.mock('../../assets/evidence.json', () => ({
   },
 }));
 
-const safeAreaMetrics = {
-  frame: { x: 0, y: 0, width: 390, height: 844 },
-  insets: { top: 47, left: 0, right: 0, bottom: 34 },
-};
-
 it('EVID-1: shows the diabetes row with its dataset, interval, and the not-a-test note, and the file date', () => {
-  render(
-    <SafeAreaProvider initialMetrics={safeAreaMetrics}>
-      <AccuracyScreen />
-    </SafeAreaProvider>,
-  );
+  renderRouter({ _layout: () => <Stack />, index: AccuracyScreen });
   expect(screen.getByText('AUROC 0.78 · sensitivity 63% · specificity 87%')).toBeTruthy();
   expect(screen.getByText('Dataset: PPG-BP (external)')).toBeTruthy();
   expect(screen.getByText('95% CI: 0.7–0.85')).toBeTruthy();

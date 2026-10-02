@@ -2,6 +2,7 @@ import i18next from 'i18next';
 import { renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { expectNavTitle } from '@/testing/navHeader';
 
 import { lessons } from './lessons';
 
@@ -13,7 +14,7 @@ describe('lesson detail', () => {
   it('renders every lesson under its own title', () => {
     for (const lesson of lessons) {
       const { unmount } = renderRouter(appDirectory, { initialUrl: `/learn/${lesson.slug}` });
-      expect(screen.getByRole('header', { name: lesson.title(i18next.t) })).toBeOnTheScreen();
+      expectNavTitle(lesson.title(i18next.t));
       unmount();
     }
   });
@@ -26,7 +27,7 @@ describe('lesson detail', () => {
 
   it('says the lesson was not found for an unknown slug instead of crashing', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/no-such-lesson' });
-    expect(screen.getByRole('header', { name: en['learn.notFound'] })).toBeOnTheScreen();
+    expectNavTitle(en['learn.notFound']);
   });
 
   it('keeps the diabetes lesson to "not a diabetes test" and an A1c blood test', () => {

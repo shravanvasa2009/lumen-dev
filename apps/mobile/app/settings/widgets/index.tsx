@@ -6,7 +6,7 @@ import { NavButton } from '@/components/NavButton';
 import { RouteShell } from '@/components/RouteShell';
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { lockTextLines } from '@/settings/lockText';
-import { usePreferences } from '@/settings/preferences';
+import { usePreferences } from '@/theme/preferences';
 import { SectionLabel } from '@/settings/SectionLabel';
 import {
   LockCirclePreview,

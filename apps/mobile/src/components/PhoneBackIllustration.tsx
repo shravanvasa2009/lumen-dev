@@ -6,6 +6,7 @@ const VIEWBOX_WIDTH = 300;
 const VIEWBOX_HEIGHT = 340;
 const FINGER_ANGLE_DEG = 28;
 const LABEL_SIZE = 15;
+const HALO_WIDTH = 7;
 
 type PhoneBackIllustrationProps = { lensLabel: string; flashLabel: string };
 
@@ -27,34 +28,42 @@ export function PhoneBackIllustration({ lensLabel, flashLabel }: PhoneBackIllust
         width={170}
         height={336}
         rx={34}
-        fill={colors.surface3}
-        stroke={colors.line2}
+        fill={colors.illustrationDevice}
+        stroke={colors.illustrationDeviceLine}
         strokeWidth={2}
       />
       <Rect
-        x={78}
+        x={81}
         y={14}
         width={50}
-        height={106}
+        height={100}
         rx={25}
-        fill={colors.surface}
-        stroke={colors.line2}
+        fill={colors.illustrationDeviceIsland}
+        stroke={colors.illustrationDeviceLine}
         strokeWidth={1}
       />
-      <Circle cx={103} cy={44} r={18} fill={colors.textFaint} />
-      <Circle cx={103} cy={94} r={14} fill={colors.bg} />
-      <Circle cx={150} cy={44} r={9} fill={colors.flag} opacity={0.5} />
-      <G rotation={FINGER_ANGLE_DEG} origin="140, 70">
-        <Rect x={50} y={42} width={180} height={56} rx={28} fill={colors.pulse} opacity={0.35} />
+      <Circle
+        cx={106}
+        cy={90}
+        r={15}
+        fill={colors.illustrationLens}
+        stroke={colors.illustrationDeviceLine}
+        strokeWidth={1.5}
+      />
+      <G rotation={FINGER_ANGLE_DEG} origin="160, 52">
+        <Rect x={75} y={24} width={170} height={56} rx={28} fill={colors.illustrationFinger} />
       </G>
-      <Circle cx={103} cy={44} r={22} fill="none" stroke={colors.accent} strokeWidth={3} />
-      <Circle cx={150} cy={44} r={13} fill="none" stroke={colors.flag} strokeWidth={3} />
-      <Line x1={42} y1={48} x2={80} y2={44} stroke={colors.accent} strokeWidth={1.5} />
+      {/* A page-colour halo under each ring keeps it readable over both the finger and the phone body. */}
+      <Circle cx={106} cy={42} r={22} fill="none" stroke={colors.bg} strokeWidth={HALO_WIDTH} />
+      <Circle cx={106} cy={42} r={22} fill="none" stroke={colors.accent} strokeWidth={3} />
+      <Circle cx={146} cy={42} r={13} fill="none" stroke={colors.bg} strokeWidth={HALO_WIDTH} />
+      <Circle cx={146} cy={42} r={13} fill="none" stroke={colors.flag} strokeWidth={3} />
+      <Line x1={42} y1={48} x2={84} y2={42} stroke={colors.accent} strokeWidth={1.5} />
       <SvgText x={4} y={52} fill={colors.accent} fontSize={LABEL_SIZE} fontWeight="600">
         {lensLabel}
       </SvgText>
-      <Line x1={163} y1={44} x2={236} y2={38} stroke={colors.flag} strokeWidth={1.5} />
-      <SvgText x={242} y={44} fill={colors.flag} fontSize={LABEL_SIZE} fontWeight="600">
+      <Line x1={160} y1={42} x2={250} y2={38} stroke={colors.flag} strokeWidth={1.5} />
+      <SvgText x={255} y={44} fill={colors.flag} fontSize={LABEL_SIZE} fontWeight="600">
         {flashLabel}
       </SvgText>
     </Svg>

@@ -2,6 +2,7 @@ import { renderRouter, screen } from 'expo-router/testing-library';
 import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
+import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
 import es from '@/i18n/es.json';
 import { readingById } from '@/results/fixtures';
 import { formatClock } from '@/results/format';
@@ -41,8 +42,7 @@ describe.each([
 
   it('titles the screen in the theme and draws the report card in the light tokens', () => {
     openReport('demo');
-    const heading = screen.getByRole('header', { name: en['report.title'] });
-    expect(StyleSheet.flatten(heading.props.style)).toMatchObject({ color: colors.text });
+    expect(focusedNavHeader()).toMatchObject({ title: en['report.title'], titleColor: colors.text });
     const card = screen.getByRole('header', { name: en['report.heading'] });
     expect(StyleSheet.flatten(card.props.style)).toMatchObject({ color: tokens.light.text });
     expect(drawn()).toContain(tokens.light.surface);
@@ -123,7 +123,7 @@ describe('Doctor report content', () => {
 
   it('shows no numbers for an id that is not a reading', () => {
     openReport('nope');
-    expect(screen.getByRole('header', { name: en['report.title'] })).toBeOnTheScreen();
+    expectNavTitle(en['report.title']);
     expect(screen.getByText(en['report.notFoundTitle'])).toBeOnTheScreen();
     expect(screen.queryByText(en['result.inconclusive'])).toBeNull();
     expect(screen.getByText(en['report.notFound'])).toBeOnTheScreen();

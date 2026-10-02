@@ -12,7 +12,6 @@ export default function RatingScreen() {
       step={7}
       title={t('rating.title')}
       subtitle={t('rating.subtitle')}
-      centered
       footer={<NavButton label={t('common.continue')} href="/reminders" />}
     >
       {/* The score needs the coupling measured in practice (spec §5.1), and no rating function exists yet. */}

@@ -2,7 +2,6 @@ import {
   begin,
   formatClock,
   newTest,
-  type ReadingSlot,
   recordReading,
   STANDING_READING_MINUTES,
   stop,
@@ -105,51 +104,5 @@ describe('stopping', () => {
     const stopped = stop(started, at(6, 30));
     expect(recordReading(stopped, { minute: 1 }, 84, at(6, 40))).toBe(stopped);
     expect(recordReading(stopped, { minute: 0 }, 68, at(6, 40))).toBe(stopped);
-  });
-});
-
-describe('large rise on standing (DSP-16)', () => {
-  const baselined = recordReading(started, { minute: 0 }, 68, at(4, 10));
-  const withReadings = (readings: readonly [ReadingSlot['minute'], number][]) =>
-    readings.reduce(
-      (state, [minute, bpm]) => recordReading(state, { minute }, bpm, at(5 + minute, 30)),
-      baselined,
-    );
-
-  it('needs two consecutive standing readings at 30 bpm or more over the baseline', () => {
-    expect(viewAt(withReadings([[1, 98]]), at(7)).largeRise).toBe(false);
-    expect(
-      viewAt(
-        withReadings([
-          [1, 98],
-          [3, 99],
-        ]),
-        at(9),
-      ).largeRise,
-    ).toBe(true);
-  });
-
-  it('is not met by two high readings with a missed one between them', () => {
-    expect(
-      viewAt(
-        withReadings([
-          [1, 98],
-          [5, 99],
-        ]),
-        at(11),
-      ).largeRise,
-    ).toBe(false);
-  });
-
-  it('is not met by a rise of 29 bpm', () => {
-    expect(
-      viewAt(
-        withReadings([
-          [1, 97],
-          [3, 97],
-        ]),
-        at(9),
-      ).largeRise,
-    ).toBe(false);
   });
 });

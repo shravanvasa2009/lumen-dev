@@ -1,6 +1,6 @@
 import { Camera, Map, Marker } from '@maplibre/maplibre-react-native';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { useTheme } from '@/theme';
 
@@ -13,6 +13,9 @@ const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 const DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
 const START_ZOOM = 11;
 const PIN_SIZE = 30;
+const MAP_MAX_HEIGHT = 280;
+// On a 360x640 dp phone this leaves the list, the ZIP field and the doctor button within reach.
+const MAP_WINDOW_SHARE = 0.3;
 
 type PinProps = { shape: 'clinic' | 'doctor' | 'you' };
 
@@ -73,6 +76,8 @@ type CareMapViewProps = {
   clinics: readonly NearbyClinic[];
   doctors: readonly NearbyDoctor[];
   selectedId: string | null;
+  // Folds the map away (it stays mounted) so the ZIP field stays above the keyboard on small phones.
+  collapsed: boolean;
   onSelectClinic: (id: string) => void;
   onClearSelection: () => void;
 };
@@ -85,14 +90,23 @@ export function CareMapView({
   clinics,
   doctors,
   selectedId,
+  collapsed,
   onSelectClinic,
   onClearSelection,
 }: CareMapViewProps) {
   const { t } = useTranslation();
   const { isDark, radius, colors } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
+  const mapHeight = Math.min(MAP_MAX_HEIGHT, Math.round(windowHeight * MAP_WINDOW_SHARE));
   return (
     <View
-      style={{ height: 280, borderRadius: radius.card, overflow: 'hidden', backgroundColor: colors.surface2 }}
+      testID="care-map-frame"
+      style={{
+        height: collapsed ? 0 : mapHeight,
+        borderRadius: radius.card,
+        overflow: 'hidden',
+        backgroundColor: colors.surface2,
+      }}
     >
       <Map
         key={isDark ? 'dark' : 'light'}
@@ -126,7 +140,13 @@ export function CareMapView({
           </Marker>
         ))}
         {doctors.map((doctor, index) => (
-          <Marker key={`${doctor.name}-${index}`} id={`doctor-${index}`} lngLat={[doctor.lon, doctor.lat]}>
+          <Marker
+            key={`${doctor.name}-${index}`}
+            id={`doctor-${index}`}
+            lngLat={[doctor.lon, doctor.lat]}
+            // Doctor details wait for the native search (Track B); the tap must not clear the clinic pick.
+            onPress={(event) => event.stopPropagation()}
+          >
             <Pin shape="doctor" />
           </Marker>
         ))}

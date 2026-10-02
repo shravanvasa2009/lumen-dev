@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
@@ -47,6 +47,8 @@ export function CareMapScreen() {
   const [doctors, setDoctors] = useState<readonly NearbyDoctor[]>([]);
   const [doctorNotice, setDoctorNotice] = useState<DoctorNotice | null>(null);
   const [failedCallPhone, setFailedCallPhone] = useState<string | null>(null);
+  const [directionsFailedId, setDirectionsFailedId] = useState<string | null>(null);
+  const [typing, setTyping] = useState(false);
 
   const you = location.status === 'ready' ? location.origin : null;
   const centre = searchedPlace ?? you;
@@ -71,7 +73,7 @@ export function CareMapScreen() {
   };
 
   const openDirections = async (clinic: NearbyClinic) => {
-    setDoctorNotice((await opensOk(directionsUrl(clinic, clinic.name))) ? null : 'mapsFailed');
+    setDirectionsFailedId((await opensOk(directionsUrl(clinic, clinic.name))) ? null : clinic.id);
   };
 
   const findDoctors = async () => {
@@ -104,7 +106,10 @@ export function CareMapScreen() {
   return (
     <Screen>
       <Stack.Screen options={{ title: t('careMap.title') }} />
-      <View style={{ gap: spacing.md, flex: 1 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ gap: spacing.md, flex: 1 }}
+      >
         {doctorPhone ? (
           <View style={{ gap: spacing.xs }}>
             <Button label={t('careMap.callMyDoctor')} onPress={() => void call(doctorPhone)} />
@@ -118,13 +123,14 @@ export function CareMapScreen() {
 
         {centre ? (
           <CareMapView
-            // A new area or theme is a new map: remounting avoids restyling a live map (ADR 0054).
+            // A new area is a new map: remounting avoids restyling a live map (ADR 0054).
             key={`${centre.lat}-${centre.lon}`}
             centre={centre}
             you={searchedPlace ? null : you}
             clinics={clinics}
             doctors={doctors}
             selectedId={selectedId}
+            collapsed={typing}
             onSelectClinic={setSelectedId}
             onClearSelection={() => setSelectedId(null)}
           />
@@ -146,6 +152,8 @@ export function CareMapScreen() {
               placeholderTextColor={colors.textFaint}
               value={query}
               onChangeText={setQuery}
+              onFocus={() => setTyping(true)}
+              onBlur={() => setTyping(false)}
               onSubmitEditing={searchPlace}
               returnKeyType="search"
               autoCorrect={false}
@@ -195,6 +203,7 @@ export function CareMapScreen() {
                   clinic={clinic}
                   selected={clinic.id === selectedId}
                   callFailed={clinic.phone !== '' && failedCallPhone === clinic.phone}
+                  directionsFailed={directionsFailedId === clinic.id}
                   onCall={() => void call(clinic.phone)}
                   onDirections={() => void openDirections(clinic)}
                 />
@@ -205,7 +214,7 @@ export function CareMapScreen() {
             </>
           ) : null}
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }

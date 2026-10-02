@@ -665,6 +665,5 @@
   "careMap.directions": "Cómo llegar",
   "careMap.noPhone": "Sin número de teléfono",
   "careMap.callFailed": "Este teléfono no pudo hacer la llamada. El número es:",
-  "learn.careFinderWeb": "O busca en el sitio web de centros de salud ›",
-  "standing.flag": "Tu frecuencia cardíaca subió mucho al ponerte de pie. Esto coincide con la parte de frecuencia cardíaca que los médicos revisan para POTS. Considera hablar con un médico."
+  "learn.careFinderWeb": "O busca en el sitio web de centros de salud ›"
 }

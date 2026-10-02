@@ -44,10 +44,11 @@ describe('Learn tab', () => {
     expect(screen.getByRole('button', { name: new RegExp(es['learn.lessonDiabetes']) })).toBeOnTheScreen();
   });
 
-  it('opens the Care map when the care row is tapped', () => {
+  it('opens the Care map when the care row is tapped', async () => {
     renderRouter(appDirectory, { initialUrl: '/learn' });
     fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.careFinder']) }));
     expectNavTitle(en['careMap.title']);
+    await screen.findByText(en['careMap.denied']);
   });
 
   it('keeps the health-center website as a link that opens only when tapped', () => {

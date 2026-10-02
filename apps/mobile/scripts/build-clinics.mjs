@@ -20,7 +20,6 @@ const COLUMN_NAMES = {
   lon: ['Geocoding Artifact Address Primary X Coordinate', 'X'],
   lat: ['Geocoding Artifact Address Primary Y Coordinate', 'Y'],
 };
-const REQUIRED = ['phone', 'lon', 'lat'];
 const STATUS_COLUMN = 'Site Status Description';
 
 // RFC 4180: quoted fields may hold commas, doubled quotes and line breaks.
@@ -81,15 +80,21 @@ const [header, ...rows] = parseCsv(csvText.replace(/^\uFEFF/, ''));
 console.log('CSV header row:', header.join(' | '));
 
 const { found, missing } = findColumns(header);
-const missingRequired = REQUIRED.filter((field) => missing.includes(field));
-if (missingRequired.length > 0 || missing.length > 0) {
+if (missing.length > 0) {
   const wanted = missing.map((field) => `${field} (${COLUMN_NAMES[field].join(' or ')})`).join(', ');
   throw new Error(`HRSA CSV is missing columns: ${wanted}. Check the header row printed above.`);
 }
 const statusPosition = header.findIndex((title) => title.trim() === STATUS_COLUMN);
+if (statusPosition === -1) {
+  console.warn(`Warning: no "${STATUS_COLUMN}" column, so closed sites are not filtered out.`);
+}
 
 const clinics = [];
-for (const row of rows) {
+for (const [index, row] of rows.entries()) {
+  // Row numbers count the header as row 1, as a spreadsheet does.
+  if (row.length !== header.length) {
+    throw new Error(`CSV row ${index + 2} has ${row.length} fields; the header has ${header.length}.`);
+  }
   if (statusPosition !== -1 && row[statusPosition].trim() !== 'Active') continue;
   const lon = Number(row[found.lon]);
   const lat = Number(row[found.lat]);
@@ -106,7 +111,7 @@ for (const row of rows) {
   ]);
 }
 
-// Rows instead of objects keep the bundle small (about 2 MB for 18,000 sites).
+// Rows instead of objects keep the bundle small (about 2 MB).
 const fields = ['name', 'street', 'city', 'state', 'zip', 'phone', 'lat', 'lon'];
 writeFileSync(OUTPUT, JSON.stringify({ fields, rows: clinics }));
 console.log(`Wrote ${clinics.length} sites to ${OUTPUT}`);

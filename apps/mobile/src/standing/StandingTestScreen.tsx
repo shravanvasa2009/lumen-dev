@@ -178,12 +178,6 @@ export function StandingTestScreen({ source }: { source: StandingTestSource }) {
             <Card>
               <AppText tone="textDim">{view.stage === 'done' ? t('standing.doneBody') : nextReading}</AppText>
             </Card>
-            {view.largeRise ? (
-              <Card>
-                <AppText>{t('standing.flag')}</AppText>
-                <NavButton label={t('careMap.enter')} href="/care-map" variant="secondary" />
-              </Card>
-            ) : null}
             <SafetyCard text={view.stopped ? t('standing.faintBody') : t('standing.safety')} />
           </>
         )}

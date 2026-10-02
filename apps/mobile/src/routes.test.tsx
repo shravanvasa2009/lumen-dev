@@ -136,7 +136,7 @@ describe.each([
     mockScheme = scheme;
   });
 
-  it.each(routes)('renders $url with its translated title', ({ url, title, place }) => {
+  it.each(routes)('renders $url with its translated title', async ({ url, title, place }) => {
     renderRouter(appDirectory, { initialUrl: url });
     const isEmergency = url === '/emergency';
     if (place === 'nav') {
@@ -154,6 +154,9 @@ describe.each([
     const drawn = JSON.stringify(screen.toJSON());
     expect(drawn.includes(colors.criticalFill)).toBe(isEmergency);
     expect(drawn.includes(colors.criticalText)).toBe(isEmergency);
+
+    // The Care map answers its location lookup after the first render; waiting keeps that update inside act.
+    if (url === '/care-map') await screen.findByText(en['careMap.denied']);
   });
 });
 

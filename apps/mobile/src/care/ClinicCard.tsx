@@ -13,11 +13,20 @@ type ClinicCardProps = {
   selected: boolean;
   // The phone could not dial, so the number is shown as text to copy.
   callFailed: boolean;
+  // No maps app opened for this clinic's directions.
+  directionsFailed: boolean;
   onCall: () => void;
   onDirections: () => void;
 };
 
-export function ClinicCard({ clinic, selected, callFailed, onCall, onDirections }: ClinicCardProps) {
+export function ClinicCard({
+  clinic,
+  selected,
+  callFailed,
+  directionsFailed,
+  onCall,
+  onDirections,
+}: ClinicCardProps) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   const miles = t('careMap.miles', { miles: clinic.miles.toFixed(1) });
@@ -46,6 +55,11 @@ export function ClinicCard({ clinic, selected, callFailed, onCall, onDirections 
             <Button label={t('careMap.directions')} variant="secondary" onPress={onDirections} />
           </View>
         </View>
+        {directionsFailed ? (
+          <AppText accessibilityRole="alert" tone="textDim">
+            {t('careMap.mapsFailed')}
+          </AppText>
+        ) : null}
       </Card>
     </View>
   );

@@ -200,10 +200,11 @@ describe('Doctor follow-up', () => {
     expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
-  it('opens the Care map from Find a doctor nearby', () => {
+  it('opens the Care map from Find a doctor nearby', async () => {
     renderRouter(appDirectory, { initialUrl: '/follow-up' });
     fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
     expectNavTitle(en['careMap.title']);
+    await screen.findByText(en['careMap.denied']);
   });
 
   it('opens the health-center finder only when the link is tapped', () => {

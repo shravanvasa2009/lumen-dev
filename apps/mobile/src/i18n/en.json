@@ -665,6 +665,5 @@
   "careMap.directions": "Directions",
   "careMap.noPhone": "No phone number listed",
   "careMap.callFailed": "This phone couldn't place the call. The number is:",
-  "learn.careFinderWeb": "Or search the health-center website ›",
-  "standing.flag": "Your heart rate rose a lot when you stood up. This matches the heart-rate part of what doctors check for POTS. Consider talking to a doctor."
+  "learn.careFinderWeb": "Or search the health-center website ›"
 }

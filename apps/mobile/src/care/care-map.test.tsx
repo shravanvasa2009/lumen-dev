@@ -1,7 +1,7 @@
 import { requireOptionalNativeModule } from 'expo';
 import * as Location from 'expo-location';
 import { act, fireEvent, renderHook, renderRouter, screen } from 'expo-router/testing-library';
-import { Linking, Platform } from 'react-native';
+import { Dimensions, Linking, Platform, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
@@ -26,6 +26,13 @@ jest.mock('expo', () => ({
 
 // The first test pays for loading the 2 MB clinic list and the router.
 jest.setTimeout(30_000);
+
+const originalPlatform = Platform.OS;
+const originalWindow = Dimensions.get('window');
+
+afterAll(() => {
+  Platform.OS = originalPlatform;
+});
 
 const HOUSTON = { lat: 29.76, lon: -95.37 };
 const appDirectory = './app';
@@ -135,20 +142,65 @@ describe('Care map with location allowed', () => {
     );
   });
 
-  it('selects a clinic on a pin tap, moving it to the top of the list', async () => {
+  it('turns the map attribution on', async () => {
+    await openCareMap();
+    expect(screen.getByTestId('care-map-view').props.accessibilityHint).toBe('attribution:true');
+  });
+
+  it('selects a clinic on a pin tap, moving it to the top of the list without clearing it', async () => {
     await openCareMap();
     const clinics = nearestClinics(HOUSTON);
-    const third = clinics[2]!;
-    fireEvent.press(screen.getByTestId(`pin-clinic-${third.id}`));
-    expect(
-      screen.getAllByText(new RegExp(third.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))[0],
-    ).toBeOnTheScreen();
+    const dialled = (index: number) => `tel:${clinics[index]!.phone.replace(/[^\d+]/g, '')}`;
+    // Phones can repeat across sites, so the test picks a clinic whose number is unique in the list.
+    const picked = clinics.findIndex(
+      (clinic, index) =>
+        index > 0 &&
+        clinic.phone !== '' &&
+        clinics.every((other, at) => at === index || other.phone !== clinic.phone),
+    );
+    expect(picked).toBeGreaterThan(0);
+
+    const stopPropagation = jest.fn();
+    fireEvent.press(screen.getByTestId(`pin-clinic-${clinics[picked]!.id}`), { stopPropagation });
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
+
+    await act(async () => fireEvent.press(screen.getAllByRole('button', { name: en['careMap.call'] })[0]!));
+    expect(Linking.openURL).toHaveBeenCalledWith(dialled(picked));
+  });
+
+  it('does not clear the clinic pick when a doctor pin is tapped', async () => {
+    Platform.OS = 'ios';
+    jest.mocked(requireOptionalNativeModule).mockReturnValue({
+      searchNearbyCare: jest.fn(async () => [
+        { name: 'Dr. Rivera', phone: '713-555-0111', lat: 29.77, lon: -95.36, address: '1 Main St' },
+      ]),
+    });
+    await openCareMap();
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: en['careMap.showDoctors'] })));
+    const stopPropagation = jest.fn();
+    fireEvent.press(screen.getByTestId('pin-doctor-0'), { stopPropagation });
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
+    jest.mocked(requireOptionalNativeModule).mockReturnValue(null);
+  });
+
+  it('sizes the map to the window and folds it away while the ZIP field is in use', async () => {
+    act(() => Dimensions.set({ window: { ...originalWindow, width: 360, height: 640 } }));
+    saveDoctorPhone('(713) 555-0100');
+    await openCareMap();
+    const frameHeight = () => StyleSheet.flatten(screen.getByTestId('care-map-frame').props.style).height;
+    expect(frameHeight()).toBeLessThanOrEqual(640 * 0.3);
+    expect(screen.getByRole('button', { name: en['careMap.callMyDoctor'] })).toBeOnTheScreen();
+    fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'focus');
+    expect(frameHeight()).toBe(0);
+    fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'blur');
+    expect(frameHeight()).toBeGreaterThan(0);
+    act(() => Dimensions.set({ window: originalWindow }));
   });
 
   it('dials the clinic with a tel: link', async () => {
     await openCareMap();
     const [first] = nearestClinics(HOUSTON);
-    fireEvent.press(screen.getAllByRole('button', { name: en['careMap.call'] })[0]!);
+    await act(async () => fireEvent.press(screen.getAllByRole('button', { name: en['careMap.call'] })[0]!));
     expect(Linking.openURL).toHaveBeenCalledWith(`tel:${first!.phone.replace(/[^\d+]/g, '')}`);
   });
 
@@ -167,16 +219,30 @@ describe('Care map with location allowed', () => {
     Platform.OS = 'android';
     await openCareMap();
     const [first] = nearestClinics(HOUSTON);
-    fireEvent.press(screen.getAllByRole('button', { name: en['careMap.directions'] })[0]!);
+    await act(async () =>
+      fireEvent.press(screen.getAllByRole('button', { name: en['careMap.directions'] })[0]!),
+    );
     expect(Linking.openURL).toHaveBeenCalledWith(
       `geo:0,0?q=${first!.lat},${first!.lon}(${encodeURIComponent(first!.name)})`,
     );
   });
 
+  it('shows the failure on the clinic card whose directions were tapped', async () => {
+    Platform.OS = 'android';
+    jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('none'));
+    await openCareMap();
+    await act(async () =>
+      fireEvent.press(screen.getAllByRole('button', { name: en['careMap.directions'] })[1]!),
+    );
+    const alerts = screen.getAllByText(en['careMap.mapsFailed']);
+    expect(alerts).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: en['careMap.directions'] })).toHaveLength(20);
+  });
+
   it('opens Maps with a doctor search on Android', async () => {
     Platform.OS = 'android';
     await openCareMap();
-    fireEvent.press(screen.getByRole('button', { name: en['careMap.searchDoctors'] }));
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: en['careMap.searchDoctors'] })));
     expect(Linking.openURL).toHaveBeenCalledWith(`geo:${HOUSTON.lat},${HOUSTON.lon}?q=doctor`);
   });
 
@@ -196,7 +262,7 @@ describe('Care map with location allowed', () => {
   it('puts Call my doctor at the top when a number is saved', async () => {
     saveDoctorPhone('(713) 555-0100');
     await openCareMap();
-    fireEvent.press(screen.getByRole('button', { name: en['careMap.callMyDoctor'] }));
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: en['careMap.callMyDoctor'] })));
     expect(Linking.openURL).toHaveBeenCalledWith('tel:7135550100');
   });
 });
@@ -207,12 +273,12 @@ describe('Care map on iPhone', () => {
     Platform.OS = 'ios';
   });
   afterEach(() => {
-    Platform.OS = 'android';
+    Platform.OS = originalPlatform;
   });
 
   it('falls back to the Maps-app button when the native search is absent', async () => {
     await openCareMap();
-    fireEvent.press(screen.getByRole('button', { name: en['careMap.searchDoctors'] }));
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: en['careMap.searchDoctors'] })));
     expect(Linking.openURL).toHaveBeenCalledWith(
       `https://maps.apple.com/?q=doctor&ll=${HOUSTON.lat},${HOUSTON.lon}`,
     );

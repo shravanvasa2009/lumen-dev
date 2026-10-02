@@ -106,10 +106,13 @@ function expectTitleOnScreen(title: keyof typeof en) {
 }
 
 function routeFilesUnder(directory: string): string[] {
-  return getMockContext(directory)
-    .keys()
-    .map((key) => key.replace(/^\.\//, '').replace(/\.tsx$/, ''))
-    .filter((file) => !file.endsWith('_layout'));
+  return (
+    getMockContext(directory)
+      .keys()
+      .map((key) => key.replace(/^\.\//, '').replace(/\.tsx$/, ''))
+      // Layouts and +native-intent (the deep-link rewriter) live in app/ but are not screens.
+      .filter((file) => !file.endsWith('_layout') && file !== '+native-intent')
+  );
 }
 
 describe('route list', () => {

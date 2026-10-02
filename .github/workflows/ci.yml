@@ -94,6 +94,9 @@ jobs:
       - name: Evidence labels (EVID-1)
         if: hashFiles('package-lock.json') != ''
         run: npm run test:evidence
+      - name: Widget snapshot and deep links (WID-1)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:widgets
       - name: Golden parity, TypeScript vs Python (DSP-C)
         if: hashFiles('package-lock.json') != ''
         run: npm run golden:check

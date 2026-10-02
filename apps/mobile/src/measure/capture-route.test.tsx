@@ -21,6 +21,8 @@ const unavailable: LiveCapture = {
   elapsedS: 0,
   cleanSeconds: null,
   coachingKey: null,
+  recentWaveform: { tS: [], ppg: [] },
+  rejectedSpans: [],
 };
 
 preloadAppRoutes();

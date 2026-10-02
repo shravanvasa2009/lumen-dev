@@ -153,6 +153,17 @@ describe.each([
   });
 });
 
+describe('follow-up sheet', () => {
+  it('still renders, now with a grabber and the 90 percent detent', () => {
+    mockScheme = 'dark';
+    renderRouter(appDirectory, { initialUrl: '/follow-up' });
+    expect(screen.getByRole('header', { name: en['followUp.title'] })).toBeOnTheScreen();
+    const sheet = JSON.stringify(screen.toJSON());
+    expect(sheet).toContain('"sheetGrabberVisible":true');
+    expect(sheet).toContain('"sheetAllowedDetents":[0.9]');
+  });
+});
+
 describe('tab bar', () => {
   it('draws an icon on each of the four tabs', () => {
     mockScheme = 'dark';

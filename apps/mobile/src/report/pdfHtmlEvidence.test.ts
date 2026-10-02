@@ -39,7 +39,7 @@ jest.mock('@/accuracy/readAccuracy', () => {
 });
 
 describe('buildReportHtml with a passed evidence file (EVID-1)', () => {
-  it('takes labels and figures from the file alone, and adds the diabetes line', () => {
+  it('takes labels and figures from the file alone, and leaves the diabetes line off a reading without an estimate', () => {
     const demo = readingById('demo') as FixtureReading;
     const html = buildReportHtml({
       t: i18next.getFixedT('en'),
@@ -50,7 +50,7 @@ describe('buildReportHtml with a passed evidence file (EVID-1)', () => {
     });
     expect(html).toMatch(/Heart rate: Checked vs reference\. Average error 1\.6 bpm\./);
     expect(html).toMatch(/Rhythm check: Tested on public data\. Sensitivity/);
-    expect(html).toContain('Seen on 2 readings (Sep 25, Sep 27). Not a diagnostic test.');
+    expect(html.includes('Diabetes pattern:')).toBe(false);
     expect(html).not.toMatch(/HRV|extra beats|pulse shape/i);
   });
 });

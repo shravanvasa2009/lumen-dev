@@ -319,6 +319,8 @@
   "report.flagLabel": "Flag:",
   "report.flagRhythm": "irregular rhythm on {{flagged}} of {{total}} readings that day (AFib-like pattern).",
   "report.flagHr": "resting heart rate flagged on {{flagged}} of {{total}} readings that day.",
+  "report.flagRhythmOne": "irregular rhythm on this reading (AFib-like pattern).",
+  "report.flagHrOne": "resting heart rate flagged on this reading.",
   "report.colTime": "Time",
   "report.colMode": "Mode",
   "report.colHr": "HR",

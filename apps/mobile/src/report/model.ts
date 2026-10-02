@@ -77,6 +77,18 @@ export function reportEvidence(t: TFunction, language: string, withDiabetes: boo
     .join(' ');
 }
 
+// The PDF has one page per flagged reading of the day. A day with no flag still gets one page, for the
+// reading that was opened, so Share works on a regular reading.
+export function pdfPageReadings(
+  opened: FixtureReading,
+  dayReadings: readonly FixtureReading[],
+): readonly FixtureReading[] {
+  const flagged = dayReadings.filter(
+    ({ scan }) => Boolean(scan.metrics.rhythm?.flag) || Boolean(scan.metrics.hr?.flag),
+  );
+  return flagged.length > 0 ? flagged : [opened];
+}
+
 export function columnHeadings(t: TFunction): string[] {
   return [
     t('report.colTime'),

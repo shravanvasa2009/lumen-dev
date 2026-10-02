@@ -7,8 +7,8 @@ import {
   columnHeadings,
   diabetesFor,
   diabetesSentence,
-  flagCounts,
   formatFullDate,
+  pdfPageReadings,
   reportEvidence,
   stripsFor,
   tableRows,
@@ -44,6 +44,8 @@ const stylesheet = `
   figcaption { font-weight: 700; }
   svg { width: 100%; height: auto; }
   p { margin: 8px 0; }
+  .page { break-after: page; page-break-after: always; }
+  .page:last-child { break-after: auto; page-break-after: auto; }
   footer { margin-top: 16px; font-size: 11px; color: ${paper.textDim}; }
 `;
 
@@ -67,38 +69,37 @@ type ReportPdf = {
   demo: boolean;
 };
 
-// The same page the on-screen card shows, as HTML for expo-print. Experimental measurements have no
-// section here (§12.5), and the evidence paragraph comes from evidence.json through the shared helpers.
-export function buildReportHtml({ t, language, reading, dayReadings, demo }: ReportPdf): string {
-  const counts = flagCounts(dayReadings);
-  const diabetes = diabetesFor(dayReadings, evidenceFor('diabetes').measured);
+function pageHtml(
+  { t, language, demo }: Pick<ReportPdf, 't' | 'language' | 'demo'>,
+  page: FixtureReading,
+): string {
+  const diabetes = diabetesFor([page], evidenceFor('diabetes').measured);
+  const { rhythm, hr } = page.scan.metrics;
   const flagLines = [
-    counts.rhythm.flagged > 0 ? t('report.flagRhythm', counts.rhythm) : null,
-    counts.hr.flagged > 0 ? t('report.flagHr', counts.hr) : null,
+    rhythm?.flag ? t('report.flagRhythmOne') : null,
+    hr?.flag ? t('report.flagHrOne') : null,
   ].flatMap((line) =>
     line === null ? [] : [`<p><b>${escapeHtml(t('report.flagLabel'))}</b> ${escapeHtml(line)}</p>`],
   );
   const head = columnHeadings(t)
     .map((heading) => `<th>${escapeHtml(heading)}</th>`)
     .join('');
-  const body = tableRows(t, language, dayReadings)
+  const body = tableRows(t, language, [page])
     .map(({ cells }) => `<tr>${cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`)
     .join('');
-  const strips = stripsFor(t, language, dayReadings);
+  const strips = stripsFor(t, language, [page]);
   const stripFigures = strips.map(
     ({ caption, intervalsMs, flagged }) =>
       `<figure><figcaption>${escapeHtml(caption)}</figcaption>${stripSvg(intervalsMs, flagged ? paper.flag : paper.text, caption)}</figure>`,
   );
   const notes = [
     strips.length > 0 ? `<p class="dim">${escapeHtml(t('report.intervalNote'))}</p>` : '',
-    dayReadings.some(({ synthetic }) => synthetic)
-      ? `<p class="dim">${escapeHtml(t('demo.synthetic'))}</p>`
-      : '',
+    page.synthetic ? `<p class="dim">${escapeHtml(t('demo.synthetic'))}</p>` : '',
   ];
 
   return [
-    `<!DOCTYPE html><html lang="${escapeHtml(language)}"><head><meta charset="utf-8"><title>${escapeHtml(t('report.heading'))}</title><style>${stylesheet}</style></head><body>`,
-    `<header><h1>${escapeHtml(t('report.heading'))}</h1><span class="dim">${escapeHtml(formatFullDate(reading.createdAt, language))}</span></header>`,
+    '<section class="page">',
+    `<header><h1>${escapeHtml(t('report.heading'))}</h1><span class="dim">${escapeHtml(formatFullDate(page.createdAt, language))}</span></header>`,
     demo ? `<span class="demo">${escapeHtml(t('report.demoMark'))}</span>` : '',
     `<p class="banner">${escapeHtml(t('prototype.banner'))}</p>`,
     ...flagLines,
@@ -112,6 +113,18 @@ export function buildReportHtml({ t, language, reading, dayReadings, demo }: Rep
     `<p class="dim"><b>${escapeHtml(t('report.methodLabel'))}</b> ${escapeHtml(t('report.method'))}</p>`,
     `<p class="dim">${escapeHtml(t('report.leftOut'))}</p>`,
     `<footer>${escapeHtml(t('report.pdfFooter'))}</footer>`,
+    '</section>',
+  ].join('');
+}
+
+// One page per flagged reading of the opened reading's day (§12.5), as HTML for expo-print. Experimental
+// measurements have no section (§12.5), and the evidence paragraph comes from evidence.json through the
+// shared helpers.
+export function buildReportHtml({ t, language, reading, dayReadings, demo }: ReportPdf): string {
+  const pages = pdfPageReadings(reading, dayReadings).map((page) => pageHtml({ t, language, demo }, page));
+  return [
+    `<!DOCTYPE html><html lang="${escapeHtml(language)}"><head><meta charset="utf-8"><title>${escapeHtml(t('report.heading'))}</title><style>${stylesheet}</style></head><body>`,
+    ...pages,
     '</body></html>',
   ].join('');
 }

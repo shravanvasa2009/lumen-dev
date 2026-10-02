@@ -25,6 +25,44 @@ function htmlFor(options: { demo?: boolean; t?: typeof englishT; language?: stri
 // The stylesheet has "100%" widths, which are not figures about a measurement.
 const pageText = (html: string) => html.replace(/<style>[\s\S]*<\/style>/, '');
 
+const flaggedReading = readingById('demo-flag') as FixtureReading;
+const secondFlagged: FixtureReading = { ...flaggedReading, id: 'demo-flag-2' };
+const pageCount = (html: string) => html.match(/<section class="page">/g)?.length ?? 0;
+
+describe('buildReportHtml pages', () => {
+  it('makes one page for the one flagged reading on the demo day', () => {
+    expect(pageCount(htmlFor())).toBe(1);
+  });
+
+  it('makes one page per flagged reading, each with the header and a page break rule', () => {
+    const html = buildReportHtml({
+      t: englishT,
+      language: 'en',
+      reading: demo,
+      dayReadings: [demo, flaggedReading, secondFlagged],
+      demo: true,
+    });
+    expect(pageCount(html)).toBe(2);
+    expect(html.match(new RegExp(en['prototype.banner'], 'g'))).toHaveLength(2);
+    expect(html).toContain('.page { break-after: page; page-break-after: always; }');
+    expect(html).toContain('.page:last-child { break-after: auto; page-break-after: auto; }');
+    expect(pageText(html).match(/Experimental\. Not yet tested\./g)).toHaveLength(4);
+  });
+
+  it('makes a single page for the opened reading when nothing is flagged', () => {
+    const html = buildReportHtml({
+      t: englishT,
+      language: 'en',
+      reading: demo,
+      dayReadings: [demo],
+      demo: true,
+    });
+    expect(pageCount(html)).toBe(1);
+    expect(html.includes(en['report.flagLabel'])).toBe(false);
+    expect(html).toContain(en['prototype.banner']);
+  });
+});
+
 describe('buildReportHtml', () => {
   it('opens with the prototype header and the report heading', () => {
     const html = htmlFor();
@@ -58,11 +96,12 @@ describe('buildReportHtml', () => {
     expect(html).toContain('&lt;img src=x onerror=&quot;alert(&#39;hi&#39;)&quot;&gt; &amp; more');
   });
 
-  it('tabulates the day and draws a strip for the readings that have intervals', () => {
+  it('tabulates the flagged reading and draws its interval strip', () => {
     const html = htmlFor();
     expect(html).toContain(`<th>${en['report.colRhythm']}</th>`);
-    expect(html.match(/<tr><td>/g)).toHaveLength(3);
-    expect(html.match(/<svg /g)).toHaveLength(2);
+    expect(html.match(/<tr><td>/g)).toHaveLength(1);
+    expect(html.match(/<svg /g)).toHaveLength(1);
+    expect(html).toContain(en['report.flagRhythmOne']);
     expect(html).toContain(en['report.intervalNote']);
     expect(html).toContain(en['demo.synthetic']);
   });

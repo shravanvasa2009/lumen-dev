@@ -319,6 +319,8 @@
   "report.flagLabel": "Aviso:",
   "report.flagRhythm": "ritmo irregular en {{flagged}} de {{total}} mediciones de ese día (patrón similar a la fibrilación auricular).",
   "report.flagHr": "frecuencia cardíaca en reposo señalada en {{flagged}} de {{total}} mediciones de ese día.",
+  "report.flagRhythmOne": "ritmo irregular en esta medición (patrón similar a la fibrilación auricular).",
+  "report.flagHrOne": "frecuencia cardíaca en reposo señalada en esta medición.",
   "report.colTime": "Hora",
   "report.colMode": "Modo",
   "report.colHr": "FC",

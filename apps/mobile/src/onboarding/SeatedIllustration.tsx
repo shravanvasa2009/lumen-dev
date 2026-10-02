@@ -8,6 +8,7 @@ const LABEL_SIZE = 12;
 
 type SeatedIllustrationProps = { phoneLabel: string; elbowLabel: string };
 
+// Skin tones use the flag colour and the dot the flag too: red is reserved for the emergency screen.
 // Side view of someone seated at a table with the elbow resting on it and the phone at chest height.
 export function SeatedIllustration({ phoneLabel, elbowLabel }: SeatedIllustrationProps) {
   const { colors } = useTheme();
@@ -19,10 +20,10 @@ export function SeatedIllustration({ phoneLabel, elbowLabel }: SeatedIllustratio
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Rect x={20} y={128} width={260} height={10} rx={5} fill={colors.surface3} />
+      <Rect x={20} y={128} width={260} height={10} rx={5} fill={colors.line2} />
       <Rect x={40} y={138} width={10} height={52} fill={colors.surface3} />
       <Rect x={250} y={138} width={10} height={52} fill={colors.surface3} />
-      <Circle cx={100} cy={32} r={20} fill={colors.textFaint} />
+      <Circle cx={100} cy={32} r={20} fill={colors.flag} />
       <Path
         d="M112 58 Q92 76 96 124"
         stroke={colors.badgePublicFg}
@@ -30,24 +31,8 @@ export function SeatedIllustration({ phoneLabel, elbowLabel }: SeatedIllustratio
         strokeLinecap="round"
         fill="none"
       />
-      <Line
-        x1={90}
-        y1={74}
-        x2={130}
-        y2={120}
-        stroke={colors.textFaint}
-        strokeWidth={8}
-        strokeLinecap="round"
-      />
-      <Line
-        x1={130}
-        y1={120}
-        x2={190}
-        y2={100}
-        stroke={colors.textFaint}
-        strokeWidth={8}
-        strokeLinecap="round"
-      />
+      <Line x1={104} y1={72} x2={130} y2={120} stroke={colors.flag} strokeWidth={8} strokeLinecap="round" />
+      <Line x1={130} y1={120} x2={190} y2={100} stroke={colors.flag} strokeWidth={8} strokeLinecap="round" />
       <Circle cx={130} cy={121} r={9} fill="none" stroke={colors.accent} strokeWidth={2.5} />
       <Rect
         x={188}
@@ -55,15 +40,15 @@ export function SeatedIllustration({ phoneLabel, elbowLabel }: SeatedIllustratio
         width={22}
         height={42}
         rx={5}
-        fill="none"
+        fill={colors.bg}
         stroke={colors.accent}
         strokeWidth={2.5}
       />
-      <Circle cx={198} cy={88} r={4} fill={colors.pulse} />
+      <Circle cx={198} cy={88} r={4} fill={colors.flag} />
       <SvgText x={218} y={90} fill={colors.accent} fontSize={LABEL_SIZE}>
         {phoneLabel}
       </SvgText>
-      <SvgText x={140} y={158} fill={colors.accent} fontSize={LABEL_SIZE}>
+      <SvgText x={140} y={152} fill={colors.accent} fontSize={LABEL_SIZE}>
         {elbowLabel}
       </SvgText>
     </Svg>

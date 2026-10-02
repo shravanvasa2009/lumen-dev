@@ -1,7 +1,6 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
-import { expectNavTitle } from '@/testing/navHeader';
 
 describe('inconclusive screen', () => {
   it('says how many clean seconds were collected and where the rest went', () => {
@@ -33,13 +32,13 @@ describe('inconclusive screen', () => {
   it('retakes in the same mode', () => {
     renderRouter('./app', { initialUrl: '/measure/inconclusive?mode=quick' });
     fireEvent.press(screen.getByRole('button', { name: en['inconclusive.retake'] }));
-    expectNavTitle(en['mode.quick']);
+    expect(screen.getByRole('header', { name: en['mode.quick'] })).toBeOnTheScreen();
   });
 
   it('switches to a Quick Check', () => {
     renderRouter('./app', { initialUrl: '/measure/inconclusive?mode=full' });
     fireEvent.press(screen.getByRole('button', { name: en['inconclusive.tryQuick'] }));
-    expectNavTitle(en['mode.quick']);
+    expect(screen.getByRole('header', { name: en['mode.quick'] })).toBeOnTheScreen();
   });
 
   it('closes to Home', () => {

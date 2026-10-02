@@ -1,4 +1,5 @@
-import { fireEvent, getMockContext, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, getMockContext, renderRouter, screen } from 'expo-router/testing-library';
+import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
@@ -39,8 +40,8 @@ const routes: readonly Route[] = [
   { file: '(tabs)/settings', url: '/settings', title: 'settings.title', place: 'body' },
   { file: 'measure/mode', url: '/measure/mode', title: 'mode.title', place: 'nav' },
   { file: 'measure/precheck', url: '/measure/precheck?mode=full', title: 'precheck.title', place: 'nav' },
-  { file: 'measure/capture', url: '/measure/capture?mode=full', title: 'mode.full', place: 'nav' },
-  { file: 'measure/capture', url: '/measure/capture?mode=quick', title: 'mode.quick', place: 'nav' },
+  { file: 'measure/capture', url: '/measure/capture?mode=full', title: 'mode.full', place: 'body' },
+  { file: 'measure/capture', url: '/measure/capture?mode=quick', title: 'mode.quick', place: 'body' },
   { file: 'measure/processing', url: '/measure/processing', title: 'processing.title', place: 'body' },
   { file: 'results/[id]/index', url: '/results/demo', title: 'results.title', place: 'body' },
   { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.titleRegular', place: 'body' },
@@ -202,7 +203,9 @@ describe('navigation', () => {
     expectTitleOnScreen('precheck.title');
     fireEvent.press(screen.getByRole('button', { name: en['precheck.start'] }));
     expectTitleOnScreen('mode.quick');
-    fireEvent.press(screen.getByRole('button', { name: en['capture.finish'] }));
+    // Capture ends only on clean seconds, which the emulator cannot produce, so the next screen is opened
+    // by its route.
+    act(() => router.push('/measure/processing'));
     fireEvent.press(screen.getByRole('button', { name: en['processing.seeResults'] }));
     expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
   });
@@ -221,7 +224,7 @@ describe('navigation', () => {
 
   it('loops from a failed capture through Fix my technique back to capture', () => {
     followButtons('/measure/capture?mode=quick', [
-      ['capture.noSignal', 'result.inconclusive'],
+      ['capture.stop', 'result.inconclusive'],
       ['inconclusive.fix', 'fix.title'],
       ['fix.done', 'mode.quick'],
     ]);

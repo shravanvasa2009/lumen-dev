@@ -56,7 +56,7 @@ describe('fix my technique', () => {
   it.each(['quick', 'full'] as const)('takes a %s reading when Done is pressed', (mode) => {
     renderRouter('./app', { initialUrl: `/measure/fix-technique?mode=${mode}&cause=motion` });
     fireEvent.press(screen.getByRole('button', { name: en['fix.done'] }));
-    expectNavTitle(en[`mode.${mode}`]);
+    expect(screen.getByRole('header', { name: en[`mode.${mode}`] })).toBeOnTheScreen();
   });
 
   it('is reached from Inconclusive with the largest lost cause', () => {

@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import os
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
@@ -18,6 +19,9 @@ CONTROLS_PER_DIABETIC = 3
 SEED = 20260930
 SPLIT_FILE = paths.ML_ROOT / "splits" / "diabetes.json"
 CASE_FILE = "vital_files/{caseid:04d}.vital"
+# ADR 0014 amendment: holdout .vital files live under external/, where ensure_not_external blocks every
+# training and tuning loader, and are downloaded only in the owner's approval step (ADR 0045).
+HOLDOUT_KEY = "vitaldb-holdout"
 
 log = logging.getLogger("datasets.vitaldb_cases")
 
@@ -87,6 +91,23 @@ def load_split(split_file: Path = SPLIT_FILE) -> dict[str, list[int]]:
     return json.loads(split_file.read_text(encoding="utf-8"))
 
 
+def holdout_caseids(clinical: pd.DataFrame, holdout: Sequence[int]) -> dict[int, int]:
+    # Subject to case by the same one-surgery-per-patient rule that locked the holdout; no label value is
+    # used or returned.
+    cases = eligible_cases(clinical)
+    by_subject = dict(zip(cases["subjectid"].astype(int), cases["caseid"].astype(int), strict=True))
+    missing = [subject for subject in holdout if subject not in by_subject]
+    if missing:
+        raise HoldoutChangedError(
+            f"{len(missing)} holdout patients have no eligible case, e.g. {missing[:3]}"
+        )
+    return {subject: by_subject[subject] for subject in holdout}
+
+
+def holdout_case_path(caseid: int) -> Path:
+    return paths.external_dir() / HOLDOUT_KEY / CASE_FILE.format(caseid=caseid)
+
+
 def case_files(caseids: Sequence[int], listing: str, local_dir: Path) -> list[RemoteFile]:
     by_name = {
         remote.name: remote for remote in download.parse_sha256sums(listing, registry.VITALDB_BASE, local_dir)
@@ -97,7 +118,15 @@ def case_files(caseids: Sequence[int], listing: str, local_dir: Path) -> list[Re
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m datasets.vitaldb_cases")
     parser.add_argument("--download", action="store_true", help="fetch the selected development cases")
+    parser.add_argument(
+        "--download-holdout", action="store_true", help="fetch the locked holdout cases (owner, ADR 0045)"
+    )
     args = parser.parse_args(argv)
+    # The same speed bump as datasets.download --external: only after the owner approves the external test.
+    if args.download_holdout and os.environ.get("LUMEN_EXTERNAL_APPROVED") != "1":
+        raise download.ExternalNotApprovedError(
+            "the holdout needs the owner's approval: set LUMEN_EXTERNAL_APPROVED=1 after need-human"
+        )
 
     vitaldb = next(dataset for dataset in registry.DATASETS if dataset.key == "vitaldb")
     if not download.is_complete(vitaldb):
@@ -105,6 +134,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     cases = eligible_cases(pd.read_csv(vitaldb.local_dir / "clinical_data.csv"))
     split = lock_holdout(cases)
     write_or_check_split(split, SPLIT_FILE)
+    if args.download_holdout:
+        listing = (vitaldb.local_dir / "SHA256SUMS.txt").read_text(encoding="utf-8")
+        target = paths.external_dir() / HOLDOUT_KEY
+        caseids = list(holdout_caseids(cases, split["holdout"]).values())
+        with requests.Session() as http:
+            for remote in case_files(caseids, listing, target):
+                download.stream_file(remote, target / remote.name, http)
+        return
     picked = select_dev_cases(cases, split["dev"])
     ensure_dev_only(picked["subjectid"], split)
     log.info(

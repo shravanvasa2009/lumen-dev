@@ -38,10 +38,11 @@ const NATIVE_NETWORK = new RegExp(
 const INTERNET_PERMISSION = /android\.permission\.INTERNET/;
 
 // Tracked and not-ignored files, so a hand-written file can't hide under a folder name such as build.
-const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
+// -z, because git otherwise quotes and escapes non-ASCII paths, and those would never match a root.
+const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
   encoding: 'utf8',
 })
-  .split('\n')
+  .split('\0')
   .filter((file) => ROOTS.some((root) => file.startsWith(root)) && fs.existsSync(file));
 
 const violations = [];

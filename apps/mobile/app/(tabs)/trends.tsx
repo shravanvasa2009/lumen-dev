@@ -1,20 +1,15 @@
 import { useTranslation } from 'react-i18next';
 
 import { RouteShell } from '@/components/RouteShell';
+import { demoHistory, demoNow } from '@/trends/demoHistory';
+import { TrendsView } from '@/trends/TrendsView';
 
+// No reading store exists yet, so the tab shows the sample history under the Demo banner.
 export default function TrendsScreen() {
   const { t } = useTranslation();
   return (
-    <RouteShell
-      title={t('trends.title')}
-      sections={[
-        { heading: t('trends.restingHr') },
-        { heading: t('trends.hrv') },
-        { heading: t('trends.breathing') },
-        { heading: t('trends.median') },
-        { heading: t('trends.band') },
-        { heading: t('trends.readings') },
-      ]}
-    />
+    <RouteShell tabRoot title={t('trends.title')}>
+      <TrendsView readings={demoHistory} now={demoNow} demo />
+    </RouteShell>
   );
 }

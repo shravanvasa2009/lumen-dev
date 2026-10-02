@@ -526,3 +526,131 @@ test('the CLI writes evidence.json and the app copy only after a matching recomp
   assert.equal(JSON.parse(fs.readFileSync(out, 'utf8')).metrics.hr.label, 'checked');
   assert.equal(fs.readFileSync(app, 'utf8'), fs.readFileSync(out, 'utf8'));
 });
+
+// polar_rr.csv rows written the way B's Lab recorder stamps them (order E.B polar-clock): the strap notifies
+// about once a second with every RR since the last notification; the newest RR ends when the notification
+// arrives (delay after the beat, plus bridge delay), and earlier ones step back by RR.
+function strapRows(intervalsMs, { periodMs = 1000, bridgeMs = 30, lost = [] } = {}) {
+  const rows = [];
+  let beatMs = 0;
+  let pending = [];
+  let nextNotifyMs = periodMs;
+  intervalsMs.forEach((rr, i) => {
+    beatMs += rr;
+    while (beatMs > nextNotifyMs) {
+      if (pending.length && !lost.includes(Math.round(nextNotifyMs / periodMs))) {
+        let endNs = (nextNotifyMs + bridgeMs) * 1e6;
+        const stamped = [];
+        for (let k = pending.length - 1; k >= 0; k -= 1) {
+          stamped.unshift({ t_ns: Math.round(endNs), rr_ms: pending[k] });
+          endNs -= pending[k] * 1e6;
+        }
+        rows.push(...stamped);
+      }
+      pending = [];
+      nextNotifyMs += periodMs;
+    }
+    pending.push(rr);
+  });
+  return rows;
+}
+
+function readStrap(t, rows) {
+  const root = tempDir(t);
+  writeCaptureFolder(root, 'P1');
+  const folder = path.join(root, 'P1');
+  fs.writeFileSync(path.join(folder, 'samples.csv'), `t_ns,r,g,b\n0,0.5,0.1,0.1\n${600e9},0.5,0.1,0.1\n`);
+  fs.writeFileSync(
+    path.join(folder, 'polar_rr.csv'),
+    `t_ns,rr_ms\n${rows.map((row) => `${row.t_ns},${row.rr_ms}`).join('\n')}\n`,
+  );
+  return readCaptures(root).captures[0];
+}
+
+test('notification timing alone is never taken for a strap dropout, even at slow heart rates', (t) => {
+  for (const rr of [sequence(90), sequence(60).map((value) => value * 1.9)]) {
+    const capture = readStrap(t, strapRows(rr));
+    assert.equal(capture.strapDropouts, 0);
+    assert.equal(capture.polarRrMs.length, rr.length - 1);
+  }
+});
+
+test('a strap dropout keeps only the longest unbroken stretch, so no beat pairs across it', (t) => {
+  const rr = sequence(90);
+  // Notifications 20–24 never arrived: about five seconds of beats are gone.
+  const rows = strapRows(rr, { lost: [20, 21, 22, 23, 24] });
+  const capture = readStrap(t, rows);
+  assert.equal(capture.strapDropouts, 1);
+  const afterGap = rows.findIndex((row, i) => i > 0 && row.t_ns - rows[i - 1].t_ns > 3e9);
+  assert.deepEqual(
+    capture.polarRrMs,
+    rows.slice(afterGap).map((row) => row.rr_ms),
+  );
+});
+
+test('the CLI warns about captures with a strap dropout', (t) => {
+  const root = tempDir(t);
+  writeCaptureFolder(path.join(root, 'captures'), 'P1');
+  const folder = path.join(root, 'captures', 'P1');
+  fs.writeFileSync(path.join(folder, 'samples.csv'), `t_ns,r,g,b\n0,0.5,0.1,0.1\n${600e9},0.5,0.1,0.1\n`);
+  const rows = strapRows(sequence(90), { lost: [20, 21, 22, 23, 24] });
+  fs.writeFileSync(
+    path.join(folder, 'polar_rr.csv'),
+    `t_ns,rr_ms\n${rows.map((row) => `${row.t_ns},${row.rr_ms}`).join('\n')}\n`,
+  );
+  const run = spawnSync(
+    process.execPath,
+    [CLI, '--captures', path.join(root, 'captures'), '--out', path.join(root, 'metrics.json')],
+    { encoding: 'utf8' },
+  );
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stderr, /P1: 1 strap dropout\(s\); only the longest unbroken stretch is used/);
+});
+
+test('after a dropout, the kept later stretch still pairs each beat with its own heartbeat', (t) => {
+  const randomWalk = sequence(120);
+  // Paced breathing at 6.7 breaths/min repeats every 9 beats, so a sequence match alone can lock a whole
+  // breath off.
+  const paced = Array.from({ length: 120 }, (_, k) => 1000 + 80 * Math.sin((2 * Math.PI * k) / 9));
+  for (const rr of [randomWalk, paced]) {
+    const root = tempDir(t);
+    writeCaptureFolder(root, 'P1');
+    const folder = path.join(root, 'P1');
+    fs.writeFileSync(path.join(folder, 'samples.csv'), `t_ns,r,g,b\n0,0.5,0.1,0.1\n${600e9},0.5,0.1,0.1\n`);
+    let endMs = 0;
+    const phoneRows = rr.map((value, k) => {
+      endMs += value;
+      return `${Math.round(endMs * 1e6)},${value + (k % 2 ? -10 : 10)},1`;
+    });
+    fs.writeFileSync(
+      path.join(folder, 'replay-intervals.csv'),
+      `t_ns,ibi_ms,accepted\n${phoneRows.slice(1).join('\n')}\n`,
+    );
+    const rows = strapRows(rr, { lost: [12, 13, 14, 15, 16] });
+    fs.writeFileSync(
+      path.join(folder, 'polar_rr.csv'),
+      `t_ns,rr_ms\n${rows.map((row) => `${row.t_ns},${row.rr_ms}`).join('\n')}\n`,
+    );
+    const { captures } = readCaptures(root);
+    assert.equal(captures[0].strapDropouts, 1);
+    assert.ok(captures[0].polarStartNs > 15e9);
+    const logged = [];
+    const metrics = computeMetrics(captures, { commit: 'abc', date: '2026-10-20' }, (line) =>
+      logged.push(line),
+    );
+    assert.equal(metrics.intervals.maeMs, 10);
+    // The lag is in whole-reading beats: the kept stretch starts well into the reading, so strap q = phone p + lag < 0.
+    const lag = Number(/lag (-?\d+) beats/.exec(logged.join('\n'))[1]);
+    assert.ok(lag < -10, `lag ${lag}`);
+  }
+});
+
+test('strap data that starts after the last phone beat is not aligned at all', () => {
+  const late = capture({ subject: 'P1', hr: 62, polarHr: 60 });
+  late.phone = late.phone.map((beat, i) => ({ ...beat, endNs: (i + 1) * 1e9 }));
+  late.polarStartNs = 1e12;
+  const logged = [];
+  const metrics = computeMetrics([late], { commit: 'abc', date: '2026-10-20' }, (line) => logged.push(line));
+  assert.equal(metrics.intervals.maeMs, null);
+  assert.match(logged.join('\n'), /did not align/);
+});

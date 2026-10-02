@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import pytest
 
-from datasets import vitaldb_cases
+from datasets import download, vitaldb_cases
 from datasets.vitaldb_cases import (
     HoldoutAccessError,
     HoldoutChangedError,
@@ -117,3 +117,18 @@ def test_load_split_requires_the_locked_file(tmp_path):
     split = {"holdout": [3], "dev": [4]}
     vitaldb_cases.write_or_check_split(split, tmp_path / "diabetes.json")
     assert vitaldb_cases.load_split(tmp_path / "diabetes.json") == split
+
+
+def test_holdout_download_needs_the_owner_approval(data_dir):
+    with pytest.raises(download.ExternalNotApprovedError):
+        vitaldb_cases.main(["--download-holdout"])
+
+
+def test_holdout_cases_map_by_the_eligible_case_rule():
+    clinical = pd.DataFrame(
+        {"caseid": [3, 1, 2], "subjectid": [10, 10, 20], "age": ["50", "50", "60"], "preop_dm": [0, 0, 1]}
+    )
+    # Subject 10 had two surgeries; the eligible-case rule keeps the first case.
+    assert vitaldb_cases.holdout_caseids(clinical, [10, 20]) == {10: 1, 20: 2}
+    with pytest.raises(vitaldb_cases.HoldoutChangedError):
+        vitaldb_cases.holdout_caseids(clinical, [30])

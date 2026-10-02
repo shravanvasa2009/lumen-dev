@@ -151,6 +151,9 @@ def manifest_entry(spec: ModelSpec, models_dir: Path, metrics: dict | None, comm
         "abstainBelow": spec.abstain_below,
         "externalTest": {"dataset": spec.external_dataset, **dict.fromkeys(spec.external_fields)},
         "trainedOn": metrics["trainedOn"] if metrics else [],
+        # Copied verbatim so evidence.json can carry dev-val numbers §11.3 asks the app to show (the
+        # premature-beat false-AF rate); ml/runs is not in the repo, so the manifest is their only source.
+        "development": metrics["development"] if metrics else None,
         "opset": default_opset(path),
         "toolchain": {
             "torch": torch.__version__,
@@ -346,6 +349,122 @@ def _measured_limits(spec: ModelSpec, metrics: dict | None) -> str:
     return "".join(f"\n{line}" for line in lines)
 
 
+# train.rhythm's reliability tables: (key, what the x axis is, what "observed" counts, plot colour).
+RELIABILITY_SERIES = (
+    ("reliabilityAf", "P(AF)", "share of windows that are AF", "#c0392b"),
+    ("reliabilityTop", "top-class probability", "share of windows whose top class is right", "#1f6f8b"),
+)
+# SVG user units: a square plot with room on the left and below for the axis labels.
+PLOT_LEFT, PLOT_TOP, PLOT_SIZE = 60, 40, 320
+
+
+def calibration_plot_name(spec: ModelSpec) -> str:
+    return f"{spec.file_stem}.calibration.svg"
+
+
+def _has_reliability(calibration: dict | None) -> bool:
+    return any(key in (calibration or {}) for key, *_ in RELIABILITY_SERIES)
+
+
+def _reliability_rows(rows: list[dict]) -> list[dict]:
+    return [
+        {
+            "bin": f"{row['low']:.1f}-{row['high']:.1f}",
+            "windows": row["windows"],
+            "mean predicted": f"{row['predicted']:.3f}",
+            "observed": f"{row['observed']:.3f}",
+            "observed minus predicted": f"{row['observed'] - row['predicted']:+.3f}",
+        }
+        for row in rows
+    ]
+
+
+def _calibration_section(spec: ModelSpec, calibration: dict | None) -> str:
+    if not calibration:
+        return NOT_MEASURED
+    facts = "\n".join(
+        f"- {key}: {value}" for key, value in calibration.items() if not isinstance(value, list)
+    )
+    if not _has_reliability(calibration):
+        return facts
+    parts = [
+        facts,
+        f"![Reliability diagram, dev-val windows]({calibration_plot_name(spec)})",
+        "Windows are weighted as in training (each label equal, then each dataset, then each subject), so "
+        "the observed shares hold for that balance, not for any real-world prevalence. Points on the "
+        "diagonal are calibrated; points above it mean the model is underconfident. The app abstains when "
+        f"a reading's top-class probability is below {spec.abstain_below}.",
+    ]
+    parts += [
+        f"{axis} ({observed}):\n\n{_table(_reliability_rows(calibration[key]))}"
+        for key, axis, observed, _colour in RELIABILITY_SERIES
+        if key in calibration
+    ]
+    return "\n\n".join(parts)
+
+
+def _x(probability: float) -> float:
+    return PLOT_LEFT + probability * PLOT_SIZE
+
+
+def _y(probability: float) -> float:
+    return PLOT_TOP + (1 - probability) * PLOT_SIZE
+
+
+def reliability_svg(spec: ModelSpec, calibration: dict) -> str:
+    bottom, right, middle = PLOT_TOP + PLOT_SIZE, PLOT_LEFT + PLOT_SIZE, PLOT_TOP + PLOT_SIZE / 2
+    shapes = [
+        f'<text x="{PLOT_LEFT}" y="22" font-size="14">{spec.name} {spec.version}: reliability on dev-val '
+        "windows</text>",
+        f'<rect x="{PLOT_LEFT}" y="{PLOT_TOP}" width="{PLOT_SIZE}" height="{PLOT_SIZE}" fill="none" '
+        'stroke="#444"/>',
+        f'<line x1="{PLOT_LEFT}" y1="{bottom}" x2="{right}" y2="{PLOT_TOP}" stroke="#999" '
+        'stroke-dasharray="4 4"/>',
+        f'<text x="{PLOT_LEFT + PLOT_SIZE / 2}" y="{bottom + 34}" font-size="12" text-anchor="middle">'
+        "mean predicted probability</text>",
+        f'<text x="16" y="{middle}" font-size="12" text-anchor="middle" transform="rotate(-90 16 {middle})">'
+        "observed share (weighted)</text>",
+    ]
+    for tick in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0):
+        shapes += [
+            f'<text x="{_x(tick):.1f}" y="{bottom + 16}" font-size="11" text-anchor="middle">'
+            f"{tick:.1f}</text>",
+            f'<text x="{PLOT_LEFT - 6}" y="{_y(tick) + 4:.1f}" font-size="11" text-anchor="end">'
+            f"{tick:.1f}</text>",
+        ]
+    if spec.abstain_below is not None:
+        abstain = _x(spec.abstain_below)
+        shapes += [
+            f'<line x1="{abstain:.1f}" y1="{PLOT_TOP}" x2="{abstain:.1f}" y2="{bottom}" stroke="#777" '
+            'stroke-dasharray="2 3"/>',
+            f'<text x="{abstain + 4:.1f}" y="{bottom - 6}" font-size="10" fill="#555">abstain below '
+            f"{spec.abstain_below}</text>",
+        ]
+    legend_y = PLOT_TOP + 14
+    for key, axis, _observed, colour in RELIABILITY_SERIES:
+        if not calibration.get(key):
+            continue
+        points = [(_x(row["predicted"]), _y(row["observed"])) for row in calibration[key]]
+        shapes.append(
+            f'<polyline points="{" ".join(f"{x:.1f},{y:.1f}" for x, y in points)}" fill="none" '
+            f'stroke="{colour}" stroke-width="2"/>'
+        )
+        shapes += [f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="{colour}"/>' for x, y in points]
+        shapes += [
+            f'<line x1="{PLOT_LEFT + 10}" y1="{legend_y - 4}" x2="{PLOT_LEFT + 30}" y2="{legend_y - 4}" '
+            f'stroke="{colour}" stroke-width="2"/>',
+            f'<text x="{PLOT_LEFT + 36}" y="{legend_y}" font-size="11">{axis}</text>',
+        ]
+        legend_y += 16
+    width, height = right + 20, bottom + 50
+    body = "\n".join(f"  {shape}" for shape in shapes)
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" font-family="sans-serif">\n'
+        f'  <rect width="{width}" height="{height}" fill="#fff"/>\n{body}\n</svg>\n'
+    )
+
+
 def model_card(spec: ModelSpec, metrics: dict | None) -> str:
     text = CARD_TEXT[spec.family]
     if not spec.ships:
@@ -370,12 +489,7 @@ def model_card(spec: ModelSpec, metrics: dict | None) -> str:
         *filter(None, [_threshold_section(spec, metrics)]),
         "## Ablation\n\nThe neural model ships only if it beats its classical baseline on held-out "
         "subjects.\n\n" + (_table(ablation) if ablation else NOT_MEASURED),
-        "## Calibration\n\n"
-        + (
-            "\n".join(f"- {key}: {value}" for key, value in calibration.items())
-            if calibration
-            else NOT_MEASURED
-        ),
+        f"## Calibration\n\n{_calibration_section(spec, calibration)}",
         f"## External test\n\nDataset: {spec.external_dataset}. {EXTERNAL_NOT_RUN}",
         f"## Limitations\n\n{text['limitations']}{_measured_limits(spec, metrics)}",
         f"## What the app shows when the model abstains\n\n{text['abstain']}",
@@ -426,8 +540,20 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
     # Every check, and every card render, happens before anything is written, so a failure leaves no
     # manifest or cards behind.
     cards = {spec.file_stem: model_card(spec, metrics_by_name[spec.name]) for spec in specs}
+    plots: dict[str, str | None] = {}
+    for spec in specs:
+        calibration = (metrics_by_name[spec.name] or {}).get("calibration")
+        plots[calibration_plot_name(spec)] = (
+            reliability_svg(spec, calibration) if _has_reliability(calibration) else None
+        )
     for stem, card in cards.items():
         (models_dir / f"{stem}.md").write_text(card, encoding="utf-8")
+    for name, plot in plots.items():
+        # A model whose metrics no longer carry tables keeps no plot from an earlier release.
+        if plot is None:
+            (models_dir / name).unlink(missing_ok=True)
+        else:
+            (models_dir / name).write_text(plot, encoding="utf-8")
     path = models_dir / "manifest.json"
     path.write_text(json.dumps({"models": entries}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return path

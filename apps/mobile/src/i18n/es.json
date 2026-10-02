@@ -413,6 +413,7 @@
   "phoneCheck.locksSome": "{{locked}} de 3",
   "phoneCheck.locksNone": "Ninguno",
   "phoneCheck.notChecked": "Sin revisar",
+  "phoneCheck.checking": "Comprobando…",
   "phoneCheck.timingLater": "Se mide en la práctica",
   "phoneCheck.probeUnavailable": "Esta versión no puede usar la cámara, así que no se revisó nada.",
   "placement.subtitle": "Lente y flash de la cámara trasera, vistos desde la parte de atrás del teléfono",

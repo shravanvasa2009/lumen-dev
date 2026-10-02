@@ -51,6 +51,13 @@ describe('phone check', () => {
     expect(screen.root.findAll((node) => String(node.type) === 'RNSVGSvgView')).toHaveLength(3);
   });
 
+  it('shows Checking while the probe is still running', () => {
+    mockGetCapabilities.mockReturnValue(new Promise(() => undefined));
+    renderRouter('./app', { initialUrl: '/phone-check' });
+    expect(screen.getAllByText(en['phoneCheck.checking'])).toHaveLength(5);
+    expect(screen.queryByText(en['phoneCheck.notChecked'])).not.toBeOnTheScreen();
+  });
+
   it('marks every row as not checked when the capture module is not linked', () => {
     mockModuleLinked = false;
     renderRouter('./app', { initialUrl: '/phone-check' });

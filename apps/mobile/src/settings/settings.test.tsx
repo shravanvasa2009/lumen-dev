@@ -3,6 +3,7 @@ import { Linking } from 'react-native';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { setPreference } from '@/theme/preferences';
 
@@ -44,16 +45,16 @@ describe('Settings tab', () => {
   it('opens Your phone and the accuracy screen from their rows', () => {
     renderRouter(appDirectory, { initialUrl: '/settings' });
     fireEvent.press(screen.getByRole('button', { name: new RegExp(en['settings.accuracy']) }));
-    expect(screen.getByRole('header', { name: en['accuracy.title'] })).toBeOnTheScreen();
+    expectNavTitle(en['accuracy.title']);
   });
 
   it('opens Lab mode on the seventh tap of the version and not before', () => {
     renderRouter(appDirectory, { initialUrl: '/settings' });
     const version = screen.getByRole('button', { name: /Version/ });
     for (let tap = 1; tap < 7; tap += 1) fireEvent.press(version);
-    expect(screen.queryByRole('header', { name: en['lab.title'] })).toBeNull();
+    expect(focusedNavHeader()?.title).not.toBe(en['lab.title']);
     fireEvent.press(version);
-    expect(screen.getByRole('header', { name: en['lab.title'] })).toBeOnTheScreen();
+    expectNavTitle(en['lab.title']);
   });
 });
 
@@ -84,7 +85,7 @@ describe('Lab mode', () => {
   it('leaves the capture panel out of release builds', () => {
     setDevelopmentBuild(false);
     renderRouter(appDirectory, { initialUrl: '/settings/lab' });
-    expect(screen.getByRole('header', { name: en['lab.title'] })).toBeOnTheScreen();
+    expectNavTitle(en['lab.title']);
     expect(screen.queryByText(en['lab.noSource'])).toBeNull();
   });
 });
@@ -150,7 +151,7 @@ describe('Widget gallery', () => {
   it('opens the lock-screen previews', () => {
     renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
     fireEvent.press(screen.getByRole('button', { name: en['widgets.lockScreenLink'] }));
-    expect(screen.getByRole('header', { name: en['lockScreen.title'] })).toBeOnTheScreen();
+    expectNavTitle(en['lockScreen.title']);
   });
 });
 

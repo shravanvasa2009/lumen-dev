@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Stack } from 'expo-router';
+import { renderRouter, screen } from 'expo-router/testing-library';
 
 import AccuracyScreen from '../../app/settings/accuracy';
 import en from '@/i18n/en.json';
@@ -35,17 +35,8 @@ jest.mock('../../assets/evidence.json', () => ({
   },
 }));
 
-const safeAreaMetrics = {
-  frame: { x: 0, y: 0, width: 390, height: 844 },
-  insets: { top: 47, left: 0, right: 0, bottom: 34 },
-};
-
 it('EVID-1: shows one badge per metric with the label the file supports', () => {
-  render(
-    <SafeAreaProvider initialMetrics={safeAreaMetrics}>
-      <AccuracyScreen />
-    </SafeAreaProvider>,
-  );
+  renderRouter({ _layout: () => <Stack />, index: AccuracyScreen });
   const shown = screen.getAllByTestId('evidence-badge').map((badge) => badge.props.accessibilityLabel);
   expect(shown).toEqual([
     en['evidence.checked'],
@@ -60,11 +51,7 @@ it('EVID-1: shows one badge per metric with the label the file supports', () => 
 });
 
 it('EVID-1: shows measured figures only for the metrics that passed', () => {
-  render(
-    <SafeAreaProvider initialMetrics={safeAreaMetrics}>
-      <AccuracyScreen />
-    </SafeAreaProvider>,
-  );
+  renderRouter({ _layout: () => <Stack />, index: AccuracyScreen });
   expect(screen.getByText('Average error 1.6 bpm')).toBeTruthy();
   expect(screen.getByText('95% CI: 1.2–2.1 bpm')).toBeTruthy();
   expect(screen.getByText('Sensitivity 89% · specificity 94%')).toBeTruthy();

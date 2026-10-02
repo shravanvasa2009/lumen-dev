@@ -112,8 +112,8 @@ const batches: SampleBatch[] = [
   },
 ];
 
-// Starting a Node child process is the slow step: it took over 5 s with the whole suite running in parallel
-// (order C.AB mobile-test-timeouts), so one receiver serves every test and only its startup gets the longer limit.
+// Starting a Node child process is the slow step: it took over 5 s with the whole mobile suite running in
+// parallel, so one receiver serves every test and only its startup gets the longer limit.
 const RECEIVER_START_MS = 30000;
 
 const stubbedFetch = globalThis.fetch;

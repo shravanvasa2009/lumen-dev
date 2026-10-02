@@ -2,8 +2,12 @@ import type { TFunction } from 'i18next';
 
 import type { DiabetesMetric, EvidenceLabel } from '@lumen/core';
 
-import type { accuracyLines } from '@/accuracy/accuracyLines';
+import { accuracyLines } from '@/accuracy/accuracyLines';
+import { bundledAccuracy } from '@/accuracy/readAccuracy';
+import { evidenceFor, type EvidenceMetric } from '@/evidence';
 import type { FixtureReading } from '@/results/fixtures';
+import { formatClock, formatDay } from '@/results/format';
+import { rhythmWords } from '@/results/rhythmWords';
 
 export function formatFullDate(moment: Date, language: string): string {
   return new Intl.DateTimeFormat(language, { year: 'numeric', month: 'short', day: 'numeric' }).format(
@@ -37,7 +41,7 @@ export function diabetesFor(
     : null;
 }
 
-export function evidenceWord(t: TFunction, label: EvidenceLabel): string {
+function evidenceWord(t: TFunction, label: EvidenceLabel): string {
   return {
     checked: t('evidence.checked'),
     'public-data': t('evidence.publicData'),
@@ -52,4 +56,90 @@ export function evidenceSentence(
   lines: ReturnType<typeof accuracyLines>,
 ): string {
   return [`${heading}: ${word}.`, `${lines.headline}.`, ...lines.details.map((line) => `${line}.`)].join(' ');
+}
+
+// The Evidence paragraph shared by the card and the PDF: labels and figures come only from the evidence
+// file (EVID-1), and experimental metrics have no row.
+export function reportEvidence(t: TFunction, language: string, withDiabetes: boolean): string {
+  const rows: readonly { metric: EvidenceMetric; heading: string }[] = [
+    { metric: 'hr', heading: t('accuracy.heartRate') },
+    { metric: 'rhythm', heading: t('accuracy.rhythm') },
+    ...(withDiabetes ? [{ metric: 'diabetes' as const, heading: t('accuracy.diabetes') }] : []),
+  ];
+  return rows
+    .map(({ metric, heading }) =>
+      evidenceSentence(
+        heading,
+        evidenceWord(t, evidenceFor(metric).label),
+        accuracyLines(metric, bundledAccuracy[metric], t, language),
+      ),
+    )
+    .join(' ');
+}
+
+export function columnHeadings(t: TFunction): string[] {
+  return [
+    t('report.colTime'),
+    t('report.colMode'),
+    t('report.colHr'),
+    t('report.colRhythm'),
+    t('report.colClean'),
+  ];
+}
+
+// One row per reading of the day; a dash stands where a card had no result.
+export function tableRows(
+  t: TFunction,
+  language: string,
+  readings: readonly FixtureReading[],
+): { id: string; cells: string[] }[] {
+  return readings.map((row) => ({
+    id: row.id,
+    cells: [
+      formatClock(row.createdAt, language),
+      row.mode === 'full' ? t('report.modeFull') : t('report.modeQuick'),
+      row.scan.metrics.hr ? String(row.scan.metrics.hr.value) : '—',
+      row.scan.metrics.rhythm ? rhythmWords(t, row.scan.metrics.rhythm).value : '—',
+      String(row.scan.cleanSeconds),
+    ],
+  }));
+}
+
+const stripLimit = 3;
+
+// The interval strips to draw: the first few readings of the day that have intervals.
+export function stripsFor(
+  t: TFunction,
+  language: string,
+  readings: readonly FixtureReading[],
+): { id: string; caption: string; intervalsMs: readonly number[]; flagged: boolean }[] {
+  return readings
+    .filter(({ intervalsMs }) => intervalsMs.length > 0)
+    .slice(0, stripLimit)
+    .map((row) => ({
+      id: row.id,
+      caption: t('report.intervalStrip', {
+        time: formatClock(row.createdAt, language),
+        mode: row.mode === 'full' ? t('mode.full') : t('mode.quick'),
+      }),
+      intervalsMs: row.intervalsMs,
+      flagged: Boolean(row.scan.metrics.rhythm?.flag),
+    }));
+}
+
+// The sentence for the diabetes line, shared by the card and the PDF.
+export function diabetesSentence(
+  t: TFunction,
+  language: string,
+  diabetes: { metric: DiabetesMetric; days: readonly Date[] },
+): string {
+  return [
+    diabetes.metric.flag === 'pattern'
+      ? t('results.diabetesSeen', {
+          readings: diabetes.metric.readingsUsed,
+          days: diabetes.days.map((day) => formatDay(day, language)).join(', '),
+        })
+      : t('report.diabetesNotSeen'),
+    t('report.notDiagnostic'),
+  ].join(' ');
 }

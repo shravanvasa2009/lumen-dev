@@ -10,10 +10,13 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 }));
 
 const mockGetCapabilities = jest.fn<Promise<Capabilities>, []>();
+const mockRequestPermission = jest.fn(() => Promise.resolve({ granted: true }));
 let mockModuleLinked = true;
 jest.mock('../../modules/lumen-capture/src', () => ({
   get LumenCapture() {
-    return mockModuleLinked ? { getCapabilities: mockGetCapabilities } : null;
+    return mockModuleLinked
+      ? { getCapabilities: mockGetCapabilities, requestPermission: mockRequestPermission }
+      : null;
   },
 }));
 

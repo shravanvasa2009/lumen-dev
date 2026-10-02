@@ -16,7 +16,12 @@ export function usePhoneProbe(): PhoneProbe {
   useEffect(() => {
     if (!LumenCapture) return;
     let current = true;
-    LumenCapture.getCapabilities()
+    // Spec §9.5: the first camera request is here. Capture asks again as a fallback; the
+    // capability read itself needs no permission, so a refusal does not stop the probe.
+    const linked = LumenCapture;
+    linked
+      .requestPermission()
+      .then(() => linked.getCapabilities())
       .then((capabilities) => current && setProbe({ kind: 'ready', capabilities }))
       .catch((error: unknown) => {
         console.warn(`Phone probe failed: ${error instanceof Error ? error.message : String(error)}`);

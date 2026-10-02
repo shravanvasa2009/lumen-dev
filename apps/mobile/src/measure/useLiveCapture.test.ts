@@ -10,7 +10,15 @@ import type {
   SampleBatch,
 } from '../../modules/lumen-capture/src';
 
+import { createLiveSession } from '@lumen/core';
+
+import { keptCapture } from './keptCapture';
 import { useLiveCapture } from './useLiveCapture';
+
+jest.mock('@lumen/core', () => {
+  const actual = jest.requireActual<typeof import('@lumen/core')>('@lumen/core');
+  return { ...actual, createLiveSession: jest.fn(actual.createLiveSession) };
+});
 
 const GRANTED: CameraPermission = { status: 'granted', expires: 'never', granted: true, canAskAgain: true };
 const DENIED: CameraPermission = { status: 'denied', expires: 'never', granted: false, canAskAgain: false };
@@ -100,7 +108,28 @@ describe('useLiveCapture', () => {
     const { result: live } = renderHook(() => useLiveCapture(fake));
     expect(live.current.phase).toBe('starting');
     await waitFor(() => expect(live.current.phase).toBe('running'));
-    expect(fake.started).toEqual([{ lensId: 'wide', torchLevel: 1 }]);
+    expect(fake.started).toEqual([{ lensId: 'wide', targetFps: 60, torchLevel: 1 }]);
+  });
+
+  it('asks for 60 fps on a faster lens and gives that same rate to the session and the kept capture', async () => {
+    const fake = new FakeCapture();
+    fake.capabilities = {
+      ...phone,
+      rearLenses: [{ id: 'wide', kind: 'wide', maxFps: 240, torchUsable: true }],
+    };
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    expect(fake.started[0]?.targetFps).toBe(60);
+    expect(createLiveSession).toHaveBeenCalledWith(expect.objectContaining({ captureFps: 60 }));
+
+    const frames = Array.from({ length: 6 }, (_, i) => 100e9 + (i * 1e9) / 60);
+    act(() => {
+      fake.emitSamples({
+        samples: frames.map((tNs) => ({ tNs, r: 0.7, g: 0.1, b: 0.1 })),
+        stats: frames.map((tNs) => ({ tNs, spatialStdR: 0.02, clipFrac: 0, exposureNs: 8e6 })),
+      });
+    });
+    expect(keptCapture()?.captureFps).toBe(60);
   });
 
   it('falls back to the first lens with a torch, and to no torch when none has one', async () => {
@@ -108,7 +137,7 @@ describe('useLiveCapture', () => {
     fake.capabilities = { ...phone, rearLenses: [phone.rearLenses[0]!, phone.rearLenses[1]!] };
     const first = renderHook(() => useLiveCapture(fake));
     await waitFor(() => expect(first.result.current.phase).toBe('running'));
-    expect(fake.started[0]).toEqual({ lensId: 'tele', torchLevel: 1 });
+    expect(fake.started[0]).toEqual({ lensId: 'tele', targetFps: 30, torchLevel: 1 });
 
     const dark = new FakeCapture();
     dark.capabilities = {

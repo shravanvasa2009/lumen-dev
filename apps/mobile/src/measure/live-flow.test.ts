@@ -1,6 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { renderRouter, screen } from 'expo-router/testing-library';
 
 import { ReplayCapture, type RecordedCapture } from '../../modules/lumen-capture/src';
+
+import en from '@/i18n/en.json';
 
 import { finishedReading } from './finishedReadings';
 import { keepCapture, keptCapture } from './keptCapture';
@@ -139,7 +142,7 @@ describe('reading analysis of a kept capture', () => {
       baseline: 'done',
     });
     expect(phases).toContain('running');
-    const reading = finishedReading(done.readingId);
+    const reading = finishedReading(done.readingId)?.scan;
     if (!reading) throw new Error('the finished reading was not saved');
     expect(done.progress.beats).toBe(reading.beats);
     expect(done.progress.rejectedBeats).toBe(reading.rejectedBeats);
@@ -147,6 +150,22 @@ describe('reading analysis of a kept capture', () => {
     expect(reading.metrics.hr?.value).toBeCloseTo(PULSE_HZ * 60, -1);
     // No evidence.json entry has passed, so EVID-1 leaves every card Experimental.
     expect(reading.metrics.hr?.evidence).toBe('experimental');
+  });
+
+  it('opens the finished reading on Results, not the inconclusive page', async () => {
+    await replayFor(syntheticRecording(40), 40);
+    jest.useRealTimers();
+    const { result: analysis } = renderHook(() => useReadingAnalysis({ mode: 'quick', restTimerDone: true }));
+    await waitFor(() => expect(analysis.current.phase).toBe('done'), { timeout: 10_000 });
+    if (analysis.current.phase !== 'done') throw new Error('analysis did not finish');
+    const stored = finishedReading(analysis.current.readingId);
+    if (!stored) throw new Error('the finished reading was not saved');
+
+    renderRouter('./app', { initialUrl: `/results/${analysis.current.readingId}` });
+    // No rhythm model ships yet, so the rule asks for a retake; the point is that it is this reading's headline.
+    expect(stored.scan.headlineKey).toBe('result.uncertain');
+    const headline = en['result.uncertain'];
+    expect(screen.getByText(headline)).toBeOnTheScreen();
   });
 
   it('reports a capture it cannot analyse as failed, with the reason and the steps so far', async () => {

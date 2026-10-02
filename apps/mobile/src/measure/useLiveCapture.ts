@@ -76,9 +76,16 @@ function chosenLens(capabilities: Capabilities): LensInfo | undefined {
   return lit.find((candidate) => candidate.kind === 'wide') ?? lit[0];
 }
 
-function captureConfig(capabilities: Capabilities, lens: LensInfo | undefined): CaptureConfig {
+// Spec 09-architecture (frame rate): request 60 fps where the lens allows it, else what it has. Native
+// defaults differ (iOS up to 120, Android capped at 60) and never report the rate they chose, so the rate is
+// chosen here, sent as targetFps, and given to the live session and the reading's context unchanged.
+const CAPTURE_FPS_CEILING = 60;
+
+const captureFpsFor = (lens: LensInfo): number => Math.min(lens.maxFps, CAPTURE_FPS_CEILING);
+
+function captureConfig(capabilities: Capabilities, lens: LensInfo | undefined, fps: number): CaptureConfig {
   return {
-    ...(lens ? { lensId: lens.id } : {}),
+    ...(lens ? { lensId: lens.id, targetFps: fps } : {}),
     torchLevel: lens && capabilities.torch.available ? 1 : 0,
   };
 }
@@ -199,10 +206,10 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
         const capabilities = await capture.getCapabilities();
         if (!mounted) return;
         const lens = chosenLens(capabilities);
-        // The module's frame rate is not reported to JS; with no torch-capable lens there is no rate to give
-        // the session, so that phone runs without clean seconds rather than with a guessed rate.
+        // With no torch-capable lens there is no rate to ask for or to give the session, so that phone runs
+        // without clean seconds rather than with a guessed rate.
         if (lens) {
-          captureFps = lens.maxFps;
+          captureFps = captureFpsFor(lens);
           session = createLiveSession({
             captureFps,
             sqiThreshold: threshold ?? 0,
@@ -217,7 +224,7 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
             setLive((previous) => ({ ...previous, status }));
           }),
         ];
-        await capture.start(captureConfig(capabilities, lens));
+        await capture.start(captureConfig(capabilities, lens, captureFps));
         started = true;
         // The screen closed while the camera was starting, so its cleanup had nothing to stop yet.
         if (!mounted) stopCamera();

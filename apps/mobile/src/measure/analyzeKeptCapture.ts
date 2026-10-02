@@ -16,7 +16,12 @@ import type { MeasureMode } from './mode';
 
 export type AnalysisRequest = { mode: MeasureMode; restTimerDone: boolean };
 
-export type AnalysedReading = { readingId: string; reading: ReadingResult; progress: AnalysisProgress };
+export type AnalysedReading = {
+  readingId: string;
+  reading: ReadingResult;
+  recordedMs: number;
+  progress: AnalysisProgress;
+};
 
 // Nothing stores a profile or earlier readings yet (the SQLite store is a later task), so no condition is
 // assumed and no history rule can fire.
@@ -99,5 +104,5 @@ export async function analyzeKeptCapture(
   const reading = buildReadingResult(analysis, models, evidence, NO_PROFILE, []);
 
   const finished = step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'done' }, counts);
-  return { readingId: `reading-${recordedMs}`, reading, progress: finished };
+  return { readingId: `reading-${recordedMs}`, reading, recordedMs, progress: finished };
 }

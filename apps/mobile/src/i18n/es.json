@@ -250,7 +250,7 @@
   "processing.rejected_one": "{{count}} descartado",
   "processing.rejected_other": "{{count}} descartados",
   "processing.seeSample": "Ver un resultado de ejemplo",
-  "processing.failed": "El análisis no pudo terminar: {{reason}}",
+  "processing.failed": "El análisis no pudo terminar. Vuelve a tomar la lectura.",
   "processing.unavailable": "El análisis no está conectado en esta compilación, así que no hay ninguna medición que analizar. Ver un resultado de ejemplo abre una medición de ejemplo, no la tuya.",
   "processing.stateDone": "Listo",
   "processing.stateActive": "En curso",

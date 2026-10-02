@@ -86,7 +86,7 @@ export function ProcessingView({ analysis }: { analysis: AnalysisState }) {
             {analysis.phase === 'unavailable'
               ? t('processing.unavailable')
               : analysis.phase === 'failed'
-                ? t('processing.failed', { reason: analysis.reason })
+                ? t('processing.failed')
                 : t('processing.subtitle')}
           </AppText>
         </View>

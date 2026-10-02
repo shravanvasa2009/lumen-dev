@@ -1,13 +1,13 @@
-import type { ReadingResult } from '@lumen/core';
+import type { FixtureReading } from '@/results/fixtures';
 
 // In memory only, like the kept capture: the SQLite readings store is a later task, and until then this is
 // where the Results screen can look a finished reading up by the id Processing handed it.
-const finished = new Map<string, ReadingResult>();
+const finished = new Map<string, FixtureReading>();
 
-export function saveFinishedReading(readingId: string, reading: ReadingResult): void {
-  finished.set(readingId, reading);
+export function saveFinishedReading(reading: FixtureReading): void {
+  finished.set(reading.id, reading);
 }
 
-export function finishedReading(readingId: string): ReadingResult | undefined {
-  return finished.get(readingId);
+export function finishedReading(readingId: string | undefined): FixtureReading | undefined {
+  return readingId === undefined ? undefined : finished.get(readingId);
 }

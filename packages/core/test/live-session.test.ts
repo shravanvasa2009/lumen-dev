@@ -10,6 +10,7 @@ import {
   type ReadingContext,
   type Sample,
 } from '../src';
+import { captureAt, jitteredOffsets, withPrematureBeats } from './synthetic';
 
 const CLOCK_START_NS = 5_000_000_000_000;
 const CONFIG: LiveSessionConfig = { captureFps: 60, sqiThreshold: 0.5, perfusionFloorPct: 0.2 };
@@ -399,6 +400,162 @@ describe('live and replay paths agree', () => {
       return { tNs: tNs!, spatialStdR: spatialStdR!, clipFrac: clipFrac!, exposureNs: exposureNs! };
     });
     expect(analyzeReading({ samples, stats }, context)).toEqual(analyzeReading(capture, context));
+  });
+});
+
+describe('readingInput hands analyzeReading what the session saw (H-025)', () => {
+  const toNs = (tS: number) => CLOCK_START_NS + Math.round(tS * 1e9);
+  const spansNs = (session: LiveSession, reason: string) =>
+    spansOf(session, reason).map((span) => ({ startNs: toNs(span.startS), endNs: toNs(span.endS) }));
+  const contextWith = (
+    spans: Pick<ReadingContext, 'motionSpans' | 'coldHandsSpans' | 'sqi'>,
+  ): ReadingContext => ({
+    captureFps: 60,
+    tier: 'full',
+    mode: 'full',
+    restTimerDone: true,
+    recordedAt: null,
+    validationRhythmLabel: null,
+    ...spans,
+  });
+  const analyzeInput = (session: LiveSession) => {
+    const { capture, ...spans } = session.readingInput();
+    return analyzeReading(capture, contextWith(spans));
+  };
+
+  // Jittered 60 fps frames of a two-Gaussian pulse at 75 bpm with premature beats, on a 0.62 red level.
+  const beats = withPrematureBeats(0.8, 60, [10, 30, 50], 0.6);
+  const capture = captureAt(jitteredOffsets(60, 60, 0.002), (tS) => {
+    const pulse = beats.reduce(
+      (sum, { peakS, amplitude }) =>
+        sum +
+        amplitude *
+          (Math.exp(-0.5 * ((tS - peakS) / 0.06) ** 2) +
+            0.3 * Math.exp(-0.5 * ((tS - peakS - 0.3) / 0.08) ** 2)),
+      0,
+    );
+    return { r: 0.62 - 0.004 * pulse, g: 0.11, b: 0.04 };
+  });
+  const scores = [
+    { endS: 30, pClean: 0.9 },
+    { endS: 50, pClean: 0.1 },
+  ];
+  const pending = [...scores];
+  const { session } = play(capture, {
+    moving: (tS) => tS >= 40 && tS < 42,
+    onBatch: (live, tS) => {
+      while (pending.length > 0 && tS >= pending[0]!.endS) {
+        const { endS, pClean } = pending.shift()!;
+        live.setSqi(endS, pClean);
+      }
+    },
+  });
+
+  it('returns the frames, motion spans, and SQI scores the app would otherwise assemble itself', () => {
+    const input = session.readingInput();
+    expect(input.capture).toEqual(capture);
+    expect(input.motionSpans).toHaveLength(1);
+    expect(input.motionSpans).toEqual(spansNs(session, 'motion'));
+    expect(input.coldHandsSpans).toEqual([]);
+    expect(input.sqi).toEqual({
+      threshold: CONFIG.sqiThreshold,
+      windows: scores.map(({ endS, pClean }) => ({ endNs: toNs(endS), pClean })),
+    });
+  });
+
+  it('analyzeReading on it deep-equals analyzeReading on the directly assembled reading', () => {
+    const direct = contextWith({
+      motionSpans: spansNs(session, 'motion'),
+      coldHandsSpans: [],
+      sqi: {
+        threshold: CONFIG.sqiThreshold,
+        windows: scores.map(({ endS, pClean }) => ({ endNs: toNs(endS), pClean })),
+      },
+    });
+    const fromSession = analyzeInput(session);
+    expect(fromSession).toEqual(analyzeReading(capture, direct));
+    expect(fromSession.rejectedSpans).toEqual(session.rejectedSpans);
+    expect(fromSession.sqiAvailable).toBe(true);
+  });
+
+  it('carries cold-hands spans, and sqi is null when setSqi was never called', () => {
+    const cold = frames({ seconds: 30, pulseDepth: 0.0002 });
+    const { session: coldSession } = play(cold);
+    const input = coldSession.readingInput();
+    expect(input.sqi).toBeNull();
+    expect(input.coldHandsSpans.length).toBeGreaterThan(0);
+    expect(input.coldHandsSpans).toEqual(spansNs(coldSession, 'coldHands'));
+    const direct = contextWith({
+      motionSpans: [],
+      coldHandsSpans: spansNs(coldSession, 'coldHands'),
+      sqi: null,
+    });
+    const fromSession = analyzeInput(coldSession);
+    expect(fromSession).toEqual(analyzeReading(cold, direct));
+    expect(fromSession.rejectedSpans).toEqual(coldSession.rejectedSpans);
+    expect(fromSession.sqiAvailable).toBe(false);
+  });
+
+  it('closes a span still open at the end at the newest frame, as rejectedSpans does', () => {
+    const open = frames({ seconds: 20 });
+    const { session: moving } = play(open, { moving: (tS) => tS >= 15 });
+    const [span] = moving.readingInput().motionSpans;
+    expect(span!.endNs).toBe(open.samples.at(-1)!.tNs);
+    expect(moving.readingInput().motionSpans).toEqual(spansNs(moving, 'motion'));
+  });
+
+  it('a flat window the model never saw is a score of 0 once SQI-Net runs (ADR 0023)', () => {
+    const flat = frames({ seconds: 40, flat: (tS) => tS >= 10 && tS < 20 });
+    let scored = false;
+    const { session: flatSession } = play(flat, {
+      onBatch: (live, tS) => {
+        if (!scored && tS >= 30) {
+          live.setSqi(30, 0.9);
+          scored = true;
+        }
+      },
+    });
+    const { sqi } = flatSession.readingInput();
+    const zeros = sqi!.windows.filter((window) => window.pClean === 0);
+    expect(zeros.length).toBeGreaterThan(0);
+    expect(zeros.length).toBe(spansOf(flatSession, 'quality').length);
+    const fromSession = analyzeInput(flatSession);
+    expect(fromSession.rejectedSpans).toEqual(flatSession.rejectedSpans);
+  });
+
+  it('gives equal results when called twice, and callers cannot change the session through them', () => {
+    const first = session.readingInput();
+    first.capture.samples[0]!.r = 0;
+    first.capture.samples.pop();
+    first.capture.stats.length = 0;
+    first.motionSpans.push({ startNs: 0, endNs: 1 });
+    first.sqi!.windows[0]!.pClean = 0;
+    first.sqi!.windows.length = 0;
+    const second = session.readingInput();
+    expect(second.capture).toEqual(capture);
+    expect(second).toEqual(session.readingInput());
+    expect(second.sqi!.windows).toHaveLength(scores.length);
+    expect(second.sqi!.windows[0]!.pClean).toBe(0.9);
+    expect(second.motionSpans).toEqual(spansNs(session, 'motion'));
+  });
+
+  it('keeps accumulating after it is called mid-reading', () => {
+    const queued = [...scores];
+    let early: ReturnType<LiveSession['readingInput']> | null = null;
+    const { session: late } = play(capture, {
+      moving: (tS) => tS >= 40 && tS < 42,
+      onBatch: (live, tS) => {
+        while (queued.length > 0 && tS >= queued[0]!.endS) {
+          const { endS, pClean } = queued.shift()!;
+          live.setSqi(endS, pClean);
+        }
+        if (early === null && tS >= 35) early = live.readingInput();
+      },
+    });
+    expect(early!.capture.samples.length).toBeLessThan(capture.samples.length);
+    expect(early!.sqi!.windows).toHaveLength(1);
+    expect(late.readingInput()).toEqual(session.readingInput());
+    expect(analyzeInput(late)).toEqual(analyzeInput(session));
   });
 });
 

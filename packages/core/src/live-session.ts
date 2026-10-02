@@ -1,4 +1,5 @@
-import type { CaptureStatus, SampleBatch } from './capture';
+import type { CaptureStatus, FrameStat, Sample, SampleBatch } from './capture';
+import type { NsSpan, SqiScores } from './reading';
 
 // DSP-9. Never assigned from interval irregularity alone.
 export type BeatClass = 'not-a-beat' | 'artifact' | 'atypical' | 'normal';
@@ -44,4 +45,12 @@ export interface LiveSession {
   readonly coachingKey: CoachingKey | null;
   readonly rejectedSpans: RejectedSpan[];
   readonly sqiWindow: SqiWindow | null; // null until 4 s of covered signal exists
+  // H-025: everything analyzeReading needs from the session, so the saved result matches the live screen.
+  // Spans still open are closed at the newest frame. sqi is null until the first setSqi.
+  readingInput(): {
+    capture: { samples: Sample[]; stats: FrameStat[] };
+    motionSpans: NsSpan[];
+    coldHandsSpans: NsSpan[];
+    sqi: SqiScores | null;
+  };
 }

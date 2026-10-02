@@ -150,6 +150,12 @@ describe('LiveSession on a clean capture', () => {
     expect(sd).toBeCloseTo(1, 5);
   });
 
+  it('offers the first SQI window at the 4 s check, starting at the first frame (ADR 0057)', () => {
+    const ends: number[] = [];
+    play(frames({ seconds: 4.5 }), { onBatch: (live) => live.sqiWindow && ends.push(live.sqiWindow.endS) });
+    expect(ends[0]).toBe(4);
+  });
+
   it('offers no SQI window before 4 s of covered signal', () => {
     const early: (number | null)[] = [];
     play(frames({ seconds: 6 }), {

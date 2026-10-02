@@ -252,6 +252,13 @@ describe('analyzeReading acquisition spans', () => {
     expect(spansOf(analyze(base), 'quality')).toEqual([]);
   });
 
+  it('ADR 0057: the first window starts at the first frame, so a flat start is rejected from 0 s', () => {
+    const base = syntheticReading({ seconds: 20 });
+    const samples = base.samples.map((sample, k) => (k < 360 ? { ...sample, r: 0.62 } : sample)); // 0–6 s
+    const quality = spansOf(analyzeReading({ samples, stats: base.stats }, CONTEXT), 'quality');
+    expect(quality[0]).toEqual({ startS: 0, endS: 4, reason: 'quality' });
+  });
+
   it('splits at a dropped 300 ms stretch: no interval spans the gap', () => {
     const analysis = analyze(syntheticReading({ dropped: (tS) => tS > 45 && tS < 45.3 }));
     expect(analysis.segments).toHaveLength(2);

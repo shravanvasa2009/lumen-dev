@@ -22,9 +22,11 @@ function paletteOf(colors: typeof tokens.light): Palette {
   return Object.fromEntries(PALETTE_KEYS.map((key) => [key, colors[key]])) as Palette;
 }
 
-// The widgets' copy, in the app's language. Kotlin holds no strings, so this is all a widget can show.
-// "Last check" and the streak stay templates: the widget fills in the hours when it draws, and those
-// drift between publishes. i18next does not re-interpolate a value, so "{{hours}}" survives t().
+// The widgets' copy, in the app's language. Kotlin and Swift hold no strings, so this is all a widget can
+// show. "Last check", the streak, and the inline "next check" stay templates: the widget fills in the hours
+// or the time when it draws, and those drift between publishes. i18next does not re-interpolate a value, so
+// "{{hours}}" survives t(). The iOS lock-screen widgets use only name, status, inline, and nextCheck, which
+// all come from lockscreen.json (WID-2).
 export function widgetDisplay(language: string) {
   const lock = lockscreenStrings(language);
   const t = i18next.getFixedT(language);
@@ -37,9 +39,21 @@ export function widgetDisplay(language: string) {
     // Couldn't tell: the same ask as check-again, a retake.
     inconclusive: checkAgain,
   };
+  // The inline lock-screen widget's single line. lockscreen.json has no full line for a doctor visit, so it
+  // is put together the way the other two read ("Lumen · Status").
+  const inline: Record<WidgetStatus, string> = {
+    regular: lock['widget.lock.upToDate'],
+    'check-again': lock['widget.lock.checkAgain'],
+    'see-doctor': `${upToDate.name} · ${status['see-doctor']}`,
+    inconclusive: lock['widget.lock.checkAgain'],
+  };
   return {
+    // Swift formats the next-check time in the app's language, not the phone's.
+    language,
     name: upToDate.name,
     status,
+    inline,
+    nextCheck: lock['widget.lock.nextCheck'],
     lastCheck: t('widgets.lastCheck', { hours: '{{hours}}' }),
     bpm: t('widgets.bpm'),
     streak: t('widgets.streak', { days: '{{days}}' }),
@@ -54,8 +68,7 @@ export function widgetDisplay(language: string) {
 let lastHistory: ReadingHistory = { readings: [], nextConfirmationAt: null };
 
 // Spec §9.6: called after every saved reading (with its history) and whenever a preference the snapshot
-// carries changes. Resolves without doing anything where the native module is not linked (iOS until its
-// widget target lands, Jest).
+// carries changes. Resolves without doing anything where the native module is not linked (Jest, Expo Go).
 export function publishWidgets(
   preferences: WidgetPreferences,
   history: ReadingHistory = lastHistory,

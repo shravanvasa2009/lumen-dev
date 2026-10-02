@@ -144,8 +144,8 @@ def test_dev_split_is_by_patient_per_stratum_and_never_holds_holdout_patients():
     assert set(subjects).isdisjoint(split["holdout"])
     for diabetic in (0, 1):
         stratum = picked.loc[picked["preop_dm"] == diabetic, "subjectid"]
-        val = sum(subjects[subject] == "dev-val" for subject in stratum)
-        assert val == round(len(stratum) * vitaldb_cases.DEV_VAL_FRACTION)
+        dev_val_count = sum(subjects[subject] == "dev-val" for subject in stratum)
+        assert dev_val_count == round(len(stratum) * vitaldb_cases.DEV_VAL_FRACTION)
 
 
 def test_dev_split_is_deterministic_and_round_trips(tmp_path):

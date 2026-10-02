@@ -62,6 +62,8 @@ const config: ExpoConfig = {
     ...(brand.plugins ?? []),
     blePlugin,
     personalTeam ? [capturePlugin, { personalTeam: true }] : capturePlugin,
+    // The Android home-screen widget receivers (spec §12.5, ADR 0005).
+    './modules/lumen-widgets/app.plugin',
   ],
   // No over-the-air updates: release builds make no network requests (PRIV-1).
   updates: { enabled: false },

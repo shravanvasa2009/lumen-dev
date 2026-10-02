@@ -25,9 +25,13 @@ export function butPpgDir(): string {
   return dir;
 }
 
+const BYTE_ORDER_MARK = 0xfeff;
+const withoutByteOrderMark = (text: string) =>
+  text.charCodeAt(0) === BYTE_ORDER_MARK ? text.slice(1) : text;
+
 // Rows keyed by ID; the files start with a UTF-8 byte-order mark and have no quoted fields.
 function csvRows(path: string): Map<string, Record<string, string>> {
-  const lines = readFileSync(path, 'utf8').replace(/^﻿/, '').split(/\r?\n/).filter(Boolean);
+  const lines = withoutByteOrderMark(readFileSync(path, 'utf8')).split(/\r?\n/).filter(Boolean);
   const columns = lines[0]!.split(',');
   const rows = new Map<string, Record<string, string>>();
   for (const line of lines.slice(1)) {

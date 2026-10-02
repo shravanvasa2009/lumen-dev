@@ -123,3 +123,8 @@ const fixtures: readonly FixtureReading[] = [demo, demoFlag, demoInconclusive];
 export function readingById(id: string | undefined): FixtureReading | undefined {
   return fixtures.find((fixture) => fixture.id === id);
 }
+
+// The readings taken on the same calendar day, for the day summary on the Doctor report.
+export function readingsOnDay(day: Date): readonly FixtureReading[] {
+  return fixtures.filter((fixture) => fixture.createdAt.toDateString() === day.toDateString());
+}

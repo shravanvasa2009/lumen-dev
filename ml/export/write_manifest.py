@@ -540,12 +540,12 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
     # Every check, and every card render, happens before anything is written, so a failure leaves no
     # manifest or cards behind.
     cards = {spec.file_stem: model_card(spec, metrics_by_name[spec.name]) for spec in specs}
-    plots = {
-        calibration_plot_name(spec): reliability_svg(spec, calibration)
-        if _has_reliability(calibration := (metrics_by_name[spec.name] or {}).get("calibration"))
-        else None
-        for spec in specs
-    }
+    plots: dict[str, str | None] = {}
+    for spec in specs:
+        calibration = (metrics_by_name[spec.name] or {}).get("calibration")
+        plots[calibration_plot_name(spec)] = (
+            reliability_svg(spec, calibration) if _has_reliability(calibration) else None
+        )
     for stem, card in cards.items():
         (models_dir / f"{stem}.md").write_text(card, encoding="utf-8")
     for name, plot in plots.items():

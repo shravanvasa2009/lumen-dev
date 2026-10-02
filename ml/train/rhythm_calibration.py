@@ -11,20 +11,20 @@ from export.specs import RUNS_DIR, SPECS, ModelSpec
 from export.to_onnx import SourceModel, source_model
 from train.rhythm import (
     AF,
-    TARGET_SPECIFICITY,
     UNCALIBRATED,
+    af_threshold,
     calibration_summary,
     network_probs,
     subject_units,
     temperature_record,
-    threshold_for_specificity,
 )
 from train.rhythm_windows import WindowSet, load_window_set
 
 RHYTHM = tuple(name for name, spec in SPECS.items() if spec.family == "rhythm")
 MEASURED_BY = "python -m train.rhythm_calibration, after training, from the frozen model"
-# An earlier record of the same model on the same windows must agree to rounding error, not bit for bit,
-# so a rerun on another machine's math libraries still passes.
+# The temperature and ECEs of an earlier record must agree to rounding error. τ_AF is still compared
+# bit for bit (_check_same_windows), so a rerun whose math libraries round differently, e.g. on
+# another machine, fails closed there rather than passing.
 SAME_RECORD_TOLERANCE = 1e-9
 
 
@@ -44,7 +44,7 @@ def _check_same_windows(spec: ModelSpec, metrics: dict, probs: np.ndarray, dev_v
     # subject count is strong evidence these are the windows the metrics were scored on, not another
     # split or window cache.
     subjects = subject_units(probs.astype(np.float64)[:, AF], dev_val)
-    tau = threshold_for_specificity(subjects.scores[~subjects.is_af], TARGET_SPECIFICITY)
+    tau = af_threshold(subjects)
     counted = len(set(dev_val.subjects.tolist()))
     if tau != metrics["threshold"]["af"] or counted != metrics["development"]["subjects"]:
         raise ProvenanceError(
@@ -55,7 +55,7 @@ def _check_same_windows(spec: ModelSpec, metrics: dict, probs: np.ndarray, dev_v
 
 
 def _check_earlier_record(spec: ModelSpec, earlier: dict | None, measured: dict) -> None:
-    for key in ("temperature", "windowExpectedCalibrationErrorAf"):
+    for key in ("temperature", "windowExpectedCalibrationErrorAf", "windowExpectedCalibrationErrorTop"):
         if (
             earlier
             and key in earlier

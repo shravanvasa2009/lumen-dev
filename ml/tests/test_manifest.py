@@ -418,10 +418,22 @@ def test_a_model_without_tables_gets_no_plot_and_loses_a_stale_one(trained):
     [
         lambda _sha: {"sourceSha256": "0" * 64, **RELIABILITY},
         lambda _sha: RELIABILITY,
+        lambda _sha: {key: value for key, value in RELIABILITY.items() if key != "reliabilityAf"},
     ],
-    ids=["another model's sha256", "tables without a sha256"],
+    ids=["another model's sha256", "tables without a sha256", "top-class table only, without a sha256"],
 )
 def test_a_calibration_not_keyed_to_the_model_file_is_refused(trained, calibration):
     models_dir, runs_dir = trained
     _with_calibration(runs_dir, SPECS["rhythm-lgbm"], calibration)
     _assert_refused(models_dir, runs_dir, ProvenanceError, "calibration.sourceSha256")
+
+
+def test_the_reliability_plot_is_byte_for_byte_reproducible(trained):
+    models_dir, runs_dir = trained
+    _with_calibration(runs_dir, SPECS["rhythm-lgbm"], lambda sha: {"sourceSha256": sha, **RELIABILITY})
+    plot = models_dir / "rhythm-lgbm@1.0.0.calibration.svg"
+    _manifest(models_dir, runs_dir)
+    first = plot.read_bytes()
+    plot.unlink()
+    _manifest(models_dir, runs_dir)
+    assert plot.read_bytes() == first

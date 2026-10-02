@@ -482,12 +482,17 @@ def with_ci(units: Units, metric: Metric) -> dict | None:
     }
 
 
+def af_threshold(subjects: Units) -> float:
+    # §10.1: τ_AF on the subject-level scores, for at least 95% specificity on the non-AF subjects.
+    return threshold_for_specificity(subjects.scores[~subjects.is_af], TARGET_SPECIFICITY)
+
+
 def evaluate(probs: np.ndarray, val: WindowSet, premature_probs: np.ndarray, premature: WindowSet) -> dict:
     # Every model is scored in float64, as the app averages float32 outputs in JavaScript doubles.
     probs, premature_probs = probs.astype(np.float64), premature_probs.astype(np.float64)
     scores = probs[:, AF]
     subjects = subject_units(scores, val)
-    tau = threshold_for_specificity(subjects.scores[~subjects.is_af], TARGET_SPECIFICITY)
+    tau = af_threshold(subjects)
     specificity = specificity_at(tau)(subjects.is_af, subjects.scores)
     if specificity < TARGET_SPECIFICITY:
         raise ValueError(

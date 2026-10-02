@@ -2,12 +2,14 @@
 appId: io.github.shravanvasa2009.heartcheck
 name: Onboarding from welcome to Home
 ---
-# Capture and Practice ask for the camera; granting it at launch keeps the Android dialog off the screen.
-# https://docs.maestro.dev/api-reference/commands/launchapp
+# Capture and Practice ask for the camera, and Reminders for notifications (Android 13+). Granting both at
+# launch keeps the system dialogs off the screen, so a late dialog can't cover Home at the end.
+# Android grants notifications silently: https://docs.maestro.dev/llms-full.txt (setPermissions)
 - launchApp:
     clearState: true
     permissions:
       camera: allow
+      notifications: allow
 # launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
 - extendedWaitUntil:
     visible: 'Change mode'
@@ -35,8 +37,4 @@ name: Onboarding from welcome to Home
 - tapOn: 'Continue'
 - assertVisible: 'Reminders'
 - tapOn: 'Turn on reminders'
-# Android 13 and later ask for notification permission here; older versions show nothing.
-- tapOn:
-    text: 'Allow'
-    optional: true
 - assertVisible: 'Change mode'

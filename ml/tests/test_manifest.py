@@ -1,4 +1,5 @@
 import json
+from xml.etree import ElementTree
 from dataclasses import replace
 
 import pytest
@@ -360,3 +361,67 @@ def test_models_folder_needs_training_metrics(tmp_path, target):
     with pytest.raises(FileNotFoundError, match="train"):
         _run(write_manifest, "--models-dir", target, "--runs-dir", tmp_path)
     assert target.exists() == existed
+
+
+RELIABILITY = {
+    "method": "none: the model's own class probabilities, not recalibrated",
+    "windowExpectedCalibrationErrorAf": 0.035,
+    "reliabilityAf": [
+        {"low": 0.0, "high": 0.1, "windows": 90, "predicted": 0.02, "observed": 0.03},
+        {"low": 0.3, "high": 0.4, "windows": 10, "predicted": 0.35, "observed": 0.61},
+    ],
+    "reliabilityTop": [{"low": 0.5, "high": 0.6, "windows": 100, "predicted": 0.55, "observed": 0.6}],
+}
+
+
+def _with_calibration(runs_dir, spec, calibration):
+    path = runs_dir / f"{spec.file_stem}.json"
+    metrics = json.loads(path.read_text(encoding="utf-8"))
+    metrics["calibration"] = calibration(metrics["sourceSha256"])
+    path.write_text(json.dumps(metrics), encoding="utf-8")
+
+
+def test_reliability_tables_get_a_plot_next_to_the_card(trained):
+    models_dir, runs_dir = trained
+    lgbm = SPECS["rhythm-lgbm"]
+    _with_calibration(runs_dir, lgbm, lambda sha: {"sourceSha256": sha, **RELIABILITY})
+    card = (models_dir / _manifest(models_dir, runs_dir)["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
+    calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
+    assert "![Reliability diagram, dev-val windows](rhythm-lgbm@1.0.0.calibration.svg)" in calibration
+    assert "| 0.3-0.4 | 10 | 0.350 | 0.610 | +0.260 |" in calibration
+    assert "| 0.5-0.6 | 100 | 0.550 | 0.600 | +0.050 |" in calibration
+    assert "- windowExpectedCalibrationErrorAf: 0.035" in calibration
+    svg = ElementTree.parse(models_dir / "rhythm-lgbm@1.0.0.calibration.svg").getroot()
+    namespace = "{http://www.w3.org/2000/svg}"
+    assert len(svg.findall(f"{namespace}polyline")) == 2
+    assert len(svg.findall(f"{namespace}circle")) == 3
+    # The abstain line sits at the manifest's abstainBelow on the 0-1 axis.
+    assert any(
+        line.get("x1")
+        == line.get("x2")
+        == f"{write_manifest.PLOT_LEFT + lgbm.abstain_below * write_manifest.PLOT_SIZE:.1f}"
+        for line in svg.findall(f"{namespace}line")
+    )
+
+
+def test_a_model_without_tables_gets_no_plot_and_loses_a_stale_one(trained):
+    models_dir, runs_dir = trained
+    stale = models_dir / "rhythm-net@1.0.0.calibration.svg"
+    stale.write_text("<svg/>", encoding="utf-8")
+    card = (models_dir / _manifest(models_dir, runs_dir)["rhythm-net"]["card"]).read_text(encoding="utf-8")
+    assert "- temperature: 1.5" in card and ".calibration.svg" not in card
+    assert not stale.exists()
+
+
+@pytest.mark.parametrize(
+    "calibration",
+    [
+        lambda _sha: {"sourceSha256": "0" * 64, **RELIABILITY},
+        lambda _sha: RELIABILITY,
+    ],
+    ids=["another model's sha256", "tables without a sha256"],
+)
+def test_a_calibration_not_keyed_to_the_model_file_is_refused(trained, calibration):
+    models_dir, runs_dir = trained
+    _with_calibration(runs_dir, SPECS["rhythm-lgbm"], calibration)
+    _assert_refused(models_dir, runs_dir, ProvenanceError, "calibration.sourceSha256")

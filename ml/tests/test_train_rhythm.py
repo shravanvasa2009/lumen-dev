@@ -7,10 +7,10 @@ import pytest
 import torch
 
 from export import to_onnx, verify_onnx
-from export.provenance import TOLERANCE, load_metrics, trained_source
+from export.provenance import TOLERANCE, ProvenanceError, load_metrics, trained_source
 from export.specs import SPECS
 from nets.rhythm_net import LABELS
-from train import rhythm
+from train import rhythm, rhythm_calibration, rhythm_windows
 from train.rhythm import (
     TARGET_SPECIFICITY,
     evaluate,
@@ -314,3 +314,79 @@ def test_trained_models_export_within_parity(trained_run, tmp_path):
         verify_onnx.main(["--name", name, "--runs-dir", str(trained_run), "--models-dir", str(out_dir)])
         parity = json.loads((out_dir / "parity.json").read_text(encoding="utf-8"))
         assert parity["maxAbsDiff"] <= TOLERANCE
+
+
+def test_reliability_bins_weight_windows_and_skip_empty_bins():
+    confidence = np.array([0.05, 0.05, 0.95, 0.95])
+    hit = np.array([False, True, True, True])
+    rows, error = rhythm.reliability(confidence, hit, np.array([3.0, 1.0, 1.0, 1.0]))
+    assert [(row["low"], row["windows"]) for row in rows] == [(0.0, 2), (0.9, 2)]
+    assert rows[0]["observed"] == pytest.approx(0.25)
+    # Bin weight shares 4/6 and 2/6 times |0.05 - 0.25| and |0.95 - 1|.
+    assert error == pytest.approx(4 / 6 * 0.2 + 2 / 6 * 0.05)
+
+
+def test_every_rhythm_model_records_calibration_keyed_to_its_file(trained_run):
+    for name in ("rhythm-net", "rhythm-lgbm"):
+        metrics = load_metrics(SPECS[name], trained_run)
+        calibration = metrics["calibration"]
+        assert calibration["sourceSha256"] == metrics["sourceSha256"]
+        assert 0 <= calibration["windowExpectedCalibrationErrorAf"] <= 1
+        assert 0 <= calibration["windowExpectedCalibrationErrorTop"] <= 1
+        windows = sum(row["windows"] for row in calibration["reliabilityAf"])
+        assert (
+            windows
+            == sum(row["windows"] for row in calibration["reliabilityTop"])
+            == metrics_windows(trained_run)
+        )
+        # The top class of 3 is never below 1/3.
+        assert calibration["reliabilityTop"][0]["low"] >= 0.3
+    assert load_metrics(SPECS["rhythm-lgbm"], trained_run)["calibration"]["method"].startswith("none")
+
+
+def val_cache(runs_dir, name="val.npz"):
+    (path,) = (runs_dir / SPECS["rhythm-net"].file_stem).glob(f"*/{name}")
+    return path
+
+
+def metrics_windows(runs_dir):
+    return len(rhythm_windows.load_window_set(val_cache(runs_dir)).labels)
+
+
+def test_calibration_measured_after_training_matches_the_training_record(trained_run):
+    recorded = {name: load_metrics(SPECS[name], trained_run) for name in ("rhythm-net", "rhythm-lgbm")}
+    rhythm_calibration.main(["--runs-dir", str(trained_run), "--windows", str(val_cache(trained_run))])
+    for name, before in recorded.items():
+        after = load_metrics(SPECS[name], trained_run)
+        assert {key: value for key, value in after.items() if key != "calibration"} == {
+            key: value for key, value in before.items() if key != "calibration"
+        }
+        assert after["calibration"]["measuredBy"] == rhythm_calibration.MEASURED_BY
+        for key, value in before["calibration"].items():
+            if key != "measuredBy":
+                assert after["calibration"][key] == pytest.approx(value, abs=1e-12), key
+
+
+def test_calibration_refuses_windows_the_model_was_not_scored_on(trained_run):
+    before = (trained_run / "rhythm-lgbm@1.0.0.json").read_bytes()
+    with pytest.raises(ProvenanceError, match="τ_AF"):
+        rhythm_calibration.main(
+            ["--runs-dir", str(trained_run), "--windows", str(val_cache(trained_run, "train.npz"))]
+        )
+    assert (trained_run / "rhythm-lgbm@1.0.0.json").read_bytes() == before
+
+
+def test_calibration_refuses_a_model_file_changed_after_training(trained_run):
+    path = trained_run / "rhythm-lgbm@1.0.0.pkl"
+    path.write_bytes(path.read_bytes() + b"\0")
+    with pytest.raises(ProvenanceError, match="sha256 differs"):
+        rhythm_calibration.main(
+            [
+                "--runs-dir",
+                str(trained_run),
+                "--windows",
+                str(val_cache(trained_run)),
+                "--name",
+                "rhythm-lgbm",
+            ]
+        )

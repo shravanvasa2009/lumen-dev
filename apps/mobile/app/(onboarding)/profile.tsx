@@ -4,11 +4,12 @@ import { TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
+import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
-import { SectionLabel } from '@/components/SectionLabel';
-import { SegmentedControl } from '@/components/SegmentedControl';
-import { SwitchRow } from '@/components/SwitchRow';
+import { SectionLabel } from '@/settings/SectionLabel';
+import { Segmented } from '@/settings/Segmented';
+import { Toggle } from '@/settings/Toggle';
 import { useTheme } from '@/theme';
 
 // Spec §8.2 step 3: the tutorial passes once an age of 13 or more is entered.
@@ -78,10 +79,10 @@ export default function ProfileScreen() {
             {t('profile.ageTooYoung')}
           </AppText>
         ) : null}
-        <SegmentedControl
+        <Segmented
           label={t('profile.sex')}
-          value={sex}
-          onChange={setSex}
+          selected={sex}
+          onSelect={setSex}
           options={[
             { value: 'female', label: t('profile.female') },
             { value: 'male', label: t('profile.male') },
@@ -93,12 +94,17 @@ export default function ProfileScreen() {
         <SectionLabel>{t('profile.healthNotes')}</SectionLabel>
         <Card flush>
           {noteRows.map(({ note, title }, index) => (
-            <SwitchRow
+            <ListRow
               key={note}
               title={title}
-              value={notes[note]}
               last={index === noteRows.length - 1}
-              onChange={(value) => setNotes({ ...notes, [note]: value })}
+              trailing={
+                <Toggle
+                  label={title}
+                  value={notes[note]}
+                  onValueChange={(value) => setNotes({ ...notes, [note]: value })}
+                />
+              }
             />
           ))}
         </Card>

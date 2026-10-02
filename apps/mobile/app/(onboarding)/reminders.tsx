@@ -9,7 +9,8 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
-import { SwitchRow } from '@/components/SwitchRow';
+import { ListRow } from '@/components/ListRow';
+import { Toggle } from '@/settings/Toggle';
 import { useTheme } from '@/theme';
 
 // Spec §8.2 step 9: the daily time starts at 8:00 am and the daily check starts off.
@@ -92,12 +93,17 @@ export default function RemindersScreen() {
       </Card>
       <Card flush>
         {reminderRows.map(({ reminder, title }, index) => (
-          <SwitchRow
+          <ListRow
             key={reminder}
             title={title}
-            value={enabled[reminder]}
             last={index === reminderRows.length - 1}
-            onChange={(value) => setEnabled({ ...enabled, [reminder]: value })}
+            trailing={
+              <Toggle
+                label={title}
+                value={enabled[reminder]}
+                onValueChange={(value) => setEnabled({ ...enabled, [reminder]: value })}
+              />
+            }
           />
         ))}
       </Card>

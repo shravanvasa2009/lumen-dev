@@ -6,19 +6,14 @@ const VIEWBOX_WIDTH = 300;
 const VIEWBOX_HEIGHT = 340;
 const FINGER_ANGLE_DEG = 28;
 const LABEL_SIZE = 15;
+const HALO_WIDTH = 7;
 
 type PhoneBackIllustrationProps = { lensLabel: string; flashLabel: string };
 
 // A generic phone back: one lens beside the flash with a fingertip laid across both. Positions are an
 // illustration, not a measured layout for any model (packages/device-db holds placeholders only).
 export function PhoneBackIllustration({ lensLabel, flashLabel }: PhoneBackIllustrationProps) {
-  const { colors, isDark } = useTheme();
-  // The mockups draw a dark phone body in both themes; the light theme has no dark surface token,
-  // so its body borrows the dim text colour.
-  const bodyFill = isDark ? colors.surface3 : colors.textDim;
-  const bodyStroke = isDark ? colors.line2 : colors.textFaint;
-  const islandFill = isDark ? 'none' : colors.surface2;
-  const secondLensFill = isDark ? colors.bg : colors.text;
+  const { colors } = useTheme();
   return (
     <Svg
       width="100%"
@@ -33,8 +28,8 @@ export function PhoneBackIllustration({ lensLabel, flashLabel }: PhoneBackIllust
         width={170}
         height={336}
         rx={34}
-        fill={bodyFill}
-        stroke={bodyStroke}
+        fill={colors.illustrationDevice}
+        stroke={colors.illustrationDeviceLine}
         strokeWidth={2}
       />
       <Rect
@@ -43,28 +38,25 @@ export function PhoneBackIllustration({ lensLabel, flashLabel }: PhoneBackIllust
         width={50}
         height={100}
         rx={25}
-        fill={islandFill}
-        stroke={bodyStroke}
+        fill={colors.illustrationDeviceIsland}
+        stroke={colors.illustrationDeviceLine}
         strokeWidth={1}
       />
-      <Circle cx={106} cy={42} r={18} fill={colors.textFaint} />
-      <Circle cx={106} cy={90} r={15} fill={secondLensFill} stroke={bodyStroke} strokeWidth={1.5} />
-      <Circle cx={146} cy={42} r={9} fill={colors.flag} opacity={0.5} />
+      <Circle
+        cx={106}
+        cy={90}
+        r={15}
+        fill={colors.illustrationLens}
+        stroke={colors.illustrationDeviceLine}
+        strokeWidth={1.5}
+      />
       <G rotation={FINGER_ANGLE_DEG} origin="160, 52">
-        <Rect
-          x={75}
-          y={24}
-          width={170}
-          height={56}
-          rx={28}
-          fill={colors.flag}
-          fillOpacity={0.45}
-          stroke={colors.flag}
-          strokeOpacity={0.6}
-          strokeWidth={1.5}
-        />
+        <Rect x={75} y={24} width={170} height={56} rx={28} fill={colors.illustrationFinger} />
       </G>
+      {/* A page-colour halo under each ring keeps it readable over both the finger and the phone body. */}
+      <Circle cx={106} cy={42} r={22} fill="none" stroke={colors.bg} strokeWidth={HALO_WIDTH} />
       <Circle cx={106} cy={42} r={22} fill="none" stroke={colors.accent} strokeWidth={3} />
+      <Circle cx={146} cy={42} r={13} fill="none" stroke={colors.bg} strokeWidth={HALO_WIDTH} />
       <Circle cx={146} cy={42} r={13} fill="none" stroke={colors.flag} strokeWidth={3} />
       <Line x1={42} y1={48} x2={84} y2={42} stroke={colors.accent} strokeWidth={1.5} />
       <SvgText x={4} y={52} fill={colors.accent} fontSize={LABEL_SIZE} fontWeight="600">

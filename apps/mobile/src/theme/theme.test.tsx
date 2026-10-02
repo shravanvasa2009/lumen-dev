@@ -63,6 +63,18 @@ describe('useTheme', () => {
     expect(theme.current.control.primaryButtonHeight).toBe(52);
   });
 
+  it.each(['emergencyBg', 'scrim', 'plotPanel'] as const)(
+    'defines %s in both themes as a hex colour',
+    (name) => {
+      expect(tokens.light[name]).toMatch(/^#[0-9A-F]{6}([0-9A-F]{2})?$/);
+      expect(tokens.dark[name]).toMatch(/^#[0-9A-F]{6}([0-9A-F]{2})?$/);
+    },
+  );
+
+  it('keeps the plot panel near-black in light mode, as mockup 18 shows', () => {
+    expect(tokens.light.plotPanel).toBe(tokens.dark.plotPanel);
+  });
+
   it('keeps the same colour names in light and dark', () => {
     expect(Object.keys(tokens.light).sort()).toEqual(Object.keys(tokens.dark).sort());
   });

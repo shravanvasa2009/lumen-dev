@@ -440,7 +440,7 @@
   "appearance.light": "Light",
   "appearance.dark": "Dark",
   "appearance.following": "Following your phone",
-  "appearance.followingBody": "The whole app follows your phone's light or dark setting for now. Your choice here only changes these previews, and it will apply to the app in a later update.",
+  "appearance.followingBody": "Lumen switches between light and dark with your phone's setting. Choose Light or Dark to keep one look.",
   "appearance.note": "The Doctor PDF is always light, and the emergency screen keeps its red colors in both modes.",
   "widgets.title": "Widgets",
   "widgets.iphoneHome": "iPhone · Home screen",

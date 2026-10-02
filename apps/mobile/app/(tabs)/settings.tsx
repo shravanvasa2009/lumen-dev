@@ -71,6 +71,7 @@ export default function SettingsScreen() {
           title={title}
           last={index === rows.length - 1}
           chevron={href !== undefined}
+          disabled={href === undefined}
           trailing={shownValue ? <AppText tone="textDim">{shownValue}</AppText> : undefined}
           onPress={href === undefined ? undefined : () => router.push(href)}
         />
@@ -84,6 +85,7 @@ export default function SettingsScreen() {
       <Card flush>
         <ListRow
           title={t('settings.healthSync')}
+          disabled
           trailing={<Toggle label={t('settings.healthSync')} value={false} disabled />}
         />
         {renderRows(accuracyRows)}

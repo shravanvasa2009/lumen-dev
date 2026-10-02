@@ -35,10 +35,12 @@ export default function AppearanceScreen() {
             <HomePreview key={scheme} scheme={scheme} measureLabel={t('home.measure')} caption={caption} />
           ))}
       </View>
-      <Card>
-        <AppText variant="headline">{t('appearance.following')}</AppText>
-        <AppText tone="textDim">{t('appearance.followingBody')}</AppText>
-      </Card>
+      {appearance === 'system' ? (
+        <Card>
+          <AppText variant="headline">{t('appearance.following')}</AppText>
+          <AppText tone="textDim">{t('appearance.followingBody')}</AppText>
+        </Card>
+      ) : null}
       <AppText variant="caption" tone="textDim">
         {t('appearance.note')}
       </AppText>

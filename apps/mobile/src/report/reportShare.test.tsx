@@ -19,6 +19,9 @@ function openReport(id: string) {
   renderRouter('./app', { initialUrl: `/report/${id}` });
 }
 
+// The first router render of the report can take about 3 s under parallel Jest workers.
+const firstRenderMs = 5000;
+
 const shareButton = () => screen.getByRole('button', { name: en['report.sharePdf'] });
 
 beforeEach(() => {
@@ -32,14 +35,14 @@ describe('Share PDF', () => {
   it('prints the report to a file, then opens the share sheet for a PDF', async () => {
     openReport('demo');
     fireEvent.press(shareButton());
-    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1), { timeout: firstRenderMs });
     expect(printToFile).toHaveBeenCalledTimes(1);
     const [{ html }] = printToFile.mock.calls[0] as [{ html: string }];
     expect(html).toContain(en['prototype.banner']);
     expect(share).toHaveBeenCalledWith(pdfUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
     expect(printToFile.mock.invocationCallOrder[0]).toBeLessThan(share.mock.invocationCallOrder[0] as number);
     expect(screen.queryByText(en['report.shareFailed'])).toBeNull();
-    await waitFor(() => expect(shareButton()).toBeEnabled());
+    await waitFor(() => expect(shareButton()).toBeEnabled(), { timeout: firstRenderMs });
   });
 
   it('disables the button and says it is preparing while the PDF is made', async () => {
@@ -52,7 +55,7 @@ describe('Share PDF', () => {
     fireEvent.press(busy);
     expect(printToFile).toHaveBeenCalledTimes(1);
     finishPrinting({ uri: pdfUri, numberOfPages: 1 });
-    await waitFor(() => expect(shareButton()).toBeEnabled());
+    await waitFor(() => expect(shareButton()).toBeEnabled(), { timeout: firstRenderMs });
     expect(share).toHaveBeenCalledTimes(1);
   });
 

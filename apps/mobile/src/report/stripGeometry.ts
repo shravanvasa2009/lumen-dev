@@ -4,7 +4,7 @@ export const stripWidth = 320;
 export const stripHeight = 56;
 export const stripInset = 6;
 
-export type StripPoint = { x: number; y: number };
+type StripPoint = { x: number; y: number };
 
 // One scale for the on-screen strip and the PDF strip, so the two never disagree about a reading.
 export function stripPoints(intervalsMs: readonly number[]): StripPoint[] {

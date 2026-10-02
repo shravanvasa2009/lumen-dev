@@ -2,7 +2,6 @@ import type { TFunction } from 'i18next';
 
 import { evidenceFor } from '@/evidence';
 import type { FixtureReading } from '@/results/fixtures';
-import tokens from '@/theme/tokens.json';
 
 import {
   columnHeadings,
@@ -14,10 +13,8 @@ import {
   stripsFor,
   tableRows,
 } from './model';
+import { paper } from './paper';
 import { stripHeight, stripInset, stripPoints, stripWidth } from './stripGeometry';
-
-// §12.1: the PDF is printed, so it uses the light tokens whatever the phone's theme is.
-const paper = tokens.light;
 
 const entities: Record<string, string> = {
   '&': '&amp;',

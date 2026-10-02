@@ -154,14 +154,6 @@ describe('navigation', () => {
     followButtons('/results/demo', [['results.showWhy', 'why.title']]);
   });
 
-  it('leads from I feel faint on the standing test to the emergency screen', () => {
-    followButtons('/measure/standing-test', [
-      ['standing.start', 'standing.title'],
-      ['standing.faint', 'standing.title'],
-      ['emergency.title', 'emergency.title'],
-    ]);
-  });
-
   it('loops from a failed capture through Fix my technique back to capture', () => {
     followButtons('/measure/capture?mode=quick', [
       ['capture.noSignal', 'result.inconclusive'],

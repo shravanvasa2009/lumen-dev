@@ -14,14 +14,24 @@ const at = (minutes: number, seconds = 0) => 1_000_000 + minutes * MINUTE + seco
 
 describe('standing test steps', () => {
   it('waits on the intro until begun', () => {
-    expect(viewAt(newTest(), 5 * MINUTE)).toMatchObject({ stage: 'intro', step: 1, dueSlot: null });
+    expect(viewAt(newTest(), 5 * MINUTE)).toMatchObject({ stage: 'intro', step: 0, dueSlot: null });
   });
 
-  it('moves through lying, baseline, standing and done in order', () => {
-    const stages = [at(0, 1), at(3, 59), at(4), at(4, 59), at(5), at(15, 44), at(15, 45)].map(
-      (when) => viewAt(started, when).stage,
-    );
-    expect(stages).toEqual(['lying', 'lying', 'baseline', 'baseline', 'standing', 'standing', 'done']);
+  it('moves through lying, baseline, standing, final and done in order', () => {
+    const times = [at(0, 1), at(3, 59), at(4), at(4, 59), at(5), at(14, 59), at(15), at(15, 44), at(15, 45)];
+    const views = times.map((when) => viewAt(started, when));
+    expect(views.map(({ stage }) => stage)).toEqual([
+      'lying',
+      'lying',
+      'baseline',
+      'baseline',
+      'standing',
+      'standing',
+      'final',
+      'final',
+      'done',
+    ]);
+    expect(views.map(({ step }) => step)).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5]);
   });
 
   it('counts the lying period down from five minutes', () => {
@@ -33,7 +43,7 @@ describe('standing test steps', () => {
   it('offers the baseline reading in minute 4 to 5 only', () => {
     expect(viewAt(started, at(3)).dueSlot).toBeNull();
     expect(viewAt(started, at(4, 10)).dueSlot).toEqual({ minute: 0 });
-    const taken = recordReading(started, { minute: 0 }, 68);
+    const taken = recordReading(started, { minute: 0 }, 68, at(4, 10));
     expect(viewAt(taken, at(4, 20)).dueSlot).toBeNull();
     expect(viewAt(taken, at(4, 20)).baseline).toBe(68);
   });
@@ -52,26 +62,26 @@ describe('standing test steps', () => {
   });
 
   it('computes the rise from the latest standing reading and the baseline', () => {
-    let state = recordReading(started, { minute: 0 }, 68);
-    state = recordReading(state, { minute: 1 }, 84);
-    state = recordReading(state, { minute: 3 }, 91);
+    let state = recordReading(started, { minute: 0 }, 68, at(4, 10));
+    state = recordReading(state, { minute: 1 }, 84, at(6, 30));
+    state = recordReading(state, { minute: 3 }, 91, at(8, 30));
     const view = viewAt(state, at(8, 12));
     expect(view).toMatchObject({ baseline: 68, latest: 91, rise: 23 });
     expect(view.points).toEqual([
       { minute: -1, bpm: 68 },
-      { minute: 1, bpm: 84 },
-      { minute: 3, bpm: 91 },
+      { minute: 1.5, bpm: 84 },
+      { minute: 3.5, bpm: 91 },
     ]);
   });
 
   it('has no rise without a baseline or a standing reading', () => {
-    expect(viewAt(recordReading(started, { minute: 1 }, 84), at(7)).rise).toBeNull();
-    expect(viewAt(recordReading(started, { minute: 0 }, 68), at(7)).rise).toBeNull();
+    expect(viewAt(recordReading(started, { minute: 1 }, 84, at(6, 30)), at(7)).rise).toBeNull();
+    expect(viewAt(recordReading(started, { minute: 0 }, 68, at(4, 10)), at(7)).rise).toBeNull();
   });
 
   it('records every standing minute', () => {
     const state = STANDING_READING_MINUTES.reduce(
-      (kept, minute) => recordReading(kept, { minute }, 80 + minute),
+      (kept, minute) => recordReading(kept, { minute }, 80 + minute, at(5 + minute, 5)),
       started,
     );
     expect(state.standing.map(({ bpm }) => bpm)).toEqual([81, 83, 85, 90]);
@@ -80,14 +90,19 @@ describe('standing test steps', () => {
 
 describe('stopping', () => {
   it('freezes the timers and closes readings when stopped', () => {
-    const stopped = stop(started, at(6, 30), false);
-    const view = viewAt(stopped, at(12));
-    expect(view).toMatchObject({ stopped: true, fainted: false, dueSlot: null });
+    const view = viewAt(stop(started, at(6, 30)), at(12));
+    expect(view).toMatchObject({ stopped: true, dueSlot: null });
     expect(formatClock(view.standingElapsedMs)).toBe('01:30');
   });
 
-  it('remembers a faint stop and ignores a second stop', () => {
-    const fainted = stop(started, at(6), true);
-    expect(viewAt(stop(fainted, at(7), false), at(9)).fainted).toBe(true);
+  it('keeps the first stop time when stopped twice', () => {
+    const view = viewAt(stop(stop(started, at(6)), at(7)), at(9));
+    expect(formatClock(view.standingElapsedMs)).toBe('01:00');
+  });
+
+  it('drops a reading that arrives after the stop', () => {
+    const stopped = stop(started, at(6, 30));
+    expect(recordReading(stopped, { minute: 1 }, 84, at(6, 40))).toBe(stopped);
+    expect(recordReading(stopped, { minute: 0 }, 68, at(6, 40))).toBe(stopped);
   });
 });

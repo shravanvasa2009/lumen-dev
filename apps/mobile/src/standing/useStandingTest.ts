@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { begin, newTest, type ReadingSlot, recordReading, stop, type TestView, viewAt } from './protocol';
 
 const TICK_MS = 250;
 
-type StandingTestSource = {
+export type StandingTestSource = {
   now: () => number;
   // Null means this build cannot take a standing reading yet; no number is ever invented.
   readHeartRate: ((minute: ReadingSlot['minute']) => Promise<number | null>) | null;
@@ -13,6 +13,8 @@ type StandingTestSource = {
 type StandingTestControls = {
   view: TestView;
   canRead: boolean;
+  reading: boolean;
+  readFailed: boolean;
   start: () => void;
   takeReading: () => void;
   stopForFaint: () => void;
@@ -21,6 +23,9 @@ type StandingTestControls = {
 export function useStandingTest({ now, readHeartRate }: StandingTestSource): StandingTestControls {
   const [state, setState] = useState(newTest);
   const [nowMs, setNowMs] = useState(now);
+  const [reading, setReading] = useState(false);
+  const [readFailed, setReadFailed] = useState(false);
+  const readingNow = useRef(false);
   const running = state.startedAt !== null && state.stoppedAt === null;
 
   useEffect(() => {
@@ -39,17 +44,27 @@ export function useStandingTest({ now, readHeartRate }: StandingTestSource): Sta
   }, [now]);
 
   const takeReading = useCallback(() => {
-    if (!dueSlot || !readHeartRate) return;
-    void readHeartRate(dueSlot.minute).then((bpm) => {
-      if (bpm !== null) setState((kept) => recordReading(kept, dueSlot, bpm));
-    });
-  }, [dueSlot, readHeartRate]);
+    if (!dueSlot || !readHeartRate || readingNow.current) return;
+    readingNow.current = true;
+    setReading(true);
+    setReadFailed(false);
+    readHeartRate(dueSlot.minute)
+      .then((bpm) => {
+        if (bpm === null) setReadFailed(true);
+        else setState((kept) => recordReading(kept, dueSlot, bpm, now()));
+      })
+      .catch(() => setReadFailed(true))
+      .finally(() => {
+        readingNow.current = false;
+        setReading(false);
+      });
+  }, [dueSlot, readHeartRate, now]);
 
   const stopForFaint = useCallback(() => {
     const stoppedAt = now();
     setNowMs(stoppedAt);
-    setState((kept) => stop(kept, stoppedAt, true));
+    setState((kept) => stop(kept, stoppedAt));
   }, [now]);
 
-  return { view, canRead: readHeartRate !== null, start, takeReading, stopForFaint };
+  return { view, canRead: readHeartRate !== null, reading, readFailed, start, takeReading, stopForFaint };
 }

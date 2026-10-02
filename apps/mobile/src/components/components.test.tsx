@@ -110,7 +110,7 @@ describe.each([
     expect(dividerOf('Final')).toBe(0);
   });
 
-  it.each<IconName>(['home', 'trends', 'learn', 'settings', 'chevron'])(
+  it.each<IconName>(['home', 'trends', 'learn', 'settings', 'chevron', 'check', 'close', 'warning'])(
     'Icon %s draws strokes in the colour it is given',
     (name) => {
       render(<Icon name={name} size={24} color={colors.accent} />);
@@ -169,6 +169,18 @@ describe.each([
     expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Later' }).props.style)).toMatchObject({
       minHeight: 44,
       borderColor: colors.line2,
+    });
+  });
+
+  it('link Button has no fill or outline and reads in the accent colour', () => {
+    render(<Button label="Not now" variant="link" onPress={jest.fn()} />);
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Not now' }).props.style)).toMatchObject({
+      minHeight: 44,
+      backgroundColor: 'transparent',
+      borderColor: 'transparent',
+    });
+    expect(StyleSheet.flatten(screen.getByText('Not now').props.style)).toMatchObject({
+      color: colors.accent,
     });
   });
 

@@ -1,27 +1,115 @@
+import { useRouter } from 'expo-router';
+import { requestPermissionsAsync } from 'expo-notifications';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Pressable, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
-import { RouteShell } from '@/components/RouteShell';
+import { OnboardingStep } from '@/components/OnboardingStep';
+import { ListRow } from '@/components/ListRow';
+import { Toggle } from '@/settings/Toggle';
+import { useTheme } from '@/theme';
+
+// Spec §8.2 step 9: the daily time starts at 8:00 am and the daily check starts off.
+const DEFAULT_HOUR = 8;
+const HOURS_PER_DAY = 24;
+
+type Reminder = 'daily' | 'followUp' | 'doctor';
 
 export default function RemindersScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const router = useRouter();
+  const { spacing } = useTheme();
+  const [hour, setHour] = useState(DEFAULT_HOUR);
+  const [enabled, setEnabled] = useState<Record<Reminder, boolean>>({
+    daily: false,
+    followUp: true,
+    doctor: true,
+  });
+  const timeOf = (hourOfDay: number) =>
+    new Date(2000, 0, 1, (hourOfDay + HOURS_PER_DAY) % HOURS_PER_DAY).toLocaleTimeString(i18n.language, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  const before = timeOf(hour - 1);
+  const after = timeOf(hour + 1);
+  const reminderRows: readonly { reminder: Reminder; title: string }[] = [
+    { reminder: 'daily', title: t('notifications.daily') },
+    { reminder: 'followUp', title: t('notifications.followUp') },
+    { reminder: 'doctor', title: t('notifications.doctor') },
+  ];
+
+  // The app works without notifications, so a refusal or a failed request still moves on to Home.
+  async function askPermissionThenOpenHome() {
+    try {
+      await requestPermissionsAsync();
+    } catch (error) {
+      console.warn(
+        `Notification permission request failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    router.replace('/');
+  }
+
   return (
-    <RouteShell
-      headerless
+    <OnboardingStep
+      step={9}
       title={t('reminders.title')}
       subtitle={t('reminders.subtitle')}
-      sections={[
-        { heading: t('notifications.daily') },
-        { heading: t('notifications.followUp') },
-        { heading: t('notifications.doctor') },
-      ]}
+      footer={
+        <>
+          <Button label={t('reminders.turnOn')} onPress={() => void askPermissionThenOpenHome()} />
+          <NavButton label={t('reminders.notNow')} href="/" variant="link" replace />
+        </>
+      }
     >
+      <Card>
+        <View style={{ alignItems: 'center', gap: spacing.xs }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('reminders.earlier', { time: before })}
+            onPress={() => setHour((current) => (current + HOURS_PER_DAY - 1) % HOURS_PER_DAY)}
+          >
+            <AppText variant="title" tone="textDim">
+              {before}
+            </AppText>
+          </Pressable>
+          <AppText variant="display" accessibilityLabel={t('reminders.timeSelected', { time: timeOf(hour) })}>
+            {timeOf(hour)}
+          </AppText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('reminders.later', { time: after })}
+            onPress={() => setHour((current) => (current + 1) % HOURS_PER_DAY)}
+          >
+            <AppText variant="title" tone="textDim">
+              {after}
+            </AppText>
+          </Pressable>
+        </View>
+      </Card>
+      <Card flush>
+        {reminderRows.map(({ reminder, title }, index) => (
+          <ListRow
+            key={reminder}
+            title={title}
+            last={index === reminderRows.length - 1}
+            trailing={
+              <Toggle
+                label={title}
+                value={enabled[reminder]}
+                onValueChange={(value) => setEnabled({ ...enabled, [reminder]: value })}
+              />
+            }
+          />
+        ))}
+      </Card>
       <AppText variant="caption" tone="textDim">
         {t('reminders.localOnly')}
       </AppText>
-      <NavButton label={t('reminders.turnOn')} href="/" replace />
-      <NavButton label={t('reminders.notNow')} href="/" variant="secondary" replace />
-    </RouteShell>
+    </OnboardingStep>
   );
 }

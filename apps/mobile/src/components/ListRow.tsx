@@ -8,6 +8,7 @@ import { Icon } from './Icon';
 
 type ListRowProps = {
   title: string;
+  leading?: ReactNode;
   subtitle?: string;
   trailing?: ReactNode;
   last?: boolean;
@@ -15,7 +16,15 @@ type ListRowProps = {
   onPress?: () => void;
 };
 
-export function ListRow({ title, subtitle, trailing, last = false, chevron = false, onPress }: ListRowProps) {
+export function ListRow({
+  title,
+  subtitle,
+  leading,
+  trailing,
+  last = false,
+  chevron = false,
+  onPress,
+}: ListRowProps) {
   const { colors, spacing, control } = useTheme();
   return (
     <Pressable
@@ -34,6 +43,7 @@ export function ListRow({ title, subtitle, trailing, last = false, chevron = fal
         },
       ]}
     >
+      {leading}
       <View style={styles.text}>
         <AppText>{title}</AppText>
         {subtitle ? (

@@ -5,6 +5,7 @@ import * as Sharing from 'expo-sharing';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('expo-print', () => ({ printToFileAsync: jest.fn() }));
 jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn(), shareAsync: jest.fn() }));
@@ -30,6 +31,8 @@ beforeEach(() => {
   isAvailable.mockResolvedValue(true);
   share.mockResolvedValue(undefined);
 });
+
+preloadAppRoutes();
 
 describe('Share PDF', () => {
   it('prints the report to a file, then opens the share sheet for a PDF', async () => {

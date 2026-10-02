@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
 // Turn on reminders asks the system for notification permission before it leaves the screen.
@@ -74,6 +75,7 @@ const routes: readonly Route[] = [
     place: 'nav',
   },
   { file: 'follow-up', url: '/follow-up', title: 'followUp.title', place: 'body' },
+  { file: 'care-map', url: '/care-map', title: 'careMap.title', place: 'nav' },
 ];
 
 // Resolved against the working directory, which is apps/mobile when the mobile workspace runs jest.
@@ -117,6 +119,8 @@ function routeFilesUnder(directory: string): string[] {
   );
 }
 
+preloadAppRoutes();
+
 describe('route list', () => {
   it('covers every route file under app/ and nothing else', () => {
     expect([...new Set(routes.map((route) => route.file))].sort()).toEqual(
@@ -124,8 +128,8 @@ describe('route list', () => {
     );
   });
 
-  it('lists the 34 screens of the inventory', () => {
-    expect(routes).toHaveLength(34);
+  it('lists the 34 screens of the inventory and the Care map (ADR 0054)', () => {
+    expect(routes).toHaveLength(35);
   });
 });
 
@@ -137,7 +141,7 @@ describe.each([
     mockScheme = scheme;
   });
 
-  it.each(routes)('renders $url with its translated title', ({ url, title, place }) => {
+  it.each(routes)('renders $url with its translated title', async ({ url, title, place }) => {
     renderRouter(appDirectory, { initialUrl: url });
     const isEmergency = url === '/emergency';
     if (place === 'nav') {
@@ -155,6 +159,9 @@ describe.each([
     const drawn = JSON.stringify(screen.toJSON());
     expect(drawn.includes(colors.criticalFill)).toBe(isEmergency);
     expect(drawn.includes(colors.criticalText)).toBe(isEmergency);
+
+    // The Care map answers its location lookup after the first render; waiting keeps that update inside act.
+    if (url === '/care-map') await screen.findByText(en['careMap.denied']);
   });
 });
 

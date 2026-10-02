@@ -5,10 +5,12 @@ import { StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import diabetes from '@/i18n/diabetes.json';
 import es from '@/i18n/es.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
 import { readingById } from './fixtures';
 import { formatClock, formatDay } from './format';
+import { expectNavTitle } from '@/testing/navHeader';
 
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -207,6 +209,8 @@ describe.each([
   });
 });
 
+preloadAppRoutes();
+
 describe('copy', () => {
   it('has a Spanish string for every results key', () => {
     for (const key of Object.keys(en).filter((name) => name.startsWith('results.'))) {
@@ -219,5 +223,34 @@ describe('copy', () => {
       expect(en[key]).toBe(diabetes.en[key]);
       expect(es[key]).toBe(diabetes.es[key]);
     }
+  });
+});
+
+describe('Care map entry points', () => {
+  beforeEach(() => {
+    mockScheme = 'dark';
+    mockEvidence.diabetesPassed = false;
+    mockDemo.withoutPattern = false;
+  });
+
+  it('offers Find a doctor nearby under a flagged reading and keeps the safety sheet', async () => {
+    openResults('demo-flag');
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
+    expectNavTitle(en['careMap.title']);
+    await screen.findByText(en['careMap.denied']);
+  });
+
+  it('offers it inside the amber diabetes card', async () => {
+    mockEvidence.diabetesPassed = true;
+    openResults('demo');
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
+    expectNavTitle(en['careMap.title']);
+    await screen.findByText(en['careMap.denied']);
+  });
+
+  it('does not offer it on a reading with no flag', () => {
+    openResults('demo');
+    expect(screen.queryByRole('button', { name: en['careMap.enter'] })).toBeNull();
   });
 });

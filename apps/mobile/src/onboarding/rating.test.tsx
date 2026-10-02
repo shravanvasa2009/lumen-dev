@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react-native';
 import { fireEvent, renderRouter } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -14,6 +15,8 @@ jest.mock('expo-notifications', () => ({
   useLastNotificationResponse: () => null,
   setNotificationHandler: jest.fn(),
 }));
+
+preloadAppRoutes();
 
 describe('rating screen', () => {
   it('says the rating is pending instead of showing a made-up score', () => {

@@ -1,5 +1,5 @@
 import { PermissionsAndroid, Platform } from 'react-native';
-import { BleManager, State, type Device } from 'react-native-ble-plx';
+import { BleErrorCode, BleManager, State, type Device } from 'react-native-ble-plx';
 
 import {
   bytesFromBase64,
@@ -132,7 +132,9 @@ export async function connectStrap({ onMeasurement, onLost }: StrapEvents): Prom
     HEART_RATE_SERVICE,
     HEART_RATE_MEASUREMENT,
     (error, characteristic) => {
-      if (error) return lose(error.message, true);
+      // A strap that walks away usually fails the monitor with DeviceDisconnected before onDeviceDisconnected
+      // fires; it is already gone, so cancelling it would only log a false warning.
+      if (error) return lose(error.message, error.errorCode !== BleErrorCode.DeviceDisconnected);
       if (!characteristic?.value) return;
       let measurement: HeartRateMeasurement;
       try {

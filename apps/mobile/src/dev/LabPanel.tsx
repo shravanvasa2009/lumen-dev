@@ -45,7 +45,12 @@ const TORCH_ON_OFF = [0, 1];
 const LIVE_HR_EVERY_NS = 1e9;
 
 type Subscription = { remove(): void };
-type Recorded = { capabilities: Capabilities; summary: CaptureSummary; lab?: LabDiagnostics; polarRr?: PolarRr };
+type Recorded = {
+  capabilities: Capabilities;
+  summary: CaptureSummary;
+  lab?: LabDiagnostics;
+  polarRr?: PolarRr;
+};
 type SendState =
   | { kind: 'idle' }
   | { kind: 'sending' }
@@ -448,6 +453,8 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
         },
       });
       if (!mounted.current) {
+        // Closing the screen does not cancel a scan or connect in flight (up to 15 s); the strap is
+        // released here once it connects. Acceptable in the dev-only Lab.
         disconnectUnattended(connection);
         return;
       }

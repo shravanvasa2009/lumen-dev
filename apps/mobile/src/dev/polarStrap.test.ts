@@ -10,7 +10,12 @@ const PACKET_ODD_RR = 'EEsz';
 const HEART_RATE_SERVICE = '0000180d-0000-1000-8000-00805f9b34fb';
 const HEART_RATE_MEASUREMENT = '00002a37-0000-1000-8000-00805f9b34fb';
 
-type Listener<T> = (error: { message: string } | null, value: T | null) => void;
+interface FakeBleError {
+  message: string;
+  errorCode?: number;
+}
+
+type Listener<T> = (error: FakeBleError | null, value: T | null) => void;
 
 interface FakeDevice {
   id: string;
@@ -57,7 +62,7 @@ function fakeBle({ state = 'PoweredOn', advertises = true } = {}) {
   return {
     device,
     manager,
-    monitor: (error: { message: string } | null, value: { value: string | null } | null) =>
+    monitor: (error: FakeBleError | null, value: { value: string | null } | null) =>
       listeners.monitor?.(error, value),
     drop: () => listeners.dropped?.(null, device),
   };
@@ -67,6 +72,8 @@ let mockManager: unknown;
 jest.mock('react-native-ble-plx', () => ({
   BleManager: jest.fn(() => mockManager),
   State: { Unknown: 'Unknown', Resetting: 'Resetting', PoweredOn: 'PoweredOn', PoweredOff: 'PoweredOff' },
+  // ble-plx 3.5.1 src/BleError.js: DeviceDisconnected is 201.
+  BleErrorCode: { DeviceDisconnected: 201 },
 }));
 
 const events = () => ({ onMeasurement: jest.fn(), onLost: jest.fn() });
@@ -132,6 +139,20 @@ test('reports a strap that walks away without trying to disconnect it again', as
   fake.drop();
   expect(strapEvents.onLost).toHaveBeenCalledWith('the strap disconnected');
   expect(fake.manager.cancelDeviceConnection).not.toHaveBeenCalled();
+});
+
+test('a monitor that fails because the strap left reports once and does not disconnect it again', async () => {
+  const fake = fakeBle();
+  const strapEvents = events();
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  await connectStrap(strapEvents);
+
+  fake.monitor({ message: 'Device AA:BB was disconnected', errorCode: 201 }, null);
+  fake.drop();
+  expect(strapEvents.onLost).toHaveBeenCalledTimes(1);
+  expect(strapEvents.onLost).toHaveBeenCalledWith('Device AA:BB was disconnected');
+  expect(fake.manager.cancelDeviceConnection).not.toHaveBeenCalled();
+  expect(warn).not.toHaveBeenCalled();
 });
 
 test('disconnect() closes the link and a later monitor error is not reported as a loss', async () => {

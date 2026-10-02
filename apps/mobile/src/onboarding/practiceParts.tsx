@@ -92,36 +92,49 @@ export function SignalScale() {
   );
 }
 
-export function ProgressRing({ fraction }: { fraction: number }) {
+type RingProps = {
+  fraction: number;
+  size?: number;
+  strokeWidth?: number;
+  // Amber while the count is held, as on the capture screen.
+  paused?: boolean;
+};
+
+export function ProgressRing({
+  fraction,
+  size = RING_SIZE,
+  strokeWidth = RING_STROKE,
+  paused = false,
+}: RingProps) {
   const { colors } = useTheme();
-  const radius = (RING_SIZE - RING_STROKE) / 2;
+  const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   return (
     <Svg
-      width={RING_SIZE}
-      height={RING_SIZE}
+      width={size}
+      height={size}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
       <Circle
-        cx={RING_SIZE / 2}
-        cy={RING_SIZE / 2}
+        cx={size / 2}
+        cy={size / 2}
         r={radius}
         stroke={colors.surface3}
-        strokeWidth={RING_STROKE}
+        strokeWidth={strokeWidth}
         fill="none"
       />
       <Circle
-        cx={RING_SIZE / 2}
-        cy={RING_SIZE / 2}
+        cx={size / 2}
+        cy={size / 2}
         r={radius}
-        stroke={colors.accent}
-        strokeWidth={RING_STROKE}
+        stroke={paused ? colors.flag : colors.accent}
+        strokeWidth={strokeWidth}
         strokeLinecap="round"
         fill="none"
-        strokeDasharray={`${circumference * fraction} ${circumference}`}
+        strokeDasharray={`${circumference * Math.min(1, Math.max(0, fraction))} ${circumference}`}
         rotation={-90}
-        origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+        origin={`${size / 2}, ${size / 2}`}
       />
     </Svg>
   );

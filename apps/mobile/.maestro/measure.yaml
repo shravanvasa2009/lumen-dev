@@ -17,7 +17,8 @@ name: Home through a measurement to results, emergency, report, why, and fix-tec
 - assertVisible: 'Before you start'
 - tapOn: 'Start reading'
 - assertVisible: 'Quick Check'
-- tapOn: 'Finish reading'
+# Capture ends only on clean seconds, which the emulator cannot produce, so open the next screen by link.
+- openLink: lumen://measure/processing
 - assertVisible: 'Analyzing your reading'
 - tapOn: 'See results'
 - assertVisible: 'Results'
@@ -35,7 +36,7 @@ name: Home through a measurement to results, emergency, report, why, and fix-tec
 # The destination's title; the curly quotes around "regular" are matched with dots.
 - assertVisible: 'Why .regular.\?'
 - openLink: lumen://measure/capture?mode=quick
-- tapOn: "Can't get a clean signal\\?"
+- tapOn: 'Stop reading'
 - assertVisible: 'Not enough clean signal\.'
 - tapOn: 'Fix my technique \(2 min\)'
 - assertVisible: 'Fix my technique'

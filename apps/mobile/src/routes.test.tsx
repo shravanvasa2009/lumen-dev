@@ -10,6 +10,7 @@ import tokens from '@/theme/tokens.json';
 // Turn on reminders asks the system for notification permission before it leaves the screen.
 jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
+  useLastNotificationResponse: () => null,
 }));
 
 fixClockAtMorning();

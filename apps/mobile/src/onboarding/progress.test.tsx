@@ -6,7 +6,10 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 }));
 
 // Reminders imports the notification module, which warns outside a development build.
-jest.mock('expo-notifications', () => ({ requestPermissionsAsync: jest.fn() }));
+jest.mock('expo-notifications', () => ({
+  requestPermissionsAsync: jest.fn(),
+  useLastNotificationResponse: () => null,
+}));
 
 // The mockups fill 1 segment on consent and count up by one per screen; Reminders shows all nine.
 const steps = [

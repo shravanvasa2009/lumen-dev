@@ -41,7 +41,7 @@
     "test:evidence": "npm run test:evidence -w @lumen/mobile",
     "i18n:check": "node scripts/check-i18n.mjs",
     "lint:strings": "node scripts/lint-strings.mjs",
-    "test:notifications": "node scripts/not-yet.mjs test:notifications",
+    "test:notifications": "npm run test:notifications -w @lumen/mobile",
     "test:widgets": "node scripts/not-yet.mjs test:widgets",
     "eval:replay": "node scripts/eval-replay.mjs",
     "sync-models": "node scripts/sync-models.mjs",

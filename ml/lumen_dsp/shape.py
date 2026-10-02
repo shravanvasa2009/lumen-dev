@@ -6,6 +6,7 @@ import numpy as np
 from scipy import signal
 
 from lumen_dsp.config import DSP_CONFIG
+from lumen_dsp.median import median
 
 # DSP-14 (ADR 0030), mirroring packages/core/src/pulse-shape.ts. The averaged beat is diabetes-net's
 # [1, 1, 256] input, so it is built with the same operations in the same order on plain floats.
@@ -63,13 +64,6 @@ def _label_waves(smoothed: np.ndarray, second: np.ndarray, span_end: int) -> Wav
     return WaveLabels(a, b, c, d, e)
 
 
-def _median(values: list[float]) -> float:
-    # Same rule as packages/core: the mean of the two middle values for an even count.
-    ordered = sorted(values)
-    middle = len(ordered) // 2
-    return ordered[middle] if len(ordered) % 2 == 1 else (ordered[middle - 1] + ordered[middle]) / 2
-
-
 def ensemble_beat(
     morphology_256: Sequence[float], onsets: Sequence[float], normal: Sequence[bool], capture_fps: float
 ) -> PulseShape | None:
@@ -91,7 +85,7 @@ def ensemble_beat(
     ]
     if len(candidates) < dsp14["minNormalBeats"]:
         return None
-    longest_period = dsp14["maxPeriodRatio"] * _median([starts[i + 1] - starts[i] for i in candidates])
+    longest_period = dsp14["maxPeriodRatio"] * median([starts[i + 1] - starts[i] for i in candidates])
 
     sums = [0.0] * samples
     beats_used = 0

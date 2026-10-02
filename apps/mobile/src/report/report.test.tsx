@@ -121,14 +121,6 @@ describe('Doctor report content', () => {
     expect(screen.getByText(en['report.leftOut'])).toBeOnTheScreen();
   });
 
-  it('pins a disabled Share PDF button with the note that sharing arrives later', () => {
-    openReport('demo');
-    const button = screen.getByRole('button', { name: en['report.sharePdf'] });
-    expect(button).toBeDisabled();
-    expect(screen.getByText(en['report.sharedOnly'])).toBeOnTheScreen();
-    expect(screen.getByText(en['report.shareLater'])).toBeOnTheScreen();
-  });
-
   it('shows no numbers for an id that is not a reading', () => {
     openReport('nope');
     expectNavTitle(en['report.title']);

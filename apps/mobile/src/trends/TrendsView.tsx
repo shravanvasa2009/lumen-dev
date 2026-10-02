@@ -130,7 +130,8 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                   const word = point.rhythm ? rhythmClassWords(t, point.rhythm).value : null;
                   const value = metricValue(t, metric, point.value);
                   // A row opens a reading only when that reading exists; sample rows have no Results screen.
-                  const opens = readingById(point.id) !== undefined;
+                  const fixture = readingById(point.id);
+                  const opens = fixture !== undefined;
                   const clock = formatClock(point.createdAt, i18n.language);
                   const when = isToday(point.createdAt)
                     ? t('trends.todayAt', { time: clock })
@@ -144,6 +145,7 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                       onPress={opens ? () => router.push(`/results/${point.id}`) : undefined}
                       trailing={
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                          {fixture?.synthetic ? <SyntheticTag /> : null}
                           {point.caffeine ? <CupIcon size={16} color={colors.flag} /> : null}
                           <AppText tone="textDim">{word ? `${value} · ${word}` : value}</AppText>
                         </View>
@@ -156,6 +158,26 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
         </>
       )}
     </>
+  );
+}
+
+// §8.5: a hand-written reading is never passed off as a recorded one, here or on its own screens.
+function SyntheticTag() {
+  const { t } = useTranslation();
+  const { colors, radius, spacing } = useTheme();
+  return (
+    <View
+      style={{
+        backgroundColor: colors.badgeExperimentalBg,
+        borderRadius: radius.pill,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs / 2,
+      }}
+    >
+      <AppText variant="caption" style={{ color: colors.badgeExperimentalFg }}>
+        {t('trends.synthetic')}
+      </AppText>
+    </View>
   );
 }
 

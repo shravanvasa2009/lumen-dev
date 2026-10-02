@@ -1,6 +1,6 @@
 import { readingById, readingsOnDay, type FixtureReading } from '@/results/fixtures';
 
-import { diabetesFor, evidenceSentence, flagCounts, formatFullDate } from './model';
+import { diabetesFor, evidenceSentence, flagCounts, formatFullDate, pdfPageReadings } from './model';
 
 const demo = readingById('demo') as FixtureReading;
 const flagged = readingById('demo-flag') as FixtureReading;
@@ -16,6 +16,20 @@ describe('flagCounts', () => {
 
   it('is empty for no readings', () => {
     expect(flagCounts([])).toEqual({ rhythm: { flagged: 0, total: 0 }, hr: { flagged: 0, total: 0 } });
+  });
+});
+
+describe('pdfPageReadings', () => {
+  it('is the flagged readings of the day, in the day order', () => {
+    const second = { ...flagged, id: 'second-flag' };
+    expect(pdfPageReadings(demo, [inconclusive, flagged, demo, second]).map(({ id }) => id)).toEqual([
+      'demo-flag',
+      'second-flag',
+    ]);
+  });
+
+  it('falls back to the opened reading when nothing is flagged', () => {
+    expect(pdfPageReadings(demo, [inconclusive, demo])).toEqual([demo]);
   });
 });
 

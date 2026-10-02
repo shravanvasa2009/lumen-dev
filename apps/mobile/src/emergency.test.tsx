@@ -23,4 +23,16 @@ describe('emergency screen', () => {
     fireEvent.press(screen.getByRole('button', { name: en['emergency.call'] }));
     expect(await screen.findByText(en['emergency.callFailed'])).toBeOnTheScreen();
   });
+
+  it('returns to Home when there is nothing to go back to', () => {
+    renderRouter('./app', { initialUrl: '/emergency' });
+    fireEvent.press(screen.getByRole('button', { name: en['emergency.okay'] }));
+    expect(screen.getByRole('header', { name: en['tabs.home'] })).toBeOnTheScreen();
+  });
+
+  it('shows the stroke signs and no made-up doctor number', () => {
+    renderRouter('./app', { initialUrl: '/emergency' });
+    expect(screen.getByText(en['emergency.strokeLetters'])).toBeOnTheScreen();
+    expect(screen.getAllByRole('button')).toHaveLength(2);
+  });
 });

@@ -33,7 +33,7 @@ const routes: readonly Route[] = [
   { file: 'measure/capture', url: '/measure/capture?mode=quick', title: 'mode.quick' },
   { file: 'measure/processing', url: '/measure/processing', title: 'processing.title' },
   { file: 'results/[id]/index', url: '/results/demo', title: 'results.title' },
-  { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.title' },
+  { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.titleRegular' },
   { file: 'measure/inconclusive', url: '/measure/inconclusive', title: 'result.inconclusive' },
   { file: 'emergency', url: '/emergency', title: 'emergency.title' },
   { file: 'measure/standing-test', url: '/measure/standing-test', title: 'standing.title' },
@@ -133,7 +133,7 @@ describe('navigation', () => {
     ]);
   });
 
-  it('walks Home through a measurement to results and the emergency screen', () => {
+  it('walks Home through a measurement to results', () => {
     followButtons('/', [['home.measure', 'mode.title']]);
     fireEvent.press(screen.getByText(en['mode.quick']));
     expect(screen.getByRole('header', { name: en['precheck.title'] })).toBeOnTheScreen();
@@ -142,8 +142,10 @@ describe('navigation', () => {
     fireEvent.press(screen.getByRole('button', { name: en['capture.finish'] }));
     fireEvent.press(screen.getByRole('button', { name: en['processing.seeResults'] }));
     expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
-    expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
+  });
+
+  it('opens the emergency screen from the safety sheet of a flagged result', () => {
+    followButtons('/results/demo-flag', [['safety.yes', 'emergency.title']]);
   });
 
   it('opens the report from results', () => {
@@ -151,7 +153,7 @@ describe('navigation', () => {
   });
 
   it('opens the explanation from results', () => {
-    followButtons('/results/demo', [['results.showWhy', 'why.title']]);
+    followButtons('/results/demo', [['results.showWhy', 'why.titleRegular']]);
   });
 
   it('loops from a failed capture through Fix my technique back to capture', () => {

@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { requestPermissionsAsync } from 'expo-notifications';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
@@ -17,6 +17,9 @@ import { useTheme } from '@/theme';
 const DEFAULT_HOUR = 8;
 const HOURS_PER_DAY = 24;
 
+// Mockup 09 sets the chosen time well above the 34 pt display size.
+const styles = StyleSheet.create({ selectedTime: { fontSize: 48, lineHeight: 56 } });
+
 type Reminder = 'daily' | 'followUp' | 'doctor';
 
 export default function RemindersScreen() {
@@ -29,11 +32,13 @@ export default function RemindersScreen() {
     followUp: true,
     doctor: true,
   });
-  const timeOf = (hourOfDay: number) =>
-    new Date(2000, 0, 1, (hourOfDay + HOURS_PER_DAY) % HOURS_PER_DAY).toLocaleTimeString(i18n.language, {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+  const timeOf = (hourOfDay: number, withPeriod = true) =>
+    new Intl.DateTimeFormat(i18n.language, { hour: 'numeric', minute: '2-digit' })
+      .formatToParts(new Date(2000, 0, 1, (hourOfDay + HOURS_PER_DAY) % HOURS_PER_DAY))
+      .filter((part) => withPeriod || part.type !== 'dayPeriod')
+      .map((part) => part.value)
+      .join('')
+      .trim();
   const before = timeOf(hour - 1);
   const after = timeOf(hour + 1);
   const reminderRows: readonly { reminder: Reminder; title: string }[] = [
@@ -74,10 +79,14 @@ export default function RemindersScreen() {
             onPress={() => setHour((current) => (current + HOURS_PER_DAY - 1) % HOURS_PER_DAY)}
           >
             <AppText variant="title" tone="textDim">
-              {before}
+              {timeOf(hour - 1, false)}
             </AppText>
           </Pressable>
-          <AppText variant="display" accessibilityLabel={t('reminders.timeSelected', { time: timeOf(hour) })}>
+          <AppText
+            variant="display"
+            style={styles.selectedTime}
+            accessibilityLabel={t('reminders.timeSelected', { time: timeOf(hour) })}
+          >
             {timeOf(hour)}
           </AppText>
           <Pressable
@@ -86,7 +95,7 @@ export default function RemindersScreen() {
             onPress={() => setHour((current) => (current + 1) % HOURS_PER_DAY)}
           >
             <AppText variant="title" tone="textDim">
-              {after}
+              {timeOf(hour + 1, false)}
             </AppText>
           </Pressable>
         </View>

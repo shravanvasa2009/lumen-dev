@@ -3,6 +3,7 @@ import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import NamedTuple
 
 import onnx
 import onnxruntime
@@ -34,8 +35,11 @@ from export.specs import (
     shipped_per_family,
 )
 from export.to_onnx import source_model
+from eval.external_gate import RESULTS_FILE, read_results
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
+# Pass or fail facts eval.external writes next to the numbers (§11.5, ML-1, ML-4, ML-6).
+EXTERNAL_VERDICTS = ("floorMet", "status", "passed")
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
 # §11.10: when the rhythm model fails to load, the app runs this rule in code (@lumen/core) as "basic
 # analysis", so its manifest entry carries every number the rule needs, read from the trained pickle.
@@ -171,10 +175,55 @@ def logistic_rule(pipeline: Pipeline, feature_order: list[str], labels: tuple[st
     }
 
 
+class ExternalRun(NamedTuple):
+    # The ledger entry of eval.external's one run of this model version, and its numbers once it is done.
+    run: dict
+    report: dict | None
+
+
+def external_run(spec: ModelSpec, results: dict, onnx_sha256: str) -> ExternalRun | None:
+    # ADR 0045: the ledger in models/external-test.json records each model version's one run; the family
+    # block holds the numbers of the version that ran last.
+    runs = [run for run in results.get("runs", []) if run["model"] == spec.file_stem]
+    if not runs:
+        return None
+    done = [run for run in runs if run["status"] == "done"]
+    if not done:
+        # A run that started and crashed has read the external data, so the card says so (ADR 0045).
+        return ExternalRun(runs[-1], None)
+    (run,) = done
+    if run["onnxSha256"] != onnx_sha256:
+        raise ProvenanceError(
+            f"{spec.file_stem} was externally tested as ONNX {run['onnxSha256']}, but this release's file "
+            f"is {onnx_sha256}"
+        )
+    block = results.get(spec.family) or {}
+    report = (block.get("models") or {}).get(spec.name) if spec.family == "rhythm" else block
+    if not report or report.get("model") != spec.file_stem:
+        raise ProvenanceError(
+            f"the ledger records a finished external run of {spec.file_stem}, but {RESULTS_FILE.name} has "
+            f"no {spec.family} results for it"
+        )
+    if spec.family == "rhythm":
+        # eval.external scores every rhythm model on the same subjects; the rest are each model's own.
+        report = {"subjects": block["subjects"], **report["subject"], "floorMet": report["floorMet"]}
+    missing = [field for field in spec.external_fields if field not in report]
+    if missing:
+        raise ProvenanceError(f"{spec.file_stem}'s external results lack {missing}")
+    return ExternalRun(run, report)
+
+
 def manifest_entry(
-    spec: ModelSpec, models_dir: Path, metrics: dict | None, commit: str, date: str, rule: dict | None
+    spec: ModelSpec,
+    models_dir: Path,
+    metrics: dict | None,
+    commit: str,
+    date: str,
+    rule: dict | None,
+    external: ExternalRun | None,
 ) -> dict:
     path = models_dir / f"{spec.file_stem}.onnx"
+    report = external.report if external else None
     return {
         "name": spec.name,
         "family": spec.family,
@@ -188,7 +237,10 @@ def manifest_entry(
         "labels": list(spec.labels),
         "threshold": metrics["threshold"] if metrics else dict.fromkeys(spec.threshold_keys),
         "abstainBelow": spec.abstain_below,
-        "externalTest": {"dataset": spec.external_dataset, **dict.fromkeys(spec.external_fields)},
+        "externalTest": {
+            "dataset": spec.external_dataset,
+            **{field: report[field] if report else None for field in spec.external_fields},
+        },
         "trainedOn": metrics["trainedOn"] if metrics else [],
         # Copied verbatim so evidence.json can carry dev-val numbers §11.3 asks the app to show (the
         # premature-beat false-AF rate); ml/runs is not in the repo, so the manifest is their only source.
@@ -505,7 +557,44 @@ def reliability_svg(spec: ModelSpec, calibration: dict) -> str:
     )
 
 
-def model_card(spec: ModelSpec, metrics: dict | None) -> str:
+def _external_section(spec: ModelSpec, external: ExternalRun | None) -> str:
+    header = f"Dataset: {spec.external_dataset}."
+    if external is None:
+        return f"{header} {EXTERNAL_NOT_RUN}"
+    run, report = external
+    if report is None:
+        return (
+            f"{header} Started {run['startedAt']} under the owner's approval {run['approval']} and did not "
+            "finish, so no numbers were recorded. The data has been seen: a retry needs a new owner approval "
+            "(ADR 0045)."
+        )
+    intervals = report.get("ci95")
+    rows = []
+    for field in spec.external_fields:
+        if field in ("ci95", "ppvNpv", *EXTERNAL_VERDICTS):
+            continue
+        # Rhythm and diabetes give one interval per metric; ML-4's single interval is the gap's (ADR 0028).
+        if isinstance(intervals, dict):
+            interval = intervals.get(field)
+        else:
+            interval = intervals if field == "rhythmBiasGapPts" else None
+        low, high = interval or ("", "")
+        rows.append({"metric": field, "estimate": report[field], "95% CI low": low, "95% CI high": high})
+    parts = [
+        f"{header} Run once, finished {run['finishedAt']}, under the owner's approval {run['approval']} at "
+        f"commit {run['commit']}, at the threshold frozen in the manifest. Confidence intervals resample "
+        "subjects.",
+        _table(rows),
+    ]
+    verdicts = [f"- {key}: {report[key]}" for key in EXTERNAL_VERDICTS if key in report]
+    if verdicts:
+        parts.append("\n".join(verdicts))
+    if report.get("ppvNpv"):
+        parts.append(f"PPV and NPV at the stated prevalences:\n\n{_table(report['ppvNpv'])}")
+    return "\n\n".join(parts)
+
+
+def model_card(spec: ModelSpec, metrics: dict | None, external: ExternalRun | None = None) -> str:
     text = CARD_TEXT[spec.family]
     if not spec.ships:
         role = "ablation model, not shipped"
@@ -530,7 +619,7 @@ def model_card(spec: ModelSpec, metrics: dict | None) -> str:
         "## Ablation\n\nThe neural model ships only if it beats its classical baseline on held-out "
         "subjects.\n\n" + (_table(ablation) if ablation else NOT_MEASURED),
         f"## Calibration\n\n{_calibration_section(spec, calibration)}",
-        f"## External test\n\nDataset: {spec.external_dataset}. {EXTERNAL_NOT_RUN}",
+        f"## External test\n\n{_external_section(spec, external)}",
         f"## Limitations\n\n{text['limitations']}{_measured_limits(spec, metrics)}",
         f"## What the app shows when the model abstains\n\n{text['abstain']}",
     ]
@@ -579,8 +668,21 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
         for spec in specs
         if spec.name in CODED_FALLBACKS and metrics_by_name[spec.name]
     }
+    results = read_results(models_dir / RESULTS_FILE.name)
+    externals = {
+        spec.name: external_run(spec, results, sha256_of(models_dir / f"{spec.file_stem}.onnx"))
+        for spec in specs
+    }
     entries = [
-        manifest_entry(spec, models_dir, metrics_by_name[spec.name], commit, date, rules.get(spec.name))
+        manifest_entry(
+            spec,
+            models_dir,
+            metrics_by_name[spec.name],
+            commit,
+            date,
+            rules.get(spec.name),
+            externals[spec.name],
+        )
         for spec in specs
     ]
     shipped_per_family(entries)
@@ -589,7 +691,9 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
     check_parity(models_dir, entries, source_shas)
     # Every check, and every card render, happens before anything is written, so a failure leaves no
     # manifest or cards behind.
-    cards = {spec.file_stem: model_card(spec, metrics_by_name[spec.name]) for spec in specs}
+    cards = {
+        spec.file_stem: model_card(spec, metrics_by_name[spec.name], externals[spec.name]) for spec in specs
+    }
     plots: dict[str, str | None] = {}
     for spec in specs:
         calibration = (metrics_by_name[spec.name] or {}).get("calibration")

@@ -14,9 +14,11 @@ describe('parseMode', () => {
 });
 
 describe('MODES', () => {
-  it('asks for 30 clean seconds on Quick Check and 90 on Full Scan', () => {
-    expect(MODES.quick.cleanSeconds).toBe(30);
-    expect(MODES.full.cleanSeconds).toBe(90);
+  it('lists the duration of every mode in the spec table', () => {
+    expect(MODES.quick.duration).toEqual({ amount: 30, unit: 'seconds' });
+    expect(MODES.full.duration).toEqual({ amount: 90, unit: 'seconds' });
+    expect(MODES.deep.duration).toEqual({ amount: 5, unit: 'minutes' });
+    expect(MODES.standing.duration).toEqual({ amount: 12, unit: 'minutes', approximate: true });
   });
 
   it('makes Full Scan the default', () => {

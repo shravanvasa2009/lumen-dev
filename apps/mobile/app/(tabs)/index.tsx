@@ -12,6 +12,7 @@ import { MetricTile } from '@/home/MetricTile';
 import { dateLine, dayPeriod } from '@/home/moment';
 import { latestReading, type StoredReading, tileSeries } from '@/home/readings';
 import { WidgetPromo } from '@/home/WidgetPromo';
+import { durationLabel } from '@/measure/durationLabel';
 import { DEFAULT_MODE, MODES } from '@/measure/mode';
 import { useTheme } from '@/theme';
 
@@ -32,7 +33,7 @@ export default function HomeScreen() {
   const modeNames = { quick: t('mode.quick'), full: t('mode.full') };
   const modeLabel = t('home.modeLine', {
     mode: modeNames[DEFAULT_MODE],
-    seconds: t('mode.seconds', { count: MODES[DEFAULT_MODE].cleanSeconds }),
+    seconds: durationLabel(t, MODES[DEFAULT_MODE].duration),
   });
 
   return (

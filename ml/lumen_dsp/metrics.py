@@ -188,3 +188,14 @@ def hrv(
         # Sample SD (n − 1) (ADR 0040).
         sdnn_ms = 1000 * math.sqrt(deviations / (len(intervals_s) - 1))
     return Hrv(rmssd_ms=rmssd_ms, sdnn_ms=sdnn_ms, pnn50=pnn50, nn_intervals=len(intervals_s))
+
+
+# ML-6: diabetes-net's [1, 4] HR/HRV summary [HR bpm, RMSSD ms, SDNN ms, pNN50] by DSP-11 and DSP-12, as
+# packages/core hrSummary. None values get the model's training median, not a fill here.
+def hr_summary(
+    segments: Sequence[Sequence[MeasuredBeat]], rhythm: str, capture_fps: float, clean_s: float
+) -> list[float | None]:
+    variability = hrv(segments, rhythm, capture_fps, clean_s)
+    if variability is None:
+        return [heart_rate(segments, clean_s), None, None, None]
+    return [heart_rate(segments, clean_s), variability.rmssd_ms, variability.sdnn_ms, variability.pnn50]

@@ -85,3 +85,4 @@ export {
 } from './reading-result';
 export { createLiveSession, type LiveSessionConfig } from './live';
 export { shapeFeatures } from './shape-features';
+export { hrSummary } from './reading-metrics';

@@ -164,3 +164,20 @@ export function hrv(
   }
   return { rmssdMs, sdnnMs, pnn50, nnIntervals: intervalsS.length };
 }
+
+// The order is diabetes-net's [1, 4] input; null values get the model's training median, not a core fill.
+/** ML-6: diabetes-net's HR/HRV summary [HR bpm, RMSSD ms, SDNN ms, pNN50] by DSP-11 and DSP-12. */
+export function hrSummary(
+  segments: ClassifiedBeat[][],
+  rhythm: RhythmClass,
+  captureFps: number,
+  cleanS: number,
+): (number | null)[] {
+  const variability = hrv(segments, rhythm, captureFps, cleanS);
+  return [
+    heartRate(segments, cleanS),
+    variability?.rmssdMs ?? null,
+    variability?.sdnnMs ?? null,
+    variability?.pnn50 ?? null,
+  ];
+}

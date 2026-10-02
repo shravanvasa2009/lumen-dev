@@ -8,7 +8,7 @@ const [transformer, babelOptions] = expoPreset.transform[SCRIPTS];
 
 export default {
   preset: 'jest-expo',
-  setupFiles: [...expoPreset.setupFiles, '<rootDir>/jest.setup.ts'],
+  setupFiles: [...expoPreset.setupFiles, '<rootDir>/jest.devBuild.ts', '<rootDir>/jest.setup.ts'],
   transform: {
     [SCRIPTS]: [transformer, { ...babelOptions, plugins: ['@babel/plugin-transform-dynamic-import'] }],
   },

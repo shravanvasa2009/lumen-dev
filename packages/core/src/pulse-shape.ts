@@ -1,4 +1,5 @@
 import { DSP_CONFIG } from './config';
+import { median } from './median';
 
 // DSP-14 (ADR 0030). ml/lumen_dsp/shape.py runs the same operations in the same order for the averaged
 // beat, which is diabetes-net's [1, 1, 256] input; Savitzky–Golay there is scipy.signal.savgol_filter.
@@ -104,13 +105,6 @@ function labelWaves(smoothed: Float64Array, secondDerivative: Float64Array, span
   waves.d = waves.c === null ? null : next(waves.c, isLocalMin);
   waves.e = waves.d === null ? null : next(waves.d, isLocalMax);
   return waves;
-}
-
-// Matches numpy.median: the mean of the two middle values for an even count.
-function median(values: number[]): number {
-  const sorted = [...values].sort((x, y) => x - y);
-  const middle = sorted.length >> 1;
-  return sorted.length % 2 === 1 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
 }
 
 /** DSP-14: ensemble beat of ≥ 20 normal beats of the 0.5–8 Hz morphology band at 256 Hz, with a–e labels. */

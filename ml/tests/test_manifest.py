@@ -2,16 +2,25 @@ import json
 from xml.etree import ElementTree
 from dataclasses import replace
 
+import numpy as np
+import onnxruntime as ort
 import pytest
 import torch
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 from export import to_onnx, verify_onnx, write_manifest
-from export.provenance import ALL_BAD_BASIS, ProvenanceError, load_metrics, sha256_of
+from export.provenance import ALL_BAD_BASIS, TOLERANCE, ProvenanceError, load_metrics, sha256_of
 from export import specs
 from export.specs import MODELS_DIR, OPSET, SHIPPED, SPECS, ShipRuleError, shipped_per_family
 from export.to_onnx import source_model
-from export.write_manifest import EXTERNAL_NOT_RUN, NOT_MEASURED
+from export.verify_onnx import seeded_inputs
+from export.write_manifest import EXTERNAL_NOT_RUN, NOT_MEASURED, logistic_rule
+from nets.rhythm_net import LABELS
 from tests.training_artifacts import fit_baseline, save_trained
+from train.rhythm import LOGISTIC_FEATURES
+from train.rhythm_windows import FEATURE_NAMES
 
 # scripts/proof/m3.mjs checks the first four; §11.9 and the track kickoff add the rest.
 CARD_HEADINGS = [
@@ -194,6 +203,60 @@ def test_every_entry_names_its_family_role_and_whether_it_ships(trained):
 
 def test_shipped_models_are_one_per_family_by_flag_not_by_name():
     assert SHIPPED == {"rhythm": "rhythm-lgbm", "sqi": "sqi-finger", "diabetes": "diabetes-net"}
+
+
+def test_the_logistic_rule_is_a_rhythm_baseline_the_app_can_swap_in():
+    rule, lgbm = SPECS["rhythm-logistic"], SPECS["rhythm-lgbm"]
+    assert (rule.kind, rule.family, rule.ships, rule.role) == ("classifier", "rhythm", False, "gate")
+    assert (rule.inputs, rule.outputs, rule.labels, rule.threshold_keys, rule.abstain_below) == (
+        lgbm.inputs,
+        lgbm.outputs,
+        lgbm.labels,
+        lgbm.threshold_keys,
+        lgbm.abstain_below,
+    )
+
+
+@pytest.fixture
+def with_rule(trained):
+    models_dir, runs_dir = trained
+    spec = SPECS["rhythm-logistic"]
+    pipeline = fit_baseline(spec)
+    save_trained(spec, runs_dir, pipeline, {**RHYTHM_EXTRAS, "featureOrder": list(FEATURE_NAMES)})
+    _release(models_dir, runs_dir)
+    return models_dir, runs_dir, pipeline
+
+
+def test_the_logistic_rule_entry_carries_the_rule_for_the_app(with_rule):
+    models_dir, runs_dir, pipeline = with_rule
+    entries = _manifest(models_dir, runs_dir)
+    assert [name for name, entry in entries.items() if "rule" in entry] == ["rhythm-logistic"]
+    entry = entries["rhythm-logistic"]
+    assert (entry["inputs"], entry["outputs"]) == (entries["rhythm-lgbm"]["inputs"], {"probs": [1, 3]})
+    rule = entry["rule"]
+    assert rule["features"] == list(LOGISTIC_FEATURES)
+    assert rule["featureIndices"] == [FEATURE_NAMES.index(name) for name in LOGISTIC_FEATURES]
+    assert rule["classes"] == list(LABELS) == entry["labels"]
+    assert np.shape(rule["coefficients"]) == (3, 3) and len(rule["intercepts"]) == 3
+    # The rule as @lumen/core runs it, from the manifest numbers alone.
+    features = seeded_inputs(SPECS["rhythm-logistic"])["features"]
+    standardized = (features[:, rule["featureIndices"]].astype(np.float64) - rule["mean"]) / rule["scale"]
+    logits = standardized @ np.asarray(rule["coefficients"]).T + rule["intercepts"]
+    probs = np.exp(logits - logits.max(axis=1, keepdims=True))
+    probs /= probs.sum(axis=1, keepdims=True)
+    # In float64 on both sides; the app's JavaScript doubles do the same.
+    expected = pipeline.predict_proba(features.astype(np.float64))
+    np.testing.assert_allclose(probs, expected, rtol=0, atol=1e-12)
+    (onnx_probs,) = ort.InferenceSession(str(models_dir / entry["file"])).run(None, {"features": features})
+    assert np.abs(probs - onnx_probs).max() <= TOLERANCE
+
+
+def test_a_rule_without_column_selection_is_refused():
+    spec = SPECS["rhythm-lgbm"]
+    features = np.random.default_rng(2).normal(size=(90, 8))
+    unselected = make_pipeline(StandardScaler(), LogisticRegression()).fit(features, np.arange(90) % 3)
+    with pytest.raises(ProvenanceError, match="column-selecting"):
+        logistic_rule(unselected, list(FEATURE_NAMES), spec.labels)
 
 
 @pytest.mark.parametrize(

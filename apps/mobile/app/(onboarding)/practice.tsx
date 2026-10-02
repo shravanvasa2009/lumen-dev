@@ -1,25 +1,34 @@
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
-import Svg, { Line } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
+import { coachingText } from '@/measure/coachingText';
+import { LiveWaveform } from '@/measure/LiveWaveform';
+import { phaseCaption } from '@/measure/phaseCaption';
+import { useLiveCapture } from '@/measure/useLiveCapture';
 import { FingerPreview, ProgressRing, SignalMeter, SignalScale } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
 
 // Spec §8.2 step 6: practice passes after 15 steady seconds at Strong.
 const STEADY_SECONDS_NEEDED = 15;
-const TRACE_HEIGHT = 72;
-
-// No capture controller feeds the app yet (the capture module is not wired into screens), so practice shows
-// its starting state: no finger, no signal, no steady seconds.
-const steadySeconds = 0;
 
 export default function PracticeScreen() {
   const { t } = useTranslation();
   const { colors, spacing, radius } = useTheme();
+  const live = useLiveCapture();
+  const fingerOn = live.status?.fingerCovered === true;
+  // Counted by the LiveSession once it feeds the hook; until then there are none to show.
+  const steadySeconds = Math.floor(live.cleanSeconds ?? 0);
+  const caption =
+    live.phase === 'unavailable'
+      ? t('practice.pending')
+      : (phaseCaption(t, live) ??
+        (live.cleanSeconds === null ? t('capture.waiting') : t('capture.timerNote')));
+  // With no finger the module's own contact flag is the coaching: Cover the lens and the flash.
+  const coachingKey = live.coachingKey ?? (fingerOn ? null : 'coach.cover');
   return (
     <OnboardingStep
       step={5}
@@ -40,39 +49,32 @@ export default function PracticeScreen() {
       }
     >
       <View style={{ alignItems: 'center', gap: spacing.md }}>
-        <FingerPreview detected={false} />
-        <View
-          accessibilityRole="alert"
-          style={{
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.sm,
-            borderRadius: radius.pill,
-            backgroundColor: colors.surface3,
-          }}
-        >
-          <AppText variant="caption" style={{ fontWeight: '600' }}>
-            {t('coach.cover')}
-          </AppText>
-        </View>
+        <FingerPreview detected={fingerOn} />
+        {coachingKey ? (
+          <View
+            accessibilityRole="alert"
+            style={{
+              paddingHorizontal: spacing.lg,
+              paddingVertical: spacing.sm,
+              borderRadius: radius.pill,
+              backgroundColor: colors.surface3,
+            }}
+          >
+            <AppText variant="caption" style={{ fontWeight: '600' }}>
+              {coachingText(t)[coachingKey]}
+            </AppText>
+          </View>
+        ) : null}
       </View>
       <View style={{ gap: spacing.xs }}>
         <SignalMeter />
         <SignalScale />
       </View>
       <Card>
-        <Svg width="100%" height={TRACE_HEIGHT} accessibilityElementsHidden>
-          <Line
-            x1="0%"
-            y1={TRACE_HEIGHT / 2}
-            x2="100%"
-            y2={TRACE_HEIGHT / 2}
-            stroke={colors.line2}
-            strokeWidth={2}
-          />
-        </Svg>
+        <LiveWaveform red={live.recentRed} />
       </Card>
       <AppText variant="caption" tone="textDim">
-        {t('practice.pending')}
+        {caption}
       </AppText>
     </OnboardingStep>
   );

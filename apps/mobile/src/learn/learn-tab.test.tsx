@@ -4,6 +4,7 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
+import { expectNavTitle } from '@/testing/navHeader';
 import es from '@/i18n/es.json';
 
 import { lessons } from './lessons';
@@ -33,7 +34,7 @@ describe('Learn tab', () => {
   it('opens the lesson that was tapped', () => {
     renderRouter(appDirectory, { initialUrl: '/learn' });
     fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.lessonAfib']) }));
-    expect(screen.getByRole('header', { name: en['learn.lessonAfib'] })).toBeOnTheScreen();
+    expectNavTitle(en['learn.lessonAfib']);
   });
 
   it('switches the lessons to Spanish with the EN/ES toggle', async () => {

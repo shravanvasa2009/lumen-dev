@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { Stack } from 'expo-router';
+import { renderRouter } from 'expo-router/testing-library';
 import { StyleSheet, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { focusedNavHeader } from '@/testing/navHeader';
 import tokens from '@/theme/tokens.json';
 
 import { AppText } from './AppText';
@@ -250,15 +253,27 @@ describe.each([
     expect(StyleSheet.flatten(row.props.style).opacity).toBeLessThan(1);
   });
 
-  it('RouteShell puts its trailing control beside the title', () => {
+  it('RouteShell puts its trailing control at the right of the nav bar', () => {
+    renderRouter({
+      _layout: () => <Stack />,
+      index: () => <RouteShell title="Lab" trailing={<Text>DEV</Text>} />,
+    });
+    expect(focusedNavHeader()).toMatchObject({ title: 'Lab' });
+    expect(screen.queryByRole('header', { name: 'Lab' })).toBeNull();
+    let subview = screen.getByText('DEV').parent;
+    while (subview && String(subview.type) !== 'RNSScreenStackHeaderSubview') subview = subview.parent;
+    expect(subview?.props.type).toBe('right');
+  });
+
+  it('RouteShell keeps the trailing control beside the body title without a nav bar', () => {
     render(
       <SafeAreaProvider initialMetrics={metrics}>
-        <RouteShell title="Lab" trailing={<Text>DEV</Text>} />
+        <RouteShell tabRoot title="Learn" trailing={<Text>EN</Text>} />
       </SafeAreaProvider>,
     );
-    let row = screen.getByRole('header', { name: 'Lab' }).parent;
+    let row = screen.getByRole('header', { name: 'Learn' }).parent;
     while (row && StyleSheet.flatten(row.props.style)?.flexDirection !== 'row') row = row.parent;
     expect(row).not.toBeNull();
-    expect(within(row!).getByText('DEV')).toBeOnTheScreen();
+    expect(within(row!).getByText('EN')).toBeOnTheScreen();
   });
 });

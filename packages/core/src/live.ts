@@ -3,7 +3,7 @@ import { DSP_CONFIG } from './config';
 import { frameProblem } from './contact';
 import { butterBandpass, CausalFilter, type SosSection } from './filters';
 import type { CoachingKey, LiveSession, RejectedSpan, SqiWindow } from './live-session';
-import { modelWindowAt, nextModelTickS, usableFrom } from './model-window';
+import { FlatRuns, modelWindowAt, nextModelTickS, usableFrom } from './model-window';
 import type { NsSpan, SqiScores } from './reading';
 import { cleanSeconds as cleanTime } from './reading-metrics';
 
@@ -91,6 +91,7 @@ class Session implements LiveSession {
   private readonly motion: NsSpan[] = [];
   private readonly coldHands: NsSpan[] = [];
   private readonly quality: RejectedSpan[] = [];
+  private readonly flatRuns = new FlatRuns();
   private openContact: OpenSpan | null = null;
   private openMotionNs: number | null = null;
   private openColdHandsNs: number | null = null;
@@ -186,6 +187,7 @@ class Session implements LiveSession {
     this.red[at] = sample.r;
     this.filtered[at] = value;
     this.covered[at] = problem === 'coverage' ? 0 : 1;
+    this.flatRuns.add(tS, sample.r, problem !== 'coverage');
     this.lastNs = sample.tNs;
 
     if (tS >= this.nextTickS) {
@@ -284,6 +286,7 @@ class Session implements LiveSession {
       ...seconds(this.nsSpans(this.motion, this.openMotionNs), 'motion'),
       ...seconds(this.nsSpans(this.coldHands, this.openColdHandsNs), 'coldHands'),
       ...this.quality,
+      ...this.flatRuns.spans(),
     ].sort((x, y) => x.startS - y.startS);
   }
 

@@ -4,5 +4,5 @@ import { ReportView } from '@/report/ReportView';
 
 export default function ReportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  return <ReportView id={id} />;
+  return <ReportView id={id} demo />;
 }

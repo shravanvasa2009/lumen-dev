@@ -30,13 +30,15 @@ const irregularIntervalsMs = [
   640, 810, 770, 590, 870, 940, 985, 865, 830, 620, 690, 720, 680, 800, 740, 900, 660, 720, 780,
 ];
 
-// A fixed moment, so a demo reading never passes for one taken today (§8.5).
-const demoMoment = new Date(2026, 8, 27, 7, 42);
+// Fixed moments on one demo day, so a demo reading never passes for one taken today (§8.5). The failed
+// scan comes first, the `demo` reading is the morning one, and the irregular Quick Check is at midday.
+const demoDay = { year: 2026, month: 8, day: 27 } as const;
+const at = (hour: number, minute: number) => new Date(demoDay.year, demoDay.month, demoDay.day, hour, minute);
 
 const demo: FixtureReading = {
   id: 'demo',
   mode: 'full',
-  createdAt: demoMoment,
+  createdAt: at(7, 42),
   synthetic: false,
   scan: {
     headlineKey: 'result.regular',
@@ -74,7 +76,7 @@ const demo: FixtureReading = {
 const demoFlag: FixtureReading = {
   id: 'demo-flag',
   mode: 'quick',
-  createdAt: demoMoment,
+  createdAt: at(12, 30),
   synthetic: true,
   scan: {
     headlineKey: 'result.irregularRetake',
@@ -101,7 +103,7 @@ const demoFlag: FixtureReading = {
 const demoInconclusive: FixtureReading = {
   id: 'demo-inconclusive',
   mode: 'full',
-  createdAt: demoMoment,
+  createdAt: at(6, 58),
   synthetic: false,
   scan: {
     headlineKey: 'result.inconclusive',
@@ -124,7 +126,9 @@ export function readingById(id: string | undefined): FixtureReading | undefined 
   return fixtures.find((fixture) => fixture.id === id);
 }
 
-// The readings taken on the same calendar day, for the day summary on the Doctor report.
+// The readings taken on the same calendar day, for the day summary on the Doctor report, earliest first.
 export function readingsOnDay(day: Date): readonly FixtureReading[] {
-  return fixtures.filter((fixture) => fixture.createdAt.toDateString() === day.toDateString());
+  return fixtures
+    .filter((fixture) => fixture.createdAt.toDateString() === day.toDateString())
+    .sort((first, second) => first.createdAt.getTime() - second.createdAt.getTime());
 }

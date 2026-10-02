@@ -11,21 +11,14 @@ import { ListRow } from '@/components/ListRow';
 import { DemoBanner } from '@/results/DemoBanner';
 import { readingById } from '@/results/fixtures';
 import { formatClock, formatDay } from '@/results/format';
+import { rhythmClassWords } from '@/results/rhythmWords';
 import { Segmented } from '@/settings/Segmented';
 import { useTheme } from '@/theme';
 
 import { learningReadings } from './baseline';
 import { CupIcon } from './CupIcon';
 import { MetricChips } from './MetricChips';
-import {
-  evidenceOf,
-  trendMetrics,
-  trendSeries,
-  type HistoryReading,
-  type TrendMetric,
-  type TrendPoint,
-  type TrendRange,
-} from './series';
+import { trendMetrics, trendSeries, type HistoryReading, type TrendMetric, type TrendRange } from './series';
 import { TrendChart } from './TrendChart';
 
 const recentRows = 5;
@@ -41,13 +34,6 @@ function metricValue(t: TFunction, metric: TrendMetric, value: number): string {
     hrv: t('results.ms', { value: rounded }),
     resp: t('trends.breathsPerMin', { value: rounded }),
   }[metric];
-}
-
-function rhythmWord(t: TFunction, rhythm: TrendPoint['rhythm']): string | null {
-  if (rhythm === 'sinus') return t('results.rhythmRegular');
-  if (rhythm === 'af') return t('results.rhythmIrregular');
-  if (rhythm === 'other') return t('results.rhythmOther');
-  return null;
 }
 
 type TrendsViewProps = {
@@ -105,7 +91,7 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
           <Card>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <AppText variant="headline">{metricName(t, metric)}</AppText>
-              <EvidenceBadge metric={evidenceOf[metric]} />
+              <EvidenceBadge metric={metric} />
             </View>
             {first && last ? (
               <TrendChart
@@ -118,9 +104,9 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
             ) : (
               <AppText tone="textDim">{t('trends.noneInRange')}</AppText>
             )}
-            {points.length > 0 && !series.band ? (
+            {series.baselineCount > 0 && !series.band ? (
               <AppText variant="caption" tone="textDim">
-                {t('trends.learning', { count: points.length, total: learningReadings })}
+                {t('trends.learning', { count: series.baselineCount, total: learningReadings })}
               </AppText>
             ) : null}
           </Card>
@@ -141,7 +127,7 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                 .slice(-recentRows)
                 .reverse()
                 .map((point, index, shown) => {
-                  const word = rhythmWord(t, point.rhythm);
+                  const word = point.rhythm ? rhythmClassWords(t, point.rhythm).value : null;
                   const value = metricValue(t, metric, point.value);
                   // A row opens a reading only when that reading exists; sample rows have no Results screen.
                   const opens = readingById(point.id) !== undefined;

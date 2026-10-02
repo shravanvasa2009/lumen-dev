@@ -297,6 +297,7 @@
   "report.leftOut": "Experimental measurements are not included in this report.",
   "report.sharePdf": "Share PDF",
   "report.shareLater": "PDF sharing arrives in a later update.",
+  "report.notFoundTitle": "Report not found",
   "report.notFound": "That reading could not be found, so there is nothing to put in a report.",
   "report.evidence": "Evidence",
   "report.sharedOnly": "Shared only through your share sheet.",

@@ -1,7 +1,10 @@
+import { readingById, type FixtureReading } from '@/results/fixtures';
+
 import type { HistoryReading } from './series';
 
 // Hand-written sample history (§8.5): 24 mornings from Aug 29 to Sep 27, 2026, not recorded from anyone.
-// The last row is the `demo` fixture's own reading, so its Results screen opens from Trends. Months are
+// The last row is the `demo` fixture's own reading, so its Results screen opens from Trends; the two other
+// fixtures of that day follow it, so Trends and the Doctor report list the same day. Months are
 // zero-based. Full Scans carry HRV and breathing; Quick Checks do not.
 type Row = readonly [
   month: number,
@@ -41,7 +44,7 @@ const rows: readonly Row[] = [
 
 const demoReadingRow = rows.length - 1;
 
-export const demoHistory: readonly HistoryReading[] = rows.map(
+const sampleHistory: readonly HistoryReading[] = rows.map(
   ([month, day, hr, rmssd, resp, caffeine], index) => ({
     id: index === demoReadingRow ? 'demo' : `history-${index + 1}`,
     createdAt: new Date(2026, month, day, 7, index === demoReadingRow ? 42 : 30 + (index % 9)),
@@ -53,6 +56,27 @@ export const demoHistory: readonly HistoryReading[] = rows.map(
     caffeine,
   }),
 );
+
+function fromFixture({ id, createdAt, mode, scan }: FixtureReading): HistoryReading {
+  const { hr, rmssd, resp, rhythm } = scan.metrics;
+  return {
+    id,
+    createdAt,
+    mode,
+    hr: hr?.value ?? null,
+    rmssd: rmssd?.value ?? null,
+    resp: resp?.value ?? null,
+    rhythm: rhythm?.class ?? null,
+    caffeine: false,
+  };
+}
+
+const sameDayFixtures = ['demo-inconclusive', 'demo-flag'].flatMap((id) => {
+  const fixture = readingById(id);
+  return fixture ? [fromFixture(fixture)] : [];
+});
+
+export const demoHistory: readonly HistoryReading[] = [...sampleHistory, ...sameDayFixtures];
 
 // The range buttons count back from the last sample reading, whatever the real date is.
 export const demoNow = new Date(2026, 8, 27, 20, 0);

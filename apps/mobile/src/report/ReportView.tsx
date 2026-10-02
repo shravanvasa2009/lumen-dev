@@ -11,9 +11,10 @@ import { useTheme } from '@/theme';
 
 import { ReportCard } from './ReportCard';
 
-// Every reading the app can resolve today is a Demo fixture, so the banner and the card's own "Demo" mark
-// always show. PDF export needs expo-print and expo-sharing, which arrive with a new dev build.
-export function ReportView({ id }: { id: string | undefined }) {
+// Readings resolve from fixtures only for now, so the route passes `demo`; a real reading would not carry
+// the banner or the card's "Demo" mark. PDF export needs expo-print and expo-sharing, which arrive with a
+// new dev build.
+export function ReportView({ id, demo }: { id: string | undefined; demo: boolean }) {
   const { t } = useTranslation();
   const { spacing } = useTheme();
   const reading = readingById(id);
@@ -36,12 +37,12 @@ export function ReportView({ id }: { id: string | undefined }) {
     >
       {reading ? (
         <>
-          <DemoBanner synthetic={reading.synthetic} />
-          <ReportCard reading={reading} dayReadings={readingsOnDay(reading.createdAt)} />
+          {demo ? <DemoBanner synthetic={reading.synthetic} /> : null}
+          <ReportCard reading={reading} dayReadings={readingsOnDay(reading.createdAt)} demo={demo} />
         </>
       ) : (
         <Card>
-          <AppText variant="headline">{t('result.inconclusive')}</AppText>
+          <AppText variant="headline">{t('report.notFoundTitle')}</AppText>
           <AppText tone="textDim">{t('report.notFound')}</AppText>
         </Card>
       )}

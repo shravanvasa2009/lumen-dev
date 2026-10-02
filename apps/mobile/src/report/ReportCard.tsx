@@ -1,4 +1,3 @@
-import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
@@ -7,6 +6,7 @@ import { bundledAccuracy } from '@/accuracy/readAccuracy';
 import { evidenceFor, type EvidenceMetric } from '@/evidence';
 import type { FixtureReading } from '@/results/fixtures';
 import { formatClock, formatDay } from '@/results/format';
+import { rhythmWords } from '@/results/rhythmWords';
 import { LumenMark } from '@/settings/LumenMark';
 import { useTheme } from '@/theme';
 
@@ -18,14 +18,6 @@ import { PaperText } from './PaperText';
 const columnWeights = [1.1, 1, 0.7, 1.5, 1] as const;
 const stripLimit = 3;
 
-function rhythmWord(t: TFunction, reading: FixtureReading): string {
-  const rhythm = reading.scan.metrics.rhythm;
-  if (!rhythm) return '—';
-  if (rhythm.class === 'sinus') return t('results.rhythmRegular');
-  if (rhythm.class === 'af') return t('results.rhythmIrregular');
-  return t('results.rhythmOther');
-}
-
 function Labelled({ label, children }: { label: string; children: string }) {
   return (
     <PaperText>
@@ -34,11 +26,11 @@ function Labelled({ label, children }: { label: string; children: string }) {
   );
 }
 
-type ReportCardProps = { reading: FixtureReading; dayReadings: readonly FixtureReading[] };
+type ReportCardProps = { reading: FixtureReading; dayReadings: readonly FixtureReading[]; demo: boolean };
 
 // The page a doctor would read: only core results with their evidence labels. Experimental measurements
 // are left out (§12.5, §6.3), and so is any profile line, because the app stores no profile yet.
-export function ReportCard({ reading, dayReadings }: ReportCardProps) {
+export function ReportCard({ reading, dayReadings, demo }: ReportCardProps) {
   const { t, i18n } = useTranslation();
   const { radius, spacing } = useTheme();
   const language = i18n.language;
@@ -80,19 +72,21 @@ export function ReportCard({ reading, dayReadings }: ReportCardProps) {
           {formatFullDate(reading.createdAt, language)}
         </PaperText>
       </View>
-      <View
-        style={{
-          alignSelf: 'flex-start',
-          backgroundColor: paper.badgeExperimentalBg,
-          borderRadius: radius.pill,
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.xs,
-        }}
-      >
-        <PaperText variant="caption" bold style={{ color: paper.badgeExperimentalFg }}>
-          {t('report.demoMark')}
-        </PaperText>
-      </View>
+      {demo ? (
+        <View
+          style={{
+            alignSelf: 'flex-start',
+            backgroundColor: paper.badgeExperimentalBg,
+            borderRadius: radius.pill,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.xs,
+          }}
+        >
+          <PaperText variant="caption" bold style={{ color: paper.badgeExperimentalFg }}>
+            {t('report.demoMark')}
+          </PaperText>
+        </View>
+      ) : null}
       <PaperText tone="flag" bold>
         {t('prototype.banner')}
       </PaperText>
@@ -123,7 +117,7 @@ export function ReportCard({ reading, dayReadings }: ReportCardProps) {
             formatClock(row.createdAt, language),
             row.mode === 'full' ? t('report.modeFull') : t('report.modeQuick'),
             row.scan.metrics.hr ? String(row.scan.metrics.hr.value) : '—',
-            rhythmWord(t, row),
+            row.scan.metrics.rhythm ? rhythmWords(t, row.scan.metrics.rhythm).value : '—',
             String(row.scan.cleanSeconds),
           ];
           return (

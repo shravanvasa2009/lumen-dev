@@ -297,6 +297,7 @@
   "report.leftOut": "Las mediciones experimentales no se incluyen en este informe.",
   "report.sharePdf": "Compartir PDF",
   "report.shareLater": "Compartir el PDF llegará en una actualización posterior.",
+  "report.notFoundTitle": "Informe no encontrado",
   "report.notFound": "No se encontró esa medición, así que no hay nada que poner en un informe.",
   "report.evidence": "Evidencia",
   "report.sharedOnly": "Se comparte solo mediante tu menú de compartir.",

@@ -51,9 +51,9 @@ describe('dates and days', () => {
 
   it('groups fixture readings by calendar day', () => {
     expect(readingsOnDay(demo.createdAt).map(({ id }) => id)).toEqual([
+      'demo-inconclusive',
       'demo',
       'demo-flag',
-      'demo-inconclusive',
     ]);
     expect(readingsOnDay(new Date(2026, 0, 1))).toEqual([]);
   });

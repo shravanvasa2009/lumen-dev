@@ -7,6 +7,8 @@ import { readingById } from '@/results/fixtures';
 import { formatClock } from '@/results/format';
 import tokens from '@/theme/tokens.json';
 
+import { ReportView } from './ReportView';
+
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -76,7 +78,12 @@ describe('Doctor report content', () => {
   it("tabulates that day's readings, with dashes where a card had no result", () => {
     openReport('demo');
     const clock = formatClock(readingById('demo')?.createdAt ?? new Date(), 'en');
-    expect(screen.getAllByText(clock)).toHaveLength(3);
+    expect(screen.getAllByText(clock)).toHaveLength(1);
+    for (const id of ['demo-inconclusive', 'demo-flag']) {
+      const other = formatClock(readingById(id)?.createdAt ?? new Date(), 'en');
+      expect(other).not.toBe(clock);
+      expect(screen.getAllByText(other).length).toBeGreaterThan(0);
+    }
     for (const text of ['64', '88', '92', '58', '38', 'Full', 'Quick']) {
       expect(screen.getAllByText(text).length).toBeGreaterThan(0);
     }
@@ -125,7 +132,8 @@ describe('Doctor report content', () => {
   it('shows no numbers for an id that is not a reading', () => {
     openReport('nope');
     expect(screen.getByRole('header', { name: en['report.title'] })).toBeOnTheScreen();
-    expect(screen.getByText(en['result.inconclusive'])).toBeOnTheScreen();
+    expect(screen.getByText(en['report.notFoundTitle'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['result.inconclusive'])).toBeNull();
     expect(screen.getByText(en['report.notFound'])).toBeOnTheScreen();
     expect(screen.queryByText(en['report.heading'])).toBeNull();
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
@@ -136,6 +144,18 @@ describe('Doctor report content', () => {
     openReport('demo-inconclusive');
     expect(screen.getByText(en['prototype.banner'])).toBeOnTheScreen();
     expect(screen.getByText('38')).toBeOnTheScreen();
+  });
+
+  it('titles an unknown report in Spanish too', () => {
+    expect(es['report.notFoundTitle']).toBe('Informe no encontrado');
+    expect(es['report.notFoundTitle']).not.toBe(en['report.notFoundTitle']);
+  });
+
+  it('draws the Demo banner and mark only when the report is told it is demo data', () => {
+    renderRouter({ index: () => <ReportView id="demo" demo={false} /> });
+    expect(screen.getByText(en['report.heading'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['demo.banner'])).toBeNull();
+    expect(screen.queryByText(en['report.demoMark'])).toBeNull();
   });
 
   it('has the same keys in Spanish', () => {

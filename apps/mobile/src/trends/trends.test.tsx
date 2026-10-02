@@ -42,7 +42,7 @@ describe.each([
     expect(JSON.stringify(screen.toJSON()).includes(colors.badgeCheckedBg)).toBe(true);
     expect(screen.getByLabelText('Median: 64 bpm')).toBeOnTheScreen();
     expect(screen.getByLabelText(/^Your band: \d+–\d+$/)).toBeOnTheScreen();
-    expect(screen.getByLabelText('Readings: 24')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Readings: 25')).toBeOnTheScreen();
   });
 
   it('marks caffeine readings on the chart and in the rows', () => {
@@ -106,13 +106,22 @@ describe('Trends content', () => {
     expect(screen.queryByText(en['evidence.checked'])).toBeNull();
   });
 
-  it('switches to HRV, where 7D has too few Full Scans for a band', () => {
+  it('switches to HRV and keeps the band from the whole history on 7D (§7)', () => {
     openView(demoHistory);
     fireEvent.press(screen.getByRole('radio', { name: en['trends.hrv'] }));
+    const band30 = screen.getByLabelText(/^Your band: \d/).props.accessibilityLabel;
     fireEvent.press(screen.getByRole('radio', { name: en['trends.range7'] }));
-    expect(screen.getByText('Learning your baseline: 3 of 7')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Your band: —')).toBeOnTheScreen();
     expect(screen.getByLabelText('Readings: 3')).toBeOnTheScreen();
+    expect(screen.getByLabelText(band30)).toBeOnTheScreen();
+    expect(screen.queryByText(/Learning your baseline/)).toBeNull();
+  });
+
+  it('counts the learning readings across the whole history, whatever the range', () => {
+    openView(demoHistory.filter(({ rmssd }) => rmssd !== null).slice(0, 5));
+    fireEvent.press(screen.getByRole('radio', { name: en['trends.hrv'] }));
+    fireEvent.press(screen.getByRole('radio', { name: en['trends.range7'] }));
+    expect(screen.getByText('Learning your baseline: 5 of 7')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Your band: —')).toBeOnTheScreen();
   });
 
   it('says so when a range has no readings of the chosen kind', () => {
@@ -124,9 +133,9 @@ describe('Trends content', () => {
   it('links a row to Results only when that reading exists', () => {
     renderRouter('./app', { initialUrl: '/trends' });
     const rows = screen.getAllByRole('button', { name: /^Sep \d+, / });
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(2);
     expect(readingById('demo')).toBeDefined();
-    fireEvent.press(rows[0]!);
+    fireEvent.press(rows[1]!);
     expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
   });
 

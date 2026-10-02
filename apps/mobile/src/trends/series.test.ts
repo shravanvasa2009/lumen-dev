@@ -58,30 +58,58 @@ describe('trendSeries', () => {
     expect(trendSeries([reading(30, 64)], 'hr', '7d', new Date(2026, 8, 29)).points).toEqual([]);
   });
 
-  it('computes the band from the shown readings once there are 7', () => {
+  it('computes the band once the history holds 7 readings (§7)', () => {
     const readings = [64, 60, 70, 62, 68, 61, 66].map((hr, index) => reading(24 + index, hr));
     expect(trendSeries(readings, 'hr', '30d', now).band).not.toBeNull();
     expect(trendSeries(readings, 'hr', '7d', now).band).not.toBeNull();
-    expect(trendSeries(readings.slice(0, 6), 'hr', '30d', now).band).toBeNull();
+    const learning = trendSeries(readings.slice(0, 6), 'hr', '30d', now);
+    expect(learning.band).toBeNull();
+    expect(learning.baselineCount).toBe(6);
+  });
+
+  it('takes the band and the learning count from the whole history, not the range', () => {
+    const old = [64, 60, 70, 62, 68, 61].map((hr, index) => reading(1 + index, hr));
+    const recent = reading(29, 66);
+    const series = trendSeries([...old, recent], 'hr', '7d', now);
+    expect(series.points.map((point) => point.value)).toEqual([66]);
+    expect(series.median).toBe(66);
+    expect(series.baselineCount).toBe(7);
+    expect(series.band).toEqual(personalBand([64, 60, 70, 62, 68, 61, 66]));
+    expect(trendSeries(old, 'hr', '7d', now)).toMatchObject({ points: [], baselineCount: 6, band: null });
   });
 
   it('gives an empty series for no readings', () => {
-    expect(trendSeries([], 'hr', '30d', now)).toEqual({ points: [], median: null, band: null });
+    expect(trendSeries([], 'hr', '30d', now)).toEqual({
+      points: [],
+      median: null,
+      band: null,
+      baselineCount: 0,
+    });
   });
 });
 
 describe('demo history', () => {
-  it('has 24 sample readings, 12 of them Full Scans, all inside the 30-day range', () => {
-    expect(demoHistory).toHaveLength(24);
-    expect(trendSeries(demoHistory, 'hr', '30d', demoNow).points).toHaveLength(24);
+  it('has 26 sample readings, 12 with HRV, all inside the 30-day range', () => {
+    expect(demoHistory).toHaveLength(26);
+    expect(trendSeries(demoHistory, 'hr', '30d', demoNow).points).toHaveLength(25);
     expect(trendSeries(demoHistory, 'hrv', '30d', demoNow).points).toHaveLength(12);
   });
 
-  it('has a band over 30 days and none over 7 days of HRV', () => {
+  it('shows the same band over 7 and 30 days, from the whole history', () => {
     const hr = trendSeries(demoHistory, 'hr', '30d', demoNow);
-    expect(hr.median).toBe(64);
     expect(hr.band).not.toBeNull();
-    expect(trendSeries(demoHistory, 'hrv', '7d', demoNow).band).toBeNull();
+    expect(trendSeries(demoHistory, 'hr', '7d', demoNow).band).toEqual(hr.band);
+    const hrv = trendSeries(demoHistory, 'hrv', '7d', demoNow);
+    expect(hrv.points).toHaveLength(3);
+    expect(hrv.band).toEqual(trendSeries(demoHistory, 'hrv', '90d', demoNow).band);
+    expect(hrv.band).not.toBeNull();
+  });
+
+  it('puts the three fixture readings of Sep 27 in time order', () => {
+    const day = demoHistory.filter(
+      ({ createdAt }) => createdAt.getDate() === 27 && createdAt.getMonth() === 8,
+    );
+    expect(day.map(({ id }) => id).sort()).toEqual(['demo', 'demo-flag', 'demo-inconclusive']);
   });
 });
 

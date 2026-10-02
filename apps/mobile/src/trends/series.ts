@@ -1,6 +1,5 @@
 import type { RhythmClass } from '@lumen/core';
 
-import type { EvidenceMetric } from '@/evidence';
 import type { MeasureMode } from '@/measure/mode';
 
 import { personalBand, median, type Band } from './baseline';
@@ -22,9 +21,6 @@ export type HistoryReading = {
 export const trendMetrics = ['hr', 'hrv', 'resp'] as const;
 export type TrendMetric = (typeof trendMetrics)[number];
 
-// The metric's card in the evidence file.
-export const evidenceOf: Record<TrendMetric, EvidenceMetric> = { hr: 'hr', hrv: 'hrv', resp: 'resp' };
-
 const ranges = { '7d': 7, '30d': 30, '90d': 90 } as const;
 export type TrendRange = keyof typeof ranges;
 
@@ -38,8 +34,12 @@ export type TrendPoint = {
 
 export type TrendSeries = {
   points: readonly TrendPoint[];
+  // Median of the points in the range.
   median: number | null;
+  // §7: from every reading of this metric, whatever the range; null while still learning.
   band: Band | null;
+  // How many readings of this metric exist in all, for the "learning" count.
+  baselineCount: number;
 };
 
 const dayMs = 24 * 60 * 60 * 1000;
@@ -48,7 +48,9 @@ function valueOf(reading: HistoryReading, metric: TrendMetric): number | null {
   return { hr: reading.hr, hrv: reading.rmssd, resp: reading.resp }[metric];
 }
 
-// Median and band come from the points inside the range, never from numbers kept elsewhere.
+// The chart and median use the readings inside the range. The personal band and the learning count use
+// the user's whole history of the metric, because §7 ties the baseline to the first 7 readings, not to
+// the range button.
 export function trendSeries(
   readings: readonly HistoryReading[],
   metric: TrendMetric,
@@ -56,6 +58,10 @@ export function trendSeries(
   now: Date,
 ): TrendSeries {
   const since = now.getTime() - ranges[range] * dayMs;
+  const everyValue = readings.flatMap((reading) => {
+    const value = valueOf(reading, metric);
+    return value === null ? [] : [value];
+  });
   const points = readings
     .flatMap((reading) => {
       const value = valueOf(reading, metric);
@@ -65,8 +71,12 @@ export function trendSeries(
       return [{ id, createdAt, value, caffeine, rhythm }];
     })
     .sort((first, second) => first.createdAt.getTime() - second.createdAt.getTime());
-  const values = points.map((point) => point.value);
-  return { points, median: median(values), band: personalBand(values) };
+  return {
+    points,
+    median: median(points.map((point) => point.value)),
+    band: personalBand(everyValue),
+    baselineCount: everyValue.length,
+  };
 }
 
 const steps = [1, 2, 5, 10, 20, 50, 100];

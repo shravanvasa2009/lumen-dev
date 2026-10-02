@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
 // Turn on reminders asks the system for notification permission before it leaves the screen.
@@ -115,6 +116,8 @@ function routeFilesUnder(directory: string): string[] {
       .filter((file) => !file.endsWith('_layout') && file !== '+native-intent')
   );
 }
+
+preloadAppRoutes();
 
 describe('route list', () => {
   it('covers every route file under app/ and nothing else', () => {

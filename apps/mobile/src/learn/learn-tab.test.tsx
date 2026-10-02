@@ -6,6 +6,7 @@ import { Linking } from 'react-native';
 import en from '@/i18n/en.json';
 import { expectNavTitle } from '@/testing/navHeader';
 import es from '@/i18n/es.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import { lessons } from './lessons';
 
@@ -17,6 +18,8 @@ afterEach(async () => {
   await act(() => i18next.changeLanguage('en'));
   jest.restoreAllMocks();
 });
+
+preloadAppRoutes();
 
 describe('Learn tab', () => {
   it('lists every lesson with its length, then the care finder', () => {

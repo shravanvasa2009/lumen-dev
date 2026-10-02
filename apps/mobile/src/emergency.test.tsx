@@ -3,8 +3,11 @@ import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 fixClockAtMorning();
+
+preloadAppRoutes();
 
 describe('emergency screen', () => {
   afterEach(() => {

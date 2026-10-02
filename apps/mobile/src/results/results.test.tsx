@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import diabetes from '@/i18n/diabetes.json';
 import es from '@/i18n/es.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
 import { readingById } from './fixtures';
@@ -207,6 +208,8 @@ describe.each([
     expect(labels).toEqual([en['confidence.high'], en['confidence.high'], en['confidence.moderate']]);
   });
 });
+
+preloadAppRoutes();
 
 describe('copy', () => {
   it('has a Spanish string for every results key', () => {

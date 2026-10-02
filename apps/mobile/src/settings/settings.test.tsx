@@ -8,6 +8,7 @@ import { lockscreenStrings } from '@/i18n/lockscreen';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { setPreference } from '@/theme/preferences';
 import tokens from '@/theme/tokens.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 fixClockAtMorning();
 
@@ -25,6 +26,8 @@ beforeEach(() => {
     setPreference('hideWidgetValues', false);
   });
 });
+
+preloadAppRoutes();
 
 describe('Settings tab', () => {
   it('groups the rows and marks features that do not exist yet', () => {

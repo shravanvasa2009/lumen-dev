@@ -3,12 +3,15 @@ import { renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { expectNavTitle } from '@/testing/navHeader';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import { lessons } from './lessons';
 
 import '@/i18n';
 
 const appDirectory = './app';
+
+preloadAppRoutes();
 
 describe('lesson detail', () => {
   it('renders every lesson under its own title', () => {

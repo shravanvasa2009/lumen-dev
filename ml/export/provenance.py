@@ -56,6 +56,12 @@ def _metrics_problems(spec: ModelSpec, metrics: dict) -> list[str]:
         problems.append("development needs subjects > 0 and metrics with numeric estimate, low, and high")
     if not (isinstance(metrics.get("sourceSha256"), str) and _SHA256.fullmatch(metrics["sourceSha256"])):
         problems.append(f"sourceSha256 must be the sha256 of {spec.source_file}")
+    calibration = metrics.get("calibration") or {}
+    # train.rhythm and train.rhythm_calibration key each calibration to the weights it measured, so a
+    # block copied from another model's metrics, or one with any table but no key, is refused.
+    keyed = any(key in calibration for key in ("reliabilityAf", "reliabilityTop", "sourceSha256"))
+    if keyed and calibration.get("sourceSha256") != metrics.get("sourceSha256"):
+        problems.append("calibration.sourceSha256 must equal sourceSha256: it was measured on another model")
     return problems
 
 

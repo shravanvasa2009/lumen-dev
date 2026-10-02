@@ -91,3 +91,9 @@ test('hand-written files under build-like names are scanned; ignored ones are no
   });
   assert.equal(ignored.status, 0, ignored.stderr);
 });
+
+test('a file with a non-ASCII name is scanned too', (t) => {
+  const run = runOn(t, { 'apps/mobile/app/señal.tsx': 'await fetch(url);\n' });
+  assert.equal(run.status, 1);
+  assert.match(run.stderr, /señal\.tsx: network call outside/);
+});

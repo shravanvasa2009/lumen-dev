@@ -120,7 +120,37 @@ const demoInconclusive: FixtureReading = {
   diabetesDays: [],
 };
 
-const fixtures: readonly FixtureReading[] = [demo, demoFlag, demoInconclusive];
+// SAFE-1: a regular Quick Check whose only flag is a fast resting heart rate, so the safety question is
+// reachable from the heart-rate path alone. It sits on the day before the demo day, so the report's day
+// summary for the demo day is unchanged.
+const demoHrFlag: FixtureReading = {
+  id: 'demo-hr-flag',
+  mode: 'quick',
+  createdAt: new Date(demoDay.year, demoDay.month, demoDay.day - 1, 9, 15),
+  synthetic: true,
+  scan: {
+    headlineKey: 'result.regular',
+    cleanSeconds: 60,
+    beats: 112,
+    rejectedBeats: 2,
+    metrics: {
+      hr: { value: 112, unit: 'bpm', evidence: 'checked', confidence: 'high', flag: 'fastResting' },
+      rhythm: { class: 'sinus', pAF: 0.04, evidence: 'public-data', confidence: 'high', flag: null },
+      rmssd: null,
+      resp: null,
+      diabetes: null,
+    },
+    experimental: { extraBeatsPerMin: 0, longPauses: 0, pulseShape: { available: false } },
+    lostSeconds: { motion: 0, pressure: 0, coverage: 0, coldHands: 0 },
+    notChecked: ['bp', 'spo2', 'heartAttack'],
+  },
+  // 64 bpm intervals rescaled to 112 bpm.
+  intervalsMs: regularIntervalsMs.map((ms) => Math.round((ms * 64) / 112)),
+  repeat: null,
+  diabetesDays: [],
+};
+
+const fixtures: readonly FixtureReading[] = [demo, demoFlag, demoInconclusive, demoHrFlag];
 
 export function readingById(id: string | undefined): FixtureReading | undefined {
   return fixtures.find((fixture) => fixture.id === id);

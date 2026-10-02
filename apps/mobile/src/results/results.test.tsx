@@ -118,6 +118,13 @@ describe.each([
     expect(screen.getByText(en['results.sublineUsual'])).toBeOnTheScreen();
   });
 
+  it('asks the safety question for a heart-rate flag alone, and Yes opens emergency (SAFE-1)', () => {
+    openResults('demo-hr-flag');
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
+    expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
+  });
+
   it('labels every fixture reading as demo data, and the irregular one as synthetic (§8.5)', () => {
     openResults('demo');
     expect(screen.getByText(en['demo.banner'])).toBeOnTheScreen();

@@ -1,0 +1,30 @@
+# SAFE-1: every flag the emulator can show leads to the emergency screen. The rhythm flag and the
+# heart-rate flag come from Replay results fixtures (ADR 0046). Two paths are covered by jest instead:
+# the amber diabetes card shows only once evidence.json passes the diabetes metric (results.test.tsx),
+# and the standing test needs live readings the emulator cannot give (standing-screen.test.tsx).
+appId: io.github.shravanvasa2009.heartcheck
+name: Every flag leads to the emergency screen
+---
+- launchApp:
+    clearState: true
+    permissions:
+      camera: allow
+# launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
+- extendedWaitUntil:
+    visible: 'Change mode'
+    timeout: 60000
+# Rhythm flag.
+- openLink: lumen://results/demo-flag
+- assertVisible: 'Quick safety check'
+- tapOn: 'Yes'
+- assertVisible: 'Get help now'
+- assertVisible: 'Call 911'
+# Heart-rate flag with a regular rhythm.
+- openLink: lumen://results/demo-hr-flag
+- assertVisible: 'Quick safety check'
+- tapOn: 'Yes'
+- assertVisible: 'Get help now'
+- assertVisible: 'Call 911'
+# No flag: the question must not appear.
+- openLink: lumen://results/demo
+- assertNotVisible: 'Quick safety check'

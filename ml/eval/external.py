@@ -1,5 +1,6 @@
 import argparse
 import importlib
+import inspect
 import json
 import logging
 import math
@@ -10,9 +11,10 @@ from typing import NamedTuple
 
 import numpy as np
 import onnxruntime as ort
+import pandas as pd
 
 from datasets import download, registry
-from datasets.vitaldb_cases import SPLIT_FILE, load_split
+from datasets.vitaldb_cases import SPLIT_FILE, holdout_case_path, holdout_caseids, load_split
 from eval.external_gate import (
     APPROVAL_FILE,
     RESULTS_FILE,
@@ -50,7 +52,7 @@ from export.provenance import sha256_of
 from export.specs import MODELS_DIR, SPECS
 from export.write_manifest import git_commit
 from nets.rhythm_net import LABELS
-from train.rhythm import AF, Units, reading_units, subject_units, with_ci
+from train.rhythm import AF, Units, reading_units, sensitivity_at, specificity_at, subject_units, with_ci
 from train.rhythm_windows import WindowSet, window_inputs
 
 PARTS = ("rhythm", "sqi", "diabetes")
@@ -61,9 +63,11 @@ RHYTHM_INPUTS = ("intervals", "mask", "features")
 # MIMIC PERform AF labels subjects only "AF" or "not AF". train.rhythm's reading_units and subject_units
 # read only labels == AF, so every non-AF window carries this other index.
 NOT_AF = LABELS.index("other")
+# Reading id = subject index × this + 90 s block, so ids sort by subject, then time, and decode back.
+BLOCKS_PER_SUBJECT = 1000
 # ADR 0045: the diabetes pipeline's holdout scorer, called only from run() after the ledger records a
-# start: score_holdout(entry, models_dir, holdout_ids) -> {"subjects": [{"subject", "diabetic", "score"}],
-# "holdoutWithoutPleth": int}.
+# start: score_holdout(entry, models_dir, holdout_ids) -> {"onnxSha256", "holdoutWithoutPleth",
+# "subjects": [{"subject", "diabetic", "score"}]}, scoring models_dir / entry["file"] with onnxruntime.
 DIABETES_SCORER = "train.diabetes_holdout"
 HOLDOUT_DATASET = "vitaldb-holdout"
 MIMIC = next(dataset for dataset in registry.DATASETS if dataset.key == "mimic-perform-af")
@@ -111,16 +115,16 @@ def onnx_output(path: Path, inputs: dict[str, np.ndarray]) -> np.ndarray:
 
 
 def window_set(analyses: list[RecordingAnalysis]) -> WindowSet:
-    # Reading ids grow with subject, then time, so train.rhythm.reading_units returns readings in that
-    # order, which the 2-of-3 rule needs.
-    rows, reading = [], 0
-    for analysis in analyses:
-        previous_block = None
-        for block, window in analysis.rhythm:
-            if block != previous_block:
-                reading, previous_block = reading + 1, block
-            label = AF if analysis.is_af else NOT_AF
-            rows.append((*window_inputs(window), label, analysis.subject, reading))
+    rows = [
+        (
+            *window_inputs(window),
+            AF if analysis.is_af else NOT_AF,
+            analysis.subject,
+            index * BLOCKS_PER_SUBJECT + block,
+        )
+        for index, analysis in enumerate(analyses)
+        for block, window in analysis.rhythm
+    ]
     if not rows:
         raise ValueError("no subject produced a DSP-15 window")
     intervals, mask, features, labels, subjects, readings = zip(*rows, strict=True)
@@ -142,33 +146,54 @@ def rhythm_role(entry: dict) -> str:
     return "baseline" if spec is not None and spec.kind == "classifier" else "ablation"
 
 
-def app_readings(probs: np.ndarray, windows: WindowSet, tau: float, abstain_below: float) -> dict:
-    # §11.5 "scored like the app scores a reading" (ADR 0041): a reading's probabilities are its window
-    # means; it abstains when the top one is below abstainBelow; it is positive when it answers and P(AF)
-    # ≥ τ_AF; the 2-of-3 rule flags possible AF. Card confidence (coverage, SQI) has no bedside
-    # equivalent and is not applied.
+def app_readings(
+    probs: np.ndarray, windows: WindowSet, analyses: list[RecordingAnalysis], tau: float, abstain_below: float
+) -> dict:
+    # §11.5 "scored like the app scores a reading" (ADR 0041). A reading has a rhythm card when it has a
+    # DSP-15 window and ≥ 40 usable intervals; the card abstains when the top of its mean probabilities is
+    # below abstainBelow; it is positive when it answers and P(AF) ≥ τ_AF. Every 90 s block is a saved
+    # reading in the 2-of-3 history, so a block without a card counts as a negative reading. Not applied:
+    # the 60 clean-second floor and card confidence, which need camera coverage and SQI.
+    ids = np.unique(windows.readings)
     by_class = np.column_stack([reading_units(probs[:, k], windows).scores for k in range(probs.shape[1])])
     readings = reading_units(probs[:, AF], windows)
     top = by_class.max(axis=1)
-    answered = top >= abstain_below
-    flags = possible_af(answered & (readings.scores >= tau), readings.subjects)
-    subjects = np.unique(readings.subjects)
-    # A subject is called AF when any of its readings is flagged possible AF; the scores are 0/1 flags.
-    flagged = Units(
-        np.asarray([float(flags[readings.subjects == subject].any()) for subject in subjects]),
-        np.asarray([readings.is_af[readings.subjects == subject][0] for subject in subjects]),
-        subjects,
+    has_card = np.asarray(
+        [
+            analyses[reading // BLOCKS_PER_SUBJECT].enough_intervals.get(reading % BLOCKS_PER_SUBJECT, False)
+            for reading in ids
+        ]
+    )
+    answered = has_card & (top >= abstain_below)
+    positive_ids = set(ids[answered & (readings.scores >= tau)].tolist())
+    history = [
+        (analysis.subject, analysis.is_af, index * BLOCKS_PER_SUBJECT + block in positive_ids)
+        for index, analysis in enumerate(analyses)
+        for block in range(analysis.blocks)
+    ]
+    subjects = np.asarray([subject for subject, _is_af, _positive in history])
+    flags = possible_af(np.asarray([positive for _s, _a, positive in history]), subjects)
+    # A subject is called AF when any of its readings is flagged possible AF.
+    called = Units(
+        np.asarray([float(flags[subjects == analysis.subject].any()) for analysis in analyses]),
+        np.asarray([analysis.is_af for analysis in analyses]),
+        np.asarray([analysis.subject for analysis in analyses]),
     )
     return {
-        "readings": len(readings.scores),
+        "readings": len(history),
+        "readingsWithRhythmCard": int(has_card.sum()),
         "abstainRate": with_ci(
-            Units(top, readings.is_af, readings.subjects),
+            Units(top[has_card], readings.is_af[has_card], readings.subjects[has_card]),
             lambda _is_af, values: float(np.mean(values < abstain_below)),
         ),
         "answered": binary_report(
             Units(readings.scores[answered], readings.is_af[answered], readings.subjects[answered]), tau, ()
         ),
-        "possibleAfSubjects": binary_report(flagged, 0.5, RHYTHM_PREVALENCES),
+        "possibleAfSubjects": {
+            "subjects": len(analyses),
+            "sensitivity": with_ci(called, sensitivity_at(0.5)),
+            "specificity": with_ci(called, specificity_at(0.5)),
+        },
     }
 
 
@@ -189,7 +214,7 @@ def rhythm_part(entries: list[dict], analyses: list[RecordingAnalysis], models_d
             "subject": subject_report,
             "reading": binary_report(reading_units(scores, windows), tau, ()),
             "window": binary_report(Units(scores, windows.labels == AF, windows.subjects), tau, ()),
-            "appReadings": app_readings(probs, windows, tau, entry["abstainBelow"]),
+            "appReadings": app_readings(probs, windows, analyses, tau, entry["abstainBelow"]),
             "floorMet": floor_met(subject_report, RHYTHM_FLOOR),
             "targetAurocMet": floor_met(subject_report, {"auroc": RHYTHM_TARGET_AUROC}),
         }
@@ -274,11 +299,15 @@ def diabetes_scorer() -> HoldoutScorer:
     return module.score_holdout
 
 
-def holdout_units(scored: dict, holdout: list[int]) -> Units:
+def holdout_units(scored: dict, holdout: list[int], onnx_sha256: str) -> Units:
     # One P(pattern) per locked-holdout patient. ADR 0014's amendment lets only patients without PLETH
     # drop out, so the scored patients plus those must be the whole holdout.
     rows = scored.get("subjects")
     wrong = []
+    if scored.get("onnxSha256") != onnx_sha256:
+        wrong.append(
+            f"scored with ONNX sha256 {scored.get('onnxSha256')!r}, not the manifest's {onnx_sha256}"
+        )
     if not isinstance(rows, list) or not rows:
         wrong.append("subjects must be a non-empty list")
         rows = []
@@ -370,6 +399,23 @@ def preflight(parts: Sequence[str], models_dir: Path, dataset_dir: Path) -> Pref
         if not holdout:
             raise ExternalTestRefusedError(f"{SPLIT_FILE} lists no holdout patients")
         score_holdout = diabetes_scorer()
+        try:
+            inspect.signature(score_holdout).bind(entries["diabetes"][0], models_dir, holdout)
+        except TypeError as error:
+            raise ExternalTestRefusedError(
+                f"{DIABETES_SCORER}.score_holdout must take (entry, models_dir, holdout_ids): {error}"
+            ) from error
+        vitaldb = next(dataset for dataset in registry.DATASETS if dataset.key == "vitaldb")
+        if not download.is_complete(vitaldb):
+            raise ExternalTestRefusedError("the VitalDB tables are not downloaded (datasets.download --open)")
+        caseids = holdout_caseids(pd.read_csv(vitaldb.local_dir / "clinical_data.csv"), holdout)
+        missing = [caseid for caseid in caseids.values() if not holdout_case_path(caseid).is_file()]
+        if missing:
+            raise ExternalTestRefusedError(
+                f"{len(missing)} of {len(caseids)} holdout .vital files are missing; the owner's approval "
+                "step downloads them (LUMEN_EXTERNAL_APPROVED=1 python -m datasets.vitaldb_cases "
+                "--download-holdout)"
+            )
     if {"rhythm", "sqi"} & set(parts):
         beat_modules()
         if not (dataset_dir / download.MARKER_NAME).is_file() or not all(
@@ -453,7 +499,9 @@ def run(
         (entry,) = checked.entries["diabetes"]
         # The holdout is read only here, inside the approved run whose start the ledger already holds.
         scored = checked.score_holdout(entry, models_dir, checked.holdout)
-        results["diabetes"] = diabetes_part(entry, holdout_units(scored, checked.holdout), scored)
+        results["diabetes"] = diabetes_part(
+            entry, holdout_units(scored, checked.holdout, entry["sha256"]), scored
+        )
         finish_runs(runs["diabetes"], now())
         write_results(results_path, results)
     return results

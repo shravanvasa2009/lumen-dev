@@ -8,6 +8,7 @@ from eval.external_mimic import (
     ChannelError,
     DspNotMergedError,
     beat_modules,
+    enough_intervals_by_block,
     load_recording,
     pick_channel,
     reading_windows,
@@ -108,3 +109,13 @@ def test_records_are_labeled_by_archive(tmp_path):
     assert recording.fs == 125.0
     # PLETH is the second signal in the fixture, II the first.
     assert np.corrcoef(recording.ppg[:500], recording.ecg[:500])[0, 1] < 0.9
+
+
+def test_rhythm_card_needs_40_usable_intervals_per_reading():
+    peaks = list(np.arange(0.5, 180, 0.8))
+    spans = [False] * (len(peaks) - 1)
+    # Second block: all but 30 intervals span an artifact.
+    second = [index for index, peak in enumerate(peaks[1:]) if 90 <= peak < 180]
+    for index in second[30:]:
+        spans[index] = True
+    assert enough_intervals_by_block(spans, peaks) == {0: True, 1: False}

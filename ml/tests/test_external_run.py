@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from datasets.vitaldb_cases import load_split
+from datasets.vitaldb_cases import holdout_case_path, load_split
 from eval import external
 from eval.external_gate import ExternalTestRefusedError
 from eval.external_mimic import DspNotMergedError
@@ -13,6 +13,7 @@ from tests.external_fixtures import (
     WITHOUT_PLETH,
     install_fake_beats,
     install_fake_scorer,
+    write_holdout_files,
     write_mimic,
     write_models,
 )
@@ -31,6 +32,7 @@ def setup(tmp_path, data_dir):
     write_models(tmp_path / "models")
     dataset_dir = data_dir / "external" / "mimic-perform-af"
     write_mimic(dataset_dir)
+    write_holdout_files()
     return {
         "models_dir": tmp_path / "models",
         "results_path": tmp_path / "models" / "external-test.json",
@@ -99,6 +101,33 @@ def test_missing_holdout_scorer_stops_before_the_ledger_records_a_start(setup, m
     assert not setup["results_path"].exists()
 
 
+def test_a_scorer_with_the_wrong_signature_is_refused_before_the_start(setup, monkeypatch):
+    approve(setup)
+    module = type(sys)("train.diabetes_holdout")
+    module.score_holdout = lambda entry, holdout: {}
+    monkeypatch.setitem(sys.modules, "train.diabetes_holdout", module)
+    with pytest.raises(ExternalTestRefusedError, match="must take"):
+        run(setup, parts=("diabetes",))
+    assert not setup["results_path"].exists()
+
+
+def test_missing_holdout_case_files_are_refused_before_the_start(setup, monkeypatch):
+    approve(setup)
+    calls = install_fake_scorer(monkeypatch)
+    holdout_case_path(1).unlink()
+    with pytest.raises(ExternalTestRefusedError, match="1 of .* holdout .vital files are missing"):
+        run(setup, parts=("diabetes",))
+    assert not setup["results_path"].exists()
+    assert calls == []
+
+
+def test_scores_from_another_onnx_file_are_rejected(setup, monkeypatch):
+    install_fake_scorer(monkeypatch, edit=lambda scored: {**scored, "onnxSha256": "f" * 64})
+    approve(setup)
+    with pytest.raises(ValueError, match="not the manifest's"):
+        run(setup, parts=("diabetes",))
+
+
 def test_wrong_external_dataset_is_refused_before_the_start(setup, monkeypatch):
     approve(setup)
     calls = install_fake_scorer(monkeypatch)
@@ -145,9 +174,12 @@ def test_full_run_writes_what_m3_reads_then_refuses_a_second_run(setup, monkeypa
     assert rhythm["eligibleForFloor"] == ["rhythm-lgbm"]
     assert [row["prevalence"] for row in rhythm["ppvNpv"]] == [0.01, 0.05, 0.10]
     app = rhythm["models"]["rhythm-lgbm"]["appReadings"]
+    # 240 s recordings: three 90 s readings per subject, each with a rhythm card.
+    assert (app["readings"], app["readingsWithRhythmCard"]) == (12, 12)
     assert app["abstainRate"]["estimate"] == 0.0
-    assert app["possibleAfSubjects"]["sensitivity"] == 1.0
-    assert app["possibleAfSubjects"]["specificity"] == 1.0
+    assert set(app["possibleAfSubjects"]) == {"subjects", "sensitivity", "specificity"}
+    assert app["possibleAfSubjects"]["sensitivity"]["estimate"] == 1.0
+    assert app["possibleAfSubjects"]["specificity"]["estimate"] == 1.0
     sqi = results["sqi"]
     assert sqi["status"] == "measured"
     assert sqi["breakdown"]["referenceCleanWindowsAf"] >= 200

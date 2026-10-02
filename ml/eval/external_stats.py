@@ -105,14 +105,25 @@ def rhythm_outcome(subject_reports: Mapping[str, Mapping], shipped: str, baselin
     return {"outcome": outcome, "eligibleForFloor": eligible, "modelsMeetingFloor": meeting, "action": action}
 
 
+# §10.1 possible AFib: 2 of 3 readings within 24 h. The app's values are rules.possibleAfPositives and
+# rules.possibleAfReadings in packages/core config (track/dsp-live, ADR 0041); lumen_dsp's dsp_config.json
+# has no rules block on main yet, so they are restated here.
+POSSIBLE_AF_POSITIVES = 2
+POSSIBLE_AF_READINGS = 3
+
+
 def possible_af(positive: np.ndarray, subjects: np.ndarray) -> np.ndarray:
-    # §10.1 / ADR 0041 2-of-3 rule over one subject's readings in time order: a reading is possible AF when
-    # it is positive and at least 2 of it and its 2 most recent earlier readings are. A 20-minute
-    # recording lies within 24 h, so every earlier reading counts.
+    # Over each subject's readings in time order: a reading is possible AF when it is positive and at least
+    # 2 of it and its 2 most recent earlier readings are. A 20-minute recording lies within the 24 h
+    # window, so every earlier reading of the same subject counts.
     flags = np.zeros(len(positive), dtype=bool)
     for index in range(len(positive)):
-        earlier = [back for back in range(max(0, index - 2), index + 1) if subjects[back] == subjects[index]]
-        flags[index] = bool(positive[index]) and int(np.sum(positive[earlier])) >= 2
+        history = [
+            back
+            for back in range(max(0, index - POSSIBLE_AF_READINGS + 1), index + 1)
+            if subjects[back] == subjects[index]
+        ]
+        flags[index] = bool(positive[index]) and int(np.sum(positive[history])) >= POSSIBLE_AF_POSITIVES
     return flags
 
 

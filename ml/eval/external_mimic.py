@@ -14,7 +14,7 @@ from eval.external_stats import is_reference_clean, subject_lag_s
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import butter_bandpass, filter_zero_phase
 from lumen_dsp.resample import ResampledSegment, resample_cubic
-from lumen_dsp.rhythm import RhythmWindow, rhythm_windows
+from lumen_dsp.rhythm import RhythmWindow, has_enough_usable_intervals, rhythm_windows
 from lumen_dsp.signals import sqi_model_input
 from train.rhythm_windows import READING_S
 
@@ -193,6 +193,16 @@ def reading_windows(
     return windows
 
 
+def enough_intervals_by_block(spans_artifact: list[bool], peaks_s: list[float]) -> dict[int, bool]:
+    # DSP-15's ≥ 40 usable intervals per reading, the app's condition for a rhythm card (ADR 0041), on
+    # the same 90 s blocks as reading_windows.
+    blocks = np.floor(np.asarray(peaks_s[1:], dtype=float) / READING_S).astype(int)
+    return {
+        int(block): has_enough_usable_intervals([spans_artifact[i] for i in np.flatnonzero(blocks == block)])
+        for block in np.unique(blocks)
+    }
+
+
 def sqi_windows(t_s: np.ndarray, values: np.ndarray) -> list[tuple[float, np.ndarray | None]]:
     # ADR 0028: DSP-2 to 64 Hz, 4 s windows every 1 s within each segment, DSP-3 z-score, no band-pass.
     size, step = int(WINDOW_S * MODEL_RATE_HZ), int(SQI_STEP_S * MODEL_RATE_HZ)
@@ -235,6 +245,9 @@ class RecordingAnalysis:
     reference_clean: np.ndarray
     hr_bpm: np.ndarray
     lag_s: float | None
+    # Every 90 s pseudo-reading the recording spans, with or without windows, as the app saves each one.
+    blocks: int
+    enough_intervals: dict[int, bool]
 
 
 def analyse(recording: Recording, rhythm: bool, sqi: bool) -> RecordingAnalysis:
@@ -243,13 +256,16 @@ def analyse(recording: Recording, rhythm: bool, sqi: bool) -> RecordingAnalysis:
     pairs = morphology_pairs(t_s, values)
     detected_by_segment = [beats.detect_beats(model, shape) for model, shape in pairs]
     windows: list[tuple[int, RhythmWindow]] = []
+    enough: dict[int, bool] = {}
     if rhythm:
         # No acquisition spans exist for bedside data, so DSP-9 gets none (ADR 0045); SQI is judged by ML-4.
         classified = [
             beat_classes.classify_beats(detected, shape, [])
             for detected, (_model, shape) in zip(detected_by_segment, pairs, strict=True)
         ]
-        windows = reading_windows(*rhythm_inputs(classified))
+        intervals_s, spans_artifact, atypical, peaks_s = rhythm_inputs(classified)
+        windows = reading_windows(intervals_s, spans_artifact, atypical, peaks_s)
+        enough = enough_intervals_by_block(spans_artifact, peaks_s)
     sqi_inputs: list[np.ndarray | None] = []
     clean, hr_bpm, lag = np.zeros(0, dtype=bool), np.zeros(0), None
     if sqi:
@@ -259,4 +275,7 @@ def analyse(recording: Recording, rhythm: bool, sqi: bool) -> RecordingAnalysis:
         clean, hr_bpm, lag = reference_rows(
             [start for start, _input in scored], r_peaks_s(recording), ppg_peaks
         )
-    return RecordingAnalysis(recording.subject, recording.is_af, windows, sqi_inputs, clean, hr_bpm, lag)
+    blocks = math.ceil(len(recording.ppg) / recording.fs / READING_S)
+    return RecordingAnalysis(
+        recording.subject, recording.is_af, windows, sqi_inputs, clean, hr_bpm, lag, blocks, enough
+    )

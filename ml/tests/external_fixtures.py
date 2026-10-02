@@ -6,11 +6,13 @@ from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import onnx
+import pandas as pd
 import wfdb
 from onnx import TensorProto, helper, numpy_helper
 from scipy.signal import find_peaks
 
-from datasets import download
+from datasets import download, registry
+from datasets.vitaldb_cases import holdout_case_path, load_split
 from export.provenance import sha256_of
 
 FS = 125.0
@@ -201,9 +203,32 @@ def install_fake_scorer(monkeypatch, edit=None) -> list[tuple]:
 
     def score_holdout(entry, models_dir, holdout):
         calls.append((entry["name"], len(holdout)))
-        scored = holdout_scores(holdout)
+        scored = {**holdout_scores(holdout), "onnxSha256": entry["sha256"]}
         return edit(scored) if edit else scored
 
     module.score_holdout = score_holdout
     monkeypatch.setitem(sys.modules, "train.diabetes_holdout", module)
     return calls
+
+
+def write_holdout_files() -> None:
+    # The open VitalDB clinical table (one eligible case per holdout patient) and an empty .vital file per
+    # holdout case, under the test's LUMEN_DATA_DIR; preflight checks only that each file is there.
+    holdout = load_split()["holdout"]
+    vitaldb = next(dataset for dataset in registry.DATASETS if dataset.key == "vitaldb")
+    vitaldb.local_dir.mkdir(parents=True, exist_ok=True)
+    clinical = pd.DataFrame(
+        {
+            "caseid": range(1, len(holdout) + 1),
+            "subjectid": holdout,
+            "age": "60",
+            "sex": "F",
+            "preop_dm": [index % 3 == 0 for index in range(len(holdout))],
+        }
+    ).astype({"preop_dm": int})
+    clinical.to_csv(vitaldb.local_dir / "clinical_data.csv", index=False)
+    download.write_marker(vitaldb)
+    for caseid in clinical["caseid"]:
+        path = holdout_case_path(int(caseid))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()

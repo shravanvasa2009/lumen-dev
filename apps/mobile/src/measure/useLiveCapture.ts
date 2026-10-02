@@ -76,12 +76,13 @@ function chosenLens(capabilities: Capabilities): LensInfo | undefined {
   return lit.find((candidate) => candidate.kind === 'wide') ?? lit[0];
 }
 
-// Spec 09-architecture (frame rate): request 60 fps where the lens allows it, else what it has. Native
-// defaults differ (iOS up to 120, Android capped at 60) and never report the rate they chose, so the rate is
-// chosen here, sent as targetFps, and given to the live session and the reading's context unchanged.
-const CAPTURE_FPS_CEILING = 60;
+// Spec 09-architecture §9.2 (frame rate): iOS up to 120 fps where formats allow (native caps iOS at 120 too);
+// Android requests 60. Native never reports the rate it chose, so the rate is chosen here, sent as targetFps,
+// and given to the live session and the reading's context unchanged.
+const CAPTURE_FPS_CEILING: Record<Capabilities['platform'], number> = { ios: 120, android: 60 };
 
-const captureFpsFor = (lens: LensInfo): number => Math.min(lens.maxFps, CAPTURE_FPS_CEILING);
+const captureFpsFor = (platform: Capabilities['platform'], lens: LensInfo): number =>
+  Math.min(lens.maxFps, CAPTURE_FPS_CEILING[platform]);
 
 function captureConfig(capabilities: Capabilities, lens: LensInfo | undefined, fps: number): CaptureConfig {
   return {
@@ -209,7 +210,7 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
         // With no torch-capable lens there is no rate to ask for or to give the session, so that phone runs
         // without clean seconds rather than with a guessed rate.
         if (lens) {
-          captureFps = captureFpsFor(lens);
+          captureFps = captureFpsFor(capabilities.platform, lens);
           session = createLiveSession({
             captureFps,
             sqiThreshold: threshold ?? 0,

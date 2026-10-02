@@ -111,6 +111,19 @@ describe('useLiveCapture', () => {
     expect(fake.started).toEqual([{ lensId: 'wide', targetFps: 60, torchLevel: 1 }]);
   });
 
+  it('asks an iPhone for 120 fps on a 240 fps lens and gives that rate to the session', async () => {
+    const fake = new FakeCapture();
+    fake.capabilities = {
+      ...phone,
+      platform: 'ios',
+      rearLenses: [{ id: 'wide', kind: 'wide', maxFps: 240, torchUsable: true }],
+    };
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    expect(fake.started[0]?.targetFps).toBe(120);
+    expect(createLiveSession).toHaveBeenCalledWith(expect.objectContaining({ captureFps: 120 }));
+  });
+
   it('asks for 60 fps on a faster lens and gives that same rate to the session and the kept capture', async () => {
     const fake = new FakeCapture();
     fake.capabilities = {

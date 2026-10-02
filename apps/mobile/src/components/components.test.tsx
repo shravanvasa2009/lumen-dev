@@ -121,7 +121,7 @@ describe.each([
     'close',
     'warning',
     'share',
-    'no-signal',
+    'noSignal',
     'hint',
   ])('Icon %s draws strokes in the colour it is given', (name) => {
     render(<Icon name={name} size={24} color={colors.accent} />);
@@ -138,6 +138,7 @@ describe.each([
     const opaqueArgb = (hex: string) => Number.parseInt(hex.slice(1), 16) + 0xff000000;
     expect(drawn).toContain(`"fill":{"type":0,"payload":${opaqueArgb(colors.criticalText)}}`);
     expect(drawn).toContain(`"stroke":{"type":0,"payload":${opaqueArgb(colors.bg)}}`);
+    expect(drawn).toContain('no-hide-descendants');
   });
 
   it('ListRow shows a chevron only when asked', () => {

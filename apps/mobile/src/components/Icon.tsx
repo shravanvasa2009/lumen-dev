@@ -12,7 +12,7 @@ const strokes = {
   close: 'M6 6l12 12M18 6L6 18',
   warning: 'M12 4 2.5 20h19ZM12 10v5M12 17.6v.4',
   share: 'M12 15V4M8 8l4-4 4 4M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7',
-  'no-signal': 'M2 12h5l2-5 3 10 2-5h3M5 20 19 4',
+  noSignal: 'M2 12h5l2-5 3 10 2-5h3M5 20 19 4',
   hint: 'M12 11v5.5M12 7.6v.4',
 } as const;
 
@@ -29,7 +29,14 @@ type IconProps = {
 export function Icon({ name, size, color, mark }: IconProps) {
   if (name === 'warning' && mark) {
     return (
-      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" accessibilityElementsHidden>
+      <Svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         <Path d="M12 3 22 20.5H2Z" fill={color} stroke={color} strokeWidth={1.5} strokeLinejoin="round" />
         <Path d="M12 9.5v5M12 17.4v.2" stroke={mark} strokeWidth={2} strokeLinecap="round" />
       </Svg>

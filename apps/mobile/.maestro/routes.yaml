@@ -4,8 +4,12 @@
 appId: io.github.shravanvasa2009.heartcheck
 name: Every route opens
 ---
+# Capture and Practice ask for the camera; granting it at launch keeps the Android dialog off the screen.
+# https://docs.maestro.dev/api-reference/commands/launchapp
 - launchApp:
     clearState: true
+    permissions:
+      camera: allow
 # launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
 - extendedWaitUntil:
     visible: 'Change mode'
@@ -48,10 +52,16 @@ name: Every route opens
 - assertVisible: 'Analyzing your reading'
 - openLink: lumen://results/demo
 - assertVisible: 'Results'
+- openLink: lumen://results/demo-flag
+- assertVisible: 'Quick safety check'
 - openLink: lumen://results/demo/why
-- assertVisible: 'Show me why'
+- assertVisible: 'Why .regular.\?'
+- openLink: lumen://results/demo-flag/why
+- assertVisible: 'Why .irregular.\?'
 - openLink: lumen://measure/inconclusive
 - assertVisible: 'Not enough clean signal\.'
+- openLink: lumen://measure/inconclusive?id=demo-inconclusive
+- assertVisible: 'We got 38 clean seconds\. Most of the lost time was movement\.'
 - openLink: lumen://emergency
 - assertVisible: 'Get help now'
 - openLink: lumen://measure/standing-test

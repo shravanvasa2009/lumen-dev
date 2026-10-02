@@ -8,6 +8,7 @@ export default function ProcessingScreen() {
   const { t } = useTranslation();
   return (
     <RouteShell
+      headerless
       title={t('processing.title')}
       subtitle={t('processing.subtitle')}
       sections={[

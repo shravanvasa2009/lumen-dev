@@ -1,18 +1,24 @@
 import { useTranslation } from 'react-i18next';
 
+import { AppText } from '@/components/AppText';
 import { NavButton } from '@/components/NavButton';
-import { RouteShell } from '@/components/RouteShell';
+import { OnboardingStep } from '@/components/OnboardingStep';
+import { RatingGauge } from '@/settings/RatingGauge';
 
 export default function RatingScreen() {
   const { t } = useTranslation();
   return (
-    <RouteShell
-      headerless
+    <OnboardingStep
+      step={7}
       title={t('rating.title')}
       subtitle={t('rating.subtitle')}
-      sections={[{ heading: t('rating.unlocked') }]}
+      footer={<NavButton label={t('common.continue')} href="/reminders" />}
     >
-      <NavButton label={t('common.continue')} href="/reminders" />
-    </RouteShell>
+      {/* The score needs the coupling measured in practice (spec §5.1), and no rating function exists yet. */}
+      <RatingGauge placeholder={t('phoneRating.noScore')} caption={t('phoneRating.notTested')} />
+      <AppText tone="textDim" style={{ textAlign: 'center' }}>
+        {t('rating.pending')}
+      </AppText>
+    </OnboardingStep>
   );
 }

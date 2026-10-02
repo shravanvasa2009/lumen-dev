@@ -8,19 +8,32 @@ import { Icon } from './Icon';
 
 type ListRowProps = {
   title: string;
+  leading?: ReactNode;
   subtitle?: string;
   trailing?: ReactNode;
   last?: boolean;
   chevron?: boolean;
+  // A row that is announced but not available yet, e.g. "Coming soon"; it ignores presses.
+  disabled?: boolean;
   onPress?: () => void;
 };
 
-export function ListRow({ title, subtitle, trailing, last = false, chevron = false, onPress }: ListRowProps) {
+export function ListRow({
+  title,
+  subtitle,
+  leading,
+  trailing,
+  last = false,
+  chevron = false,
+  disabled = false,
+  onPress,
+}: ListRowProps) {
   const { colors, spacing, control } = useTheme();
   return (
     <Pressable
       accessibilityRole={onPress ? 'button' : undefined}
-      disabled={!onPress}
+      disabled={!onPress || disabled}
+      accessibilityState={{ disabled }}
       onPress={onPress}
       style={[
         styles.row,
@@ -31,9 +44,11 @@ export function ListRow({ title, subtitle, trailing, last = false, chevron = fal
           gap: spacing.md,
           borderBottomColor: colors.line,
           borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
+          opacity: disabled ? 0.5 : 1,
         },
       ]}
     >
+      {leading}
       <View style={styles.text}>
         <AppText>{title}</AppText>
         {subtitle ? (

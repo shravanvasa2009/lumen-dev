@@ -1,8 +1,8 @@
-import { memoryFiles } from '@/testing/memoryFiles';
+import { memoryFiles, mockFileSystem } from '@/testing/memoryFiles';
 
 import { loadNotificationPrefs, saveNotificationPrefs } from './prefs';
 
-jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').expoFileSystem);
+jest.mock('expo-file-system', () => mockFileSystem);
 
 beforeEach(() => memoryFiles.clear());
 

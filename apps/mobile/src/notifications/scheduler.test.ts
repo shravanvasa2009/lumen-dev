@@ -6,14 +6,14 @@ import {
   setNotificationChannelAsync,
 } from 'expo-notifications';
 
-import { memoryFiles } from '@/testing/memoryFiles';
+import { memoryFiles, mockFileSystem } from '@/testing/memoryFiles';
 
 import copy from '../i18n/lockscreen.json';
 import type { NotificationPrefs, NotificationTriggers } from './plan';
 import { loadScheduleRecord } from './record';
 import { syncNotifications } from './scheduler';
 
-jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').expoFileSystem);
+jest.mock('expo-file-system', () => mockFileSystem);
 
 // The system's pending requests, keyed by identifier, as the native side keeps them.
 const mockPending = new Map<string, NotificationRequestInput>();

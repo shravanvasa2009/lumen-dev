@@ -1,5 +1,5 @@
-// Stands in for expo-file-system's document folder, keyed by file name:
-// jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').expoFileSystem).
+// Stands in for expo-file-system's document folder, keyed by file name. Import it before the module under
+// test, then: jest.mock('expo-file-system', () => mockFileSystem). The `mock` prefix lets jest hoist that.
 export const memoryFiles = new Map<string, string>();
 
 class File {
@@ -25,4 +25,4 @@ class File {
   }
 }
 
-export const expoFileSystem = { File, Paths: { document: 'documents' } };
+export const mockFileSystem = { File, Paths: { document: 'documents' } };

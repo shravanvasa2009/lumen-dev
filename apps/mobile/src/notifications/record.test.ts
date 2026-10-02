@@ -1,9 +1,9 @@
-import { memoryFiles } from '@/testing/memoryFiles';
+import { memoryFiles, mockFileSystem } from '@/testing/memoryFiles';
 
 import type { PlannedNotification } from './plan';
 import { loadScheduleRecord, saveScheduleRecord } from './record';
 
-jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').expoFileSystem);
+jest.mock('expo-file-system', () => mockFileSystem);
 
 const DAILY: PlannedNotification = {
   id: 'daily-2026-10-12T08:00',

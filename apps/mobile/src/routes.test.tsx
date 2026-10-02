@@ -72,6 +72,7 @@ const routes: readonly Route[] = [
     place: 'nav',
   },
   { file: 'follow-up', url: '/follow-up', title: 'followUp.title', place: 'body' },
+  { file: 'care-map', url: '/care-map', title: 'careMap.title', place: 'nav' },
 ];
 
 // Resolved against the working directory, which is apps/mobile when the mobile workspace runs jest.
@@ -122,8 +123,8 @@ describe('route list', () => {
     );
   });
 
-  it('lists the 34 screens of the inventory', () => {
-    expect(routes).toHaveLength(34);
+  it('lists the 34 screens of the inventory and the Care map (ADR 0054)', () => {
+    expect(routes).toHaveLength(35);
   });
 });
 

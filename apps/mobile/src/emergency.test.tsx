@@ -11,6 +11,11 @@ describe('emergency screen', () => {
     jest.restoreAllMocks();
   });
 
+  it('has no Care map entry; it is only for calling emergency services', () => {
+    renderRouter('./app', { initialUrl: '/emergency' });
+    expect(screen.queryByRole('button', { name: en['careMap.enter'] })).toBeNull();
+  });
+
   it('opens the dialer for 911', async () => {
     const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValueOnce(true);
     renderRouter('./app', { initialUrl: '/emergency' });

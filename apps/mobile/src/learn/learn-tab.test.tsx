@@ -44,11 +44,17 @@ describe('Learn tab', () => {
     expect(screen.getByRole('button', { name: new RegExp(es['learn.lessonDiabetes']) })).toBeOnTheScreen();
   });
 
-  it('opens the health-center finder only when its row is tapped', () => {
+  it('opens the Care map when the care row is tapped', () => {
+    renderRouter(appDirectory, { initialUrl: '/learn' });
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.careFinder']) }));
+    expectNavTitle(en['careMap.title']);
+  });
+
+  it('keeps the health-center website as a link that opens only when tapped', () => {
     const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
     renderRouter(appDirectory, { initialUrl: '/learn' });
     expect(open).not.toHaveBeenCalled();
-    fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.careFinder']) }));
+    fireEvent.press(screen.getByRole('link', { name: en['learn.careFinderWeb'] }));
     expect(open).toHaveBeenCalledWith('https://findahealthcenter.hrsa.gov');
   });
 
@@ -56,9 +62,7 @@ describe('Learn tab', () => {
     jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('no browser'));
     renderRouter(appDirectory, { initialUrl: '/learn' });
     expect(screen.queryByText(en['learn.careFinderFailed'])).toBeNull();
-    await act(async () =>
-      fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.careFinder']) })),
-    );
+    await act(async () => fireEvent.press(screen.getByRole('link', { name: en['learn.careFinderWeb'] })));
     expect(screen.getByText(en['learn.careFinderFailed'])).toBeOnTheScreen();
   });
 });

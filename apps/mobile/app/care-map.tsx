@@ -1,3 +1,3 @@
-export default function CareMap() {
-  return null;
-}
+import { CareMapScreen } from '@/care/CareMapScreen';
+
+export default CareMapScreen;

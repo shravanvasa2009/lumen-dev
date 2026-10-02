@@ -122,6 +122,37 @@ describe('standing test with an injected source', () => {
     expect(screen.getByRole('button', { name: en['standing.take'] })).toBeEnabled();
   });
 
+  it('shows the flag and Find a doctor nearby after two consecutive large rises', async () => {
+    const highSource: StandingTestSource = {
+      now: () => Date.now(),
+      readHeartRate: async (minute) => (minute === 0 ? TEST_BASELINE_BPM : TEST_BASELINE_BPM + 32),
+    };
+    open(highSource);
+    pressButton(en['standing.start']);
+    advanceSeconds(250);
+    await act(async () => pressButton(en['standing.take']));
+    advanceSeconds(120);
+    await act(async () => pressButton(en['standing.take']));
+    expect(screen.queryByText(en['standing.flag'])).toBeNull();
+    advanceSeconds(120);
+    await act(async () => pressButton(en['standing.take']));
+    expect(screen.getByText(en['standing.flag'])).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: en['careMap.enter'] })).toBeOnTheScreen();
+  });
+
+  it('shows no flag for a rise of 16 bpm', async () => {
+    open(injectedSource);
+    pressButton(en['standing.start']);
+    advanceSeconds(250);
+    await act(async () => pressButton(en['standing.take']));
+    advanceSeconds(120);
+    await act(async () => pressButton(en['standing.take']));
+    advanceSeconds(120);
+    await act(async () => pressButton(en['standing.take']));
+    expect(screen.queryByText(en['standing.flag'])).toBeNull();
+    expect(screen.queryByRole('button', { name: en['careMap.enter'] })).toBeNull();
+  });
+
   it('stops the test and offers sitting down on I feel faint', () => {
     open(injectedSource);
     pressButton(en['standing.start']);

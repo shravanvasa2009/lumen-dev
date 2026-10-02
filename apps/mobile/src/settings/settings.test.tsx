@@ -200,6 +200,12 @@ describe('Doctor follow-up', () => {
     expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
+  it('opens the Care map from Find a doctor nearby', () => {
+    renderRouter(appDirectory, { initialUrl: '/follow-up' });
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
+    expectNavTitle(en['careMap.title']);
+  });
+
   it('opens the health-center finder only when the link is tapped', () => {
     const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValueOnce(true);
     renderRouter(appDirectory, { initialUrl: '/follow-up' });

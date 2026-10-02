@@ -4,6 +4,8 @@ const LYING_MS = 5 * MINUTE_MS;
 const BASELINE_STARTS_MS = 4 * MINUTE_MS;
 const LAST_STANDING_MINUTE = 10;
 const LAST_READING_WINDOW_MS = 45_000;
+// DSP-16 adult threshold. The 40 bpm threshold for ages 13-19 needs an age the app does not keep yet.
+const LARGE_RISE_BPM = 30;
 
 export const STANDING_READING_MINUTES = [1, 3, 5, LAST_STANDING_MINUTE] as const;
 
@@ -37,6 +39,8 @@ export type TestView = {
   baseline: number | null;
   latest: number | null;
   rise: number | null;
+  // DSP-16: the rise stayed at or above the threshold in two consecutive standing readings.
+  largeRise: boolean;
   points: readonly ChartPoint[];
 };
 
@@ -120,8 +124,16 @@ export function viewAt(state: TestState, nowMs: number): TestView {
     baseline: state.baseline,
     latest,
     rise: latest !== null && state.baseline !== null ? latest - state.baseline : null,
+    largeRise: hasLargeRise(state),
     points: [...(state.baseline === null ? [] : [{ minute: -1, bpm: state.baseline }]), ...taken],
   };
+}
+
+function hasLargeRise(state: TestState): boolean {
+  const { baseline } = state;
+  if (baseline === null) return false;
+  const high = state.standing.map(({ bpm }) => bpm !== null && bpm - baseline >= LARGE_RISE_BPM);
+  return high.some((isHigh, index) => isHigh && high[index + 1] === true);
 }
 
 export function formatClock(ms: number): string {

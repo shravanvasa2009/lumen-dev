@@ -46,6 +46,21 @@ const blePlugin: [string, Record<string, unknown>] = [
   },
 ];
 
+// Care map (ADR 0054): foreground location only, asked when the map opens. The Always and motion keys are
+// switched off (false) so they never reach Info.plist; background modes default to off.
+const locationPlugin: [string, Record<string, unknown>] = [
+  'expo-location',
+  {
+    locationWhenInUsePermission:
+      'Lumen uses your location only to show care near you. It is not saved or sent to Lumen.',
+    locationAlwaysAndWhenInUsePermission: false,
+    locationAlwaysPermission: false,
+    motionUsagePermission: false,
+    isIosBackgroundLocationEnabled: false,
+    isAndroidBackgroundLocationEnabled: false,
+  },
+];
+
 const config: ExpoConfig = {
   ...brand,
   name: APP_NAME,
@@ -61,6 +76,8 @@ const config: ExpoConfig = {
     'expo-dev-client',
     ...(brand.plugins ?? []),
     blePlugin,
+    locationPlugin,
+    '@maplibre/maplibre-react-native',
     personalTeam ? [capturePlugin, { personalTeam: true }] : capturePlugin,
   ],
   // No over-the-air updates: release builds make no network requests (PRIV-1).

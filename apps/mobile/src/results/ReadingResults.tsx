@@ -130,6 +130,8 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           </AppText>
         </View>
 
+        {acuteFlag ? <Button label={t('careMap.enter')} onPress={() => router.push('/care-map')} /> : null}
+
         {diabetesCard ? (
           <View
             style={{
@@ -161,6 +163,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
             >
               {t('results.diabetesNext')} ›
             </AppText>
+            <Button label={t('careMap.enter')} variant="secondary" onPress={() => router.push('/care-map')} />
           </View>
         ) : null}
 

@@ -42,14 +42,23 @@ export default function proveM3() {
         reasons.push(`${entry.card} lacks "${heading}"`),
       );
   }
-  const external = readJsonIfExists(path.join(models, 'external-test.json'));
+  reasons.push(...externalTestReasons(readJsonIfExists(path.join(models, 'external-test.json'))));
+  if (!npmScripts(root)['test:fallback']) reasons.push('npm script "test:fallback" is not defined yet');
+  else if (run('npm', ['run', 'test:fallback'], { cwd: root }).code !== 0)
+    reasons.push('fallback tests failed');
+  return { status: reasons.length ? 'FAIL' : 'PASS', reasons };
+}
+
+export function externalTestReasons(external) {
+  const reasons = [];
   const rhythm = external?.rhythm ?? {};
   for (const field of ['sensitivity', 'specificity', 'auroc', 'ci95', 'ppvNpv'])
     if (rhythm[field] == null) reasons.push(`external test lacks rhythm.${field} (ML-1)`);
-  if (!(external?.sqi?.rhythmBiasGapPts <= 5))
-    reasons.push(
-      `SQI rhythm-bias gap ${external?.sqi?.rhythmBiasGapPts ?? 'missing'}; need ≤ 5 points (ML-4)`,
-    );
+  // ADR 0028: the gap is signed, acceptance(non-AF) − acceptance(AF); null means too few windows to judge.
+  const gap = external?.sqi?.rhythmBiasGapPts;
+  if (!(Number.isFinite(gap) && Math.abs(gap) <= 5))
+    reasons.push(`SQI rhythm-bias gap ${gap ?? 'missing'}; need |gap| ≤ 5 points (ML-4)`);
+  if (external?.sqi?.passed !== true) reasons.push('external test sqi.passed is not true (ML-4)');
   const diabetes = external?.diabetes ?? {};
   for (const field of ['auroc', 'sensitivity', 'specificity', 'ci95', 'ppvNpv', 'floorMet'])
     if (diabetes[field] == null) reasons.push(`external test lacks diabetes.${field} (ML-6)`);
@@ -58,8 +67,5 @@ export default function proveM3() {
     !(diabetes.auroc >= 0.75 && diabetes.specificity >= 0.85 && diabetes.sensitivity >= 0.6)
   )
     reasons.push('diabetes.floorMet is true but the numbers are below the ML-6 floor');
-  if (!npmScripts(root)['test:fallback']) reasons.push('npm script "test:fallback" is not defined yet');
-  else if (run('npm', ['run', 'test:fallback'], { cwd: root }).code !== 0)
-    reasons.push('fallback tests failed');
-  return { status: reasons.length ? 'FAIL' : 'PASS', reasons };
+  return reasons;
 }

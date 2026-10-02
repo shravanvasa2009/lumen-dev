@@ -50,12 +50,12 @@ function strapInsideCapture(folder, polar, span) {
 
 // A Bluetooth dropout loses strap notifications, and with them whole beats. Beat times are running sums of
 // intervals, so every beat after a dropout would pair with the wrong heartbeat.
-// Rows are stamped per notification, earlier RRs in one stepped back by RR (order E.B polar-clock), so within
-// a notification t_ns steps by exactly its RR, and between two the step also carries the change in how long
-// after its last beat each arrived: up to one RR, at most 2000 ms for a usable strap beat, plus bridge delay.
-// Only a larger step is certainly lost beats, and how many is then unknown to within a beat, so no filler
-// can restore the timing: the longest unbroken stretch is kept and the rest dropped.
-const DROPOUT_MS = 2000 + 250;
+// Lab writes the rows as one beat timeline (PR #58): within a stretch each t_ns is the previous one plus its
+// RR, to the ns. A step longer than that starts a new stretch, either after lost beats (at least about one RR
+// of excess) or after an unusually late arrival (tens of ms). 250 ms (ADR 0037) catches a single lost beat at
+// any heart rate up to 240 bpm and ignores the late arrivals. How many beats were lost is unknown to within a
+// beat, so no filler can restore the timing: the longest unbroken stretch is kept and the rest dropped.
+const DROPOUT_MS = 250;
 
 function longestUnbrokenStretch(rows) {
   const stretches = [[]];
@@ -64,11 +64,12 @@ function longestUnbrokenStretch(rows) {
     stretches.at(-1).push(row);
   });
   const longest = stretches.reduce((best, stretch) => (stretch.length > best.length ? stretch : best));
-  // Where the kept stretch begins (its first interval's start), so alignment can start there too.
+  // Where the kept stretch begins (its first interval's start) and ends, so alignment can use the same span.
   const first = longest[0];
   return {
     polarRrMs: longest.map((row) => row.rr_ms),
     polarStartNs: first ? first.t_ns - first.rr_ms * 1e6 : null,
+    polarEndNs: first ? longest.at(-1).t_ns : null,
     strapDropouts: stretches.length - 1,
   };
 }
@@ -85,7 +86,7 @@ function readCapture(folder) {
     phone: phone.map((row) => ({ endNs: row.t_ns, ibiMs: row.ibi_ms, accepted: row.accepted === 1 })),
     ...(polar
       ? longestUnbrokenStretch(strapInsideCapture(folder, polar, span))
-      : { polarRrMs: null, polarStartNs: null, strapDropouts: 0 }),
+      : { polarRrMs: null, polarStartNs: null, polarEndNs: null, strapDropouts: 0 }),
   };
 }
 

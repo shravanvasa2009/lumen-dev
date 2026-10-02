@@ -31,24 +31,31 @@ function hrError(capture) {
   return Math.abs(phoneHr - 60000 / mean(capture.polarRrMs.filter(polarUsable)));
 }
 
-// Sequence alignment searches only ±10 beats, so when the strap data starts later in the reading (the
-// longest stretch after a dropout), alignment starts at the phone beat the shared clock puts there. The margin
-// covers the strap's notification delay (under its ~1 s notification period) with room to spare.
-const START_MARGIN_BEATS = 5;
+// Sequence alignment searches only ±10 beats and needs most phone beats matched, so when the strap data covers
+// only part of the reading (the longest stretch between dropouts), alignment uses the phone beats the shared
+// clock puts inside that stretch. The margin covers the strap's notification delay (under its ~1 s
+// notification period) with room to spare.
+const SPAN_MARGIN_BEATS = 5;
 
-function phoneBeatsBeforeStrap(capture) {
-  if (capture.polarStartNs == null) return 0;
+function phoneBeatsInsideStrap(capture) {
+  if (capture.polarStartNs == null) return { skip: 0, end: capture.phone.length };
   const firstAfter = capture.phone.findIndex((beat) => beat.endNs > capture.polarStartNs);
   // Strap data that starts after the last phone beat shares no heartbeats with it.
-  return firstAfter === -1 ? null : Math.max(0, firstAfter - START_MARGIN_BEATS);
+  if (firstAfter === -1) return null;
+  const pastEnd = capture.phone.findIndex((beat) => beat.endNs > capture.polarEndNs);
+  return {
+    skip: Math.max(0, firstAfter - SPAN_MARGIN_BEATS),
+    end: pastEnd === -1 ? capture.phone.length : Math.min(capture.phone.length, pastEnd + SPAN_MARGIN_BEATS),
+  };
 }
 
 function alignmentOf(capture) {
   if (!hasPolar(capture) || !capture.phone.length || !isConclusive(capture)) return null;
-  const skip = phoneBeatsBeforeStrap(capture);
-  if (skip === null) return null;
+  const span = phoneBeatsInsideStrap(capture);
+  if (span === null) return null;
+  const { skip, end } = span;
   const alignment = alignIntervals(
-    capture.phone.slice(skip).map((beat) => beat.ibiMs),
+    capture.phone.slice(skip, end).map((beat) => beat.ibiMs),
     capture.polarRrMs,
     (p, q) => capture.phone[p + skip].accepted && polarUsable(capture.polarRrMs[q]),
   );

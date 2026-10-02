@@ -23,7 +23,7 @@ from train.rhythm_windows import WindowSet, load_window_set
 RHYTHM = tuple(name for name, spec in SPECS.items() if spec.family == "rhythm")
 MEASURED_BY = "python -m train.rhythm_calibration, after training, from the frozen model"
 # The temperature and ECEs of an earlier record must agree to rounding error. τ_AF is still compared
-# bit for bit (_check_same_windows), so a rerun whose math libraries round differently, e.g. on
+# bit for bit (check_same_windows), so a rerun whose math libraries round differently, e.g. on
 # another machine, fails closed there rather than passing.
 SAME_RECORD_TOLERANCE = 1e-9
 
@@ -39,7 +39,7 @@ def _probs(spec: ModelSpec, model: SourceModel, dev_val: WindowSet) -> tuple[np.
     return probs, temperature_record(network_probs(model, dev_val), dev_val, temperature)
 
 
-def _check_same_windows(spec: ModelSpec, metrics: dict, probs: np.ndarray, dev_val: WindowSet) -> None:
+def check_same_windows(spec: ModelSpec, metrics: dict, probs: np.ndarray, dev_val: WindowSet) -> None:
     # τ_AF comes from the non-AF dev-val subjects' mean scores, so getting it bit for bit with the same
     # subject count is strong evidence these are the windows the metrics were scored on, not another
     # split or window cache.
@@ -74,7 +74,7 @@ def measure(spec: ModelSpec, runs_dir: Path, windows: Path) -> dict:
     model = source_model(spec, runs_dir, None)
     dev_val = load_window_set(windows)
     probs, recalibration = _probs(spec, model, dev_val)
-    _check_same_windows(spec, metrics, probs, dev_val)
+    check_same_windows(spec, metrics, probs, dev_val)
     measured = {
         "sourceSha256": metrics["sourceSha256"],
         "measuredBy": MEASURED_BY,

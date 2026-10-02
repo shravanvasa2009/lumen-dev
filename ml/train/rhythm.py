@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import torch
 from lightgbm import LGBMClassifier
+from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.pipeline import Pipeline, make_pipeline
@@ -46,9 +47,8 @@ from train.rhythm_windows import (
 
 NETWORK = SPECS["rhythm-net"]
 LGBM = SPECS["rhythm-lgbm"]
-# §11.1's fallback rule. export/specs.py has no entry for it, so it is trained and compared here but
-# not exported.
-LOGISTIC_NAME = "rhythm-logistic"
+# §11.1's fallback rule: a logistic regression on these three features.
+LOGISTIC = SPECS["rhythm-logistic"]
 LOGISTIC_FEATURES = ("normalizedRmssd", "shannonEntropyBits", "turningPointRatio")
 AF = LABELS.index("af")
 SEED = 20261026
@@ -387,13 +387,13 @@ def fit_lgbm(train: WindowSet, val: WindowSet, seed: int) -> LGBMClassifier:
     )
 
 
-def _logistic_columns(windows: WindowSet) -> np.ndarray:
-    return windows.features[:, [FEATURE_NAMES.index(name) for name in LOGISTIC_FEATURES]]
-
-
 def fit_logistic(train: WindowSet) -> Pipeline:
-    return make_pipeline(StandardScaler(), LogisticRegression(max_iter=5000)).fit(
-        _logistic_columns(train), train.labels, logisticregression__sample_weight=sample_weights(train)
+    # The rule reads only LOGISTIC_FEATURES but takes the whole feature vector, so its ONNX input is
+    # rhythm-lgbm's features [1, FEATURES] and the app can swap one for the other (§11.1).
+    columns = [FEATURE_NAMES.index(name) for name in LOGISTIC_FEATURES]
+    rule = ColumnTransformer([("rule", StandardScaler(), columns)], remainder="drop")
+    return make_pipeline(rule, LogisticRegression(max_iter=5000)).fit(
+        train.features, train.labels, logisticregression__sample_weight=sample_weights(train)
     )
 
 
@@ -607,7 +607,8 @@ def temperature_record(raw_probs: np.ndarray, val: WindowSet, temperature: float
     }
 
 
-# rhythm-lgbm is not recalibrated in v1; its reliability tables show how far it is from calibrated.
+# rhythm-lgbm and rhythm-logistic are not recalibrated in v1; their reliability tables show how far
+# each is from calibrated.
 UNCALIBRATED = {"method": "none: the model's own class probabilities, not recalibrated"}
 
 
@@ -712,7 +713,7 @@ def training_notes(sets: WindowSets, cap: int, seed: int, decision: dict) -> lis
     ]
 
 
-def _metrics_file(source: Path, evaluation: dict, sets: WindowSets, calibration: dict, shared: dict) -> dict:
+def metrics_file(source: Path, evaluation: dict, sets: WindowSets, calibration: dict, shared: dict) -> dict:
     trained_on = sorted({subject.split(":")[0] for subject in sets.train.subjects})
     source_sha = sha256_of(source)
     return {
@@ -772,9 +773,9 @@ def main(argv: list[str] | None = None) -> None:
     probs = {
         NETWORK.name: (network_probs(model, sets.val), network_probs(model, sets.premature)),
         LGBM.name: (lgbm.predict_proba(sets.val.features), lgbm.predict_proba(sets.premature.features)),
-        LOGISTIC_NAME: (
-            logistic.predict_proba(_logistic_columns(sets.val)),
-            logistic.predict_proba(_logistic_columns(sets.premature)),
+        LOGISTIC.name: (
+            logistic.predict_proba(sets.val.features),
+            logistic.predict_proba(sets.premature.features),
         ),
     }
     evaluations = {
@@ -788,6 +789,8 @@ def main(argv: list[str] | None = None) -> None:
     torch.save(model.state_dict(), network_path)
     lgbm_path = args.runs_dir / LGBM.source_file
     lgbm_path.write_bytes(pickle.dumps(lgbm))
+    logistic_path = args.runs_dir / LOGISTIC.source_file
+    logistic_path.write_bytes(pickle.dumps(logistic))
     shared = {
         "ablation": ablation_rows(evaluations),
         "shipDecision": decision,
@@ -799,11 +802,12 @@ def main(argv: list[str] | None = None) -> None:
     calibrations = {
         NETWORK.name: temperature_record(raw_probs, sets.val, temperature),
         LGBM.name: UNCALIBRATED,
+        LOGISTIC.name: UNCALIBRATED,
     }
     outputs = [
         (
             spec,
-            _metrics_file(
+            metrics_file(
                 path,
                 evaluations[spec.name],
                 sets,
@@ -811,7 +815,7 @@ def main(argv: list[str] | None = None) -> None:
                 shared,
             ),
         )
-        for spec, path in ((NETWORK, network_path), (LGBM, lgbm_path))
+        for spec, path in ((NETWORK, network_path), (LGBM, lgbm_path), (LOGISTIC, logistic_path))
     ]
     for spec, metrics in outputs:
         (args.runs_dir / f"{spec.file_stem}.json").write_text(

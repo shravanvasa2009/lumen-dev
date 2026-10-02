@@ -17,18 +17,9 @@ type OnboardingStepProps = {
   subtitle?: string;
   children?: ReactNode;
   footer?: ReactNode;
-  // Centres the body between the heading and the pinned footer.
-  centered?: boolean;
 };
 
-export function OnboardingStep({
-  step,
-  title,
-  subtitle,
-  children,
-  footer,
-  centered = false,
-}: OnboardingStepProps) {
+export function OnboardingStep({ step, title, subtitle, children, footer }: OnboardingStepProps) {
   const { t } = useTranslation();
   const { colors, spacing } = useTheme();
   return (
@@ -58,9 +49,7 @@ export function OnboardingStep({
           </AppText>
           {subtitle ? <AppText tone="textDim">{subtitle}</AppText> : null}
         </View>
-        <View style={[{ gap: spacing.lg }, centered && { flex: 1, justifyContent: 'center' }]}>
-          {children}
-        </View>
+        <View style={{ gap: spacing.lg }}>{children}</View>
       </ScrollView>
     </Screen>
   );

@@ -85,7 +85,7 @@ export default function ProfileScreen() {
           />
         </View>
         {ageEntered && !ageValid ? (
-          <AppText variant="caption" tone="textDim">
+          <AppText variant="caption" tone="textDim" accessibilityRole="alert">
             {t('profile.ageTooYoung')}
           </AppText>
         ) : null}
@@ -117,7 +117,7 @@ export default function ProfileScreen() {
           />
         </View>
         {phoneInvalid ? (
-          <AppText variant="caption" tone="textDim">
+          <AppText variant="caption" tone="textDim" accessibilityRole="alert">
             {t('profile.doctorPhoneInvalid')}
           </AppText>
         ) : null}

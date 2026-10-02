@@ -142,6 +142,8 @@ class Session implements LiveSession {
         throw new RangeError(`timestamps must strictly increase; ${sample.tNs} ns does not`);
       previousNs = sample.tNs;
     });
+    // Everything addFrame could refuse is checked above, and DSP-4 keeps non-finite values out of every
+    // spline, so a batch is applied whole or not at all.
     samples.forEach((sample, i) => this.addFrame(sample, stats[i]!));
     this.shownClean = Math.max(this.shownClean, this.trueCleanSeconds());
   }
@@ -153,7 +155,15 @@ class Session implements LiveSession {
     const gap = this.count > 0 && tS - this.latestS > DSP_CONFIG.dsp2.maxGapS;
     // The causal filter assumes evenly spaced frames; after a DSP-2 gap it restarts in steady state.
     if (this.filter === null || gap) this.filter = new CausalFilter(this.sos);
-    const value = this.filter.filter([-sample.r])[0]!;
+    // A non-finite red would leave the filter state NaN for the rest of the reading. The frame is a
+    // coverage frame (DSP-4), so the waveform holds its last value and the filter restarts after it.
+    const finite = Number.isFinite(sample.r);
+    const value = finite
+      ? this.filter.filter([-sample.r])[0]!
+      : this.count > 0
+        ? this.filtered[this.count - 1]!
+        : 0;
+    if (!finite) this.filter = null;
 
     if (this.lastExposureNs !== null && stat.exposureNs !== this.lastExposureNs) {
       const holdS = DSP_CONFIG.dsp5.exposureChangeArtifactS;

@@ -322,6 +322,19 @@ describe('LiveSession input checks and buffer size', () => {
     expect(spansOf(session, 'quality')).toEqual([{ startS: 10.3 - 4, endS: 10.3, reason: 'quality' }]);
   });
 
+  it('takes a frame with non-finite red as uncovered and keeps the waveform finite', () => {
+    for (const bad of [NaN, Infinity, -Infinity]) {
+      const capture = frames({ seconds: 20 });
+      capture.samples[600]!.r = bad;
+      const { session } = play(capture);
+      expect(spansOf(session, 'coverage')).toEqual([
+        { startS: 10, endS: (capture.samples[601]!.tNs - CLOCK_START_NS) / 1e9, reason: 'coverage' },
+      ]);
+      expect(session.recentWaveform.ppg.every(Number.isFinite)).toBe(true);
+      expect(session.sqiWindow).not.toBeNull();
+    }
+  });
+
   it('refuses a capture rate whose Nyquist frequency is not above the 8 Hz morphology band edge', () => {
     expect(() => createLiveSession({ ...CONFIG, captureFps: 16 })).toThrow(RangeError);
     expect(() => createLiveSession({ ...CONFIG, captureFps: 24 })).not.toThrow();

@@ -174,6 +174,19 @@ describe('analyzeReading acquisition spans', () => {
     }
   });
 
+  it('DSP-4: a frame with a non-finite value is uncovered, and the capture is analyzed around it', () => {
+    const base = syntheticReading({ seconds: 30 });
+    for (const bad of [NaN, Infinity, -Infinity]) {
+      const samples = base.samples.map((sample) => ({ ...sample }));
+      samples[600]!.r = bad;
+      const analysis = analyzeReading({ samples, stats: base.stats }, CONTEXT);
+      expect(spansOf(analysis, 'coverage')).toEqual([
+        { startS: 10, endS: (samples[601]!.tNs - CLOCK_START_NS) / 1e9, reason: 'coverage' },
+      ]);
+      expect(analysis.heartRateBpm).not.toBeNull();
+    }
+  });
+
   it('DSP-4: clipping over 5% on a covered frame is a clipping span, counted as pressure', () => {
     const analysis = analyze(syntheticReading({ clipped: (tS) => tS >= 40 && tS < 43 }));
     expect(spansOf(analysis, 'clipping')).toHaveLength(1);

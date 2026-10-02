@@ -181,8 +181,20 @@ function morphologyBand(segment: ResampledSegment, rateHz: number): ResampledSeg
 function beatSegments(timebase: Timebase, spans: RejectedSpan[]): MeasuredBeat[][] {
   const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
   const { primary } = fingerSignals(timebase);
-  const models = resampleCubic(timebase.tS, primary, modelRateHz);
-  const shapes = resampleCubic(timebase.tS, primary, shapeRateHz);
+  // A non-finite frame (already a coverage span) cuts the capture: DSP-2 splines only finite runs.
+  const runs: [number, number][] = [];
+  let runStart = 0;
+  for (let i = 0; i <= primary.length; i++) {
+    if (i < primary.length && Number.isFinite(primary[i]!)) continue;
+    if (i > runStart) runs.push([runStart, i]);
+    runStart = i + 1;
+  }
+  const resampled = (rateHz: number) =>
+    runs.flatMap(([from, to]) =>
+      resampleCubic(timebase.tS.subarray(from, to), primary.subarray(from, to), rateHz),
+    );
+  const models = resampled(modelRateHz);
+  const shapes = resampled(shapeRateHz);
   // The two rates split at the same gaps, but a very short segment can lack a grid point at 64 Hz, so
   // the pairs are matched by time; segments are > 150 ms apart, so at most one overlaps.
   const span = (segment: ResampledSegment, rateHz: number) =>

@@ -6,7 +6,7 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
-import { FingerPreview, ProgressRing, SignalMeter } from '@/onboarding/practiceParts';
+import { FingerPreview, ProgressRing, SignalMeter, SignalScale } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
 
 // Spec §8.2 step 6: practice passes after 15 steady seconds at Strong.
@@ -57,17 +57,7 @@ export default function PracticeScreen() {
       </View>
       <View style={{ gap: spacing.xs }}>
         <SignalMeter />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <AppText variant="caption" tone="textDim">
-            {t('signal.weak')}
-          </AppText>
-          <AppText variant="caption" tone="textDim">
-            {t('signal.ok')}
-          </AppText>
-          <AppText variant="caption" tone="accent" style={{ fontWeight: '600' }}>
-            {t('signal.strong')}
-          </AppText>
-        </View>
+        <SignalScale />
       </View>
       <Card>
         <Svg width="100%" height={TRACE_HEIGHT} accessibilityElementsHidden>

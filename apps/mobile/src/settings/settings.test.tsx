@@ -7,6 +7,7 @@ import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { setPreference } from '@/theme/preferences';
+import tokens from '@/theme/tokens.json';
 
 fixClockAtMorning();
 
@@ -103,6 +104,22 @@ describe('Appearance', () => {
     expect(screen.getAllByText(en['home.measure'])).toHaveLength(1);
     fireEvent.press(screen.getByRole('radio', { name: en['appearance.segmentSystem'] }));
     expect(screen.getAllByText(en['home.measure'])).toHaveLength(2);
+  });
+
+  it('hides the following-the-phone note once a look is chosen', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/appearance' });
+    fireEvent.press(screen.getByRole('radio', { name: en['appearance.dark'] }));
+    expect(screen.queryByText(en['appearance.followingBody'])).toBeNull();
+  });
+
+  it('recolours another screen when Light is chosen on a dark phone', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings' });
+    const versionNote = () => screen.getByText(new RegExp(en['settings.version'].split('{{')[0]!));
+    expect(versionNote()).toHaveStyle({ color: tokens.dark.textFaint });
+    act(() => router.navigate('/settings/appearance'));
+    fireEvent.press(screen.getByRole('radio', { name: en['appearance.light'] }));
+    act(() => router.navigate('/settings'));
+    expect(versionNote()).toHaveStyle({ color: tokens.light.textFaint });
   });
 
   it('shows the choice on the Settings row', () => {

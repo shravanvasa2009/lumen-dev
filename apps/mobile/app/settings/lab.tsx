@@ -13,21 +13,22 @@ import { LumenCapture } from '../../modules/lumen-capture/src';
 export default function LabScreen() {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
+  const devBadge = (
+    <View
+      style={{
+        backgroundColor: colors.surface3,
+        borderRadius: radius.pill,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+      }}
+    >
+      <AppText variant="caption" tone="textDim" style={{ fontWeight: '600' }}>
+        {t('lab.badge')}
+      </AppText>
+    </View>
+  );
   return (
-    <RouteShell title={t('lab.title')}>
-      <View
-        style={{
-          alignSelf: 'flex-start',
-          backgroundColor: colors.surface3,
-          borderRadius: radius.pill,
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.xs,
-        }}
-      >
-        <AppText variant="caption" tone="textDim" style={{ fontWeight: '600' }}>
-          {t('lab.badge')}
-        </AppText>
-      </View>
+    <RouteShell title={t('lab.title')} trailing={devBadge}>
       {/* The capture sender exists only in development builds (PRIV-1, ADR 0026). */}
       {__DEV__ ? <LabPanel capture={LumenCapture} /> : null}
       <SectionLabel>{t('lab.sqi')}</SectionLabel>

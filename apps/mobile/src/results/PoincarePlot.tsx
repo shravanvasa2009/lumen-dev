@@ -23,21 +23,14 @@ export function PoincarePlot({ intervalsMs, axis, color, label }: PoincarePlotPr
   const flip = (coordinate: number) => size - coordinate;
   return (
     <Svg viewBox={`0 0 ${size} ${size}`} width="100%" style={{ aspectRatio: 1 }} accessibilityLabel={label}>
-      <Rect
-        x={0.5}
-        y={0.5}
-        width={size - 1}
-        height={size - 1}
-        rx={radius.card / 2}
-        fill={colors.surface2}
-        stroke={colors.line}
-      />
+      <Rect x={0.5} y={0.5} width={size - 1} height={size - 1} rx={radius.card / 2} fill={colors.plotPanel} />
       <Line
         x1={scale(lowMs)}
         y1={flip(scale(lowMs))}
         x2={scale(highMs)}
         y2={flip(scale(highMs))}
-        stroke={colors.line2}
+        stroke={colors.onPlot}
+        strokeOpacity={0.4}
         strokeWidth={1}
         strokeDasharray="4 4"
       />

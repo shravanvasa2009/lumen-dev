@@ -46,6 +46,8 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
   }[rhythm.class];
   const axis = intervalAxis(reading.intervalsMs);
   const seriesColor = rhythm.flag ? colors.flag : colors.accent;
+  // The accent text colour fails contrast on the dark plot panel; the fill teal passes (tokens.json).
+  const plotColor = rhythm.flag ? colors.flag : colors.accentFill;
   const words = rhythmWords(t, rhythm);
   const chipColors = rhythm.flag
     ? { fill: colors.badgeFlagBg, text: colors.badgeFlagFg }
@@ -75,7 +77,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
             <PoincarePlot
               intervalsMs={reading.intervalsMs}
               axis={axis}
-              color={seriesColor}
+              color={plotColor}
               label={t('why.yours')}
             />
             <AppText tone="textDim" style={{ textAlign: 'center' }}>
@@ -86,7 +88,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
             <PoincarePlot
               intervalsMs={regularIntervalsMs}
               axis={axis}
-              color={colors.accent}
+              color={colors.accentFill}
               label={t('why.typical')}
             />
             <AppText tone="textDim" style={{ textAlign: 'center' }}>

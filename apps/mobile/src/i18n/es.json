@@ -437,7 +437,7 @@
   "appearance.light": "Claro",
   "appearance.dark": "Oscuro",
   "appearance.following": "Siguiendo tu teléfono",
-  "appearance.followingBody": "Por ahora, toda la app sigue la configuración clara u oscura de tu teléfono. Tu elección aquí solo cambia estas vistas previas y se aplicará a la app en una actualización posterior.",
+  "appearance.followingBody": "Lumen cambia entre claro y oscuro según la configuración de tu teléfono. Elige Claro u Oscuro para mantener un solo aspecto.",
   "appearance.note": "El PDF para el médico siempre es claro, y la pantalla de emergencia conserva sus colores rojos en ambos modos.",
   "widgets.title": "Widgets",
   "widgets.iphoneHome": "iPhone · Pantalla de inicio",

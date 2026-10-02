@@ -4,7 +4,8 @@ import { butPpgDir, readButPpg, type ButPpgRecord } from './butppg';
 
 // DSP-D on real fingertip recordings (owner decision H-021, option A): extra detections kept < 5% of
 // beats and real beats removed ≤ 1%. Protocol and subject split from ADR 0025 ("Rule (e) rework on BUT
-// PPG"): DSP-9 was tuned on the tuning half, so only the report half is asserted.
+// PPG"): DSP-9 was tuned on the tuning half, so only the report half is asserted. Subjects 100–111 (the
+// older file layout) were never in that split; they are printed, not asserted, pending owner H-038.
 const TUNING_SUBJECTS = new Set(
   '113 114 117 118 119 121 126 127 128 129 135 137 138 141 142 143 144 145 146'.split(' '),
 );
@@ -79,7 +80,8 @@ function mapQrs(qrsS: number[], peaksS: number[], seconds: number): number[] {
   return qrsS.map((qrs) => qrs * best.scale + best.lagS);
 }
 
-function countRecord(record: ButPpgRecord, counts: Counts) {
+function countRecord(record: ButPpgRecord): Counts {
+  const counts = emptyCounts();
   const seconds = record.red.length / record.rateHz;
   const inside = (tS: number) => tS >= EDGE_S && tS <= seconds - EDGE_S;
   const { beats } = analyseRecord(record);
@@ -120,6 +122,11 @@ function countRecord(record: ButPpgRecord, counts: Counts) {
     if (kept) counts.extrasKept++;
   }
   counts.netExtrasKept += Math.max(0, keptInside - referenceS.filter(inside).length);
+  return counts;
+}
+
+function addCounts(into: Counts, from: Counts) {
+  for (const key of Object.keys(from) as (keyof Counts)[]) into[key] += from[key];
 }
 
 const percent = (part: number, whole: number) => `${((100 * part) / whole).toFixed(2)}%`;
@@ -147,9 +154,14 @@ describe('DSP-D on BUT PPG 2.0.0 (quality 1, no motion; ADR 0025 report half ass
     for (const record of records) {
       if (REPORT_SUBJECTS.has(record.subject)) {
         reportSubjectsRead.add(record.subject);
-        countRecord(record, groups.report);
-        countRecord(record, record.site === 1 ? groups.reportFinger : groups.reportEar);
-      } else countRecord(record, TUNING_SUBJECTS.has(record.subject) ? groups.tuning : groups.outsideSplit);
+        const counts = countRecord(record);
+        addCounts(groups.report, counts);
+        addCounts(record.site === 1 ? groups.reportFinger : groups.reportEar, counts);
+      } else
+        addCounts(
+          TUNING_SUBJECTS.has(record.subject) ? groups.tuning : groups.outsideSplit,
+          countRecord(record),
+        );
     }
     console.info(
       [

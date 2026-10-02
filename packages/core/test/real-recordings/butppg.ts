@@ -143,7 +143,7 @@ function readQrsS(dir: string, id: string): number[] {
   return readMitAnnotationSamples(join(dir, id, `${id}.qrs`)).map((sample) => sample / ecgRateHz);
 }
 
-/** Every BUT PPG record listed in quality-hr-ann.csv that passes `keep`, with its signals read. */
+// Every BUT PPG record listed in quality-hr-ann.csv that passes `keep`, with its signals read.
 export function readButPpg(
   dir: string,
   keep: (labels: Omit<ButPpgRecord, 'rateHz' | 'red' | 'qrsS'>) => boolean,

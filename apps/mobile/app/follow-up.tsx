@@ -46,6 +46,7 @@ export default function FollowUpScreen() {
           <NavButton label={t('followUp.saw')} href="/" replace />
           <NavButton label={t('followUp.booked')} href="/" variant="secondary" replace />
           <NavButton label={t('followUp.notYet')} href="/" variant="secondary" replace />
+          <NavButton label={t('careMap.enter')} href="/care-map" variant="secondary" />
           <Card>
             <AppText variant="headline">{t('followUp.whatToAsk')}</AppText>
             <AppText tone="textDim">{t('followUp.whatToAskBody')}</AppText>

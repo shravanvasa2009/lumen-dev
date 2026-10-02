@@ -1,19 +1,13 @@
 import type { AnalysisProgress } from './analysisProgress';
-import type { MeasureMode } from './mode';
 
-export type ReadingParams = {
-  mode: MeasureMode;
-  restDone: string | undefined;
-  context: string | undefined;
-};
-
-export type ReadingAnalysis =
-  // analyzeReading and the ML runtime are not in the app yet (ADR 0041, ADR 0050), so nothing can be analysed.
+export type AnalysisState =
   | { phase: 'unavailable' }
   | { phase: 'running'; progress: AnalysisProgress }
   | { phase: 'done'; progress: AnalysisProgress; readingId: string };
 
-// Will run analyzeReading and the rhythm model on the finished capture and report each step as it ends.
-export function useReadingAnalysis(_params: ReadingParams): ReadingAnalysis {
+// The place where the Processing screen gets its steps. analyzeReading and the ML runtime (ADR 0041,
+// ADR 0050) are not on main, so nothing can be analysed and this always reports unavailable rather than
+// inventing progress. Once they land, it runs them here and reports each step as it ends.
+export function useReadingAnalysis(): AnalysisState {
   return { phase: 'unavailable' };
 }

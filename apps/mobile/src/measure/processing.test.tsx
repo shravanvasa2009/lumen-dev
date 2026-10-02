@@ -3,14 +3,14 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import en from '@/i18n/en.json';
 
 import { type AnalysisProgress, completedPercent, pendingProgress } from './analysisProgress';
-import type { ReadingAnalysis } from './useReadingAnalysis';
+import type { AnalysisState } from './useReadingAnalysis';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'dark',
 }));
 
-let mockAnalysis: ReadingAnalysis;
+let mockAnalysis: AnalysisState;
 jest.mock('./useReadingAnalysis', () => ({ useReadingAnalysis: () => mockAnalysis }));
 
 const midway: AnalysisProgress = {
@@ -22,7 +22,7 @@ const midway: AnalysisProgress = {
 describe('useReadingAnalysis', () => {
   it('reports unavailable until analyzeReading is in the app', () => {
     const actual = jest.requireActual<typeof import('./useReadingAnalysis')>('./useReadingAnalysis');
-    expect(actual.useReadingAnalysis({ mode: 'quick', restDone: undefined, context: undefined })).toEqual({
+    expect(actual.useReadingAnalysis()).toEqual({
       phase: 'unavailable',
     });
   });
@@ -57,9 +57,9 @@ describe('processing screen', () => {
     expect(screen.getByText(en['processing.onPhone'])).toBeOnTheScreen();
   });
 
-  it('opens the sample results from See results', () => {
+  it('opens the sample result from See a sample result', () => {
     renderRouter('./app', { initialUrl: '/measure/processing' });
-    fireEvent.press(screen.getByRole('button', { name: en['processing.seeResults'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['processing.seeSample'] }));
     expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
   });
 

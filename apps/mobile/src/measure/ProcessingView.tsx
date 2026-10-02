@@ -12,7 +12,7 @@ import { useTheme } from '@/theme';
 
 import { type AnalysisProgress, completedPercent, pendingProgress, STEP_ORDER } from './analysisProgress';
 import { StepRow } from './StepRow';
-import type { ReadingAnalysis } from './useReadingAnalysis';
+import type { AnalysisState } from './useReadingAnalysis';
 
 const RING_SIZE = 120;
 const RING_STROKE = 9;
@@ -21,7 +21,7 @@ const NO_VALUE = '—';
 // Only the demo reading has an id the app can show without an analysis (ADR 0046).
 const SAMPLE_RESULTS = '/results/demo';
 
-export function ProcessingView({ analysis }: { analysis: ReadingAnalysis }) {
+export function ProcessingView({ analysis }: { analysis: AnalysisState }) {
   const { t } = useTranslation();
   const router = useRouter();
   const { spacing } = useTheme();
@@ -52,7 +52,7 @@ export function ProcessingView({ analysis }: { analysis: ReadingAnalysis }) {
         <>
           {unavailable ? (
             <>
-              <NavButton label={t('processing.seeResults')} href={SAMPLE_RESULTS} replace />
+              <NavButton label={t('processing.seeSample')} href={SAMPLE_RESULTS} replace />
               <Button label={t('processing.backHome')} variant="link" onPress={() => router.replace('/')} />
             </>
           ) : null}

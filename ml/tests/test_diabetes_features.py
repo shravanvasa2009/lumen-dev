@@ -18,7 +18,6 @@ from train import diabetes_features, vitaldb_pleth
 from train.diabetes import TABLE_COLUMNS, load_feature_table
 from train.diabetes_features import (
     ABSTAINED,
-    NO_READING,
     NO_RHYTHM_CARD,
     coverage,
     extract_case_features,
@@ -108,9 +107,9 @@ def test_noise_without_a_pulse_gives_no_averaged_beat():
     noise = np.round(400 + 30 * rng.standard_normal(SEGMENT_S * PLETH_RATE_HZ)).astype(np.int16)
     row, pulse_shape = segment_features(bands_of(noise), SINUS)
     assert pulse_shape is None
-    # On this noise DSP-7 refines two peaks into reversed order; the app's rhythmWindows throws on the
-    # negative interval, so there is no reading.
-    assert row["rhythm"] == NO_READING
+    # The noise reaches the rhythm step (DSP-7 keeps peaks in time order, ADR 0068) without enough
+    # usable intervals for a rhythm card.
+    assert row["rhythm"] == NO_RHYTHM_CARD
 
 
 def test_the_rhythm_model_is_the_shipped_one_from_its_trained_files(tmp_path):

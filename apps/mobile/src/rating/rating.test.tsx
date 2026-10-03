@@ -185,7 +185,6 @@ describe('the rating from the probe and practice', () => {
     // exactly 30.0 s analyses to just under 30 clean seconds, so the practice runs a little past its target.
     keepCapture(steadyPulse('main', 31));
     renderRouter('./app', { initialUrl: '/rating' });
-    jest.mocked(resyncNotifications).mockClear();
 
     expect(await screen.findByText(en['tier.full'])).toBeOnTheScreen();
     const stored = await loadDeviceRating();

@@ -9,6 +9,7 @@ import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { FingerPreview, ProgressRing } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
+import { StillMotion } from '@/theme/motion';
 
 import { TipsSheet } from './TipsSheet';
 import { LiveWaveform } from './LiveWaveform';
@@ -46,137 +47,139 @@ export function CaptureView({ mode, live, onCancel, onStop }: CaptureViewProps) 
       : `${t('capture.cameraOn', { seconds: Math.floor(live.elapsedS) })} ${t('capture.waiting')}.`);
 
   return (
-    <Screen headerless footer={<Button variant="secondary" label={t('capture.stop')} onPress={onStop} />}>
-      <ScrollView contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.xxxl }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.cancel')}
-            onPress={onCancel}
-            style={{ minWidth: control.minTarget, minHeight: control.minTarget, justifyContent: 'center' }}
-          >
-            <Icon name="close" size={24} color={colors.textDim} />
-          </Pressable>
-          <AppText variant="title" accessibilityRole="header" style={{ flex: 1 }}>
-            {mode === 'quick' ? t('mode.quick') : t('mode.full')}
-          </AppText>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.tips')}
-            onPress={() => setTipsOpen(true)}
-            style={{
-              minWidth: control.minTarget,
-              minHeight: control.minTarget,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <AppText variant="headline" tone="textDim">
-              ?
+    <StillMotion.Provider value>
+      <Screen headerless footer={<Button variant="secondary" label={t('capture.stop')} onPress={onStop} />}>
+        <ScrollView contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.xxxl }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('capture.cancel')}
+              onPress={onCancel}
+              style={{ minWidth: control.minTarget, minHeight: control.minTarget, justifyContent: 'center' }}
+            >
+              <Icon name="close" size={24} color={colors.textDim} />
+            </Pressable>
+            <AppText variant="title" accessibilityRole="header" style={{ flex: 1 }}>
+              {mode === 'quick' ? t('mode.quick') : t('mode.full')}
             </AppText>
-          </Pressable>
-        </View>
-        <TipsSheet visible={tipsOpen} onDismiss={() => setTipsOpen(false)} />
-
-        <View style={{ alignItems: 'center', gap: spacing.md }}>
-          {live.status ? (
-            <View
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('capture.tips')}
+              onPress={() => setTipsOpen(true)}
               style={{
-                paddingHorizontal: spacing.lg,
-                paddingVertical: spacing.xs,
-                borderRadius: radius.pill,
-                backgroundColor: fingerOn ? colors.badgeCheckedBg : colors.surface3,
+                minWidth: control.minTarget,
+                minHeight: control.minTarget,
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <AppText
-                variant="caption"
-                style={{ fontWeight: '600', color: fingerOn ? colors.badgeCheckedFg : colors.text }}
+              <AppText variant="headline" tone="textDim">
+                ?
+              </AppText>
+            </Pressable>
+          </View>
+          <TipsSheet visible={tipsOpen} onDismiss={() => setTipsOpen(false)} />
+
+          <View style={{ alignItems: 'center', gap: spacing.md }}>
+            {live.status ? (
+              <View
+                style={{
+                  paddingHorizontal: spacing.lg,
+                  paddingVertical: spacing.xs,
+                  borderRadius: radius.pill,
+                  backgroundColor: fingerOn ? colors.badgeCheckedBg : colors.surface3,
+                }}
               >
-                {fingerOn ? t('capture.fingerDetected') : t('capture.fingerMissing')}
+                <AppText
+                  variant="caption"
+                  style={{ fontWeight: '600', color: fingerOn ? colors.badgeCheckedFg : colors.text }}
+                >
+                  {fingerOn ? t('capture.fingerDetected') : t('capture.fingerMissing')}
+                </AppText>
+              </View>
+            ) : null}
+            <FingerPreview detected={fingerOn} />
+            {fingerOn ? null : (
+              <AppText tone="textDim" style={{ textAlign: 'center' }}>
+                {t('placement.flashOutsideBump')}
+              </AppText>
+            )}
+          </View>
+
+          {coaching ? (
+            <View
+              accessible
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.md,
+                padding: spacing.lg,
+                borderRadius: radius.card,
+                backgroundColor: colors.flagBg,
+              }}
+            >
+              <Icon name="warning" size={22} color={colors.flag} />
+              <AppText variant="headline" style={{ flex: 1, color: colors.flag }}>
+                {coachingText(t)[coaching]}
               </AppText>
             </View>
-          ) : null}
-          <FingerPreview detected={fingerOn} />
-          {fingerOn ? null : (
-            <AppText tone="textDim" style={{ textAlign: 'center' }}>
-              {t('placement.flashOutsideBump')}
+          ) : counting ? (
+            <AppText variant="headline" tone="accent" style={{ textAlign: 'center' }}>
+              {t('capture.good')}
             </AppText>
-          )}
-        </View>
+          ) : null}
 
-        {coaching ? (
           <View
             accessible
-            accessibilityRole="alert"
-            accessibilityLiveRegion="polite"
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.md,
-              padding: spacing.lg,
-              borderRadius: radius.card,
-              backgroundColor: colors.flagBg,
-            }}
+            accessibilityLabel={`${done ?? NO_VALUE} ${t('capture.cleanOf', { total })}`}
+            style={{ alignItems: 'center', justifyContent: 'center', alignSelf: 'center' }}
           >
-            <Icon name="warning" size={22} color={colors.flag} />
-            <AppText variant="headline" style={{ flex: 1, color: colors.flag }}>
-              {coachingText(t)[coaching]}
-            </AppText>
+            <ProgressRing
+              fraction={done === null ? 0 : done / total}
+              size={RING_SIZE}
+              strokeWidth={RING_STROKE}
+              paused={paused}
+            />
+            <View style={{ position: 'absolute', alignItems: 'center' }}>
+              <AppText variant="display">{done ?? NO_VALUE}</AppText>
+              <AppText variant="caption" tone="textDim">
+                {paused ? t('capture.pausedOf', { total }) : t('capture.cleanOf', { total })}
+              </AppText>
+            </View>
           </View>
-        ) : counting ? (
-          <AppText variant="headline" tone="accent" style={{ textAlign: 'center' }}>
-            {t('capture.good')}
+          <AppText tone="textDim" style={{ textAlign: 'center' }}>
+            {caption}
           </AppText>
-        ) : null}
 
-        <View
-          accessible
-          accessibilityLabel={`${done ?? NO_VALUE} ${t('capture.cleanOf', { total })}`}
-          style={{ alignItems: 'center', justifyContent: 'center', alignSelf: 'center' }}
-        >
-          <ProgressRing
-            fraction={done === null ? 0 : done / total}
-            size={RING_SIZE}
-            strokeWidth={RING_STROKE}
-            paused={paused}
-          />
-          <View style={{ position: 'absolute', alignItems: 'center' }}>
-            <AppText variant="display">{done ?? NO_VALUE}</AppText>
-            <AppText variant="caption" tone="textDim">
-              {paused ? t('capture.pausedOf', { total }) : t('capture.cleanOf', { total })}
-            </AppText>
-          </View>
-        </View>
-        <AppText tone="textDim" style={{ textAlign: 'center' }}>
-          {caption}
-        </AppText>
+          <Card>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <AppText tone="textDim">{t('capture.pulse')}</AppText>
+              <AppText tone="textDim">{t('capture.last6s')}</AppText>
+            </View>
+            <LiveWaveform red={live.recentRed} />
+            {running ? null : (
+              <AppText variant="caption" tone="textDim">
+                {t('capture.noWaveform')}
+              </AppText>
+            )}
+          </Card>
 
-        <Card>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <AppText tone="textDim">{t('capture.pulse')}</AppText>
-            <AppText tone="textDim">{t('capture.last6s')}</AppText>
-          </View>
-          <LiveWaveform red={live.recentRed} />
-          {running ? null : (
-            <AppText variant="caption" tone="textDim">
-              {t('capture.noWaveform')}
-            </AppText>
-          )}
-        </Card>
-
-        {live.status ? (
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl }}>
-            <CheckLabel label={t('capture.finger')} passing={fingerOn} />
-            {counting ? (
-              <>
-                <CheckLabel label={t('capture.still')} passing={coaching !== 'coach.still'} />
-                <CheckLabel label={t('capture.pressure')} passing={coaching !== 'coach.lighter'} />
-              </>
-            ) : null}
-          </View>
-        ) : null}
-      </ScrollView>
-    </Screen>
+          {live.status ? (
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl }}>
+              <CheckLabel label={t('capture.finger')} passing={fingerOn} />
+              {counting ? (
+                <>
+                  <CheckLabel label={t('capture.still')} passing={coaching !== 'coach.still'} />
+                  <CheckLabel label={t('capture.pressure')} passing={coaching !== 'coach.lighter'} />
+                </>
+              ) : null}
+            </View>
+          ) : null}
+        </ScrollView>
+      </Screen>
+    </StillMotion.Provider>
   );
 }
 

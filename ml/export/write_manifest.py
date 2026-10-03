@@ -39,6 +39,7 @@ from export.specs import (
 from export.to_onnx import source_model
 from eval.external_gate import RESULTS_FILE, read_results
 from eval.external_stats import MAX_GAP_PTS, MIN_CLEAN_WINDOWS_PER_GROUP
+from train.sqi import HR_TOLERANCE_BPM
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
 # Pass or fail facts eval.external writes next to the numbers (§11.5, ML-1, ML-4, ML-6). The role and the
@@ -51,7 +52,7 @@ LEVEL_UNITS = {
 }
 # Where the spec states each family's "ship the network only if it beats the baselines" rule.
 SHIP_RULE_SECTION = {"sqi": "§11.1", "rhythm": "§11.3", "diabetes": "§11.4"}
-ACCEPTANCE_HEADING = "Acceptance evidence (development data, not the external test)"
+ACCEPTANCE_HEADING = "Acceptance evidence (development data and parity checks, not the external test)"
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
 NOT_CALIBRATED = "Not measured: the training run recorded no calibration for this model version."
 # §11.10: when the rhythm model fails to load, the app runs this rule in code (@lumen/core) as "basic
@@ -366,13 +367,14 @@ def _approved_status(spec: ModelSpec, approval: str, metrics: dict) -> str:
         facts.append("the ML-2 proxy was not measured, so ML-2 is not shown to be met")
     elif ml2["estimate"] < ML2_TARGET:
         facts.append(
-            f"the ML-2 proxy (accepted windows with spectral HR within 5 bpm) is {_ci(ml2)}, below the "
-            f"{ML2_TARGET:.0%} floor, so ML-2 is not met"
+            f"the ML-2 proxy (accepted windows with spectral HR within {HR_TOLERANCE_BPM:g} bpm) is "
+            f"{_ci(ml2)}, below the {ML2_TARGET:.0%} floor, so ML-2 is not met"
         )
     else:
         facts.append(
-            f"the ML-2 proxy (accepted windows with spectral HR within 5 bpm) is {_ci(ml2)}, at or "
-            f"above the {ML2_TARGET:.0%} floor on the dev-val subjects τ was chosen on, so it is optimistic"
+            f"the ML-2 proxy (accepted windows with spectral HR within {HR_TOLERANCE_BPM:g} bpm) is "
+            f"{_ci(ml2)}, at or above the {ML2_TARGET:.0%} floor on the dev-val subjects τ was chosen on, so "
+            "it is optimistic"
         )
     return "; ".join(facts)
 
@@ -661,18 +663,19 @@ def _parity_line(spec: ModelSpec, parity: dict | None) -> str:
         return "- ML-3 (Python check): not measured; models/parity.json has no entry for this file."
     diff = parity["maxAbsDiff"]
     shown = f"{diff:.3e}" if isinstance(diff, float | int) else diff
-    verdict = "not met" if entry_problems(spec.name, parity) else "met"
+    # Only the Python half of ML-3: the app and Node runtimes are checked against parity-vectors.json.
+    verdict = "Python half not met" if entry_problems(spec.name, parity) else "Python half met"
     return (
-        f"- ML-3 (Python check, onnxruntime against the source model): max abs diff {shown} over "
-        f"{parity['nInputs']} inputs, tolerance {TOLERANCE:g}: {verdict}. The app and Node runtimes are not "
-        "covered by this line."
+        "- ML-3 (Python check, onnxruntime against the source model, on seeded synthetic inputs): max abs "
+        f"diff {shown} over {parity['nInputs']} inputs, tolerance {TOLERANCE:g}: {verdict}. The app and Node "
+        "runtimes are not covered by this line."
     )
 
 
 def _ml2_line(measured: dict) -> str:
     label = (
-        "- ML-2 (development proxy: share of accepted windows whose spectral-peak HR is within 5 bpm of the "
-        "ECG reference, on held-out BUT PPG dev-val subjects)"
+        "- ML-2 (development proxy: share of accepted windows whose spectral-peak HR is within "
+        f"{HR_TOLERANCE_BPM:g} bpm of the ECG reference, on held-out BUT PPG dev-val subjects)"
     )
     share = measured.get("ml2HrWithin5BpmOfAccepted")
     if share is None:
@@ -688,7 +691,8 @@ def _ml4_line(metrics: dict) -> str:
     sizes = {
         row["kind"]: row["windows"] for row in metrics.get("windowCounts", []) if row.get("set") == "retimed"
     }
-    af, sinus = sizes.get("retimed-af"), sizes.get("retimed-sinus")
+    # A run that recorded re-timed counts but no row for one group had no windows in it.
+    af, sinus = (sizes.get(kind, 0) if sizes else None for kind in ("retimed-af", "retimed-sinus"))
     counted = "" if af is None or sinus is None else f", {af} AF and {sinus} sinus windows"
     label = (
         "- ML-4 (development proxy, ADR 0028: acceptance of re-timed BUT PPG sinus minus re-timed AF "

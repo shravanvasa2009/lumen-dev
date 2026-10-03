@@ -191,8 +191,9 @@ export const DSP_CONFIG = {
       // few thousandths over 150; a rate must clear fastBpm by this much (27 µs on a 400 ms interval).
       fastMarginBpm: 0.01,
       sustainS: 60, // clean seconds, bridged breaks not counted
-      // Rolling HR = 120 / the median two-beat span (two adjacent intervals) over the last this-many clean
-      // seconds: DSP-11's reporting floor, the shortest stretch Lumen reports an HR from.
+      // Rolling HR = 60 × beats / the summed intervals over the last this-many clean seconds, a DSP-9 long
+      // pause counted as the beats it spans (ADR 0076): DSP-11's reporting floor, the shortest stretch
+      // Lumen reports an HR from.
       windowS: 15,
       // A run's first window judges the HR only with this many clean seconds.
       windowMinCleanS: 10,
@@ -201,6 +202,9 @@ export const DSP_CONFIG = {
       // upstroke of the first beat after it (< 0.2 s).
       maxBreakS: 6,
       slowBpm: 40, // the reading's DSP-11 HR strictly below this; the app adds symptoms
+      // The same µs of beat-time error as fastMarginBpm (red team v2 N4: a true 40.000 bpm measures
+      // 39.9999999999995). 27 µs on a 1500 ms interval is 0.0007 bpm; 39.99 bpm stays urgent.
+      slowMarginBpm: 0.005,
     },
   },
   // §7 confidence (ADR 0041; initial values, not given by the spec): the lowest of clean coverage, the

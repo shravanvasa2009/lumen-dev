@@ -11,15 +11,22 @@ private const val HOUR_MS = 3_600_000L
 data class Palette(
     val surface: Long,
     val line: Long,
+    val line2: Long,
     val text: Long,
     val textDim: Long,
+    val accent: Long,
     val accentFill: Long,
     val onAccentFill: Long,
+    val flag: Long,
+    val criticalText: Long,
 )
 
 // What a widget draws. Every string comes from the JS display payload; null parts are left out.
 data class WidgetView(
     val name: String,
+    // The Appendix B status ("regular", "check-again", "see-doctor", "inconclusive"); null before the first
+    // reading, when the widget shows the empty state.
+    val statusKey: String?,
     val status: String?,
     val lastCheck: String?,
     val bpm: String?,
@@ -27,6 +34,8 @@ data class WidgetView(
     val streak: String?,
     val checkNow: String,
     val fullScan: String,
+    val emptyTitle: String,
+    val emptyBody: String,
     val theme: String,
     val light: Palette,
     val dark: Palette,
@@ -50,10 +59,14 @@ private fun paletteOf(json: JSONObject) =
     Palette(
         surface = parseColor(json.getString("surface")),
         line = parseColor(json.getString("line")),
+        line2 = parseColor(json.getString("line2")),
         text = parseColor(json.getString("text")),
         textDim = parseColor(json.getString("textDim")),
+        accent = parseColor(json.getString("accent")),
         accentFill = parseColor(json.getString("accentFill")),
         onAccentFill = parseColor(json.getString("onAccentFill")),
+        flag = parseColor(json.getString("flag")),
+        criticalText = parseColor(json.getString("criticalText")),
     )
 
 // org.json's optString turns a JSON null into the text "null", so nulls are checked first.
@@ -62,7 +75,11 @@ private fun JSONObject.stringOrNull(key: String): String? = if (isNull(key)) nul
 // Throws on a malformed payload, so publishSnapshot rejects instead of storing something the widget can't draw.
 fun widgetView(snapshotJson: String, displayJson: String, nowMs: Long): WidgetView {
     val snapshot = JSONObject(snapshotJson)
+    // Appendix B version 1 is the only layout this reader knows, as on iOS.
+    val version = snapshot.getInt("v")
+    require(version == 1) { "Unknown widget snapshot version: $version" }
     val display = JSONObject(displayJson)
+    val empty = display.getJSONObject("empty")
     val status = snapshot.stringOrNull("status")
     val lastReadingAt = snapshot.stringOrNull("lastReadingAt")
     // The snapshot already drops hrBpm when values are hidden; checking hideValues too keeps a stale or
@@ -72,6 +89,7 @@ fun widgetView(snapshotJson: String, displayJson: String, nowMs: Long): WidgetVi
     val palettes = display.getJSONObject("palette")
     return WidgetView(
         name = display.getString("name"),
+        statusKey = status,
         status = status?.let { display.getJSONObject("status").getString(it) },
         lastCheck =
             lastReadingAt?.let {
@@ -83,6 +101,8 @@ fun widgetView(snapshotJson: String, displayJson: String, nowMs: Long): WidgetVi
         streak = if (streakDays > 0) display.getString("streak").replace("{{days}}", streakDays.toString()) else null,
         checkNow = display.getString("checkNow"),
         fullScan = display.getString("fullScan"),
+        emptyTitle = empty.getString("title"),
+        emptyBody = empty.getString("body"),
         theme = snapshot.getString("theme"),
         light = paletteOf(palettes.getJSONObject("light")),
         dark = paletteOf(palettes.getJSONObject("dark")),

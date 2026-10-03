@@ -15,14 +15,27 @@ type WidgetPreferences = { appearance: Appearance; hideWidgetValues: boolean };
 
 type Palette = Record<(typeof PALETTE_KEYS)[number], string>;
 
-// The token colors the native widgets draw with, so tokens.json stays their only source.
-const PALETTE_KEYS = ['surface', 'line', 'text', 'textDim', 'accentFill', 'onAccentFill'] as const;
+// The token colors the native widgets draw with, so tokens.json stays their only source. accent tints the mark
+// and the up-to-date dot; flag and criticalText color the check-again and see-doctor dots.
+export const PALETTE_KEYS = [
+  'surface',
+  'line',
+  'line2',
+  'text',
+  'textDim',
+  'accent',
+  'accentFill',
+  'onAccentFill',
+  'flag',
+  'criticalText',
+] as const;
 
 function paletteOf(colors: typeof tokens.light): Palette {
   return Object.fromEntries(PALETTE_KEYS.map((key) => [key, colors[key]])) as Palette;
 }
 
-// The widgets' copy, in the app's language. Kotlin holds no strings, so this is all a widget can show.
+// The widgets' copy, in the app's language. Kotlin keeps only a fallback copy of the empty state (in the
+// phone's language, for a widget placed before the app first publishes), so this is what a widget shows.
 // "Last check" and the streak stay templates: the widget fills in the hours when it draws, and those
 // drift between publishes. i18next does not re-interpolate a value, so "{{hours}}" survives t().
 function widgetDisplay(language: string) {
@@ -45,6 +58,7 @@ function widgetDisplay(language: string) {
     streak: t('widgets.streak', { days: '{{days}}' }),
     checkNow: t('widgets.checkNow'),
     fullScan: t('mode.full'),
+    empty: { title: lock['widget.empty.title'], body: lock['widget.empty.body'] },
     palette: { light: paletteOf(tokens.light), dark: paletteOf(tokens.dark) },
   };
 }

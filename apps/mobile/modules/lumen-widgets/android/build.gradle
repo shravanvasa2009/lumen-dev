@@ -28,6 +28,13 @@ android {
   lintOptions {
     abortOnError false
   }
+  // The widget tests read the module's fallback colors and strings, which Robolectric loads only with this.
+  // https://developer.android.com/training/testing/local-tests/robolectric
+  testOptions {
+    unitTests {
+      includeAndroidResources = true
+    }
+  }
 }
 
 dependencies {

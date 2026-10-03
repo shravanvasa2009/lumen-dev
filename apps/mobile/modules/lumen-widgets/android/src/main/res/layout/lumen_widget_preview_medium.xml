@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The picker's preview of the medium widget: its empty state (mockup 32, LumenWidgets.kt MediumBody). The app's
-     name is left out because a library resource can't name the app's label; the mark identifies it. -->
+<!-- The picker's preview of the medium widget: the same sample reading as the in-app gallery and mockup 32 (64 bpm,
+     "Up to date · streak 5 days", Check now over Full Scan; LumenWidgets.kt MediumBody). The app's name comes from
+     lumen_widget_preview_name, which the config plugin sets to the app's name. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -13,29 +14,58 @@
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:orientation="vertical">
-        <include layout="@layout/lumen_widget_preview_mark" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <include layout="@layout/lumen_widget_preview_mark" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:maxLines="1"
+                android:text="@string/lumen_widget_preview_name"
+                android:textColor="@color/lumen_widget_preview_text_dim"
+                android:textSize="16sp" />
+        </LinearLayout>
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
-        <TextView
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:maxLines="2"
-            android:text="@string/lumen_widget_empty_title"
-            android:textColor="@color/lumen_widget_preview_text"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:orientation="horizontal">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="@string/lumen_widget_sample_bpm"
+                android:textColor="@color/lumen_widget_preview_text"
+                android:textSize="40sp"
+                android:textStyle="bold" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:layout_marginStart="6dp"
+                android:layout_marginBottom="7dp"
+                android:maxLines="1"
+                android:text="@string/lumen_widget_sample_bpm_unit"
+                android:textColor="@color/lumen_widget_preview_text"
+                android:textSize="16sp" />
+        </LinearLayout>
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:maxLines="1"
-            android:text="@string/lumen_widget_empty_body"
+            android:text="@string/lumen_widget_sample_status_streak"
             android:textColor="@color/lumen_widget_preview_text_dim"
             android:textSize="14sp" />
     </LinearLayout>
     <LinearLayout
-        android:layout_width="130dp"
+        android:layout_width="148dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
         android:orientation="vertical">

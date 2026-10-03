@@ -1,5 +1,6 @@
 import { requireOptionalNativeModule } from 'expo';
 import * as Location from 'expo-location';
+import { render } from '@testing-library/react-native';
 import { act, fireEvent, renderHook, renderRouter, screen, within } from 'expo-router/testing-library';
 import { Dimensions, Keyboard, Linking, Platform, StyleSheet } from 'react-native';
 
@@ -8,6 +9,7 @@ import es from '@/i18n/es.json';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import tokens from '@/theme/tokens.json';
 
+import { ClinicCard } from './ClinicCard';
 import { distanceMiles, findPlace, nearestClinics } from './clinics';
 import { SEARCH_THROTTLED_CODE } from './nearbyDoctors';
 
@@ -112,13 +114,23 @@ describe('bundled clinic list', () => {
     expect(findPlace('zzzzzz')).toBeNull();
   });
 
-  it('orders the nearest clinics by distance', () => {
+  it('lists the nearest 10 low-cost clinics first, then the nearest 10 regular ones, each by distance', () => {
     const nearby = nearestClinics(HOUSTON);
+    const lowCost = nearby.slice(0, 10);
+    const regular = nearby.slice(10);
     expect(nearby).toHaveLength(20);
-    expect(nearby.map((clinic) => clinic.miles)).toEqual(
-      [...nearby.map((clinic) => clinic.miles)].sort((a, b) => a - b),
-    );
-    expect(nearby[0]?.miles).toBeLessThan(5);
+    expect(lowCost.every((clinic) => clinic.kind === 'lowCost')).toBe(true);
+    expect(regular.every((clinic) => clinic.kind === 'regular')).toBe(true);
+    for (const group of [lowCost, regular]) {
+      const miles = group.map((clinic) => clinic.miles);
+      expect(miles).toEqual([...miles].sort((a, b) => a - b));
+      expect(miles[0]).toBeLessThan(5);
+    }
+  });
+
+  it('keeps the two kinds apart by id', () => {
+    const ids = nearestClinics(HOUSTON).map((clinic) => clinic.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
@@ -135,8 +147,10 @@ describe('Care map with location allowed', () => {
     await openCareMap();
     expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
     expect(screen.getByTestId('care-map-view')).toBeOnTheScreen();
-    expect(screen.getByText(en['careMap.legendClinic'])).toBeOnTheScreen();
-    expect(screen.getByText(en['careMap.legendYou'])).toBeOnTheScreen();
+    const legend = within(screen.getByTestId('care-map-legend'));
+    expect(legend.getByText(en['careMap.legendClinic'])).toBeOnTheScreen();
+    expect(legend.getByText(en['careMap.legendRegular'])).toBeOnTheScreen();
+    expect(legend.getByText(en['careMap.legendYou'])).toBeOnTheScreen();
     expect(screen.getByText(en['careMap.privacy'])).toBeOnTheScreen();
     expect(screen.getAllByRole('button', { name: en['careMap.call'] }).length).toBeGreaterThan(5);
   });
@@ -217,6 +231,35 @@ describe('Care map with location allowed', () => {
     expect(legend.queryByText(en['careMap.legendDoctor'])).toBeNull();
     await act(async () => fireEvent.press(screen.getByRole('button', { name: en['careMap.showDoctors'] })));
     expect(legend.getByText(en['careMap.legendDoctor'])).toBeOnTheScreen();
+  });
+
+  it('draws regular clinics with a different pin shape and color from low-cost ones', async () => {
+    await openCareMap();
+    const nearby = nearestClinics(HOUSTON);
+    const pinStyle = (id: string) => {
+      const pin = screen.getByTestId(`pin-clinic-${id}`);
+      return StyleSheet.flatten(within(pin).getAllByTestId(/^care-pin-/)[0]!.props.style);
+    };
+    const lowCost = pinStyle(nearby[0]!.id);
+    const regular = pinStyle(nearby[10]!.id);
+    expect(lowCost.borderRadius).toBe(15);
+    expect(regular.borderRadius).toBeLessThan(lowCost.borderRadius);
+    expect(regular.backgroundColor).not.toBe(lowCost.backgroundColor);
+  });
+
+  it('labels each clinic card with its kind', async () => {
+    await openCareMap();
+    const nearby = nearestClinics(HOUSTON);
+    expect(screen.getByTestId(`clinic-kind-${nearby[0]!.id}`)).toHaveTextContent(en['careMap.legendClinic']);
+    expect(screen.getByTestId(`clinic-kind-${nearby[10]!.id}`)).toHaveTextContent(
+      en['careMap.legendRegular'],
+    );
+  });
+
+  it('credits OpenStreetMap and opens its copyright page', async () => {
+    await openCareMap();
+    await act(async () => fireEvent.press(screen.getByRole('link', { name: en['careMap.sourceOsm'] })));
+    expect(Linking.openURL).toHaveBeenCalledWith('https://www.openstreetmap.org/copyright');
   });
 
   it('turns the map attribution on', async () => {
@@ -519,9 +562,37 @@ describe('Care map loading timeout', () => {
   });
 });
 
+describe('clinic card', () => {
+  // OpenStreetMap sites often lack a street, city or ZIP.
+  it('shows only the address parts a clinic has', () => {
+    const clinic = {
+      ...nearestClinics(HOUSTON)[10]!,
+      street: '',
+      city: '',
+      state: 'TX',
+      zip: '77002',
+      miles: 1.25,
+    };
+    render(
+      <ClinicCard
+        clinic={clinic}
+        selected={false}
+        callFailed={false}
+        directionsFailed={false}
+        onCall={jest.fn()}
+        onDirections={jest.fn()}
+      />,
+    );
+    expect(screen.getByText('TX 77002 · 1.3 mi')).toBeOnTheScreen();
+  });
+});
+
 describe('copy', () => {
-  it('has the legend in both languages', () => {
-    expect(en['careMap.legendClinic']).toBe('Free or low-cost clinic');
-    expect(es['careMap.legendClinic']).toBe('Clínica gratuita o de bajo costo');
+  // Owner request 2026-10-03: "Low-cost clinic" and "Clinic" (ADR 0078).
+  it('has both legend entries in both languages', () => {
+    expect(en['careMap.legendClinic']).toBe('Low-cost clinic');
+    expect(es['careMap.legendClinic']).toBe('Clínica de bajo costo');
+    expect(en['careMap.legendRegular']).toBe('Clinic');
+    expect(es['careMap.legendRegular']).toBe('Clínica');
   });
 });

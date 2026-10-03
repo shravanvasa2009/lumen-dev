@@ -15,10 +15,14 @@ const LOCK_CIRCLE_SIZE = 64;
 const PILL_MIN_HEIGHT = 32;
 const BUTTON_COLUMN_WIDTH = 132;
 // Android home-screen cells: 2x2 is about 110 dp and 4x2 about 250 x 110 dp (res/xml/lumen_widget_*.xml).
-const ANDROID_SMALL_WIDTH = 120;
+const ANDROID_SMALL_WIDTH = 110;
 const ANDROID_WIDGET_MIN_HEIGHT = 110;
+// Track F's Glance WidgetBody (modules/lumen-widgets/android/.../LumenWidgets.kt), in dp.
 const ANDROID_RADIUS = 20;
 const ANDROID_PADDING = 12;
+const ANDROID_PILL_PADDING_V = 8;
+const ANDROID_PILL_GAP = 8;
+const ANDROID_UNIT_GAP = 4;
 
 function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
   const { colors, radius, spacing } = useTheme();
@@ -143,7 +147,7 @@ function AndroidPill({ label, secondary }: { label: string; secondary?: boolean 
       style={{
         flex: 1,
         alignItems: 'center',
-        paddingVertical: 8,
+        paddingVertical: ANDROID_PILL_PADDING_V,
         borderRadius: ANDROID_RADIUS,
         backgroundColor: secondary ? colors.line : colors.accentFill,
       }}
@@ -183,7 +187,8 @@ export function AndroidSmallWidgetPreview({ name, status, lastCheck, checkNow }:
 }
 
 type AndroidMediumProps = AndroidSmallProps & {
-  reading: string;
+  // Null when values are hidden: like F's widget, the whole reading row is left out rather than shown as a dash.
+  reading: string | null;
   unit: string;
   streak: string;
   fullScan: string;
@@ -203,12 +208,14 @@ export function AndroidMediumWidgetPreview({
   return (
     <AndroidFrame>
       <AppText style={[styles.androidName, { color: colors.accentFill }]}>{name}</AppText>
-      <View style={styles.readingRow}>
-        <AppText style={styles.androidReading}>{reading}</AppText>
-        <AppText tone="textDim" style={[styles.androidUnit, { marginLeft: 4 }]}>
-          {unit}
-        </AppText>
-      </View>
+      {reading === null ? null : (
+        <View style={styles.readingRow}>
+          <AppText style={styles.androidReading}>{reading}</AppText>
+          <AppText tone="textDim" style={[styles.androidUnit, { marginLeft: ANDROID_UNIT_GAP }]}>
+            {unit}
+          </AppText>
+        </View>
+      )}
       <AppText style={styles.androidStatus}>{status}</AppText>
       <AppText tone="textDim" style={styles.androidDetail}>
         {lastCheck}
@@ -217,7 +224,7 @@ export function AndroidMediumWidgetPreview({
         {streak}
       </AppText>
       <View style={styles.androidPillSpace}>
-        <View style={[styles.androidPillRow, { gap: 8 }]}>
+        <View style={[styles.androidPillRow, { gap: ANDROID_PILL_GAP }]}>
           <AndroidPill label={checkNow} />
           <AndroidPill label={fullScan} secondary />
         </View>
@@ -276,7 +283,7 @@ const styles = StyleSheet.create({
   androidUnit: { fontSize: 14, lineHeight: 20 },
   androidStatus: { fontSize: 15, lineHeight: 20, fontWeight: '500' },
   androidDetail: { fontSize: 12, lineHeight: 16 },
-  androidPillSpace: { flexGrow: 1, justifyContent: 'flex-end', paddingTop: 8 },
+  androidPillSpace: { flexGrow: 1, justifyContent: 'flex-end', paddingTop: ANDROID_PILL_GAP },
   androidPillRow: { flexDirection: 'row' },
   dot: { width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2 },
   lockCircle: {

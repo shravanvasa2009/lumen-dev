@@ -471,6 +471,7 @@
   "widgets.android": "Android · Home screen",
   "widgets.lockScreenLink": "Lock-screen previews",
   "widgets.stepsTitle": "How to add",
+  "widgets.stepsTitleLock": "How to add it to the Lock Screen",
   "widgets.iphoneHomeStep1": "Touch and hold an empty spot on the Home Screen until the apps jiggle.",
   "widgets.iphoneHomeStep2": "Tap Edit in the top-left corner, then Add Widget. (On iOS 17, tap + instead.)",
   "widgets.iphoneHomeStep3": "Search for Lumen and tap it.",

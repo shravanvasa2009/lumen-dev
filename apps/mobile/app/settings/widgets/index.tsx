@@ -24,28 +24,6 @@ const SAMPLE_BPM = 64;
 const SAMPLE_STREAK_DAYS = 5;
 const SAMPLE_HOURS_AGO = 2;
 
-const IPHONE_HOME_STEPS = [
-  'widgets.iphoneHomeStep1',
-  'widgets.iphoneHomeStep2',
-  'widgets.iphoneHomeStep3',
-  'widgets.iphoneHomeStep4',
-  'widgets.iphoneHomeStep5',
-] as const;
-const IPHONE_LOCK_STEPS = [
-  'widgets.iphoneLockStep1',
-  'widgets.iphoneLockStep2',
-  'widgets.iphoneLockStep3',
-  'widgets.iphoneLockStep4',
-] as const;
-const ANDROID_STEPS = [
-  'widgets.androidStep1',
-  'widgets.androidStep2',
-  'widgets.androidStep3',
-  'widgets.androidStep4',
-] as const;
-
-type StepKey = (typeof IPHONE_HOME_STEPS | typeof IPHONE_LOCK_STEPS | typeof ANDROID_STEPS)[number];
-
 export default function WidgetsScreen() {
   const { t, i18n } = useTranslation();
   const { spacing } = useTheme();
@@ -57,10 +35,15 @@ export default function WidgetsScreen() {
   const reading = hideWidgetValues ? '—' : String(SAMPLE_BPM);
   const lastCheck = t('widgets.lastCheck', { hours: SAMPLE_HOURS_AGO });
   const streak = t('widgets.streak', { days: SAMPLE_STREAK_DAYS });
-  const stepTexts = (keys: readonly StepKey[]) => keys.map((key) => t(key));
   const stepsTitle = (
     <AppText variant="headline" accessibilityRole="header">
       {t('widgets.stepsTitle')}
+    </AppText>
+  );
+  // The Lock Screen list gets its own heading so a screen reader doesn't hear "How to add" twice.
+  const lockStepsTitle = (
+    <AppText variant="headline" accessibilityRole="header">
+      {t('widgets.stepsTitleLock')}
     </AppText>
   );
   const buttonsNote = (
@@ -84,7 +67,7 @@ export default function WidgetsScreen() {
         />
         <AndroidMediumWidgetPreview
           name={upToDate.name}
-          reading={reading}
+          reading={hideWidgetValues ? null : String(SAMPLE_BPM)}
           unit={t('widgets.bpm')}
           status={upToDate.status}
           lastCheck={lastCheck}
@@ -93,7 +76,14 @@ export default function WidgetsScreen() {
           fullScan={t('mode.full')}
         />
         {stepsTitle}
-        <NumberedSteps steps={stepTexts(ANDROID_STEPS)} />
+        <NumberedSteps
+          steps={[
+            t('widgets.androidStep1'),
+            t('widgets.androidStep2'),
+            t('widgets.androidStep3'),
+            t('widgets.androidStep4'),
+          ]}
+        />
         {buttonsNote}
       </RouteShell>
     );
@@ -115,7 +105,15 @@ export default function WidgetsScreen() {
         fullScan={t('mode.full')}
       />
       {stepsTitle}
-      <NumberedSteps steps={stepTexts(IPHONE_HOME_STEPS)} />
+      <NumberedSteps
+        steps={[
+          t('widgets.iphoneHomeStep1'),
+          t('widgets.iphoneHomeStep2'),
+          t('widgets.iphoneHomeStep3'),
+          t('widgets.iphoneHomeStep4'),
+          t('widgets.iphoneHomeStep5'),
+        ]}
+      />
       {buttonsNote}
       <SectionLabel>{t('widgets.iphoneLock')}</SectionLabel>
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
@@ -123,8 +121,15 @@ export default function WidgetsScreen() {
         <LockRectanglePreview name={checkAgain.name} status={checkAgain.status} />
       </View>
       <AppText tone="textDim">{t('widgets.inline', { text: inline })}</AppText>
-      {stepsTitle}
-      <NumberedSteps steps={stepTexts(IPHONE_LOCK_STEPS)} />
+      {lockStepsTitle}
+      <NumberedSteps
+        steps={[
+          t('widgets.iphoneLockStep1'),
+          t('widgets.iphoneLockStep2'),
+          t('widgets.iphoneLockStep3'),
+          t('widgets.iphoneLockStep4'),
+        ]}
+      />
       <NavButton
         label={t('widgets.lockScreenLink')}
         href="/settings/widgets/lock-screen"

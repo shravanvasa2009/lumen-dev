@@ -471,6 +471,7 @@
   "widgets.android": "Android · Pantalla de inicio",
   "widgets.lockScreenLink": "Vistas previas de la pantalla de bloqueo",
   "widgets.stepsTitle": "Cómo agregarlo",
+  "widgets.stepsTitleLock": "Cómo agregarlo a la pantalla de bloqueo",
   "widgets.iphoneHomeStep1": "Mantén presionado un espacio vacío de la pantalla de inicio hasta que las apps se muevan.",
   "widgets.iphoneHomeStep2": "Toca Editar en la esquina superior izquierda y luego Agregar widget. (En iOS 17, toca + en su lugar.)",
   "widgets.iphoneHomeStep3": "Busca Lumen y tócalo.",

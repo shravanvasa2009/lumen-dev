@@ -207,6 +207,22 @@ describe('Widget gallery', () => {
     expect(screen.queryByText('64')).toBeNull();
   });
 
+  it('on Android leaves the whole reading row out when values are hidden, like the real widget', () => {
+    Platform.OS = 'android';
+    act(() => setPreference('hideWidgetValues', true));
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.queryByText('64')).toBeNull();
+    expect(screen.queryByText('—')).toBeNull();
+    expect(screen.queryByText(en['widgets.bpm'])).toBeNull();
+    expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
+  });
+
+  it('on iPhone headings the two step lists differently', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.getByRole('header', { name: en['widgets.stepsTitle'] })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: en['widgets.stepsTitleLock'] })).toBeOnTheScreen();
+  });
+
   it('opens the lock-screen previews', () => {
     renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
     fireEvent.press(screen.getByRole('button', { name: en['widgets.lockScreenLink'] }));

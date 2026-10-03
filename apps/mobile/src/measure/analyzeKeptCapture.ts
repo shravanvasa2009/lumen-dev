@@ -3,6 +3,7 @@ import {
   buildReadingResult,
   type DiabetesOutputs,
   diabetesModelInput,
+  isProbabilityRow,
   type ModelOutputs,
   type Profile,
   type ReadingAnalysis,
@@ -56,6 +57,10 @@ async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs |
     const cut = outcome.threshold.af;
     if (sinus === undefined || af === undefined || other === undefined || typeof cut !== 'number')
       throw new Error('the rhythm model must score sinus, af and other and give an af threshold');
+    if (!isProbabilityRow([sinus, af, other])) {
+      console.warn('rhythm model returned a row that is not a probability row; the reading has no rhythm card');
+      return null;
+    }
     windowProbs.push([sinus, af, other]);
     tauAf = cut;
   }

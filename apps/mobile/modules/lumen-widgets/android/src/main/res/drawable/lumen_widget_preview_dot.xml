@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mockup 32's up-to-date dot, the "regular" status color (LumenWidgets.kt statusColor). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="@color/lumen_widget_preview_accent" />
+</shape>

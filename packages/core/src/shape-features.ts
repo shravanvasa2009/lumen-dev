@@ -8,6 +8,23 @@ import { isLocalMax, isLocalMin, systolicPeakIndex, systolicSpanEnd, type PulseS
 // its minimum, relative to the systolic peak, so a gain and an offset do not affect them (ADR 0059).
 // Undefined features are null; core never imputes (the model applies its training median).
 
+// The order of shapeFeatures' output, which diabetes-net's model card and the app share with
+// ml/lumen_dsp/shape_features.py SHAPE_FEATURE_NAMES.
+export const SHAPE_FEATURE_NAMES = [
+  'riseTime',
+  'width50',
+  'width25',
+  'notchTime',
+  'notchHeight',
+  'diastolicPeakHeight',
+  'bOverA',
+  'cOverA',
+  'dOverA',
+  'eOverA',
+  'agingIndex',
+  'areaRatio',
+] as const;
+
 // Linear interpolation crossing of `level` between samples k and k + 1.
 const crossing = (smoothed: Float64Array, k: number, level: number) =>
   k + (level - smoothed[k]!) / (smoothed[k + 1]! - smoothed[k]!);

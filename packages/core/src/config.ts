@@ -136,8 +136,8 @@ export const DSP_CONFIG = {
   },
   // diabetes-net's 12 waveform-shape features from the DSP-14 beat (§11.4, ML-6).
   diabetesFeatures: {
-    // Systolic peak widths are measured at these fractions of the peak's height above the onset level
-    // (features 2 and 3 in the order §11.4 lists them). Initial values.
+    // Systolic peak widths are measured at these fractions of the peak's height above the beat's minimum
+    // (features 2 and 3 in the order §11.4 lists them; ADR 0059). Initial values.
     widthLevels: [0.5, 0.25],
   },
   dsp15: {

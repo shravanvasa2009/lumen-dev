@@ -11,6 +11,23 @@ from lumen_dsp.shape import PulseShape, is_local_max, is_local_min, systolic_pea
 # beat above its minimum, relative to the systolic peak (ADR 0059). Undefined features are None; the
 # model, not this module, fills them with its training median.
 
+# The order of shape_features' output, shared with packages/core SHAPE_FEATURE_NAMES (a core test checks
+# that the two lists are equal) and with diabetes-net's model card.
+SHAPE_FEATURE_NAMES = (
+    "riseTime",
+    "width50",
+    "width25",
+    "notchTime",
+    "notchHeight",
+    "diastolicPeakHeight",
+    "bOverA",
+    "cOverA",
+    "dOverA",
+    "eOverA",
+    "agingIndex",
+    "areaRatio",
+)
+
 
 def _crossing(smoothed: Sequence[float], k: int, level: float) -> float:
     return k + (level - smoothed[k]) / (smoothed[k + 1] - smoothed[k])

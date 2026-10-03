@@ -84,6 +84,6 @@ export {
   type RhythmOutputs,
 } from './reading-result';
 export { createLiveSession, type LiveSessionConfig } from './live';
-export { shapeFeatures } from './shape-features';
+export { SHAPE_FEATURE_NAMES, shapeFeatures } from './shape-features';
 export { hrSummary } from './reading-metrics';
 export { logisticRhythmOutputs } from './rhythm-rule';

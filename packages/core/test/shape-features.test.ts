@@ -1,8 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   butterBandpass,
   DSP_CONFIG,
   ensembleBeat,
   filterZeroPhase,
+  SHAPE_FEATURE_NAMES,
   shapeFeatures,
   type PulseShape,
   type WaveLabels,
@@ -80,6 +83,22 @@ describe('ML-6 diabetes-net shape features on an analytic beat (hand-computed an
     expect(features[11]).toBeCloseTo(29 / 62.6, 12);
   });
 
+  it('is unchanged in all 12 features by a gain and an offset on a beat whose tail is below the onset', () => {
+    // The beat minimum (−0.1) differs from the onset level (0), and the second derivative scales with the
+    // gain, so the reference level and the a-wave ratios are both exercised.
+    const shape = analyticShape(WAVES, piecewiseBeat([...CORNERS.slice(0, 4), [230, -0.1]]));
+    const before = shapeFeatures(shape);
+    const scaled = shape.beat.map((value) => 3 + 0.5 * value);
+    const after = shapeFeatures({
+      ...shape,
+      beat: scaled,
+      smoothed: scaled,
+      secondDerivative: shape.secondDerivative.map((value) => 0.5 * value),
+    });
+    expect(before.every((value) => value !== null)).toBe(true);
+    after.forEach((value, i) => expect(value).toBeCloseTo(before[i]!, 12));
+  });
+
   it('is unchanged by a gain and an offset on the beat', () => {
     const shape = analyticShape();
     const scaled = shape.beat.map((value) => 3 + 0.5 * value);
@@ -115,6 +134,35 @@ describe('ML-6 diabetes-net shape features on an analytic beat (hand-computed an
     // Systolic: 0.4 × (0.1 + 0.1)/2 (onset to 26) + 51 × 0.6 + 53 × 0.8 = 73.04. Diastolic: 20 × 0.55 +
     // 80 × 0.3 + 25 × 0 (230-255) + (0 + 0.1)/2 (255 to 0) + 25 × 0.1 (lead-in) + 0.6 × 0.1 = 37.61.
     expect(features[11]).toBeCloseTo(37.61 / 73.04, 12);
+  });
+});
+
+describe('ML-6 shape feature names', () => {
+  it('names the 12 outputs in §11.4 order', () => {
+    expect(SHAPE_FEATURE_NAMES).toHaveLength(shapeFeatures(analyticShape()).length);
+    expect(SHAPE_FEATURE_NAMES).toEqual([
+      'riseTime',
+      'width50',
+      'width25',
+      'notchTime',
+      'notchHeight',
+      'diastolicPeakHeight',
+      'bOverA',
+      'cOverA',
+      'dOverA',
+      'eOverA',
+      'agingIndex',
+      'areaRatio',
+    ]);
+  });
+
+  it('is the same list as ml/lumen_dsp/shape_features.py SHAPE_FEATURE_NAMES', () => {
+    // There is no shared file for the names, so the Python tuple is read from its source.
+    const source = fs.readFileSync(path.join(__dirname, '../../../ml/lumen_dsp/shape_features.py'), 'utf8');
+    const tuple = /^SHAPE_FEATURE_NAMES = \(\n([\s\S]*?)\n\)/m.exec(source);
+    expect(tuple).not.toBeNull();
+    const pythonNames = [...tuple![1]!.matchAll(/"(\w+)"/g)].map((match) => match[1]);
+    expect(pythonNames).toEqual([...SHAPE_FEATURE_NAMES]);
   });
 });
 

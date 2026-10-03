@@ -41,7 +41,7 @@
         android:orientation="vertical">
         <TextView
             android:layout_width="match_parent"
-            android:layout_height="36dp"
+            android:layout_height="40dp"
             android:background="@drawable/lumen_widget_preview_pill_filled"
             android:gravity="center"
             android:maxLines="1"
@@ -50,7 +50,7 @@
             android:textSize="15sp" />
         <TextView
             android:layout_width="match_parent"
-            android:layout_height="36dp"
+            android:layout_height="40dp"
             android:layout_marginTop="10dp"
             android:background="@drawable/lumen_widget_preview_pill_outline"
             android:gravity="center"

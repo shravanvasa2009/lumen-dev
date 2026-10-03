@@ -6,6 +6,7 @@ import numpy as np
 import onnxruntime as ort
 import pytest
 import torch
+from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
@@ -16,10 +17,17 @@ from export import specs
 from export.specs import MODELS_DIR, OPSET, SHIPPED, SPECS, ShipRuleError, shipped_per_family
 from export.to_onnx import source_model
 from export.verify_onnx import seeded_inputs
+from eval.external import diabetes_part
+from eval.external_stats import (
+    RHYTHM_PREVALENCES,
+    BiasWindows,
+    binary_report,
+    rhythm_bias_report,
+)
 from export.write_manifest import EXTERNAL_NOT_RUN, NOT_MEASURED, logistic_rule
 from nets.rhythm_net import LABELS
 from tests.training_artifacts import fit_baseline, save_trained
-from train.rhythm import LOGISTIC_FEATURES
+from train.rhythm import LOGISTIC_FEATURES, Units
 from train.rhythm_windows import FEATURE_NAMES
 
 # scripts/proof/m3.mjs checks the first four; §11.9 and the track kickoff add the rest.
@@ -257,6 +265,16 @@ def test_a_rule_without_column_selection_is_refused():
     unselected = make_pipeline(StandardScaler(), LogisticRegression()).fit(features, np.arange(90) % 3)
     with pytest.raises(ProvenanceError, match="column-selecting"):
         logistic_rule(unselected, list(FEATURE_NAMES), spec.labels)
+
+
+@pytest.mark.parametrize("scaler", [StandardScaler(with_mean=False), StandardScaler(with_std=False)])
+def test_a_rule_that_does_not_fully_standardize_is_refused(scaler):
+    spec = SPECS["rhythm-lgbm"]
+    features = np.random.default_rng(2).normal(size=(90, 8))
+    columns = ColumnTransformer([("rule", scaler, [0, 1, 2])], remainder="drop")
+    rule = make_pipeline(columns, LogisticRegression()).fit(features, np.arange(90) % 3)
+    with pytest.raises(ProvenanceError, match="must standardize"):
+        logistic_rule(rule, list(FEATURE_NAMES), spec.labels)
 
 
 @pytest.mark.parametrize(
@@ -500,3 +518,186 @@ def test_the_reliability_plot_is_byte_for_byte_reproducible(trained):
     plot.unlink()
     _manifest(models_dir, runs_dir)
     assert plot.read_bytes() == first
+
+
+EXTERNALLY_TESTED = ("rhythm-lgbm", "rhythm-net", "sqi-finger", "diabetes-net")
+
+
+def _units(seed):
+    rng = np.random.default_rng(seed)
+    is_positive = np.arange(40) % 2 == 0
+    scores = np.clip(0.5 + np.where(is_positive, 0.3, -0.3) + rng.normal(0, 0.2, 40), 0, 1)
+    return Units(scores, is_positive, np.array([f"s{index}" for index in range(40)]))
+
+
+def _external_results(models_dir, runs_dir, status="done"):
+    # The diabetes block, the per-model reports and the ML-4 report come from eval.external's own
+    # functions, so a change to their output fails here; the rhythm and sqi family layouts around them
+    # are written out by hand, since building them needs ONNX scoring of MIMIC recordings.
+    def frozen(name):
+        (threshold,) = load_metrics(SPECS[name], runs_dir)["threshold"].values()
+        return threshold
+
+    def ledger(name):
+        return {
+            "model": f"{name}@1.0.0",
+            "family": SPECS[name].family,
+            "approval": "H-050",
+            "commit": "0" * 40,
+            "onnxSha256": sha256_of(models_dir / f"{name}@1.0.0.onnx"),
+            "status": status,
+            "startedAt": "2026-10-20T10:00:00+00:00",
+            "finishedAt": "2026-10-20T11:00:00+00:00" if status == "done" else None,
+        }
+
+    results = {"format": 1, "runs": [ledger(name) for name in EXTERNALLY_TESTED]}
+    if status != "done":
+        return results
+    reports = {
+        name: {
+            "model": f"{name}@1.0.0",
+            "role": "shipped" if seed == 0 else "ablation",
+            "subject": binary_report(_units(seed), frozen(name), RHYTHM_PREVALENCES),
+            "floorMet": True,
+        }
+        for seed, name in enumerate(("rhythm-lgbm", "rhythm-net"))
+    }
+    rng = np.random.default_rng(7)
+    is_af = np.repeat([True, False], 300)
+    subjects = np.where(is_af, "af", "sinus") + (np.arange(600) % 3).astype(str)
+    windows = BiasWindows(subjects, is_af, rng.random(600) < 0.9, rng.uniform(50, 110, 600))
+    results["rhythm"] = {
+        "model": "rhythm-lgbm@1.0.0",
+        "subjects": 40,
+        "outcome": "shipped-meets-floor",
+        "models": reports,
+    }
+    results["sqi"] = {
+        "model": "sqi-finger@1.0.0",
+        "role": "guard",
+        "threshold": frozen("sqi-finger"),
+        "subjects": 6,
+        **rhythm_bias_report(windows, ["af0", "af1", "af2"], ["sinus0", "sinus1", "sinus2"]),
+    }
+    entry = {"name": "diabetes-net", "version": "1.0.0", "threshold": {"pattern": frozen("diabetes-net")}}
+    results["diabetes"] = diabetes_part(entry, _units(2), {"holdoutWithoutPleth": 3})
+    return results
+
+
+def _write_external(models_dir, results):
+    (models_dir / "external-test.json").write_text(json.dumps(results), encoding="utf-8")
+
+
+def _external_card(models_dir, entry):
+    card = (models_dir / entry["card"]).read_text(encoding="utf-8")
+    return card.split("## External test", 1)[1].split("\n## ", 1)[0]
+
+
+def test_a_finished_external_run_fills_the_entry_and_the_card(trained, monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    _write_external(models_dir, results)
+    entries = _manifest(models_dir, runs_dir)
+
+    subject = results["rhythm"]["models"]["rhythm-net"]["subject"]
+    assert entries["rhythm-net"]["externalTest"] == {
+        "dataset": "mimic-perform-af",
+        "subjects": 40,
+        **{key: subject[key] for key in ("auroc", "sensitivity", "specificity", "ci95", "ppvNpv")},
+    }
+    sqi = entries["sqi-finger"]["externalTest"]
+    assert sqi["rhythmBiasGapPts"] == results["sqi"]["rhythmBiasGapPts"] is not None
+    assert entries["diabetes-net"]["externalTest"]["floorMet"] == results["diabetes"]["floorMet"]
+    for name in EXTERNALLY_TESTED:
+        card = _external_card(models_dir, entries[name])
+        assert EXTERNAL_NOT_RUN not in card
+        assert "under the owner's approval H-050" in card
+    rhythm_card = _external_card(models_dir, entries["rhythm-lgbm"])
+    shipped = results["rhythm"]["models"]["rhythm-lgbm"]["subject"]
+    low, high = shipped["ci95"]["auroc"]
+    assert f"| auroc | {shipped['auroc']} | {low} | {high} |" in rhythm_card
+    assert "- floorMet: True" in rhythm_card and "PPV and NPV" in rhythm_card
+    assert "- outcome: shipped-meets-floor" in rhythm_card
+    assert "- role: ablation" in _external_card(models_dir, entries["rhythm-net"])
+    sqi_low, sqi_high = results["sqi"]["ci95"]
+    assert f"| {sqi_low} | {sqi_high} |" in _external_card(models_dir, entries["sqi-finger"])
+    assert "- passed: " in _external_card(models_dir, entries["sqi-finger"])
+
+
+def test_a_started_run_that_never_finished_says_the_data_was_seen(trained):
+    models_dir, runs_dir = trained
+    _write_external(models_dir, _external_results(models_dir, runs_dir, status="started"))
+    entries = _manifest(models_dir, runs_dir)
+    for name in EXTERNALLY_TESTED:
+        external = dict(entries[name]["externalTest"])
+        external.pop("dataset")
+        assert all(value is None for value in external.values())
+        card = _external_card(models_dir, entries[name])
+        assert "did not finish" in card and "new owner approval" in card
+
+
+def test_an_untested_model_keeps_the_not_run_card(trained, monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    results["runs"] = [run for run in results["runs"] if run["family"] != "diabetes"]
+    del results["diabetes"]
+    _write_external(models_dir, results)
+    entries = _manifest(models_dir, runs_dir)
+    assert EXTERNAL_NOT_RUN in _external_card(models_dir, entries["diabetes-net"])
+    assert entries["diabetes-net"]["externalTest"]["auroc"] is None
+
+
+def test_refuses_an_external_run_of_a_different_onnx_file(trained, monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    results["runs"][1]["onnxSha256"] = "f" * 64
+    _write_external(models_dir, results)
+    _assert_refused(models_dir, runs_dir, ProvenanceError, "rhythm-net@1.0.0 was externally tested as ONNX")
+
+
+@pytest.mark.parametrize(
+    ("break_results", "match"),
+    [
+        (lambda results: results.pop("diabetes"), "has no diabetes results"),
+        (lambda results: results["rhythm"]["models"].pop("rhythm-net"), "has no rhythm results"),
+        (lambda results: results["sqi"].update(model="sqi-finger@0.9.0"), "has no sqi results"),
+        (lambda results: results["sqi"].pop("acceptRateAf"), r"lack \['acceptRateAf'\]"),
+    ],
+    ids=["family block missing", "rhythm model missing", "another version's numbers", "field missing"],
+)
+def test_refuses_a_finished_run_without_matching_numbers(trained, monkeypatch, break_results, match):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    break_results(results)
+    _write_external(models_dir, results)
+    _assert_refused(models_dir, runs_dir, ProvenanceError, match)
+
+
+def test_refuses_external_numbers_at_another_threshold(trained, monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    results["diabetes"]["threshold"] = 0.31
+    _write_external(models_dir, results)
+    _assert_refused(models_dir, runs_dir, ProvenanceError, "tested at pattern threshold 0.31")
+
+
+def test_refuses_two_finished_runs_of_one_version(trained, monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    results["runs"].append(dict(results["runs"][0]))
+    _write_external(models_dir, results)
+    _assert_refused(models_dir, runs_dir, ProvenanceError, "2 finished external runs of rhythm-lgbm")
+
+
+def test_refuses_a_started_run_of_a_different_onnx_file(trained):
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir, status="started")
+    results["runs"][2]["onnxSha256"] = "f" * 64
+    _write_external(models_dir, results)
+    _assert_refused(models_dir, runs_dir, ProvenanceError, "sqi-finger@1.0.0 was externally tested as ONNX")

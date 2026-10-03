@@ -44,6 +44,6 @@ export async function ratePhone(
     lensId: measured.lensId,
     practice: measured.summary,
   });
-  resyncNotifications();
+  void resyncNotifications();
   return loadDeviceRating();
 }

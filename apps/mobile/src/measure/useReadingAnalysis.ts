@@ -37,7 +37,7 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
     // §8.5: a Demo reading is shown from memory and never reaches the readings table.
     if (capture.demo) return { readingId: keepDemoReading(analysed, mode), progress };
     await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
-    resyncNotifications();
+    void resyncNotifications();
     return { readingId, progress };
   });
   outcome.catch(() => runs.delete(capture));

@@ -13,7 +13,7 @@ type ListRowProps = {
   trailing?: ReactNode;
   last?: boolean;
   chevron?: boolean;
-  // A row that is announced but not available yet, e.g. "Coming soon"; it ignores presses.
+  // A row that is announced but ignores presses while its action runs.
   disabled?: boolean;
   // Set on a row that opens and closes the content below it, so a screen reader hears its state.
   expanded?: boolean;

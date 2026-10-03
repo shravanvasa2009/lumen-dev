@@ -1,21 +1,11 @@
-import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/Button';
 
-import { enterDemo } from './demoSession';
+import { useStartDemo } from './useStartDemo';
 
 export function TryDemoButton() {
   const { t } = useTranslation();
-  const router = useRouter();
-  return (
-    <Button
-      label={t('welcome.tryDemo')}
-      variant="secondary"
-      onPress={() => {
-        enterDemo();
-        router.replace('/');
-      }}
-    />
-  );
+  const startDemo = useStartDemo();
+  return <Button label={t('welcome.tryDemo')} variant="secondary" onPress={startDemo} />;
 }

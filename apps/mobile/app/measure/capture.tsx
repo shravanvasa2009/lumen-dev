@@ -8,6 +8,7 @@ import { syntheticDemoRecording } from '@/demo/syntheticRecording';
 import { CaptureView } from '@/measure/CaptureView';
 import { cleanSecondsNeeded, parseMode, processingHref } from '@/measure/mode';
 import { useLiveCapture } from '@/measure/useLiveCapture';
+import { useStoredRating } from '@/store/useStoredRating';
 
 const DEMO_LEAD_IN_S = 10;
 
@@ -25,6 +26,7 @@ export default function CaptureScreen() {
     [demo, mode],
   );
   const live = useLiveCapture(demo ? replay : undefined, { demo });
+  const rating = useStoredRating();
 
   // Only the clean-seconds count ends a reading, never a timer (spec §7).
   const complete = live.cleanSeconds !== null && live.cleanSeconds >= cleanSecondsNeeded(mode);
@@ -38,6 +40,7 @@ export default function CaptureScreen() {
       <CaptureView
         mode={mode}
         live={live}
+        unlocks={rating?.unlocks}
         onCancel={() => router.replace('/')}
         onStop={() => router.replace(`/measure/inconclusive?mode=${mode}`)}
       />

@@ -872,5 +872,15 @@
   "settings.exportEmpty": "Todavía no hay lecturas guardadas para exportar.",
   "settings.exportUnavailable": "Este teléfono no permite compartir.",
   "settings.exportFailed": "Lumen no pudo exportar tus lecturas. Inténtalo de nuevo.",
-  "settings.deleteFailed": "Lumen no pudo borrar todo, así que es posible que queden datos en este teléfono. Inténtalo de nuevo."
+  "settings.deleteFailed": "Lumen no pudo borrar todo, así que es posible que queden datos en este teléfono. Inténtalo de nuevo.",
+  "checks.checking": "Revisando",
+  "checks.afib.name": "FA",
+  "checks.hrv.name": "VFC",
+  "checks.diabetes.name": "Diabetes",
+  "checks.state.ready": "Listo",
+  "checks.state.working": "Revisando",
+  "checks.state.unavailable": "No en este teléfono",
+  "checks.pots.name": "POTS",
+  "checks.state.off": "No está en este escaneo",
+  "checks.pots.standingNote": "POTS, no está en este escaneo. Se revisa en la prueba de pie."
 }

@@ -872,5 +872,15 @@
   "settings.exportEmpty": "There are no saved readings to export yet.",
   "settings.exportUnavailable": "Sharing is not available on this phone.",
   "settings.exportFailed": "Lumen could not export your readings. Try again.",
-  "settings.deleteFailed": "Lumen could not delete everything, so some data may still be on this phone. Try again."
+  "settings.deleteFailed": "Lumen could not delete everything, so some data may still be on this phone. Try again.",
+  "checks.checking": "Checking",
+  "checks.afib.name": "AFib",
+  "checks.hrv.name": "HRV",
+  "checks.diabetes.name": "Diabetes",
+  "checks.state.ready": "Ready",
+  "checks.state.working": "Checking",
+  "checks.state.unavailable": "Not on this phone",
+  "checks.pots.name": "POTS",
+  "checks.state.off": "Not in this scan",
+  "checks.pots.standingNote": "POTS, not in this scan. It runs in the Standing test."
 }

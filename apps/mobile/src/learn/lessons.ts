@@ -2,14 +2,40 @@ import type { TFunction } from 'i18next';
 
 type LessonTone = 'accent' | 'flag' | 'public';
 
-export type Lesson = {
+export type LessonDiagramId = 'finger-on-lens' | 'pulse-wave' | 'rhythm-gaps';
+
+export type LessonSection = {
+  heading: (t: TFunction) => string;
+  body: (t: TFunction) => string;
+  diagram?: LessonDiagramId;
+  // Short causes shown as chips under the body, with a small label above them when one is given.
+  chips?: { label?: (t: TFunction) => string; items: (t: TFunction) => readonly string[] };
+};
+
+export type LessonQuestion = {
+  prompt: (t: TFunction) => string;
+  options: (t: TFunction) => readonly string[];
+  correctIndex: number;
+};
+
+// A lesson written as numbered cards, a takeaway and one optional question instead of plain paragraphs.
+export type LessonTemplate = {
+  // Drawn above the first card.
+  heroDiagram?: LessonDiagramId;
+  sections: readonly LessonSection[];
+  takeaway: (t: TFunction) => string;
+  question: LessonQuestion;
+};
+
+type LessonContent = { body: (t: TFunction) => readonly string[] } | { template: LessonTemplate };
+
+export type Lesson = LessonContent & {
   // The slug is the route segment of /learn/[slug].
   slug: string;
   tone: LessonTone;
   title: (t: TFunction) => string;
   // Shown under the title in the list, for example "2 min".
   length: (t: TFunction) => string;
-  body: (t: TFunction) => readonly string[];
   // Spec 8.4 gives only the first lesson an animation; it is a labelled placeholder until artwork exists.
   illustration?: (t: TFunction) => string;
   // The heart-rhythm lesson appends the measured false-alarm figures from evidence.json.
@@ -24,7 +50,35 @@ export const lessons: readonly Lesson[] = [
     title: (t) => t('learn.lessonPulse'),
     length: (t) => t('learn.minutesAnimated', { minutes: 2 }),
     illustration: (t) => t('learn.pulseAnimation'),
-    body: (t) => [t('learn.pulse.p1'), t('learn.pulse.p2'), t('learn.pulse.p3')],
+    template: {
+      heroDiagram: 'finger-on-lens',
+      sections: [
+        { heading: (t) => t('learn.pulse.h1'), body: (t) => t('learn.pulse.p1') },
+        { heading: (t) => t('learn.pulse.h2'), body: (t) => t('learn.pulse.p2'), diagram: 'pulse-wave' },
+        {
+          heading: (t) => t('learn.pulse.h3'),
+          body: (t) => t('learn.pulse.p3'),
+          chips: {
+            label: (t) => t('learn.pulse.blurLabel'),
+            items: (t) => [
+              t('learn.pulse.chipMoving'),
+              t('learn.pulse.chipPressing'),
+              t('learn.pulse.chipCold'),
+            ],
+          },
+        },
+      ],
+      takeaway: (t) => t('learn.pulse.takeaway'),
+      question: {
+        prompt: (t) => t('learn.pulse.question'),
+        options: (t) => [
+          t('learn.pulse.answerGuess'),
+          t('learn.pulse.answerRetake'),
+          t('learn.pulse.answerDiagnosis'),
+        ],
+        correctIndex: 1,
+      },
+    },
   },
   {
     slug: 'what-is-afib',
@@ -39,7 +93,37 @@ export const lessons: readonly Lesson[] = [
     title: (t) => t('learn.lessonRhythm'),
     length: (t) => t('learn.minutes', { minutes: 2 }),
     showsRhythmFigures: true,
-    body: (t) => [t('learn.rhythm.p1'), t('learn.rhythm.p2'), t('learn.rhythm.p3')],
+    template: {
+      sections: [
+        {
+          heading: (t) => t('learn.rhythm.h1'),
+          body: (t) => t('learn.rhythm.p1'),
+          diagram: 'rhythm-gaps',
+        },
+        {
+          heading: (t) => t('learn.rhythm.h2'),
+          body: (t) => t('learn.rhythm.p2'),
+          chips: {
+            items: (t) => [
+              t('learn.rhythm.chipMovement'),
+              t('learn.rhythm.chipLoose'),
+              t('learn.rhythm.chipExtra'),
+            ],
+          },
+        },
+        { heading: (t) => t('learn.rhythm.h3'), body: (t) => t('learn.rhythm.p3') },
+      ],
+      takeaway: (t) => t('learn.rhythm.takeaway'),
+      question: {
+        prompt: (t) => t('learn.rhythm.question'),
+        options: (t) => [
+          t('learn.rhythm.answerIgnore'),
+          t('learn.rhythm.answerDoctor'),
+          t('learn.rhythm.answerDiagnosis'),
+        ],
+        correctIndex: 1,
+      },
+    },
   },
   {
     slug: 'stroke-warning-signs',

@@ -641,7 +641,9 @@ def test_a_finished_external_run_fills_the_entry_and_the_card(trained, monkeypat
     assert (
         f"| sensitivity | {reading['sensitivity']} | {low} | {high} |" in levels.split("Window level", 1)[0]
     )
-    assert "(40 units; intervals resample subjects)" in levels
+    assert "(40 pseudo-readings; intervals resample subjects)" in levels
+    assert "(40 windows; intervals resample subjects)" in levels
+    assert "Not applied: the 60 clean-second floor and card confidence" in rhythm_card
     app = results["rhythm"]["models"]["rhythm-lgbm"]["appReadings"]
     abstain = app["abstainRate"]
     assert "48 readings, 40 with a rhythm card" in rhythm_card
@@ -752,4 +754,15 @@ def test_refuses_reading_level_numbers_at_another_threshold(trained, monkeypatch
     _write_external(models_dir, results)
     _assert_refused(
         models_dir, runs_dir, ProvenanceError, "rhythm-lgbm@1.0.0 was externally tested at af threshold 0.66"
+    )
+
+
+def test_refuses_app_scored_readings_at_another_threshold(trained, monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    results["rhythm"]["models"]["rhythm-lgbm"]["appReadings"]["answered"]["threshold"] = 0.42
+    _write_external(models_dir, results)
+    _assert_refused(
+        models_dir, runs_dir, ProvenanceError, "rhythm-lgbm@1.0.0 was externally tested at af threshold 0.42"
     )

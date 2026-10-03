@@ -10,11 +10,12 @@ import { setPreference } from '@/theme/preferences';
 import tokens from '@/theme/tokens.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
-// The jest safe-area context reports no insets, so the top inset is pinned to prove the cap subtracts it.
+// The jest safe-area context reports no insets, so both are pinned to prove the cap subtracts them.
 const STATUS_BAR_INSET = 24;
+const HOME_INDICATOR_INSET = 34;
 jest.mock('react-native-safe-area-context', () => ({
   ...jest.requireActual('react-native-safe-area-context'),
-  useSafeAreaInsets: () => ({ top: STATUS_BAR_INSET, bottom: 0, left: 0, right: 0 }),
+  useSafeAreaInsets: () => ({ top: STATUS_BAR_INSET, bottom: HOME_INDICATOR_INSET, left: 0, right: 0 }),
 }));
 
 fixClockAtMorning();
@@ -298,7 +299,7 @@ describe('Doctor follow-up', () => {
     try {
       renderRouter(appDirectory, { initialUrl: '/follow-up' });
       const { maxHeight } = StyleSheet.flatten(screen.UNSAFE_getByType(ScrollView).props.style);
-      expect(maxHeight).toBe(640 - STATUS_BAR_INSET);
+      expect(maxHeight).toBe(640 - STATUS_BAR_INSET - HOME_INDICATOR_INSET - 2 * tokens.spacing.screen);
     } finally {
       act(() => Dimensions.set({ window: originalWindow }));
     }

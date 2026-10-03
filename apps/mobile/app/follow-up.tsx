@@ -24,7 +24,10 @@ export default function FollowUpScreen() {
   const router = useRouter();
   const { colors, spacing } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
-  const { top: statusBarInset } = useSafeAreaInsets();
+  const insets = useSafeAreaInsets();
+  // Screen pads the sheet by spacing.screen top and bottom and adds the bottom inset, so the scroll area
+  // must leave room for all of them or its last lines sit below the screen edge.
+  const scrollMaxHeight = windowHeight - insets.top - insets.bottom - 2 * spacing.screen;
   const [careFinderFailed, setCareFinderFailed] = useState(false);
   const openCareFinder = () => Linking.openURL(CARE_FINDER_URL).catch(() => setCareFinderFailed(true));
   // The sheet closes first so the Care map opens as a normal screen instead of stacking on the sheet.
@@ -36,10 +39,7 @@ export default function FollowUpScreen() {
     <Screen>
       {/* fitToContents sizes the sheet to this block; the cap keeps taller content (Spanish, large text,
           the care-finder fallback line) scrollable instead of clipped below the screen edge. */}
-      <ScrollView
-        style={{ maxHeight: windowHeight - statusBarInset }}
-        contentContainerStyle={{ gap: spacing.md }}
-      >
+      <ScrollView style={{ maxHeight: scrollMaxHeight }} contentContainerStyle={{ gap: spacing.md }}>
         {Platform.OS === 'android' ? (
           // sheetGrabberVisible is iOS-only; Android's Material sheet shows no handle of its own here.
           <View

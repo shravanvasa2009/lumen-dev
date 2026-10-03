@@ -21,6 +21,7 @@ jest.mock('../ml/runtime', () => ({
     scores: mockRhythmScores,
     threshold: { af: 0.5 },
   }),
+  scoreDiabetesInput: async () => ({ source: 'basic', value: null, reason: 'no diabetes model in this test' }),
 }));
 
 jest.setTimeout(60_000);

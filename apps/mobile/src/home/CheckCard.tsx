@@ -9,6 +9,7 @@ import { useTheme } from '@/theme';
 
 // Compact Scan buttons draw 34 dp tall and keep the 44 dp touch target through hitSlop.
 const SCAN_HEIGHT_COMPACT = 34;
+const CARD_PADDING_COMPACT = 3;
 
 type CheckCardProps = {
   icon: IconName;
@@ -58,7 +59,7 @@ export function CheckCard({ icon, name, evidence, finding, onOpenFinding, onScan
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        paddingVertical: compact ? spacing.xs : spacing.md,
+        paddingVertical: compact ? CARD_PADDING_COMPACT : spacing.sm,
         paddingHorizontal: spacing.md,
         backgroundColor: colors.surface,
         borderColor: colors.line,

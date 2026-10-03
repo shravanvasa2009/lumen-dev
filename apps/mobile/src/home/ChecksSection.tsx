@@ -43,7 +43,7 @@ export function ChecksSection({ readings, now, compact }: ChecksSectionProps) {
           : t('checks.status.dmProgress', { count: days, total: DIABETES_DAYS_NEEDED });
 
   return (
-    <View style={{ gap: compact ? spacing.xs : spacing.sm }}>
+    <View style={{ gap: compact ? 2 : spacing.xs }}>
       <CheckCard
         compact={compact}
         icon="pulse"

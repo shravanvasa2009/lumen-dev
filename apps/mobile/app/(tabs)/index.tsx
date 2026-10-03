@@ -40,6 +40,8 @@ const MEASURE_SIZE = 320;
 const COMPACT_GREETING = { size: 26, lineHeight: 30 };
 // The link's 44 dp target tucks under the Measure halo, which is transparent at its edge.
 const COMPACT_LINK_OVERLAP = 32;
+const LINK_OVERLAP = 16;
+const COMPACT_GAP = 2;
 const MEASURE_SIZE_COMPACT = 164;
 
 function Home() {
@@ -63,11 +65,11 @@ function Home() {
   });
 
   return (
-    <Screen headerless tight={compact}>
+    <Screen headerless tight>
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
-          gap: compact ? spacing.xs : spacing.md,
+          gap: compact ? COMPACT_GAP : spacing.sm,
           paddingBottom: compact ? 0 : spacing.lg,
         }}
       >
@@ -85,14 +87,14 @@ function Home() {
             {greetings[dayPeriod(now.getHours())]}
           </AppText>
         </View>
-        <View style={{ alignItems: 'center', marginTop: compact ? -spacing.lg : 0 }}>
+        <View style={{ alignItems: 'center', marginTop: compact ? 0 : -spacing.sm }}>
           <MeasureButton
             label={t('home.measure')}
             modeLabel={modeLabel}
             size={compact ? MEASURE_SIZE_COMPACT : MEASURE_SIZE}
             onPress={() => router.push('/measure/mode')}
           />
-          <View style={{ marginTop: compact ? -COMPACT_LINK_OVERLAP : 0 }}>
+          <View style={{ marginTop: -(compact ? COMPACT_LINK_OVERLAP : LINK_OVERLAP) }}>
             <NavButton label={t('home.changeMode')} href="/measure/mode" variant="link" />
           </View>
         </View>

@@ -9,7 +9,7 @@ type ScreenProps = {
   // Headerless screens have no native header, so the status-bar inset must come from here.
   headerless?: boolean;
   footer?: ReactNode;
-  // Tab screens on a small phone: the tab bar already sits below, so the bottom inset and padding go.
+  // Tab screens that need the room: the tab bar already sits below, so the bottom inset and padding go.
   tight?: boolean;
 };
 

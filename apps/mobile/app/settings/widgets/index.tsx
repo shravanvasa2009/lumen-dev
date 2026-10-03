@@ -10,8 +10,6 @@ import { CollapsibleSteps } from '@/settings/CollapsibleSteps';
 import { usePreferences } from '@/theme/preferences';
 import { SectionLabel } from '@/settings/SectionLabel';
 import {
-  AndroidMediumWidgetPreview,
-  AndroidSmallWidgetPreview,
   LockCirclePreview,
   LockRectanglePreview,
   MediumWidgetPreview,
@@ -51,19 +49,13 @@ export default function WidgetsScreen() {
           {t('widgets.sample')}
         </AppText>
         <SectionLabel>{t('widgets.android')}</SectionLabel>
-        <AndroidSmallWidgetPreview
-          name={upToDate.name}
-          status={upToDate.status}
-          lastCheck={lastCheck}
-          checkNow={t('widgets.checkNow')}
-        />
-        <AndroidMediumWidgetPreview
+        {/* The Glance widgets follow mockup 32 too, so both platforms preview the same design. */}
+        <SmallWidgetPreview status={upToDate.status} detail={lastCheck} action={t('widgets.checkNow')} />
+        <MediumWidgetPreview
           name={upToDate.name}
           reading={hideWidgetValues ? null : String(SAMPLE_BPM)}
           unit={t('widgets.bpm')}
-          status={upToDate.status}
-          lastCheck={lastCheck}
-          streak={streak}
+          status={`${upToDate.status} · ${streak}`}
           checkNow={t('widgets.checkNow')}
           fullScan={t('mode.full')}
         />

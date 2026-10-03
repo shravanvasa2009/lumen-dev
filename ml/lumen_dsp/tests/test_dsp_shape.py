@@ -84,6 +84,23 @@ def test_requires_a_configured_capture_rate_of_60_fps():
     assert ensemble_beat(WAVE, ONSETS, [True] * 30, 60) is not None
     assert ensemble_beat(WAVE, ONSETS, [True] * 30, 30) is None
     assert ensemble_beat(WAVE, ONSETS, [True] * 30, DSP14["minFps"] - 1) is None
+    assert ensemble_beat(WAVE, ONSETS, [True] * 30, math.nan) is None
+
+
+@pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf])
+def test_skips_the_one_beat_whose_window_holds_a_non_finite_sample(bad):
+    # 50 samples after onset 10 lies only in beat 10's window (onset − 0.1 to + 0.9 periods of 212.5).
+    corrupt = WAVE.copy()
+    corrupt[round(ONSETS[10]) + 50] = bad
+    shape = ensemble_beat(corrupt, ONSETS, [True] * 30, 60)
+    assert shape.beats_used == 28
+    assert np.all(np.isfinite(shape.beat))
+
+
+def test_no_beat_when_non_finite_samples_leave_fewer_than_20():
+    corrupt = WAVE.copy()
+    corrupt[::100] = math.nan
+    assert ensemble_beat(corrupt, ONSETS, [True] * 30, 60) is None
 
 
 def test_drops_a_beat_longer_than_1_5_median_periods():

@@ -76,6 +76,10 @@ export const ID_PREFIXES: Readonly<Record<NotificationType, string>> = {
 // When more than 3 land on one day, the ones that matter most for the person's care are kept.
 const CAP_PRIORITY: readonly NotificationType[] = ['doctor-followup', 'confirmation', 'retest', 'daily'];
 
+// One-off reminders a full day would drop move to the next day with room instead. The daily check comes
+// back tomorrow anyway, and a confirmation's next-morning reminder already covers a dropped one.
+const CARRIED_TYPES: ReadonlySet<NotificationType> = new Set(['doctor-followup', 'retest']);
+
 type Candidate = { type: NotificationType; atMs: number; createdFor: string };
 
 const minutesOf = ({ hour, minute }: ClockTime) => hour * 60 + minute;
@@ -108,7 +112,18 @@ function sameClockDaysLater(atMs: number, days: number, timeZone: string): numbe
 
 const dayOf = (atMs: number, timeZone: string) => localDateKey(localPartsAt(atMs, timeZone));
 
-function cappedCandidates({ prefs, triggers, now, timeZone, previousSchedule }: PlanRequest): Candidate[] {
+// The same local clock time on a later day, kept out of quiet hours. The clock time is already outside
+// them, but a time that daylight saving skips moves an hour and can land inside.
+function sameClockOutsideQuiet(
+  atMs: number,
+  days: number,
+  { prefs, timeZone }: Pick<PlanRequest, 'prefs' | 'timeZone'>,
+): number {
+  return afterQuietHours(sameClockDaysLater(atMs, days, timeZone), prefs.quietHours, timeZone);
+}
+
+function cappedCandidates(request: PlanRequest): Candidate[] {
+  const { prefs, triggers, now, timeZone, previousSchedule } = request;
   const { enabled, dailyTime, quietHours } = prefs;
   const today = localPartsAt(now, timeZone);
   const candidates: Candidate[] = [];
@@ -151,9 +166,27 @@ function cappedCandidates({ prefs, triggers, now, timeZone, previousSchedule }: 
       createdFor: 'phone-check',
     });
 
+  // An earlier sync that carried a one-off past a full day left it pending in the record. Once its first
+  // time has passed it is still owed, on the first day after now at the same local time.
+  const stillOwed = ({ type, createdFor }: Candidate) =>
+    CARRIED_TYPES.has(type) &&
+    previousSchedule.some(
+      (entry) => entry.type === type && entry.createdFor === createdFor && Date.parse(entry.fireAt) > now,
+    );
+  const firstAfterNow = (atMs: number) => {
+    let days = 1;
+    while (sameClockOutsideQuiet(atMs, days, request) <= now) days += 1;
+    return sameClockOutsideQuiet(atMs, days, request);
+  };
+
   const horizonMs = sameClockDaysLater(now, HORIZON_DAYS, timeZone);
   const shifted = candidates
     .map((candidate) => ({ ...candidate, atMs: afterQuietHours(candidate.atMs, quietHours, timeZone) }))
+    .map((candidate) =>
+      candidate.atMs > now || !stillOwed(candidate)
+        ? candidate
+        : { ...candidate, atMs: firstAfterNow(candidate.atMs) },
+    )
     .filter(({ atMs }) => atMs > now && atMs <= horizonMs);
 
   // Reminders an earlier sync scheduled for a time now past have fired and cannot be taken back, so they
@@ -169,6 +202,22 @@ function cappedCandidates({ prefs, triggers, now, timeZone, previousSchedule }: 
     firedKeys.add(`${type}|${createdFor}|${day}`);
   }
 
+  // Placed in priority order, so a carried one-off takes a later day's place before that day's daily check.
+  const placeWithinCap = (candidate: Candidate): Candidate | null => {
+    for (let days = 0, atMs = candidate.atMs; atMs <= horizonMs;) {
+      const day = dayOf(atMs, timeZone);
+      const count = perDay.get(day) ?? 0;
+      if (count < DAILY_CAP) {
+        perDay.set(day, count + 1);
+        return { ...candidate, atMs };
+      }
+      if (!CARRIED_TYPES.has(candidate.type)) return null;
+      days += 1;
+      atMs = sameClockOutsideQuiet(candidate.atMs, days, request);
+    }
+    return null;
+  };
+
   return (
     shifted
       // One that already went out today is not sent again, e.g. the daily check after its time moves later.
@@ -179,13 +228,8 @@ function cappedCandidates({ prefs, triggers, now, timeZone, previousSchedule }: 
         (first, second) =>
           CAP_PRIORITY.indexOf(first.type) - CAP_PRIORITY.indexOf(second.type) || first.atMs - second.atMs,
       )
-      .filter(({ atMs }) => {
-        const day = dayOf(atMs, timeZone);
-        const count = perDay.get(day) ?? 0;
-        if (count >= DAILY_CAP) return false;
-        perDay.set(day, count + 1);
-        return true;
-      })
+      .map(placeWithinCap)
+      .filter((placed): placed is Candidate => placed !== null)
   );
 }
 

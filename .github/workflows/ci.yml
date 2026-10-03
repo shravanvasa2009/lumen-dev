@@ -212,13 +212,18 @@ jobs:
         with:
           api-level: 34
           arch: x86_64
-          target: google_apis
+          # No Google apps or Play services: Lumen's flows don't use them, and their background work
+          # starved the CI emulator (Pixel Launcher ANR in run 37079462854).
+          target: default
           # The default profile boots at 320x640 dp (run 37045872239 logs 320x640, 160 dpi). Lumen's
           # scrolling screens then keep buttons and rows below the fold, where Maestro cannot see or tap
           # them (it does not scroll).
           profile: pixel_6
+          # A freshly booted CI emulator is still busy for a while (splash stuck in run 37077177757, ANR
+          # dialog over Home in run 37079462854), so let it settle and dismiss system dialogs first. The
+          # broadcast closes only dialogs already showing (the shell holds BROADCAST_CLOSE_SYSTEM_DIALOGS).
           # On failure, keep the whole device log next to Maestro's output (its own log covers one flow).
-          script: npm run e2e:android || (adb logcat -d > "$HOME/.maestro/tests/logcat.txt"; exit 1)
+          script: adb wait-for-device && sleep 30 && adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS && npm run e2e:android || (mkdir -p "$HOME/.maestro/tests"; adb logcat -d > "$HOME/.maestro/tests/logcat.txt"; exit 1)
       # Maestro saves a screenshot and the view hierarchy for each failed step under ~/.maestro/tests; CI
       # failures were otherwise text-only. https://github.com/actions/upload-artifact
       - name: Upload Maestro output

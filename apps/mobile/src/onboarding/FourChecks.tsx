@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon, type IconName } from '@/components/Icon';
+import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
 
 type CheckTileProps = {
@@ -30,22 +31,20 @@ function CheckTile({ icon, name, what, from, experimental = false }: CheckTilePr
         borderRadius: radius.card,
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: radius.card - 6,
-            backgroundColor: colors.surface2,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icon name={icon} size={20} color={colors.accent} />
-        </View>
-        {experimental ? <EvidenceBadge metric="diabetes" /> : null}
+      <View
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: radius.card - 6,
+          backgroundColor: colors.surface2,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icon name={icon} size={20} color={colors.accent} />
       </View>
       <AppText variant="headline">{name}</AppText>
+      {experimental ? <EvidenceBadge metric="diabetes" /> : null}
       <AppText variant="caption" tone="textDim">
         {what}
       </AppText>
@@ -62,9 +61,7 @@ export function FourChecks() {
   const { spacing } = useTheme();
   return (
     <View style={{ gap: spacing.sm }}>
-      <AppText variant="caption" tone="textDim" accessibilityRole="header">
-        {t('checks.title')}
-      </AppText>
+      <SectionLabel>{t('checks.title')}</SectionLabel>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         <CheckTile icon="pulse" name={t('checks.afib.name')} what={t('checks.afib.what')} from={t('checks.from.full')} />
         <CheckTile icon="trends" name={t('checks.hrv.name')} what={t('checks.hrv.what')} from={t('checks.from.full')} />

@@ -9,7 +9,13 @@ name: Every flag leads to the emergency screen
     clearState: true
     permissions:
       camera: allow
-# launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
+      notifications: allow
+# launchApp returns before the JavaScript has loaded; a link sent then is dropped. A fresh install opens on
+# Welcome (the onboarding gate), so wait for that, then finish onboarding to reach Home.
+- extendedWaitUntil:
+    visible: 'Get started'
+    timeout: 60000
+- runFlow: subflows/finish-onboarding.yaml
 - extendedWaitUntil:
     visible: 'Change mode'
     timeout: 60000

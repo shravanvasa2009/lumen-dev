@@ -16,12 +16,12 @@ name: Onboarding from welcome to Home
           permissions:
             camera: allow
             notifications: allow
-      # launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
+      # launchApp returns before the JavaScript has loaded; a link sent then is dropped. The onboarding gate
+      # sends a fresh install to Welcome, so Welcome and not Home must be the first screen.
       - extendedWaitUntil:
-          visible: 'Change mode'
+          visible: 'Get started'
           timeout: 60000
-- openLink: lumen://welcome
-- assertVisible: 'Get started'
+- assertNotVisible: 'Change mode'
 - tapOn: 'Get started'
 - assertVisible: "What Lumen is — and isn't"
 - tapOn: 'I understand Lumen is a screening tool, not a diagnosis.'

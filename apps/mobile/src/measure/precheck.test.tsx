@@ -1,6 +1,7 @@
 import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import { formatClock } from './restTimer';
 
@@ -11,6 +12,8 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 
 // The first render of the router compiles every route, which is slow on a busy machine.
 jest.setTimeout(30_000);
+
+preloadAppRoutes();
 
 describe('formatClock', () => {
   it('writes minutes and zero-padded seconds', () => {

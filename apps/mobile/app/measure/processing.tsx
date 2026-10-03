@@ -1,12 +1,17 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
+import { parseMode } from '@/measure/mode';
 import { ProcessingView } from '@/measure/ProcessingView';
 import { useReadingAnalysis } from '@/measure/useReadingAnalysis';
 
 export default function ProcessingScreen() {
   const router = useRouter();
-  const analysis = useReadingAnalysis();
+  const params = useLocalSearchParams<{ mode?: string; restDone?: string }>();
+  const analysis = useReadingAnalysis({
+    mode: parseMode(params.mode),
+    restTimerDone: params.restDone === 'true',
+  });
 
   const readingId = analysis.phase === 'done' ? analysis.readingId : null;
   useEffect(() => {

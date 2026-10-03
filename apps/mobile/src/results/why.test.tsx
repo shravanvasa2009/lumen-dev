@@ -3,6 +3,7 @@ import { processColor } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { expectNavTitle } from '@/testing/navHeader';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
 let mockScheme: 'light' | 'dark';
@@ -35,6 +36,8 @@ function lineStrokes() {
     (line) => line.props.stroke?.payload,
   );
 }
+
+preloadAppRoutes();
 
 describe.each([
   ['dark', tokens.dark],

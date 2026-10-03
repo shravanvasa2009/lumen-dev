@@ -1,6 +1,7 @@
 import { renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -35,6 +36,8 @@ jest.mock('@/accuracy/readAccuracy', () => {
   const actual = jest.requireActual('@/accuracy/readAccuracy');
   return { ...actual, bundledAccuracy: actual.readAccuracy(mockPassedFile) };
 });
+
+preloadAppRoutes();
 
 describe('Doctor report with a passed evidence file (EVID-1)', () => {
   it('takes labels and figures from the file alone', () => {

@@ -94,3 +94,11 @@ name: Every route opens
 - assertVisible: 'Lock-screen previews'
 - openLink: lumen://follow-up
 - assertVisible: 'Did you get a chance to see a doctor\?'
+# The Care map asks for location when it opens. Denying it must leave the ZIP or city search on screen.
+- openLink: lumen://care-map
+- tapOn:
+    text: 'Don.t allow'
+    optional: true
+- assertVisible: 'Care near you'
+- assertVisible: 'Location is off\. Enter a ZIP code or city to see clinics near it\.'
+- assertVisible: 'ZIP code or city'

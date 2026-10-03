@@ -84,3 +84,4 @@ export {
   type RhythmOutputs,
 } from './reading-result';
 export { createLiveSession, type LiveSessionConfig } from './live';
+export { logisticRhythmOutputs } from './rhythm-rule';

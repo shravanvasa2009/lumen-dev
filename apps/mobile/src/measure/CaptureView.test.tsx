@@ -20,6 +20,8 @@ const base: LiveCapture = {
   elapsedS: 12.4,
   cleanSeconds: null,
   coachingKey: null,
+  recentWaveform: { tS: [], ppg: [] },
+  rejectedSpans: [],
 };
 
 const show = (live: Partial<LiveCapture>, mode: 'quick' | 'full' = 'quick') => {

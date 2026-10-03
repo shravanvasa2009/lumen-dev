@@ -4,6 +4,7 @@ import i18next from 'i18next';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -11,6 +12,8 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 }));
 
 afterEach(() => i18next.changeLanguage('en'));
+
+preloadAppRoutes();
 
 describe('welcome', () => {
   it('pins Get started and Try demo mode and shows the footer line', () => {

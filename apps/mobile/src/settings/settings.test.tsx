@@ -8,6 +8,7 @@ import { lockscreenStrings } from '@/i18n/lockscreen';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { setPreference } from '@/theme/preferences';
 import tokens from '@/theme/tokens.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 fixClockAtMorning();
 
@@ -25,6 +26,8 @@ beforeEach(() => {
     setPreference('hideWidgetValues', false);
   });
 });
+
+preloadAppRoutes();
 
 describe('Settings tab', () => {
   it('groups the rows and marks features that do not exist yet', () => {
@@ -253,6 +256,13 @@ describe('Doctor follow-up', () => {
     expect(screen.getByText(en['followUp.whatToAskBody'])).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: en['followUp.booked'] }));
     expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+  });
+
+  it('opens the Care map from Find a doctor nearby', async () => {
+    renderRouter(appDirectory, { initialUrl: '/follow-up' });
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
+    expectNavTitle(en['careMap.title']);
+    await screen.findByText(en['careMap.denied']);
   });
 
   it('opens the health-center finder only when the link is tapped', () => {

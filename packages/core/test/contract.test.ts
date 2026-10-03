@@ -62,6 +62,13 @@ const idleSession: LiveSession = {
   coachingKey: 'coach.cover',
   rejectedSpans: [{ startS: 3, endS: 5, reason: 'quality' }],
   sqiWindow: null,
+  // H-025 shape, as the owner approved it.
+  readingInput: () => ({
+    capture: { samples: [], stats: [] },
+    motionSpans: [{ startNs: 1_000_000_000, endNs: 2_000_000_000 }],
+    coldHandsSpans: [],
+    sqi: null,
+  }),
 };
 
 describe('Results contract types (Appendix B)', () => {
@@ -78,5 +85,9 @@ describe('Live session contract types', () => {
 
   it('LiveSession allows a null sqiWindow (shape only)', () => {
     expect(idleSession.sqiWindow).toBeNull();
+  });
+
+  it('LiveSession.readingInput allows a null sqi (shape only)', () => {
+    expect(idleSession.readingInput().sqi).toBeNull();
   });
 });

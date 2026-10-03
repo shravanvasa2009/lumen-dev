@@ -3,6 +3,7 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -16,6 +17,8 @@ const askPermission = jest.mocked(requestPermissionsAsync);
 
 // The first render of the router compiles every route, which is slow on a busy machine.
 jest.setTimeout(30_000);
+
+preloadAppRoutes();
 
 describe('reminders', () => {
   beforeEach(() => askPermission.mockReset());

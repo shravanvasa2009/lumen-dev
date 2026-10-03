@@ -219,6 +219,26 @@ describe('analyzeReading acquisition spans', () => {
     expect(analysis.cleanSeconds).toBeCloseTo(analysis.durationS - 4, 9);
   });
 
+  it('ADR 0023: rejects each 4 s window of equal red frames from the capture, with or without SQI-Net', () => {
+    const base = syntheticReading({ seconds: 40 });
+    const samples = base.samples.map((sample) => ({ ...sample }));
+    for (let k = 600; k < 1200; k++) samples[k]!.r = 0.62; // 10 s to 19.98 s flat
+    for (const sqi of [null, { threshold: 0.5, windows: [] }]) {
+      const analysis = analyzeReading({ samples, stats: base.stats }, { ...CONTEXT, sqi });
+      const quality = spansOf(analysis, 'quality');
+      expect(quality.length).toBeGreaterThan(0);
+      for (const span of quality) {
+        expect(span.endS - span.startS).toBeCloseTo(DSP_CONFIG.dsp3.modelWindowS, 9);
+        // 64 Hz grid ends (ADR 0023), inside the flat frames.
+        expect(span.endS * 64).toBe(Math.round(span.endS * 64));
+        expect(span.startS).toBeGreaterThanOrEqual(10);
+        expect(span.endS).toBeLessThanOrEqual(1199 / 60);
+      }
+      expect(analysis.sqiAvailable).toBe(sqi !== null);
+    }
+    expect(spansOf(analyze(base), 'quality')).toEqual([]);
+  });
+
   it('splits at a dropped 300 ms stretch: no interval spans the gap', () => {
     const analysis = analyze(syntheticReading({ dropped: (tS) => tS > 45 && tS < 45.3 }));
     expect(analysis.segments).toHaveLength(2);

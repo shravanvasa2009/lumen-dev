@@ -1,9 +1,9 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { cancelAllScheduledNotificationsAsync } from 'expo-notifications';
 
-import { removeExportFile } from '@/export/exportFile';
 import { clearDemoReadings } from '@/demo/demoReadings';
 import { exitDemo } from '@/demo/demoSession';
+import { removeExportFile } from '@/export/exportFile';
 import { keepCapture } from '@/measure/keptCapture';
 import type { NotificationPrefs, NotificationTriggers } from '@/notifications/plan';
 import { syncNotifications } from '@/notifications/scheduler';

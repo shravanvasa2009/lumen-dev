@@ -37,6 +37,7 @@ preloadAppRoutes();
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  sync.mockImplementation(async () => undefined);
   memoryFiles.clear();
   await startOnboarded();
   isAvailable.mockResolvedValue(true);
@@ -79,12 +80,25 @@ describe('Language row', () => {
     renderRouter('./app', { initialUrl: '/settings' });
     fireEvent.press(await row(en['settings.language']));
     fireEvent.press(screen.getByRole('radio', { name: es['language.es'] }));
-    await waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
-    expect(sync.mock.calls[0]?.[1]).toBe('es');
+    await waitFor(() => expect(sync.mock.lastCall?.[1]).toBe('es'));
+  });
+
+  it('plans the reminders in the new language even when the choice could not be saved', async () => {
+    renderRouter('./app', { initialUrl: '/settings' });
+    fireEvent.press(await row(en['settings.language']));
+    const database = await lumenDatabase();
+    jest.spyOn(database, 'runAsync').mockRejectedValueOnce(new Error('disk full'));
+    fireEvent.press(screen.getByRole('radio', { name: es['language.es'] }));
+    await waitFor(() => expect(sync.mock.lastCall?.[1]).toBe('es'));
+    expect(await screen.findByText(es['settings.languageNotSaved'])).toBeOnTheScreen();
   });
 
   it('says so when the reminders could not be updated', async () => {
-    sync.mockRejectedValueOnce(new Error('scheduler down'));
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    // The launch re-sync runs in English and must not be the call that fails.
+    sync.mockImplementation(async (_plan, languageTag) => {
+      if (languageTag === 'es') throw new Error('scheduler down');
+    });
     renderRouter('./app', { initialUrl: '/settings' });
     fireEvent.press(await row(en['settings.language']));
     fireEvent.press(screen.getByRole('radio', { name: es['language.es'] }));

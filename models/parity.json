@@ -1,0 +1,61 @@
+{
+  "maxAbsDiff": 3.7550926208496094e-06,
+  "models": {
+    "sqi-finger": {
+      "onnxSha256": "7d50a143929fd5e550d9ee5d65954aab81835288f9a4deeb7275e5af90646189",
+      "sourceSha256": "b3b79d069a1232003e9fa50719a450a8253a0e234dd5f42b99c15910a78c4e44",
+      "nInputs": 502,
+      "maxAbsDiff": 2.086162567138672e-07,
+      "outputStd": 0.019822370260953903
+    },
+    "rhythm-net": {
+      "onnxSha256": "3698abede21f93282533445258435d1493da26eb3c45a8d70b136536ef7c411d",
+      "sourceSha256": "8fc3ae9e0439fb3ac66f8100cd8ae5cb3b9e5550131cf742e5a7c63b0ad1231f",
+      "nInputs": 506,
+      "maxAbsDiff": 8.344650268554688e-07,
+      "outputStd": 0.41919636726379395
+    },
+    "diabetes-net": {
+      "onnxSha256": "6bc4b5d1f08d05994d34e6459b881fcc6cfb3a3e4a5e88a520ae18f4385f7ef4",
+      "sourceSha256": "0f621422bc68181b376c5e6131ba0fc1fd2182b13f87a1427a1156a46566cc67",
+      "nInputs": 502,
+      "maxAbsDiff": 8.642673492431641e-07,
+      "outputStd": 0.396660715341568
+    },
+    "sqi-rule": {
+      "onnxSha256": "63804bc2f1258f17b93c6dbd7021cad35b0c8b9022df6266afba01fb996fccba",
+      "sourceSha256": "acac3638d5f10dc26147363f7e1488194bbf3021232a12a41acc229b3900b752",
+      "nInputs": 502,
+      "maxAbsDiff": 1.1920928955078125e-07,
+      "outputStd": 0.3605499267578125
+    },
+    "rhythm-lgbm": {
+      "onnxSha256": "7cdaf7ec45c20115c3c1f817179b5735bb4df20b5553cfcde9cf6a0f9f2c7ec1",
+      "sourceSha256": "032910f802f2dadb06748a4d5b85bb9f7fc5685ece6830c414d3b7350b16ae3f",
+      "nInputs": 502,
+      "maxAbsDiff": 1.7804537849608337e-07,
+      "outputStd": 0.2599170573970814
+    },
+    "rhythm-logistic": {
+      "onnxSha256": "639b41d39a451427eae7564c274a8c1808d7c113e91ea8e4f3c5ac1596b2e296",
+      "sourceSha256": "81d8654250faca9bb80031657ac529b7aecf5e31954806465d215b52a13fb02c",
+      "nInputs": 502,
+      "maxAbsDiff": 5.066394805908203e-07,
+      "outputStd": 0.48171573877334595
+    },
+    "diabetes-lgbm": {
+      "onnxSha256": "6270557aa9c859dc40d842d55d3fb18d2f297c98fe9859b4ad7c5ec0e832f078",
+      "sourceSha256": "706a751be9a82706e5b3eeadf5023b702810f8f41c1a09be390276562b20004d",
+      "nInputs": 502,
+      "maxAbsDiff": 9.268144518514987e-08,
+      "outputStd": 0.06798688075652076
+    },
+    "diabetes-logistic": {
+      "onnxSha256": "fa8f761834ee3bf879e7ab7e5361cd2f41ca6e72646c8584f8f98d294f716e1e",
+      "sourceSha256": "e01f2531156d9269c1412b41b0f654de0efdb1ece8b92d84bc1b9d8fa3ae5912",
+      "nInputs": 502,
+      "maxAbsDiff": 3.7550926208496094e-06,
+      "outputStd": 0.49601420760154724
+    }
+  }
+}

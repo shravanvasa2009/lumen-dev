@@ -38,18 +38,16 @@ const NATIVE_NETWORK = new RegExp(
   ].join('|'),
 );
 // ADR 0054: the Care map, opened only by the user, loads map tiles from OpenFreeMap. The host, the map
-// library, and imports of the care code are allowed only in the Care map route files and src/care/, so no
+// library, and imports of the care code are allowed only in the Care tab route (ADR 0065) and src/care/, so no
 // other screen (such as a reading) can reach them.
 const TILE_HOST = /tiles\.openfreemap\.org/;
-// The old stack route stays allowed only until the Care tab move (ADR 0065) lands on main; remove it
-// from this list in the same change that deletes app/care-map.tsx, so main never fails this check.
-const CARE_MAP_ROUTES = ['apps/mobile/app/(tabs)/care.tsx', 'apps/mobile/app/care-map.tsx'];
+const CARE_TAB_ROUTE = 'apps/mobile/app/(tabs)/care.tsx';
 const CARE_MAP_DIR = 'apps/mobile/src/care/';
 const MAP_LIBRARY = '@maplibre/maplibre-react-native';
 const IMPORT_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*['"`]([^'"`]+)['"`]/g;
 
 function inCareMap(file) {
-  return CARE_MAP_ROUTES.includes(file) || file.startsWith(CARE_MAP_DIR);
+  return file === CARE_TAB_ROUTE || file.startsWith(CARE_MAP_DIR);
 }
 
 function importsCareMapCode(file, text) {
@@ -61,8 +59,8 @@ function importsCareMapCode(file, text) {
     return (
       target === CARE_MAP_DIR.slice(0, -1) ||
       target.startsWith(CARE_MAP_DIR) ||
-      CARE_MAP_ROUTES.includes(target) ||
-      CARE_MAP_ROUTES.includes(`${target}.tsx`)
+      target === CARE_TAB_ROUTE ||
+      `${target}.tsx` === CARE_TAB_ROUTE
     );
   });
 }
@@ -93,10 +91,10 @@ for (const file of files) {
   }
   if (!inCareMap(file)) {
     if (TILE_HOST.test(text))
-      violations.push(`${file}: map tile host outside the Care map routes (/care-map, Care tab)`);
+      violations.push(`${file}: map tile host outside the Care map (Care tab, src/care)`);
     if (importsCareMapCode(file, text))
       violations.push(
-        `${file}: imports the map library or care code outside the Care map routes (/care-map, Care tab)`,
+        `${file}: imports the map library or care code outside the Care map (Care tab, src/care)`,
       );
   }
   const inDev = file.startsWith(DEV_DIR);
@@ -108,4 +106,4 @@ if (violations.length) {
   console.error(`PRIV-1 failed:\n${violations.join('\n')}`);
   process.exit(1);
 }
-console.log('PRIV-1 OK: no network code outside development-only paths and the Care map routes');
+console.log('PRIV-1 OK: no network code outside development-only paths and the Care map');

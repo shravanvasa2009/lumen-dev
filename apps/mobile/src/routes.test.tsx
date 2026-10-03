@@ -18,6 +18,8 @@ jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
 }));
 
+jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
+
 fixClockAtMorning();
 
 let mockScheme: 'light' | 'dark';

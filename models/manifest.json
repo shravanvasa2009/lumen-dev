@@ -1,0 +1,1426 @@
+{
+  "models": [
+    {
+      "name": "sqi-finger",
+      "family": "sqi",
+      "ships": true,
+      "role": "guard",
+      "version": "1.0.0",
+      "file": "sqi-finger@1.0.0.onnx",
+      "sha256": "7d50a143929fd5e550d9ee5d65954aab81835288f9a4deeb7275e5af90646189",
+      "inputs": {
+        "window": [
+          1,
+          1,
+          256
+        ]
+      },
+      "outputs": {
+        "pClean": [
+          1,
+          1
+        ]
+      },
+      "labels": [
+        "clean"
+      ],
+      "threshold": {
+        "clean": 0.595811516046524
+      },
+      "abstainBelow": null,
+      "externalTest": {
+        "dataset": "mimic-perform-af",
+        "subjects": null,
+        "rhythmBiasGapPts": null,
+        "acceptRateAf": null,
+        "acceptRateNonAf": null
+      },
+      "trainedOn": [
+        "butppg",
+        "afdb",
+        "ltafdb",
+        "mitdb"
+      ],
+      "development": {
+        "subjects": 9,
+        "metrics": {
+          "windowAuroc": {
+            "estimate": 0.8392171076476985,
+            "low": 0.7753981213512426,
+            "high": 0.8907409986229092,
+            "undefinedResamples": 0
+          },
+          "cleanPrecision": {
+            "estimate": 0.9507445589919816,
+            "low": 0.9328342531042267,
+            "high": 0.975,
+            "undefinedResamples": 0
+          },
+          "cleanRecall": {
+            "estimate": 0.6374807987711214,
+            "low": 0.5553269786082408,
+            "high": 0.7543237102379042,
+            "undefinedResamples": 0
+          },
+          "corruptedRejected": {
+            "estimate": 0.966973886328725,
+            "low": 0.9473113684404006,
+            "high": 0.9850917088920995,
+            "undefinedResamples": 0
+          },
+          "cleanPrecisionWithPoorQualityRecords": {
+            "estimate": 0.6634692246203038,
+            "low": 0.4463841879144486,
+            "high": 0.8155740848311216,
+            "undefinedResamples": 0
+          },
+          "ml2HrWithin5BpmOfAccepted": {
+            "estimate": 0.668046357615894,
+            "low": 0.41679944409414993,
+            "high": 0.8109508769283581,
+            "undefinedResamples": 0
+          },
+          "spectralHrWithin5BpmOfAllNaturalClean": {
+            "estimate": 0.7519201228878648,
+            "low": 0.5883154562160435,
+            "high": 0.8048818837244976,
+            "undefinedResamples": 0
+          },
+          "poorQualityAccepted": {
+            "estimate": 0.27631578947368424,
+            "low": 0.2036868686868687,
+            "high": 0.35938595210280366,
+            "undefinedResamples": 0
+          },
+          "ml4GapSinusMinusAfPts": {
+            "estimate": 2.30855855855856,
+            "low": -2.4150757077024347,
+            "high": 15.0013440860215,
+            "undefinedResamples": 0
+          },
+          "gapSinusMinusPrematurePts": {
+            "estimate": 0.22522522522522292,
+            "low": -2.1145332658740235,
+            "high": 6.8037840136054335,
+            "undefinedResamples": 0
+          }
+        },
+        "undefinedMetrics": [],
+        "byKind": [
+          {
+            "kind": "dropout",
+            "clean": false,
+            "windows": 319,
+            "subjects": 9,
+            "accepted (95% CI)": "0.060 (0.025-0.095)"
+          },
+          {
+            "kind": "flicker",
+            "clean": false,
+            "windows": 364,
+            "subjects": 9,
+            "accepted (95% CI)": "0.055 (0.015-0.100)"
+          },
+          {
+            "kind": "motion",
+            "clean": false,
+            "windows": 302,
+            "subjects": 8,
+            "accepted (95% CI)": "0.013 (0.004-0.022)"
+          },
+          {
+            "kind": "natural",
+            "clean": true,
+            "windows": 1302,
+            "subjects": 9,
+            "accepted (95% CI)": "0.637 (0.555-0.754)"
+          },
+          {
+            "kind": "poor-quality",
+            "clean": false,
+            "windows": 1368,
+            "subjects": 9,
+            "accepted (95% CI)": "0.276 (0.204-0.359)"
+          },
+          {
+            "kind": "pressure",
+            "clean": false,
+            "windows": 317,
+            "subjects": 9,
+            "accepted (95% CI)": "0.000 (0.000-0.000)"
+          },
+          {
+            "kind": "retimed-af",
+            "clean": true,
+            "windows": 1776,
+            "subjects": 9,
+            "accepted (95% CI)": "0.693 (0.604-0.769)"
+          },
+          {
+            "kind": "retimed-premature",
+            "clean": true,
+            "windows": 1776,
+            "subjects": 9,
+            "accepted (95% CI)": "0.713 (0.612-0.870)"
+          },
+          {
+            "kind": "retimed-sinus",
+            "clean": true,
+            "windows": 1776,
+            "subjects": 9,
+            "accepted (95% CI)": "0.716 (0.609-0.853)"
+          }
+        ]
+      },
+      "opset": 17,
+      "toolchain": {
+        "torch": "2.14.1+cpu",
+        "onnx": "1.23.1",
+        "onnxruntime": "1.30.0"
+      },
+      "commit": "3a30247c3277ce1a920a615e0f25c9471f964797",
+      "date": "2026-10-03",
+      "card": "sqi-finger@1.0.0.md"
+    },
+    {
+      "name": "rhythm-net",
+      "family": "rhythm",
+      "ships": false,
+      "role": "gate",
+      "version": "1.0.0",
+      "file": "rhythm-net@1.0.0.onnx",
+      "sha256": "3698abede21f93282533445258435d1493da26eb3c45a8d70b136536ef7c411d",
+      "inputs": {
+        "intervals": [
+          1,
+          64
+        ],
+        "mask": [
+          1,
+          64
+        ],
+        "features": [
+          1,
+          8
+        ]
+      },
+      "outputs": {
+        "probs": [
+          1,
+          3
+        ]
+      },
+      "labels": [
+        "sinus",
+        "af",
+        "other"
+      ],
+      "threshold": {
+        "af": 0.2309071272611618
+      },
+      "abstainBelow": 0.6,
+      "externalTest": {
+        "dataset": "mimic-perform-af",
+        "subjects": null,
+        "auroc": null,
+        "sensitivity": null,
+        "specificity": null,
+        "ci95": null,
+        "ppvNpv": null
+      },
+      "trainedOn": [
+        "afdb",
+        "cinc2017",
+        "ltafdb",
+        "mitdb"
+      ],
+      "development": {
+        "subjects": 1092,
+        "metrics": {
+          "windowAuroc": {
+            "estimate": 0.9886276329016889,
+            "low": 0.978003062984246,
+            "high": 0.995346599962561,
+            "undefinedResamples": 0
+          },
+          "windowSensitivity": {
+            "estimate": 0.9735892388451444,
+            "low": 0.9586206085765018,
+            "high": 0.9842667535877344,
+            "undefinedResamples": 0
+          },
+          "windowSpecificity": {
+            "estimate": 0.9533519143318175,
+            "low": 0.8949181659270351,
+            "high": 0.9845299860542137,
+            "undefinedResamples": 0
+          },
+          "readingAuroc": {
+            "estimate": 0.9869891158261175,
+            "low": 0.9715516632822233,
+            "high": 0.9954562485956754,
+            "undefinedResamples": 0
+          },
+          "readingSensitivity": {
+            "estimate": 0.975925925925926,
+            "low": 0.9577859915894159,
+            "high": 0.9857947126855491,
+            "undefinedResamples": 0
+          },
+          "readingSpecificity": {
+            "estimate": 0.9474519135435256,
+            "low": 0.8780919561625227,
+            "high": 0.9835889010049355,
+            "undefinedResamples": 0
+          },
+          "subjectAuroc": {
+            "estimate": 0.9588525065198493,
+            "low": 0.9328594414525034,
+            "high": 0.9795956003580008,
+            "undefinedResamples": 0
+          },
+          "subjectSensitivity": {
+            "estimate": 0.873015873015873,
+            "low": 0.8148073476702509,
+            "high": 0.924812030075188,
+            "undefinedResamples": 0
+          },
+          "subjectSpecificity": {
+            "estimate": 0.9503042596348884,
+            "low": 0.9363389818860349,
+            "high": 0.9639212303393383,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt1PctPrevalence": {
+            "estimate": 0.15070461284504624,
+            "low": 0.11993467099591484,
+            "high": 0.19730148774137074,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt1PctPrevalence": {
+            "estimate": 0.9986520748529082,
+            "low": 0.9980413178642551,
+            "high": 0.99920065546954,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt5PctPrevalence": {
+            "estimate": 0.480408918969198,
+            "low": 0.415234354662463,
+            "high": 0.561544976164169,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt5PctPrevalence": {
+            "estimate": 0.9930162367184104,
+            "low": 0.9898777145127577,
+            "high": 0.995848965265378,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt10PctPrevalence": {
+            "estimate": 0.6612366332166849,
+            "low": 0.5998514790338062,
+            "high": 0.7300052150974938,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt10PctPrevalence": {
+            "estimate": 0.9853700245007577,
+            "low": 0.9788683974314668,
+            "high": 0.9912769374892773,
+            "undefinedResamples": 0
+          },
+          "readingAbstainRate": {
+            "estimate": 0.20088192062714355,
+            "low": 0.16002511005097253,
+            "high": 0.2358101950563215,
+            "undefinedResamples": 0
+          },
+          "falseAfRatePrematureReadings": {
+            "estimate": 0.2524271844660194,
+            "low": 0.05040966386554624,
+            "high": 0.5584511077158135,
+            "undefinedResamples": 0
+          },
+          "falseAfRatePrematureWindows": {
+            "estimate": 0.282312925170068,
+            "low": 0.04285714285714286,
+            "high": 0.5355311475409836,
+            "undefinedResamples": 0
+          }
+        },
+        "undefinedMetrics": [],
+        "byDataset": [
+          {
+            "dataset": "afdb",
+            "AF subjects": 5,
+            "non-AF subjects": 5,
+            "subject AUROC": "1.000 (1.000-1.000)",
+            "subject sensitivity at τ_AF": "1.000 (1.000-1.000)",
+            "subject specificity at τ_AF": "1.000 (1.000-1.000)",
+            "window AUROC": "0.994 (0.981-0.999)"
+          },
+          {
+            "dataset": "cinc2017",
+            "AF subjects": 104,
+            "non-AF subjects": 957,
+            "subject AUROC": "0.952 (0.921-0.976)",
+            "subject sensitivity at τ_AF": "0.846 (0.772-0.913)",
+            "subject specificity at τ_AF": "0.950 (0.935-0.963)",
+            "window AUROC": "0.959 (0.938-0.975)"
+          },
+          {
+            "dataset": "ltafdb",
+            "AF subjects": 17,
+            "non-AF subjects": 15,
+            "subject AUROC": "1.000 (1.000-1.000)",
+            "subject sensitivity at τ_AF": "1.000 (1.000-1.000)",
+            "subject specificity at τ_AF": "0.933 (0.786-1.000)",
+            "window AUROC": "0.988 (0.975-0.998)"
+          },
+          {
+            "dataset": "mitdb",
+            "AF subjects": 0,
+            "non-AF subjects": 9,
+            "subject AUROC": "undefined",
+            "subject sensitivity at τ_AF": "undefined",
+            "subject specificity at τ_AF": "1.000 (1.000-1.000)",
+            "window AUROC": "undefined"
+          }
+        ]
+      },
+      "opset": 17,
+      "toolchain": {
+        "torch": "2.14.1+cpu",
+        "onnx": "1.23.1",
+        "onnxruntime": "1.30.0"
+      },
+      "commit": "3a30247c3277ce1a920a615e0f25c9471f964797",
+      "date": "2026-10-03",
+      "card": "rhythm-net@1.0.0.md",
+      "featureOrder": [
+        "normalizedRmssd",
+        "shannonEntropyBits",
+        "turningPointRatio",
+        "sd1S",
+        "sd2S",
+        "pnn50",
+        "sampleEntropy",
+        "atypicalFraction"
+      ]
+    },
+    {
+      "name": "diabetes-net",
+      "family": "diabetes",
+      "ships": true,
+      "role": "gate",
+      "version": "1.0.0",
+      "file": "diabetes-net@1.0.0.onnx",
+      "sha256": "6bc4b5d1f08d05994d34e6459b881fcc6cfb3a3e4a5e88a520ae18f4385f7ef4",
+      "inputs": {
+        "beat": [
+          1,
+          1,
+          256
+        ],
+        "shapeFeatures": [
+          1,
+          12
+        ],
+        "hrSummary": [
+          1,
+          4
+        ]
+      },
+      "outputs": {
+        "pPattern": [
+          1,
+          1
+        ]
+      },
+      "labels": [
+        "pattern"
+      ],
+      "threshold": {
+        "pattern": 0.5614461898803711
+      },
+      "abstainBelow": null,
+      "externalTest": {
+        "dataset": "vitaldb-holdout",
+        "subjects": null,
+        "auroc": null,
+        "sensitivity": null,
+        "specificity": null,
+        "ci95": null,
+        "ppvNpv": null,
+        "floorMet": null
+      },
+      "trainedOn": [
+        "vitaldb"
+      ],
+      "development": {
+        "subjects": 366,
+        "diabeticSubjects": 92,
+        "segments": 1459,
+        "metrics": {
+          "subjectAuroc": {
+            "estimate": 0.5902887972072358,
+            "low": 0.5255739471091715,
+            "high": 0.6545849816262032,
+            "undefinedResamples": 0
+          },
+          "subjectSensitivity": {
+            "estimate": 0.22826086956521738,
+            "low": 0.14772727272727273,
+            "high": 0.313953488372093,
+            "undefinedResamples": 0
+          },
+          "subjectSpecificity": {
+            "estimate": 0.8503649635036497,
+            "low": 0.8086604193870497,
+            "high": 0.8924761051373954,
+            "undefinedResamples": 0
+          },
+          "readingAuroc": {
+            "estimate": 0.5704865893666575,
+            "low": 0.515876734329218,
+            "high": 0.6236288572167179,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt5PctPrevalence": {
+            "estimate": 0.07431996073467492,
+            "low": 0.04646891141854705,
+            "high": 0.11279954839129035,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt5PctPrevalence": {
+            "estimate": 0.9544123091920569,
+            "low": 0.9493621258173591,
+            "high": 0.9596604295424876,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt11.6PctPrevalence": {
+            "estimate": 0.16678627615999556,
+            "low": 0.10833942613534452,
+            "high": 0.24069252589728676,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt11.6PctPrevalence": {
+            "estimate": 0.8935841443268555,
+            "low": 0.8826241632052007,
+            "high": 0.905138884075643,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt20PctPrevalence": {
+            "estimate": 0.2760771519048076,
+            "low": 0.1879716814215379,
+            "high": 0.37652739930315465,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt20PctPrevalence": {
+            "estimate": 0.8150725298960056,
+            "low": 0.7978556905505422,
+            "high": 0.8335643284785595,
+            "undefinedResamples": 0
+          }
+        },
+        "undefinedMetrics": []
+      },
+      "opset": 17,
+      "toolchain": {
+        "torch": "2.14.1+cpu",
+        "onnx": "1.23.1",
+        "onnxruntime": "1.30.0"
+      },
+      "commit": "3a30247c3277ce1a920a615e0f25c9471f964797",
+      "date": "2026-10-03",
+      "card": "diabetes-net@1.0.0.md",
+      "featureOrder": {
+        "shapeFeatures": [
+          "riseTime",
+          "width50",
+          "width25",
+          "notchTime",
+          "notchHeight",
+          "diastolicPeakHeight",
+          "bOverA",
+          "cOverA",
+          "dOverA",
+          "eOverA",
+          "agingIndex",
+          "areaRatio"
+        ],
+        "hrSummary": [
+          "hrBpm",
+          "rmssdMs",
+          "sdnnMs",
+          "pnn50"
+        ]
+      },
+      "fillMedians": {
+        "riseTime": 0.18125,
+        "width50": 0.3055233464114588,
+        "width25": 0.47788560011005843,
+        "notchTime": 0.4,
+        "notchHeight": 0.42710581342152953,
+        "diastolicPeakHeight": 0.0,
+        "bOverA": -1.2863389939468268,
+        "cOverA": 0.15450722901230993,
+        "dOverA": -0.16122221480196702,
+        "eOverA": 0.35818819792456214,
+        "agingIndex": -1.5200903290430043,
+        "areaRatio": 0.2668548993255641,
+        "hrBpm": 72.33063298063436,
+        "rmssdMs": 17.446956538573183,
+        "sdnnMs": 0.0,
+        "pnn50": 0.018018018018018018
+      }
+    },
+    {
+      "name": "sqi-rule",
+      "family": "sqi",
+      "ships": false,
+      "role": "guard",
+      "version": "1.0.0",
+      "file": "sqi-rule@1.0.0.onnx",
+      "sha256": "63804bc2f1258f17b93c6dbd7021cad35b0c8b9022df6266afba01fb996fccba",
+      "inputs": {
+        "features": [
+          1,
+          2
+        ]
+      },
+      "outputs": {
+        "pClean": [
+          1,
+          1
+        ]
+      },
+      "labels": [
+        "clean"
+      ],
+      "threshold": {
+        "clean": 1.0000000000000002
+      },
+      "abstainBelow": null,
+      "externalTest": {
+        "dataset": "mimic-perform-af",
+        "subjects": null,
+        "rhythmBiasGapPts": null,
+        "acceptRateAf": null,
+        "acceptRateNonAf": null
+      },
+      "trainedOn": [
+        "butppg",
+        "afdb",
+        "ltafdb",
+        "mitdb"
+      ],
+      "development": {
+        "subjects": 9,
+        "metrics": {
+          "windowAuroc": {
+            "estimate": 0.5424610366074665,
+            "low": 0.49949381061652587,
+            "high": 0.5873790500424483,
+            "undefinedResamples": 0
+          }
+        },
+        "undefinedMetrics": [],
+        "byKind": []
+      },
+      "opset": 17,
+      "toolchain": {
+        "torch": "2.14.1+cpu",
+        "onnx": "1.23.1",
+        "onnxruntime": "1.30.0"
+      },
+      "commit": "3a30247c3277ce1a920a615e0f25c9471f964797",
+      "date": "2026-10-03",
+      "card": "sqi-rule@1.0.0.md",
+      "featureOrder": [
+        "skewness",
+        "hrInRange"
+      ]
+    },
+    {
+      "name": "rhythm-lgbm",
+      "family": "rhythm",
+      "ships": true,
+      "role": "gate",
+      "version": "1.0.0",
+      "file": "rhythm-lgbm@1.0.0.onnx",
+      "sha256": "7cdaf7ec45c20115c3c1f817179b5735bb4df20b5553cfcde9cf6a0f9f2c7ec1",
+      "inputs": {
+        "features": [
+          1,
+          8
+        ]
+      },
+      "outputs": {
+        "probs": [
+          1,
+          3
+        ]
+      },
+      "labels": [
+        "sinus",
+        "af",
+        "other"
+      ],
+      "threshold": {
+        "af": 0.24392704665660858
+      },
+      "abstainBelow": 0.6,
+      "externalTest": {
+        "dataset": "mimic-perform-af",
+        "subjects": null,
+        "auroc": null,
+        "sensitivity": null,
+        "specificity": null,
+        "ci95": null,
+        "ppvNpv": null
+      },
+      "trainedOn": [
+        "afdb",
+        "cinc2017",
+        "ltafdb",
+        "mitdb"
+      ],
+      "development": {
+        "subjects": 1092,
+        "metrics": {
+          "windowAuroc": {
+            "estimate": 0.9775503103827586,
+            "low": 0.9457692214209981,
+            "high": 0.9939971248180675,
+            "undefinedResamples": 0
+          },
+          "windowSensitivity": {
+            "estimate": 0.9666994750656168,
+            "low": 0.9459326202129555,
+            "high": 0.980344645190545,
+            "undefinedResamples": 0
+          },
+          "windowSpecificity": {
+            "estimate": 0.9252603784656007,
+            "low": 0.8378172509928553,
+            "high": 0.9787319406804861,
+            "undefinedResamples": 0
+          },
+          "readingAuroc": {
+            "estimate": 0.9734116230051189,
+            "low": 0.929807175844496,
+            "high": 0.994826232256911,
+            "undefinedResamples": 0
+          },
+          "readingSensitivity": {
+            "estimate": 0.9731481481481481,
+            "low": 0.950579978905896,
+            "high": 0.9843447344969195,
+            "undefinedResamples": 0
+          },
+          "readingSpecificity": {
+            "estimate": 0.9190957763236169,
+            "low": 0.8167324795188293,
+            "high": 0.980625286586619,
+            "undefinedResamples": 0
+          },
+          "subjectAuroc": {
+            "estimate": 0.9594481470749219,
+            "low": 0.9378946969643597,
+            "high": 0.9760663997961745,
+            "undefinedResamples": 0
+          },
+          "subjectSensitivity": {
+            "estimate": 0.8492063492063492,
+            "low": 0.7868733089288557,
+            "high": 0.9064765010421569,
+            "undefinedResamples": 0
+          },
+          "subjectSpecificity": {
+            "estimate": 0.9503042596348884,
+            "low": 0.9362128972944576,
+            "high": 0.9632277834525026,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt1PctPrevalence": {
+            "estimate": 0.14719949548503747,
+            "low": 0.11730906018934407,
+            "high": 0.1894215196747694,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt1PctPrevalence": {
+            "estimate": 0.9983997433302423,
+            "low": 0.9977369152438429,
+            "high": 0.9990044204210761,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt5PctPrevalence": {
+            "estimate": 0.4735108254640765,
+            "low": 0.40914953477527605,
+            "high": 0.549068427472067,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt5PctPrevalence": {
+            "estimate": 0.9917176265035952,
+            "low": 0.9883194387971843,
+            "high": 0.9948341611575405,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt10PctPrevalence": {
+            "estimate": 0.6550152730523753,
+            "low": 0.5938084957075251,
+            "high": 0.7199315010284618,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt10PctPrevalence": {
+            "estimate": 0.9826744302186643,
+            "low": 0.9756569710609057,
+            "high": 0.9891565795154811,
+            "undefinedResamples": 0
+          },
+          "readingAbstainRate": {
+            "estimate": 0.21770373999673362,
+            "low": 0.17641014938488575,
+            "high": 0.25275348929421093,
+            "undefinedResamples": 0
+          },
+          "falseAfRatePrematureReadings": {
+            "estimate": 0.30097087378640774,
+            "low": 0.0851063829787234,
+            "high": 0.611876241310824,
+            "undefinedResamples": 0
+          },
+          "falseAfRatePrematureWindows": {
+            "estimate": 0.35714285714285715,
+            "low": 0.09141558441558444,
+            "high": 0.6453333333333333,
+            "undefinedResamples": 0
+          }
+        },
+        "undefinedMetrics": [],
+        "byDataset": [
+          {
+            "dataset": "afdb",
+            "AF subjects": 5,
+            "non-AF subjects": 5,
+            "subject AUROC": "1.000 (1.000-1.000)",
+            "subject sensitivity at τ_AF": "1.000 (1.000-1.000)",
+            "subject specificity at τ_AF": "1.000 (1.000-1.000)",
+            "window AUROC": "0.993 (0.980-0.999)"
+          },
+          {
+            "dataset": "cinc2017",
+            "AF subjects": 104,
+            "non-AF subjects": 957,
+            "subject AUROC": "0.953 (0.927-0.975)",
+            "subject sensitivity at τ_AF": "0.817 (0.740-0.890)",
+            "subject specificity at τ_AF": "0.952 (0.938-0.964)",
+            "window AUROC": "0.958 (0.939-0.973)"
+          },
+          {
+            "dataset": "ltafdb",
+            "AF subjects": 17,
+            "non-AF subjects": 15,
+            "subject AUROC": "0.976 (0.924-1.000)",
+            "subject sensitivity at τ_AF": "1.000 (1.000-1.000)",
+            "subject specificity at τ_AF": "0.867 (0.687-1.000)",
+            "window AUROC": "0.973 (0.931-0.997)"
+          },
+          {
+            "dataset": "mitdb",
+            "AF subjects": 0,
+            "non-AF subjects": 9,
+            "subject AUROC": "undefined",
+            "subject sensitivity at τ_AF": "undefined",
+            "subject specificity at τ_AF": "0.889 (0.667-1.000)",
+            "window AUROC": "undefined"
+          }
+        ]
+      },
+      "opset": 16,
+      "toolchain": {
+        "torch": "2.14.1+cpu",
+        "onnx": "1.23.1",
+        "onnxruntime": "1.30.0"
+      },
+      "commit": "3a30247c3277ce1a920a615e0f25c9471f964797",
+      "date": "2026-10-03",
+      "card": "rhythm-lgbm@1.0.0.md",
+      "featureOrder": [
+        "normalizedRmssd",
+        "shannonEntropyBits",
+        "turningPointRatio",
+        "sd1S",
+        "sd2S",
+        "pnn50",
+        "sampleEntropy",
+        "atypicalFraction"
+      ]
+    },
+    {
+      "name": "rhythm-logistic",
+      "family": "rhythm",
+      "ships": false,
+      "role": "gate",
+      "version": "1.0.0",
+      "file": "rhythm-logistic@1.0.0.onnx",
+      "sha256": "639b41d39a451427eae7564c274a8c1808d7c113e91ea8e4f3c5ac1596b2e296",
+      "inputs": {
+        "features": [
+          1,
+          8
+        ]
+      },
+      "outputs": {
+        "probs": [
+          1,
+          3
+        ]
+      },
+      "labels": [
+        "sinus",
+        "af",
+        "other"
+      ],
+      "threshold": {
+        "af": 0.6121135950088501
+      },
+      "abstainBelow": 0.6,
+      "externalTest": {
+        "dataset": "mimic-perform-af",
+        "subjects": null,
+        "auroc": null,
+        "sensitivity": null,
+        "specificity": null,
+        "ci95": null,
+        "ppvNpv": null
+      },
+      "trainedOn": [
+        "afdb",
+        "cinc2017",
+        "ltafdb",
+        "mitdb"
+      ],
+      "development": {
+        "subjects": 1092,
+        "metrics": {
+          "windowAuroc": {
+            "estimate": 0.9153695870713827,
+            "low": 0.8297790513850332,
+            "high": 0.9673075645543703,
+            "undefinedResamples": 0
+          },
+          "windowSensitivity": {
+            "estimate": 0.6409120734908137,
+            "low": 0.539785856608795,
+            "high": 0.7370638073123329,
+            "undefinedResamples": 0
+          },
+          "windowSpecificity": {
+            "estimate": 0.9217397682264926,
+            "low": 0.8278188759633637,
+            "high": 0.978991647758286,
+            "undefinedResamples": 0
+          },
+          "readingAuroc": {
+            "estimate": 0.91162998215348,
+            "low": 0.8116445769622426,
+            "high": 0.97073833448085,
+            "undefinedResamples": 0
+          },
+          "readingSensitivity": {
+            "estimate": 0.6342592592592593,
+            "low": 0.4901604423297169,
+            "high": 0.7648918081103587,
+            "undefinedResamples": 0
+          },
+          "readingSpecificity": {
+            "estimate": 0.9153281776720206,
+            "low": 0.8083499460341397,
+            "high": 0.9811336366810393,
+            "undefinedResamples": 0
+          },
+          "subjectAuroc": {
+            "estimate": 0.8544946714317911,
+            "low": 0.8144514856896532,
+            "high": 0.8907831374057762,
+            "undefinedResamples": 0
+          },
+          "subjectSensitivity": {
+            "estimate": 0.5,
+            "low": 0.40869565217391307,
+            "high": 0.586961507778221,
+            "undefinedResamples": 0
+          },
+          "subjectSpecificity": {
+            "estimate": 0.9503042596348884,
+            "low": 0.936733411957748,
+            "high": 0.9633046188880696,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt1PctPrevalence": {
+            "estimate": 0.09225299401197601,
+            "low": 0.06858324805800015,
+            "high": 0.1275891970843975,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt1PctPrevalence": {
+            "estimate": 0.9947134768808441,
+            "low": 0.9937566918187641,
+            "high": 0.9956393531393329,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt5PctPrevalence": {
+            "estimate": 0.34620786516853924,
+            "low": 0.2772832881096525,
+            "high": 0.43247412577948297,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt5PctPrevalence": {
+            "estimate": 0.9730542195015304,
+            "low": 0.9683023344031703,
+            "high": 0.977688389749323,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt10PctPrevalence": {
+            "estimate": 0.5278372591006423,
+            "low": 0.4475033772001718,
+            "high": 0.6166730167396902,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt10PctPrevalence": {
+            "estimate": 0.9447680932108447,
+            "low": 0.935359326467171,
+            "high": 0.9540371616474694,
+            "undefinedResamples": 0
+          },
+          "readingAbstainRate": {
+            "estimate": 0.20316838151233055,
+            "low": 0.16237996255708198,
+            "high": 0.24736733910163652,
+            "undefinedResamples": 0
+          },
+          "falseAfRatePrematureReadings": {
+            "estimate": 0.23300970873786409,
+            "low": 0.0,
+            "high": 0.5283018867924528,
+            "undefinedResamples": 0
+          },
+          "falseAfRatePrematureWindows": {
+            "estimate": 0.2925170068027211,
+            "low": 0.0,
+            "high": 0.6038781163434903,
+            "undefinedResamples": 0
+          }
+        },
+        "undefinedMetrics": [],
+        "byDataset": [
+          {
+            "dataset": "afdb",
+            "AF subjects": 5,
+            "non-AF subjects": 5,
+            "subject AUROC": "1.000 (1.000-1.000)",
+            "subject sensitivity at τ_AF": "0.800 (0.400-1.000)",
+            "subject specificity at τ_AF": "1.000 (1.000-1.000)",
+            "window AUROC": "0.972 (0.949-0.993)"
+          },
+          {
+            "dataset": "cinc2017",
+            "AF subjects": 104,
+            "non-AF subjects": 957,
+            "subject AUROC": "0.834 (0.785-0.879)",
+            "subject sensitivity at τ_AF": "0.462 (0.364-0.558)",
+            "subject specificity at τ_AF": "0.951 (0.936-0.964)",
+            "window AUROC": "0.829 (0.781-0.873)"
+          },
+          {
+            "dataset": "ltafdb",
+            "AF subjects": 17,
+            "non-AF subjects": 15,
+            "subject AUROC": "0.871 (0.688-1.000)",
+            "subject sensitivity at τ_AF": "0.647 (0.412-0.882)",
+            "subject specificity at τ_AF": "0.867 (0.687-1.000)",
+            "window AUROC": "0.906 (0.792-0.979)"
+          },
+          {
+            "dataset": "mitdb",
+            "AF subjects": 0,
+            "non-AF subjects": 9,
+            "subject AUROC": "undefined",
+            "subject sensitivity at τ_AF": "undefined",
+            "subject specificity at τ_AF": "1.000 (1.000-1.000)",
+            "window AUROC": "undefined"
+          }
+        ],
+        "prematureBeatSet": {
+          "subjects": 8,
+          "windows": 294
+        }
+      },
+      "opset": 17,
+      "toolchain": {
+        "torch": "2.14.1+cpu",
+        "onnx": "1.23.1",
+        "onnxruntime": "1.30.0"
+      },
+      "commit": "3a30247c3277ce1a920a615e0f25c9471f964797",
+      "date": "2026-10-03",
+      "card": "rhythm-logistic@1.0.0.md",
+      "rule": {
+        "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+        "features": [
+          "normalizedRmssd",
+          "shannonEntropyBits",
+          "turningPointRatio"
+        ],
+        "featureIndices": [
+          0,
+          1,
+          2
+        ],
+        "mean": [
+          0.257050479911196,
+          2.938562449079381,
+          0.6754157442326184
+        ],
+        "scale": [
+          0.13975051160543916,
+          0.7254258852182109,
+          0.09068909436622044
+        ],
+        "classes": [
+          "sinus",
+          "af",
+          "other"
+        ],
+        "coefficients": [
+          [
+            -1.4157847166061401,
+            -0.9268215894699097,
+            0.11880548298358917
+          ],
+          [
+            1.3264387845993042,
+            1.4089562892913818,
+            -0.2612689137458801
+          ],
+          [
+            0.0893453061580658,
+            -0.4821346700191498,
+            0.1424632966518402
+          ]
+        ],
+        "intercepts": [
+          -0.3212240934371948,
+          -0.13882601261138916,
+          0.460048645734787
+        ]
+      },
+      "featureOrder": [
+        "normalizedRmssd",
+        "shannonEntropyBits",
+        "turningPointRatio",
+        "sd1S",
+        "sd2S",
+        "pnn50",
+        "sampleEntropy",
+        "atypicalFraction"
+      ]
+    },
+    {
+      "name": "diabetes-lgbm",
+      "family": "diabetes",
+      "ships": false,
+      "role": "gate",
+      "version": "1.0.0",
+      "file": "diabetes-lgbm@1.0.0.onnx",
+      "sha256": "6270557aa9c859dc40d842d55d3fb18d2f297c98fe9859b4ad7c5ec0e832f078",
+      "inputs": {
+        "shapeFeatures": [
+          1,
+          12
+        ]
+      },
+      "outputs": {
+        "pPattern": [
+          1,
+          1
+        ]
+      },
+      "labels": [
+        "pattern"
+      ],
+      "threshold": {
+        "pattern": 0.5294046401977539
+      },
+      "abstainBelow": null,
+      "externalTest": {
+        "dataset": "vitaldb-holdout",
+        "subjects": null,
+        "auroc": null,
+        "sensitivity": null,
+        "specificity": null,
+        "ci95": null,
+        "ppvNpv": null,
+        "floorMet": null
+      },
+      "trainedOn": [
+        "vitaldb"
+      ],
+      "development": {
+        "subjects": 366,
+        "diabeticSubjects": 92,
+        "segments": 1459,
+        "metrics": {
+          "subjectAuroc": {
+            "estimate": 0.581164709615995,
+            "low": 0.5162686837406335,
+            "high": 0.6471650363662316,
+            "undefinedResamples": 0
+          },
+          "subjectSensitivity": {
+            "estimate": 0.1956521739130435,
+            "low": 0.1188118811881188,
+            "high": 0.278368496763366,
+            "undefinedResamples": 0
+          },
+          "subjectSpecificity": {
+            "estimate": 0.8503649635036497,
+            "low": 0.8065663998116317,
+            "high": 0.8893215319821005,
+            "undefinedResamples": 0
+          },
+          "readingAuroc": {
+            "estimate": 0.5606195687561042,
+            "low": 0.5131914419630604,
+            "high": 0.6114036900204534,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt5PctPrevalence": {
+            "estimate": 0.06438642297650132,
+            "low": 0.038889946707990154,
+            "high": 0.10131626814935912,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt5PctPrevalence": {
+            "estimate": 0.9525774160351763,
+            "low": 0.9477838987158095,
+            "high": 0.9576888340236019,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt11.6PctPrevalence": {
+            "estimate": 0.14644904980340764,
+            "low": 0.09163932419416543,
+            "high": 0.2194092881294194,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt11.6PctPrevalence": {
+            "estimate": 0.8895841783466282,
+            "low": 0.8792305201495186,
+            "high": 0.9007780640798383,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt20PctPrevalence": {
+            "estimate": 0.24635364635364637,
+            "low": 0.1612159481362244,
+            "high": 0.3487497032460744,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt20PctPrevalence": {
+            "estimate": 0.8087530654593473,
+            "low": 0.79258711476043,
+            "high": 0.8265437261071968,
+            "undefinedResamples": 0
+          }
+        },
+        "undefinedMetrics": []
+      },
+      "opset": 16,
+      "toolchain": {
+        "torch": "2.14.1+cpu",
+        "onnx": "1.23.1",
+        "onnxruntime": "1.30.0"
+      },
+      "commit": "3a30247c3277ce1a920a615e0f25c9471f964797",
+      "date": "2026-10-03",
+      "card": "diabetes-lgbm@1.0.0.md",
+      "featureOrder": {
+        "shapeFeatures": [
+          "riseTime",
+          "width50",
+          "width25",
+          "notchTime",
+          "notchHeight",
+          "diastolicPeakHeight",
+          "bOverA",
+          "cOverA",
+          "dOverA",
+          "eOverA",
+          "agingIndex",
+          "areaRatio"
+        ]
+      },
+      "fillMedians": {
+        "riseTime": 0.18125,
+        "width50": 0.3055233464114588,
+        "width25": 0.47788560011005843,
+        "notchTime": 0.4,
+        "notchHeight": 0.42710581342152953,
+        "diastolicPeakHeight": 0.0,
+        "bOverA": -1.2863389939468268,
+        "cOverA": 0.15450722901230993,
+        "dOverA": -0.16122221480196702,
+        "eOverA": 0.35818819792456214,
+        "agingIndex": -1.5200903290430043,
+        "areaRatio": 0.2668548993255641
+      }
+    },
+    {
+      "name": "diabetes-logistic",
+      "family": "diabetes",
+      "ships": false,
+      "role": "gate",
+      "version": "1.0.0",
+      "file": "diabetes-logistic@1.0.0.onnx",
+      "sha256": "fa8f761834ee3bf879e7ab7e5361cd2f41ca6e72646c8584f8f98d294f716e1e",
+      "inputs": {
+        "shapeFeatures": [
+          1,
+          12
+        ]
+      },
+      "outputs": {
+        "pPattern": [
+          1,
+          1
+        ]
+      },
+      "labels": [
+        "pattern"
+      ],
+      "threshold": {
+        "pattern": 0.5483018755912781
+      },
+      "abstainBelow": null,
+      "externalTest": {
+        "dataset": "vitaldb-holdout",
+        "subjects": null,
+        "auroc": null,
+        "sensitivity": null,
+        "specificity": null,
+        "ci95": null,
+        "ppvNpv": null,
+        "floorMet": null
+      },
+      "trainedOn": [
+        "vitaldb"
+      ],
+      "development": {
+        "subjects": 366,
+        "diabeticSubjects": 92,
+        "segments": 1459,
+        "metrics": {
+          "subjectAuroc": {
+            "estimate": 0.5579181212313551,
+            "low": 0.48925672852257945,
+            "high": 0.6248925028736855,
+            "undefinedResamples": 0
+          },
+          "subjectSensitivity": {
+            "estimate": 0.2608695652173913,
+            "low": 0.17390195208518192,
+            "high": 0.35789473684210527,
+            "undefinedResamples": 0
+          },
+          "subjectSpecificity": {
+            "estimate": 0.8503649635036497,
+            "low": 0.807540308747856,
+            "high": 0.8916991082493669,
+            "undefinedResamples": 0
+          },
+          "readingAuroc": {
+            "estimate": 0.5549598056647717,
+            "low": 0.49732436404841823,
+            "high": 0.6116196512730999,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt5PctPrevalence": {
+            "estimate": 0.08404478298655489,
+            "low": 0.05426718815116645,
+            "high": 0.12594989346743,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt5PctPrevalence": {
+            "estimate": 0.9562542848824651,
+            "low": 0.9509116312074349,
+            "high": 0.9620119114381477,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt11.6PctPrevalence": {
+            "estimate": 0.18617692196548724,
+            "low": 0.12515779755973827,
+            "high": 0.26431092132579714,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt11.6PctPrevalence": {
+            "estimate": 0.8976202440312834,
+            "low": 0.8859705447276328,
+            "high": 0.9103717177788845,
+            "undefinedResamples": 0
+          },
+          "subjectPpvAt20PctPrevalence": {
+            "estimate": 0.30354505169867063,
+            "low": 0.21418257107145258,
+            "high": 0.4063418304792765,
+            "undefinedResamples": 0
+          },
+          "subjectNpvAt20PctPrevalence": {
+            "estimate": 0.8214915306200659,
+            "low": 0.8030796235527445,
+            "high": 0.8420564776709519,
+            "undefinedResamples": 0
+          }
+        },
+        "undefinedMetrics": []
+      },
+      "opset": 17,
+      "toolchain": {
+        "torch": "2.14.1+cpu",
+        "onnx": "1.23.1",
+        "onnxruntime": "1.30.0"
+      },
+      "commit": "3a30247c3277ce1a920a615e0f25c9471f964797",
+      "date": "2026-10-03",
+      "card": "diabetes-logistic@1.0.0.md",
+      "featureOrder": {
+        "shapeFeatures": [
+          "riseTime",
+          "width50",
+          "width25",
+          "notchTime",
+          "notchHeight",
+          "diastolicPeakHeight",
+          "bOverA",
+          "cOverA",
+          "dOverA",
+          "eOverA",
+          "agingIndex",
+          "areaRatio"
+        ]
+      },
+      "fillMedians": {
+        "riseTime": 0.18125,
+        "width50": 0.3055233464114588,
+        "width25": 0.47788560011005843,
+        "notchTime": 0.4,
+        "notchHeight": 0.42710581342152953,
+        "diastolicPeakHeight": 0.0,
+        "bOverA": -1.2863389939468268,
+        "cOverA": 0.15450722901230993,
+        "dOverA": -0.16122221480196702,
+        "eOverA": 0.35818819792456214,
+        "agingIndex": -1.5200903290430043,
+        "areaRatio": 0.2668548993255641
+      }
+    }
+  ]
+}

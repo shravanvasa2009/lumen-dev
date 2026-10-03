@@ -6,7 +6,6 @@ import { Card } from '@/components/Card';
 import { chooseLanguage, type Language } from '@/i18n/language';
 
 import { resyncNotifications } from './applyPrefs';
-
 import { Segmented } from './Segmented';
 
 export function LanguagePicker() {
@@ -21,13 +20,9 @@ export function LanguagePicker() {
       await chooseLanguage(code);
     } catch {
       setSaveFailed(true);
-      return;
     }
-    try {
-      await resyncNotifications(code);
-    } catch {
-      setRemindersFailed(true);
-    }
+    // The language is applied even when saving it failed, so the reminders follow it either way.
+    if (!(await resyncNotifications(code))) setRemindersFailed(true);
   }
 
   return (

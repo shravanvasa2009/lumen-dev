@@ -2,6 +2,7 @@ import { type RatingMeasures, rateDevice } from '@lumen/core';
 
 import type { Capabilities } from '../../modules/lumen-capture/src';
 import type { KeptCapture } from '@/measure/keptCapture';
+import { resyncNotifications } from '@/settings/applyPrefs';
 import {
   loadDeviceRating,
   saveDeviceRating,
@@ -43,5 +44,6 @@ export async function ratePhone(
     lensId: measured.lensId,
     practice: measured.summary,
   });
+  void resyncNotifications();
   return loadDeviceRating();
 }

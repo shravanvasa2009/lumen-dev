@@ -182,6 +182,10 @@ export const DSP_CONFIG = {
     frameMargin: 0.25,
     waveformS: 6, // §9.3: the live waveform shows the last 6 s
     sqiEveryS: 1, // §11.2: SQI-Net runs every 1 s on the last 4 s (dsp3.modelWindowS)
+    // ADR 0057 flat stretches: exactly equal red this long is one whole beat at 30 bpm, below the 36 bpm
+    // edge of the HR band, so it holds no beat. A pulse of at least half an 8-bit step changes red at least
+    // twice a period, so its longest equal stretch is under half a period (1 s at 30 bpm).
+    minFlatS: 2,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.

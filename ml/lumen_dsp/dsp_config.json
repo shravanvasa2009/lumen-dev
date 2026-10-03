@@ -123,6 +123,7 @@
     "frameMargin": 0.25,
     "waveformS": 6,
     "sqiEveryS": 1,
+    "minFlatS": 2,
     "motionRmsThreshold": 0.05,
     "leakRedRatio": 2.5,
     "coldHandsAfterS": 10,

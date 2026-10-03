@@ -379,14 +379,15 @@ describe('live and replay paths agree', () => {
     fingerOff: (tS) => tS >= 20 && tS < 23,
     exposureNs: (tS) => (tS < 35 ? 8e6 : 6e6),
   });
-  let scored = false;
+  // Every window is scored as it appears, as the app does; only the one ending at 50 s is low.
+  const scores: { endS: number; pClean: number }[] = [];
   const { session } = play(capture, {
     moving: (tS) => tS >= 40 && tS < 42,
-    onBatch: (live, tS) => {
-      if (!scored && tS >= 50) {
-        live.setSqi(50, 0.1);
-        scored = true;
-      }
+    onBatch: (live) => {
+      const window = live.sqiWindow;
+      if (!window || window.endS === scores.at(-1)?.endS) return;
+      scores.push({ endS: window.endS, pClean: window.endS === 50 ? 0.1 : 0.9 });
+      live.setSqi(window.endS, scores.at(-1)!.pClean);
     },
   });
   const toNs = (tS: number) => CLOCK_START_NS + Math.round(tS * 1e9);
@@ -400,11 +401,15 @@ describe('live and replay paths agree', () => {
     recordedAt: null,
     motionSpans: spansNs('motion'),
     coldHandsSpans: spansNs('coldHands'),
-    sqi: { threshold: CONFIG.sqiThreshold, windows: [{ endNs: toNs(50), pClean: 0.1 }] },
+    sqi: {
+      threshold: CONFIG.sqiThreshold,
+      windows: scores.map(({ endS, pClean }) => ({ endNs: toNs(endS), pClean })),
+    },
     validationRhythmLabel: null,
   };
 
   it('the session spans and clean seconds equal analyzeReading on the same samples', () => {
+    expect(scores.filter((score) => score.pClean < 0.5)).toEqual([{ endS: 50, pClean: 0.1 }]);
     const analysis = analyzeReading(capture, context);
     expect(analysis.rejectedSpans).toHaveLength(session.rejectedSpans.length);
     analysis.rejectedSpans.forEach((span, i) => {

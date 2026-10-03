@@ -3,7 +3,7 @@ import { DSP_CONFIG } from './config';
 import { frameProblem, validChannels } from './contact';
 import { butterBandpass, CausalFilter, type SosSection } from './filters';
 import type { CoachingKey, LiveSession, RejectedSpan, SqiWindow } from './live-session';
-import { FlatRuns, modelWindowAt, nextModelTickS, usableFrom } from './model-window';
+import { FlatRuns, modelWindowAt, nextModelTickS, unscoredSpan, usableFrom } from './model-window';
 import type { NsSpan, SqiScores } from './reading';
 import { cleanSeconds as cleanTime } from './reading-metrics';
 
@@ -92,6 +92,8 @@ class Session implements LiveSession {
   private readonly coldHands: NsSpan[] = [];
   private readonly quality: RejectedSpan[] = [];
   private readonly flatRuns = new FlatRuns();
+  // Checks with no window (ADR 0057); rejected only once SQI-Net has run, as analyzeReading does with sqi.
+  private readonly unscored: RejectedSpan[] = [];
   private openContact: OpenSpan | null = null;
   private openMotionNs: number | null = null;
   private openColdHandsNs: number | null = null;
@@ -232,6 +234,8 @@ class Session implements LiveSession {
     const window = modelWindowAt(this.tS, this.red, this.covered, this.count);
     this.latestWindow = window?.input ? { endS: window.endS, input: window.input } : null;
     if (window && !window.input) this.rejectWindow(window.endS);
+    const unscored = window ? null : unscoredSpan(this.tS, this.count);
+    if (unscored) this.unscored.push(unscored);
 
     const { coldHandsAfterS, perfusionWindowS } = DSP_CONFIG.live;
     const from =
@@ -290,6 +294,7 @@ class Session implements LiveSession {
       ...seconds(this.nsSpans(this.motion, this.openMotionNs), 'motion'),
       ...seconds(this.nsSpans(this.coldHands, this.openColdHandsNs), 'coldHands'),
       ...this.quality,
+      ...(this.modelRan ? this.unscored : []),
       ...this.flatRuns.spans(),
     ].sort((x, y) => x.startS - y.startS);
   }

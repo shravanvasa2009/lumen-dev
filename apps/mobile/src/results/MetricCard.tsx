@@ -13,18 +13,26 @@ import { ConfidenceDots } from './ConfidenceDots';
 
 type MetricCardProps = {
   title: string;
+  // The short check name shown before the title, e.g. "AFib · Heart rhythm".
+  checkName?: string;
   evidenceMetric: EvidenceMetric;
   // Null when the metric missed its clean-data floor; that card alone says so (§6.2).
   reading: { value: string; note: string; confidence: Confidence; flagged: boolean } | null;
 };
 
-export function MetricCard({ title, evidenceMetric, reading }: MetricCardProps) {
+export function MetricCard({ title, checkName, evidenceMetric, reading }: MetricCardProps) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   return (
     <Card>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <AppText tone="textDim">{title}</AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, flexShrink: 1 }}>
+          {checkName ? (
+            <AppText variant="headline">{checkName}</AppText>
+          ) : null}
+          {checkName ? <AppText tone="textDim">·</AppText> : null}
+          <AppText tone="textDim">{title}</AppText>
+        </View>
         {reading ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
             {reading.flagged ? (

@@ -12,9 +12,11 @@ import { evidenceFor } from '@/evidence';
 import { useTheme } from '@/theme';
 
 import { DemoBanner } from './DemoBanner';
+import { DiabetesCheckCard } from './DiabetesCheckCard';
 import { ExperimentalCard } from './ExperimentalCard';
 import type { FixtureReading } from './fixtures';
 import { formatClock, formatDay } from './format';
+import { HeadlineCard } from './HeadlineCard';
 import { Icon } from '@/components/Icon';
 import { MetricCard } from './MetricCard';
 import { rhythmWords } from './rhythmWords';
@@ -57,7 +59,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const acuteFlag = Boolean(hr?.flag) || Boolean(rhythm?.flag);
 
   // ADR 0046, §12.5: the amber card needs the flag and a passed accuracy criterion. Without the passed
-  // criterion the estimate sits in Experimental measurements; with it and no flag, nothing is shown.
+  // criterion the estimate gets the quiet Experimental card (ADR 0082); with it and no flag, nothing is shown.
   const diabetesCard = diabetes?.flag === 'pattern' && evidenceFor('diabetes').measured ? diabetes : null;
   const diabetesExperimental = diabetes !== null && !evidenceFor('diabetes').measured;
   const anyFlag = acuteFlag || diabetesCard !== null;
@@ -113,22 +115,13 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           </Pressable>
         </View>
 
-        <View
-          style={{
-            backgroundColor: headlineTone.fill,
-            borderColor: headlineTone.edge,
-            borderWidth: 1,
-            borderRadius: radius.card,
-            padding: spacing.lg,
-            gap: spacing.xs,
-          }}
-        >
+        <HeadlineCard fill={headlineTone.fill} edge={headlineTone.edge}>
           <AppText variant="title">{headlineText(t, reading)}</AppText>
           {subline ? <AppText>{subline}</AppText> : null}
           <AppText variant="caption" tone="textDim">
             {metaParts.join(' · ')}
           </AppText>
-        </View>
+        </HeadlineCard>
 
         {acuteFlag ? <Button label={t('results.findCare')} onPress={() => router.push('/care')} /> : null}
 
@@ -169,24 +162,13 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
 
         <MetricCard
           title={t('results.heartRhythm')}
+          checkName={t('checks.afib.name')}
           evidenceMetric="rhythm"
           reading={
             rhythm && {
               ...rhythmWords(t, rhythm),
               confidence: rhythm.confidence,
               flagged: rhythm.flag !== null,
-            }
-          }
-        />
-        <MetricCard
-          title={t('results.heartRate')}
-          evidenceMetric="hr"
-          reading={
-            hr && {
-              value: t('results.bpm', { value: hr.value }),
-              note: t('results.noteResting'),
-              confidence: hr.confidence,
-              flagged: hr.flag !== null,
             }
           }
         />
@@ -207,7 +189,22 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           />
         ) : null}
 
-        <ExperimentalCard experimental={scan.experimental} showDiabetes={diabetesExperimental} />
+        {diabetesExperimental ? <DiabetesCheckCard /> : null}
+
+        <MetricCard
+          title={t('results.heartRate')}
+          evidenceMetric="hr"
+          reading={
+            hr && {
+              value: t('results.bpm', { value: hr.value }),
+              note: t('results.noteResting'),
+              confidence: hr.confidence,
+              flagged: hr.flag !== null,
+            }
+          }
+        />
+
+        <ExperimentalCard experimental={scan.experimental} />
 
         <AppText tone="textDim">
           {t('result.notChecked')}{' '}

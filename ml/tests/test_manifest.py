@@ -149,6 +149,8 @@ def test_cards_have_every_heading_and_no_external_numbers(untrained):
         assert EXTERNAL_NOT_RUN in external
         if not entry["trainedOn"]:
             assert NOT_MEASURED in card.split("## Development metrics", 1)[1].split("\n## ", 1)[0]
+            calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
+            assert NOT_MEASURED in calibration and NOT_CALIBRATED not in calibration
     sqi_card = (models_dir / "sqi-finger@1.0.0.md").read_text(encoding="utf-8")
     assert "inverted red channel" in sqi_card and "finger recordings" in sqi_card
 

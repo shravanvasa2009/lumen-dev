@@ -63,9 +63,9 @@ function widgetDisplay(language: string) {
     checkNow: t('widgets.checkNow'),
     fullScan: t('mode.full'),
     empty: { title: lock['widget.empty.title'], body: lock['widget.empty.body'] },
-    // The four checks the medium widget lists (owner, 2026-10-03, four-checks proposal A). Home screen only: the
-    // lock screen and notifications never name a condition (WID-2). The Diabetes tag is the evidence label's
-    // word (EVID-1), shown only while that label is Experimental.
+    // The four checks the medium widget lists (owner, 2026-10-03, proposal A; ADR 0083). Home screen only: the lock
+    // screen and notifications never name a condition (WID-2). The Diabetes tag is the evidence label's word
+    // (EVID-1), shown only while that label is Experimental.
     checks: [
       t('widgets.checkAfib'),
       t('widgets.checkPots'),

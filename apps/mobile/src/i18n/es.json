@@ -680,6 +680,7 @@
   "careMap.zipLabel": "Código postal o ciudad",
   "careMap.search": "Buscar",
   "careMap.notFound": "No encontramos clínicas en ese lugar. Prueba con un código postal o una ciudad cercana.",
+  "careMap.showingNear": "Clínicas cerca de {{place}}",
   "careMap.legendClinic": "Clínica gratuita o de bajo costo",
   "careMap.legendDoctor": "Consultorio médico",
   "careMap.legendYou": "Tu ubicación",

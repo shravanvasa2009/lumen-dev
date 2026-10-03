@@ -17,6 +17,9 @@ const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 const START_ZOOM = 11;
 const PIN_SIZE = 30;
 const MAP_MAX_HEIGHT = 280;
+// While the keyboard is up the map shrinks but never goes: on a 360x640 dp phone this still leaves the title,
+// the map and the ZIP field above the keyboard.
+const MAP_KEYBOARD_HEIGHT = 120;
 // On a 360x640 dp phone this leaves the list, the ZIP field and the doctor button within reach.
 const MAP_WINDOW_SHARE = 0.3;
 // If the map neither finishes rendering nor fails in this time, the spinner goes: tiles may still fill in.
@@ -133,8 +136,8 @@ type CareMapViewProps = {
   clinics: readonly NearbyClinic[];
   doctors: readonly NearbyDoctor[];
   selectedId: string | null;
-  // Folds the map away (it stays mounted) so the ZIP field stays above the keyboard on small phones.
-  collapsed: boolean;
+  // The keyboard is up: the map shrinks (it stays mounted) so the ZIP field stays in view.
+  compact: boolean;
   onSelectClinic: (id: string) => void;
   onClearSelection: () => void;
 };
@@ -147,7 +150,7 @@ export function CareMapView({
   clinics,
   doctors,
   selectedId,
-  collapsed,
+  compact,
   onSelectClinic,
   onClearSelection,
 }: CareMapViewProps) {
@@ -178,7 +181,7 @@ export function CareMapView({
     <View
       testID="care-map-frame"
       style={{
-        height: collapsed ? 0 : mapHeight,
+        height: compact ? Math.min(mapHeight, MAP_KEYBOARD_HEIGHT) : mapHeight,
         borderRadius: radius.card,
         overflow: 'hidden',
         backgroundColor: colors.surface2,

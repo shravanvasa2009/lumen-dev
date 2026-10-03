@@ -110,3 +110,9 @@ name: Every route opens
 - assertVisible: 'Care near you'
 - assertVisible: 'Location is off\. Enter a ZIP code or city to see clinics near it\.'
 - assertVisible: 'ZIP code or city'
+# A whole ZIP code moves the map there at once; the map must stay on screen while the field is in use.
+- tapOn: 'ZIP code or city'
+- inputText: '77002'
+- assertVisible:
+    id: 'care-map-frame'
+- assertVisible: 'Showing clinics near 77002'

@@ -56,6 +56,18 @@ async function openCareMap() {
   await act(async () => {});
 }
 
+function captureKeyboardListeners() {
+  const listeners = new Map<string, () => void>();
+  jest.spyOn(Keyboard, 'addListener').mockImplementation((event, listener) => {
+    listeners.set(event, listener as () => void);
+    return { remove: jest.fn() } as unknown as ReturnType<typeof Keyboard.addListener>;
+  });
+  return listeners;
+}
+
+const frameHeight = () => StyleSheet.flatten(screen.getByTestId('care-map-frame').props.style).height;
+const mapCentre = () => JSON.parse(screen.getByTestId('care-map-camera').props.accessibilityLabel);
+
 beforeEach(() => {
   mockScheme = 'dark';
   jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
@@ -247,47 +259,52 @@ describe('Care map with location allowed', () => {
     expect(stopPropagation).toHaveBeenCalledTimes(1);
   });
 
-  it('sizes the map to the window and folds it away while the ZIP field is in use', async () => {
+  it('shrinks the map while the keyboard is up, and never hides it', async () => {
+    const keyboard = captureKeyboardListeners();
     act(() => Dimensions.set({ window: { ...originalWindow, width: 360, height: 640 } }));
     saveDoctorPhone('(713) 555-0100');
     await openCareMap();
-    const frameHeight = () => StyleSheet.flatten(screen.getByTestId('care-map-frame').props.style).height;
-    expect(frameHeight()).toBeLessThanOrEqual(640 * 0.3);
+    const fullHeight = frameHeight();
+    expect(fullHeight).toBeLessThanOrEqual(640 * 0.3);
     expect(screen.getByRole('button', { name: en['careMap.callMyDoctor'] })).toBeOnTheScreen();
     fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'focus');
-    expect(frameHeight()).toBe(0);
-    fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'blur');
+    expect(frameHeight()).toBe(fullHeight);
+    act(() => keyboard.get('keyboardDidShow')?.());
     expect(frameHeight()).toBeGreaterThan(0);
+    expect(frameHeight()).toBeLessThan(fullHeight);
+    act(() => keyboard.get('keyboardDidHide')?.());
+    expect(frameHeight()).toBe(fullHeight);
   });
 
-  // Android hides the keyboard without blurring the field; the folded map must still come back.
-  it('unfolds the map after a search, even though the ZIP field keeps focus', async () => {
+  // Android hides the keyboard without blurring the field; the map must still grow back.
+  it('grows the map back after a search, even though the ZIP field keeps focus', async () => {
+    const keyboard = captureKeyboardListeners();
     const dismiss = jest.spyOn(Keyboard, 'dismiss');
     await openCareMap();
-    const frameHeight = () => StyleSheet.flatten(screen.getByTestId('care-map-frame').props.style).height;
+    const fullHeight = frameHeight();
     const zip = screen.getByLabelText(en['careMap.zipLabel']);
     fireEvent(zip, 'focus');
-    fireEvent.changeText(zip, '77002');
-    expect(frameHeight()).toBe(0);
+    act(() => keyboard.get('keyboardDidShow')?.());
+    fireEvent.changeText(zip, 'Houston');
+    expect(frameHeight()).toBeLessThan(fullHeight);
     fireEvent.press(screen.getByRole('button', { name: en['careMap.search'] }));
     expect(dismiss).toHaveBeenCalled();
-    expect(frameHeight()).toBeGreaterThan(0);
+    expect(frameHeight()).toBe(fullHeight);
   });
 
-  it('unfolds the map when the keyboard hides without a blur', async () => {
-    const listeners = new Map<string, () => void>();
-    jest.spyOn(Keyboard, 'addListener').mockImplementation((event, listener) => {
-      listeners.set(event, listener as () => void);
-      return { remove: jest.fn() } as unknown as ReturnType<typeof Keyboard.addListener>;
-    });
+  it('moves the map as soon as a whole ZIP code is typed', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss');
     await openCareMap();
-    const frameHeight = () => StyleSheet.flatten(screen.getByTestId('care-map-frame').props.style).height;
-    fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'focus');
-    expect(frameHeight()).toBe(0);
-    act(() => listeners.get('keyboardDidHide')?.());
-    expect(frameHeight()).toBeGreaterThan(0);
+    const zip = screen.getByLabelText(en['careMap.zipLabel']);
+    fireEvent.changeText(zip, '1000');
+    expect(dismiss).not.toHaveBeenCalled();
+    expect(mapCentre()).toEqual([HOUSTON.lon, HOUSTON.lat]);
+    fireEvent.changeText(zip, '10001');
+    expect(dismiss).toHaveBeenCalled();
+    const newYork = findPlace('10001')!;
+    expect(mapCentre()).toEqual([newYork.lon, newYork.lat]);
+    expect(screen.getByTestId('care-map-place')).toHaveTextContent('Showing clinics near 10001');
   });
-
   it('puts Call my doctor first as the filled primary button when a number is saved', async () => {
     saveDoctorPhone('(713) 555-0100');
     await openCareMap();
@@ -436,6 +453,31 @@ describe('Care map with location denied', () => {
     expect(
       within(screen.getByTestId('care-map-legend')).getByText(en['careMap.legendClinic']),
     ).toBeOnTheScreen();
+  });
+
+  it('keeps the last searched place, labelled, while the field is edited or cleared', async () => {
+    await openCareMap();
+    const zip = screen.getByLabelText(en['careMap.zipLabel']);
+    fireEvent.changeText(zip, '77002');
+    const houston = mapCentre();
+    for (const typed of ['7700', '', '9']) {
+      fireEvent.changeText(zip, typed);
+      expect(screen.getByTestId('care-map-frame')).toBeOnTheScreen();
+      expect(frameHeight()).toBeGreaterThan(0);
+      expect(mapCentre()).toEqual(houston);
+      expect(screen.getByTestId('care-map-place')).toHaveTextContent('Showing clinics near 77002');
+    }
+  });
+
+  it('keeps the last place when a new search finds nothing', async () => {
+    await openCareMap();
+    const zip = screen.getByLabelText(en['careMap.zipLabel']);
+    fireEvent.changeText(zip, '77002');
+    const houston = mapCentre();
+    fireEvent.changeText(zip, 'zzzzzz');
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.search'] }));
+    expect(screen.getByText(en['careMap.notFound'])).toBeOnTheScreen();
+    expect(mapCentre()).toEqual(houston);
   });
 
   it('says so when the place is not in the list', async () => {

@@ -152,6 +152,10 @@ export const DSP_CONFIG = {
     adultRiseBpm: 30, // HR − baseline at or above this, ages 20 and over
     standingMinutes: [1, 3, 5, 10], // minutes after standing, in protocol order
     consecutiveReadings: 2, // the rise must hold in this many consecutive standing readings
+    // Owner decision H-043 pending (ADR 0063 item 2). false is the strict reading of §10.1 "Needs: completed
+    // protocol": an "I feel faint" stop leaves the protocol incomplete, so no flag. true would count the stop
+    // as completed and keep a pair met before it.
+    flagPairBeforeFaintStop: false,
   },
   // §10.1 decision rules (spec initial values) and §6.2 floors that are not a DSP metric's own.
   rules: {

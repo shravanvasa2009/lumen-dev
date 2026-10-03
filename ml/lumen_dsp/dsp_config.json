@@ -100,7 +100,8 @@
     "adolescentRiseBpm": 40,
     "adultRiseBpm": 30,
     "standingMinutes": [1, 3, 5, 10],
-    "consecutiveReadings": 2
+    "consecutiveReadings": 2,
+    "flagPairBeforeFaintStop": false
   },
   "rules": {
     "slowRestingBpm": 50,

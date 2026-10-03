@@ -15,6 +15,7 @@ export interface StandingRise {
   rises: { minute: StandingMinute; riseBpm: number | null }[];
   flag: 'largeRise' | null;
   completed: boolean;
+  stoppedFaint: boolean; // §6: a faint tap is a symptom, so the UI opens the safety path even without a flag
 }
 
 const isPositiveRate = (bpm: number) => Number.isFinite(bpm) && bpm > 0;
@@ -34,7 +35,7 @@ export function standingRise(
   ageYears: number,
   stoppedFaint: boolean,
 ): StandingRise {
-  const { standingMinutes, consecutiveReadings } = DSP_CONFIG.dsp16;
+  const { standingMinutes, consecutiveReadings, flagPairBeforeFaintStop } = DSP_CONFIG.dsp16;
   if (!isPositiveRate(baselineBpm)) throw new RangeError(`baseline ${baselineBpm} bpm is not a valid rate`);
   const thresholdBpm = riseThresholdBpm(ageYears);
   // Readings must be a prefix of the protocol: a skipped, repeated, or reordered slot is a caller bug.
@@ -60,8 +61,9 @@ export function standingRise(
     run = riseBpm !== null && riseBpm >= thresholdBpm ? run + 1 : 0;
     if (run >= consecutiveReadings) pairMet = true;
   }
-  // A faint stop completes the protocol and keeps a pair already met: fainting is itself the safety
-  // concern, so the flag that led there must not vanish (ADR 0063). Abandoned tests never flag (§10.1).
-  const completed = stoppedFaint || standing.length === standingMinutes.length;
-  return { thresholdBpm, rises, flag: completed && pairMet ? 'largeRise' : null, completed };
+  // §10.1 flags only a completed protocol. Whether an "I feel faint" stop counts as completed is owner
+  // decision H-043 (ADR 0063 item 2); until then it does not. The UI routes stoppedFaint to the safety path
+  // whatever the flag.
+  const completed = standing.length === standingMinutes.length || (stoppedFaint && flagPairBeforeFaintStop);
+  return { thresholdBpm, rises, flag: completed && pairMet ? 'largeRise' : null, completed, stoppedFaint };
 }

@@ -21,8 +21,7 @@ from datasets.splits import ensure_not_external
 from datasets.vitaldb_cases import DEV_SPLIT_FILE, SPLIT_FILE, ensure_dev_only, load_dev_split, load_split
 from export.provenance import sha256_of
 from export.specs import RUNS_DIR, SPECS, ModelSpec
-from nets.diabetes_net import BEAT, HR_SUMMARY, SHAPE_FEATURE_NAMES, DiabetesNet
-from train.hr_summary import HR_SUMMARY_NAMES
+from nets.diabetes_net import BEAT, HR_SUMMARY, HR_SUMMARY_NAMES, SHAPE_FEATURE_NAMES, DiabetesNet
 from train.rhythm import (
     LGBM_EARLY_STOPPING_ROUNDS,
     LGBM_PARAMS,
@@ -120,15 +119,21 @@ def load_feature_table(
     return table
 
 
+# A column with no dev-train value at all (SDNN: DSP-12 needs 300 clean s, a 90 s segment never has it)
+# is constant once filled, so it carries no signal; any fill works, because the network zeroes a constant
+# feature's weights, the logistic models' scaler maps it to 0, and a tree never splits on it. 0.0 is
+# stored in fillMedians like any median, so the app sends the same value.
+EMPTY_COLUMN_FILL = 0.0
+
+
 def fill_medians(table: pd.DataFrame) -> dict[str, float]:
     # Undefined features (no c/d/e wave, too few NN intervals) are filled with the dev-train median, which
     # the app applies too (order D.C_TASK-diabetes-shape-features: core returns null and never imputes).
     train = table[table["split"] == "dev-train"]
     medians = train[list(TABULAR)].astype(float).median()
-    empty = medians[medians.isna()].index.tolist()
-    if empty:
-        raise ValueError(f"no dev-train value to fill from for {empty}")
-    return {name: float(medians[name]) for name in TABULAR}
+    return {
+        name: EMPTY_COLUMN_FILL if math.isnan(medians[name]) else float(medians[name]) for name in TABULAR
+    }
 
 
 def segment_set(table: pd.DataFrame, split: str, medians: dict[str, float]) -> SegmentSet:
@@ -402,12 +407,16 @@ def training_notes(table: pd.DataFrame, train: SegmentSet, val: SegmentSet, deci
         return f"{diabetic} diabetic and {control} control subjects, {len(segments.subjects)} segments"
 
     filled = {name: int(table[name].isna().sum()) for name in TABULAR if table[name].isna().any()}
+    in_train = table.loc[table["split"] == "dev-train", list(TABULAR)]
+    empty = [name for name in TABULAR if in_train[name].isna().all()]
     return [
         f"Data: VitalDB development patients (ADR 0047), 90 s PLETH segments with a DSP-14 averaged beat. "
         f"dev-train: {described(train)}; dev-val: {described(val)}. The locked holdout (ADR 0014) is never "
         "read.",
         "Missing shape or HR-summary values are filled with the dev-train median of that feature "
-        f"(fillMedians); segments filled per feature, dev-train and dev-val together: {filled or 'none'}.",
+        f"(fillMedians), or {EMPTY_COLUMN_FILL} for a feature with no dev-train value at all "
+        f"({empty or 'none'}), which is then constant and ignored; segments filled per feature, dev-train "
+        f"and dev-val together: {filled or 'none'}.",
         "Training, early stopping, and both baselines weight segments so each label carries equal weight and "
         "each subject equal weight within its label.",
         f"Threshold: {THRESHOLD_RULE}",

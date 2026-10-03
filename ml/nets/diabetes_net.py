@@ -5,16 +5,16 @@ from nets.blocks import Standardize, conv_block
 
 # §11.4: one ensemble-averaged beat at 256 Hz (DSP-14), 12 shape features, 4 HR/HRV summary values.
 BEAT = 256
-# The order lumen_dsp.shape_features returns them (order D.C_TASK-diabetes-shape-features). Times are
-# fractions of the beat period; heights are relative to the systolic peak; x/a ratios are on the second
-# derivative.
+# The order lumen_dsp.shape_features returns them (ADR 0059; packages/core shapeFeatures). Times are
+# fractions of the beat period; heights are above the beat's minimum, relative to the systolic peak; the
+# x/a ratios are on the second derivative.
 SHAPE_FEATURE_NAMES = (
     "riseTime",
-    "systolicWidth50",
-    "systolicWidth25",
+    "width50",
+    "width25",
     "notchTime",
-    "notchRelativeHeight",
-    "diastolicRelativeHeight",
+    "notchHeight",
+    "diastolicPeakHeight",
     "bOverA",
     "cOverA",
     "dOverA",
@@ -23,7 +23,9 @@ SHAPE_FEATURE_NAMES = (
     "areaRatio",
 )
 SHAPE_FEATURES = len(SHAPE_FEATURE_NAMES)
-HR_SUMMARY = 4
+# The order lumen_dsp.metrics.hr_summary returns them, in bpm, ms, ms, and a fraction.
+HR_SUMMARY_NAMES = ("hrBpm", "rmssdMs", "sdnnMs", "pnn50")
+HR_SUMMARY = len(HR_SUMMARY_NAMES)
 
 
 class DiabetesNet(nn.Module):

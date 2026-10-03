@@ -22,6 +22,10 @@ import {
 import { useCareLocation } from './useCareLocation';
 
 type DoctorNotice = 'searchBusy' | 'searchFailed' | 'mapsFailed';
+type SearchedPlace = { coordinates: Coordinates; label: string };
+
+// Five digits is a whole ZIP code, so the map moves without waiting for Search.
+const COMPLETE_ZIP = /^\d{5}$/;
 
 export function CareMapScreen() {
   const { t } = useTranslation();
@@ -29,39 +33,48 @@ export function CareMapScreen() {
   const location = useCareLocation();
   const { phone: doctorPhone } = useDoctorPhone();
   const [query, setQuery] = useState('');
-  const [searchedPlace, setSearchedPlace] = useState<Coordinates | null>(null);
+  // Stays until the next search that finds a place, whatever is typed in between.
+  const [searchedPlace, setSearchedPlace] = useState<SearchedPlace | null>(null);
   const [placeNotFound, setPlaceNotFound] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [doctors, setDoctors] = useState<readonly NearbyDoctor[]>([]);
   const [doctorNotice, setDoctorNotice] = useState<DoctorNotice | null>(null);
   const [failedCallPhone, setFailedCallPhone] = useState<string | null>(null);
   const [directionsFailedId, setDirectionsFailedId] = useState<string | null>(null);
-  const [typing, setTyping] = useState(false);
-  // Android hides the keyboard (back key, chevron) without blurring the field, so the folded map would stay
-  // hidden after a search; the map comes back whenever the keyboard goes away.
+  const [keyboardUp, setKeyboardUp] = useState(false);
+  // Keyboard events, not focus: Android hides the keyboard (back key, chevron) without blurring the field.
   useEffect(() => {
-    const hidden = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
-    return () => hidden.remove();
+    const shown = Keyboard.addListener('keyboardDidShow', () => setKeyboardUp(true));
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setKeyboardUp(false));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
   }, []);
 
   const you = location.status === 'ready' ? location.origin : null;
-  const centre = searchedPlace ?? you;
+  const centre = searchedPlace?.coordinates ?? you;
   const clinics = useMemo(() => (centre ? nearestClinics(centre) : []), [centre]);
   const listed: NearbyClinic[] = [
     ...clinics.filter((clinic) => clinic.id === selectedId),
     ...clinics.filter((clinic) => clinic.id !== selectedId),
   ];
 
-  const searchPlace = () => {
+  const searchPlace = (text: string) => {
     Keyboard.dismiss();
-    setTyping(false);
-    const found = findPlace(query);
+    setKeyboardUp(false);
+    const found = findPlace(text);
     setPlaceNotFound(found === null);
     if (found) {
-      setSearchedPlace(found);
+      setSearchedPlace({ coordinates: found, label: text.trim() });
       setSelectedId(null);
       setDoctors([]);
     }
+  };
+
+  const changeQuery = (text: string) => {
+    setQuery(text);
+    if (COMPLETE_ZIP.test(text.trim())) searchPlace(text);
   };
 
   const call = async (phone: string) => {
@@ -128,7 +141,7 @@ export function CareMapScreen() {
             clinics={clinics}
             doctors={doctors}
             selectedId={selectedId}
-            collapsed={typing}
+            compact={keyboardUp}
             onSelectClinic={setSelectedId}
             onClearSelection={() => setSelectedId(null)}
           />
@@ -138,21 +151,14 @@ export function CareMapScreen() {
           contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xxxl }}
           keyboardShouldPersistTaps="handled"
         >
-          <AppText variant="caption" tone="textDim">
-            {t('careMap.privacy')}
-          </AppText>
-          {locationNotice ? <AppText tone="textDim">{locationNotice}</AppText> : null}
-
           <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
             <TextInput
               accessibilityLabel={t('careMap.zipLabel')}
               placeholder={t('careMap.zipLabel')}
               placeholderTextColor={colors.textFaint}
               value={query}
-              onChangeText={setQuery}
-              onFocus={() => setTyping(true)}
-              onBlur={() => setTyping(false)}
-              onSubmitEditing={searchPlace}
+              onChangeText={changeQuery}
+              onSubmitEditing={() => searchPlace(query)}
               returnKeyType="search"
               autoCorrect={false}
               style={{
@@ -170,7 +176,7 @@ export function CareMapScreen() {
             <Button
               label={t('careMap.search')}
               variant="secondary"
-              onPress={searchPlace}
+              onPress={() => searchPlace(query)}
               disabled={query.trim() === ''}
             />
           </View>
@@ -179,6 +185,15 @@ export function CareMapScreen() {
               {t('careMap.notFound')}
             </AppText>
           ) : null}
+          {searchedPlace ? (
+            <AppText testID="care-map-place" tone="textDim">
+              {t('careMap.showingNear', { place: searchedPlace.label })}
+            </AppText>
+          ) : null}
+          {locationNotice && !searchedPlace ? <AppText tone="textDim">{locationNotice}</AppText> : null}
+          <AppText variant="caption" tone="textDim">
+            {t('careMap.privacy')}
+          </AppText>
 
           {centre ? (
             <>

@@ -680,6 +680,7 @@
   "careMap.zipLabel": "ZIP code or city",
   "careMap.search": "Search",
   "careMap.notFound": "No clinics found for that place. Try a nearby ZIP code or city.",
+  "careMap.showingNear": "Showing clinics near {{place}}",
   "careMap.legendClinic": "Free or low-cost clinic",
   "careMap.legendDoctor": "Doctor's office",
   "careMap.legendYou": "Your location",

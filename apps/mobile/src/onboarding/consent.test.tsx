@@ -1,4 +1,4 @@
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -32,5 +32,18 @@ describe('consent', () => {
     fireEvent.press(screen.getByRole('checkbox', { name: en['consent.understand'] }));
     fireEvent.press(screen.getByRole('button', { name: en['common.continue'] }));
     expect(screen.getByRole('header', { name: en['profile.title'] })).toBeOnTheScreen();
+  });
+
+  it('pins the checkbox and Continue together in the footer, above the scrolling content', () => {
+    renderRouter('./app', { initialUrl: '/consent' });
+    const footer = within(screen.getByTestId('consent-footer'));
+    expect(footer.getByRole('checkbox', { name: en['consent.understand'] })).toBeOnTheScreen();
+    expect(footer.getByRole('button', { name: en['common.continue'] })).toBeOnTheScreen();
+    expect(footer.queryByText(en['consent.callWarning'])).toBeNull();
+  });
+
+  it('shows the 911 line as an alert', () => {
+    renderRouter('./app', { initialUrl: '/consent' });
+    expect(screen.getByRole('alert')).toHaveTextContent(en['consent.callWarning']);
   });
 });

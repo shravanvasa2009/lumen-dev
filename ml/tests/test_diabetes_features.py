@@ -93,8 +93,9 @@ def test_hrv_is_null_unless_the_reading_is_confidently_sinus(model, label):
 
 
 def test_too_few_beats_give_no_averaged_beat_and_no_rhythm_card_but_still_a_row():
-    # 15 s at 70 bpm holds about 17 beats, fewer than DSP-14's 20 and DSP-15's 40 usable intervals.
-    row, pulse_shape = segment_features(bands_of(finger_pulse_codes(15)), SINUS)
+    # 16.5 s at 70 bpm holds 19 normal beats, fewer than DSP-14's 20 and DSP-15's 40 usable intervals, yet
+    # just enough accepted intervals for DSP-11's 15 s HR floor (ADR 0080); 15 s now reports no HR.
+    row, pulse_shape = segment_features(bands_of(finger_pulse_codes(16.5)), SINUS)
     assert pulse_shape is None and not row["hasShape"] and row["beatsUsed"] == 0
     assert row["beats_normal"] < DSP_CONFIG["dsp14"]["minNormalBeats"]
     assert all(row[name] is None for name in SHAPE_FEATURE_NAMES)

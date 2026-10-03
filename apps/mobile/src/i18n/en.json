@@ -229,6 +229,7 @@
   "capture.pressure": "Pressure",
   "capture.cancel": "Cancel reading",
   "capture.stop": "Stop reading",
+  "capture.tips": "Tips for a good reading",
   "capture.fingerDetected": "Finger detected",
   "capture.fingerMissing": "No finger detected",
   "capture.last6s": "last 6 s",

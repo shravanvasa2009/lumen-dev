@@ -229,6 +229,7 @@
   "capture.pressure": "Presión del dedo",
   "capture.cancel": "Cancelar la medición",
   "capture.stop": "Detener la medición",
+  "capture.tips": "Consejos para una buena medición",
   "capture.fingerDetected": "Dedo detectado",
   "capture.fingerMissing": "No se detecta el dedo",
   "capture.last6s": "últimos 6 s",

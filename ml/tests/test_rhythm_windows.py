@@ -1,8 +1,11 @@
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from datasets.build_intervals import MAX_INTERVAL_S, MIN_INTERVAL_S
+from export.specs import ML_ROOT
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.rhythm import rhythm_feature_vector, rhythm_v2_features, rhythm_windows
 from nets.rhythm_net import FEATURES, INTERVALS, LABELS
@@ -68,6 +71,15 @@ def test_feature_names_follow_the_dsp15_vector():
         "rrLag1Autocorr",
         "rrLag2Autocorr",
     )
+
+
+def test_feature_names_are_cores_rhythm_feature_names():
+    # The app refuses a rhythm model whose featureOrder isn't core's RHYTHM_FEATURE_NAMES (ADR 0079), and
+    # the manifest's featureOrder is FEATURE_NAMES, so the two lists must never drift apart.
+    source = (ML_ROOT.parent / "packages" / "core" / "src" / "rhythm-features.ts").read_text(encoding="utf-8")
+    block = re.search(r"export const RHYTHM_FEATURE_NAMES = \[(.*?)\] as const;", source, re.S)
+    assert block is not None
+    assert tuple(re.findall(r"'(\w+)'", block.group(1))) == FEATURE_NAMES
 
 
 def test_readings_are_90_second_blocks_with_their_bounding_beat_flags():

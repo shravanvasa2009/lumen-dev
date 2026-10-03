@@ -13,8 +13,8 @@ from lumen_dsp.rhythm import RhythmWindow, rhythm_feature_vector, rhythm_v2_feat
 from nets.rhythm_net import FEATURES, INTERVALS, LABELS
 
 # The order of lumen_dsp.rhythm.rhythm_feature_vector (ADR 0024) followed by rhythm_v2_features (ADR 0079),
-# which the app's rhythmFeatureVector and rhythmV2Features match; the ADR 0020 addendum records the
-# concatenation as the Rhythm-Net `features` input.
+# which core's RHYTHM_FEATURE_NAMES and its rhythmFeatureVector / rhythmV2Features match. ADR 0079 makes
+# the concatenation the `features` input of every rhythm model (it extends ADR 0020's [N, 8]).
 FEATURE_NAMES = (
     "normalizedRmssd",
     "shannonEntropyBits",
@@ -66,7 +66,7 @@ class Reading(NamedTuple):
 class WindowSet(NamedTuple):
     intervals: np.ndarray  # [N, 64] float32 seconds, ADR 0020 layout
     mask: np.ndarray  # [N, 64] float32
-    features: np.ndarray  # [N, 8] float32, FEATURE_NAMES order
+    features: np.ndarray  # [N, FEATURES] float32, FEATURE_NAMES order
     labels: np.ndarray  # [N] int64 index into LABELS
     subjects: np.ndarray  # [N] str
     readings: np.ndarray  # [N] int64, unique within one WindowSet

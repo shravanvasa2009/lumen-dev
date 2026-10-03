@@ -70,6 +70,8 @@ def ship_decision(ships):
 
 RHYTHM_EXTRAS = {
     "metricsFormat": 2,
+    # train.rhythm records it for every rhythm model (ADR 0079 puts it in their manifest entries).
+    "featureOrder": list(FEATURE_NAMES),
     "shipDecision": ship_decision("rhythm-lgbm"),
     "ablation": [{"model": "rhythm-net", "auroc": 0.5}, {"model": "lightgbm", "auroc": 0.25}],
     "calibration": {"method": "temperature scaling", "temperature": 1.5},
@@ -246,7 +248,7 @@ def with_rule(trained):
     models_dir, runs_dir = trained
     spec = SPECS["rhythm-logistic"]
     pipeline = fit_baseline(spec)
-    save_trained(spec, runs_dir, pipeline, {**RHYTHM_EXTRAS, "featureOrder": list(FEATURE_NAMES)})
+    save_trained(spec, runs_dir, pipeline, RHYTHM_EXTRAS)
     _release(models_dir, runs_dir)
     return models_dir, runs_dir, pipeline
 
@@ -301,14 +303,19 @@ ENTRY_FIELDS = {
 }
 
 
-def test_only_diabetes_entries_carry_the_feature_fill(with_rule):
-    # Rhythm and SQI training also writes a featureOrder list; it stays out of their manifest entries.
+def test_only_diabetes_entries_carry_the_feature_fill_and_rhythm_entries_name_their_features(with_rule):
+    # SQI training also writes a featureOrder list; it stays out of SQI entries. Rhythm entries carry the
+    # names the app checks against core's RHYTHM_FEATURE_NAMES (ADR 0079).
     models_dir, runs_dir, _pipeline = with_rule
     entries = _manifest(models_dir, runs_dir)
     for name, entry in entries.items():
         if entry["family"] == "diabetes":
             continue
-        assert set(entry) == ENTRY_FIELDS | ({"rule"} if name == "rhythm-logistic" else set()), name
+        rhythm = entry["family"] == "rhythm"
+        expected = ENTRY_FIELDS | ({"featureOrder"} if rhythm else set())
+        assert set(entry) == expected | ({"rule"} if name == "rhythm-logistic" else set()), name
+        if rhythm:
+            assert entry["featureOrder"] == {"features": list(FEATURE_NAMES)}, name
 
 
 def test_a_rule_without_column_selection_is_refused():
@@ -392,6 +399,14 @@ def test_refuses_when_the_metrics_pick_another_shipped_model(trained):
         {**RHYTHM_EXTRAS, "shipDecision": ship_decision("rhythm-net")},
     )
     _assert_refused(models_dir, runs_dir, ShipRuleError, r"rhythm-net.*owner decides.*ADR 0031")
+
+
+def test_refuses_a_rhythm_model_trained_on_another_feature_order(trained):
+    models_dir, runs_dir = trained
+    spec = SPECS["rhythm-lgbm"]
+    other_order = list(reversed(FEATURE_NAMES))
+    save_trained(spec, runs_dir, fit_baseline(spec), {**RHYTHM_EXTRAS, "featureOrder": other_order})
+    _assert_refused(models_dir, runs_dir, ValueError, "rhythm-lgbm was trained on features")
 
 
 def test_ship_decision_guard_covers_every_family(trained):

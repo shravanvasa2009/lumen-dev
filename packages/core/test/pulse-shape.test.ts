@@ -122,6 +122,8 @@ describe('DSP-14 ensemble beat', () => {
     expect(ensembleBeat(wave, onsets, allNormal(30), 30)).toBeNull();
     expect(ensembleBeat(wave, onsets, allNormal(30), minFps - 1)).toBeNull();
     expect(ensembleBeat(wave, onsets, allNormal(30), NaN)).toBeNull();
+    // A capture format has a finite rate; +Infinity is no rate, like NaN.
+    expect(ensembleBeat(wave, onsets, allNormal(30), Infinity)).toBeNull();
   });
 
   it.each([NaN, Infinity, -Infinity])('skips the one beat whose window holds a %d sample', (bad) => {

@@ -50,7 +50,7 @@ describe('Learn tab', () => {
   it('opens the Care map when the care row is tapped', async () => {
     renderRouter(appDirectory, { initialUrl: '/learn' });
     fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.careFinder']) }));
-    expectNavTitle(en['careMap.title']);
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
     await screen.findByText(en['careMap.denied']);
   });
 

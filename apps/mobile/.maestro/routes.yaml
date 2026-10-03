@@ -4,7 +4,8 @@
 appId: io.github.shravanvasa2009.heartcheck
 name: Every route opens
 ---
-# Capture and Practice ask for the camera; granting it at launch keeps the Android dialog off the screen.
+# Capture and Practice ask for the camera, and Reminders for notifications (Android 13+); granting both at
+# launch keeps the Android dialogs off the screen.
 # https://docs.maestro.dev/api-reference/commands/launchapp
 # A late teardown of the previous flow's app can kill the new launch (run 37060488120: 'Killing ...
 # remove task' 26 ms after start), so only the launch and the first wait are retried.
@@ -16,10 +17,16 @@ name: Every route opens
           clearState: true
           permissions:
             camera: allow
-      # launchApp returns before the JavaScript has loaded; a link sent then is dropped, so wait for Home first.
+            notifications: allow
+      # launchApp returns before the JavaScript has loaded; a link sent then is dropped. A fresh install
+      # opens on Welcome (the onboarding gate), so wait for that, then finish onboarding to reach Home.
       - extendedWaitUntil:
-          visible: 'Change mode'
+          visible: 'Get started'
           timeout: 60000
+- runFlow: subflows/finish-onboarding.yaml
+- extendedWaitUntil:
+    visible: 'Change mode'
+    timeout: 60000
 - openLink: lumen://welcome
 - assertVisible: 'Lumen'
 - openLink: lumen://consent
@@ -95,7 +102,7 @@ name: Every route opens
 - openLink: lumen://follow-up
 - assertVisible: 'Did you get a chance to see a doctor\?'
 # The Care map asks for location when it opens. Denying it must leave the ZIP or city search on screen.
-- openLink: lumen://care-map
+- openLink: lumen://care
 - tapOn:
     text: 'Don.t allow'
     optional: true

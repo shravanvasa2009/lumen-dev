@@ -5,35 +5,34 @@ import { ScrollView, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { Icon, type IconName } from '@/components/Icon';
+import type { IconName } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
 import { ContextChip } from '@/measure/ContextChip';
 import { parseMode } from '@/measure/mode';
+import { conclusiveCount, READINGS_BEFORE_COLLAPSE, ReminderRows } from '@/measure/reminders';
 import { RestRing } from '@/measure/RestRing';
 import { formatClock, REST_SECONDS, useRestTimer } from '@/measure/restTimer';
 import { SectionLabel } from '@/settings/SectionLabel';
+import { useStoredReadings } from '@/store/useStoredReadings';
 import { useTheme } from '@/theme';
 
 type Context = 'caffeine' | 'exercise' | 'ill' | 'medication';
 
 export default function PrecheckScreen() {
   const { t } = useTranslation();
-  const { colors, spacing, control } = useTheme();
+  const { spacing } = useTheme();
   const mode = parseMode(useLocalSearchParams<{ mode?: string }>().mode);
   const { remaining, finished, skip } = useRestTimer(REST_SECONDS);
+  const folded = conclusiveCount(useStoredReadings()) >= READINGS_BEFORE_COLLAPSE;
+  const [tipsOpen, setTipsOpen] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<Context>>(new Set());
   const chips: readonly { context: Context; label: string; icon?: IconName }[] = [
     { context: 'caffeine', label: t('precheck.caffeine'), icon: 'cup' },
     { context: 'exercise', label: t('precheck.exercise') },
     { context: 'ill', label: t('precheck.ill') },
     { context: 'medication', label: t('precheck.medication') },
-  ];
-  const reminders: readonly { icon: IconName; color: string; text: string }[] = [
-    { icon: 'finger', color: colors.pulse, text: t('precheck.reminderFlat') },
-    { icon: 'elbow', color: colors.accent, text: t('precheck.reminderElbows') },
-    { icon: 'warm', color: colors.flag, text: t('precheck.reminderWarm') },
   ];
   const toggle = (context: Context) => {
     const next = new Set(selected);
@@ -75,17 +74,19 @@ export default function PrecheckScreen() {
             />
           ))}
         </View>
-        <SectionLabel>{t('precheck.reminders')}</SectionLabel>
-        <Card flush>
-          {reminders.map(({ icon, color, text }, index) => (
+        {folded ? (
+          <Card flush>
             <ListRow
-              key={text}
-              title={text}
-              last={index === reminders.length - 1}
-              leading={<Icon name={icon} size={control.chevronSize} color={color} />}
+              title={t('precheck.reminders')}
+              chevron
+              expanded={tipsOpen}
+              onPress={() => setTipsOpen(!tipsOpen)}
             />
-          ))}
-        </Card>
+          </Card>
+        ) : (
+          <SectionLabel>{t('precheck.reminders')}</SectionLabel>
+        )}
+        {folded && !tipsOpen ? null : <ReminderRows />}
       </ScrollView>
     </Screen>
   );

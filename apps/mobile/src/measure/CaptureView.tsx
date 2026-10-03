@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, View } from 'react-native';
 
@@ -9,6 +10,7 @@ import { Screen } from '@/components/Screen';
 import { FingerPreview, ProgressRing } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
 
+import { TipsSheet } from './TipsSheet';
 import { LiveWaveform } from './LiveWaveform';
 import { coachingText } from './coachingText';
 import { cleanSecondsNeeded, type MeasureMode } from './mode';
@@ -29,6 +31,7 @@ type CaptureViewProps = {
 export function CaptureView({ mode, live, onCancel, onStop }: CaptureViewProps) {
   const { t } = useTranslation();
   const { colors, spacing, radius, control } = useTheme();
+  const [tipsOpen, setTipsOpen] = useState(false);
   const total = cleanSecondsNeeded(mode);
   const running = live.phase === 'running';
   const counting = running && live.cleanSeconds !== null;
@@ -57,7 +60,23 @@ export function CaptureView({ mode, live, onCancel, onStop }: CaptureViewProps) 
           <AppText variant="title" accessibilityRole="header" style={{ flex: 1 }}>
             {mode === 'quick' ? t('mode.quick') : t('mode.full')}
           </AppText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('capture.tips')}
+            onPress={() => setTipsOpen(true)}
+            style={{
+              minWidth: control.minTarget,
+              minHeight: control.minTarget,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <AppText variant="headline" tone="textDim">
+              ?
+            </AppText>
+          </Pressable>
         </View>
+        <TipsSheet visible={tipsOpen} onDismiss={() => setTipsOpen(false)} />
 
         <View style={{ alignItems: 'center', gap: spacing.md }}>
           {live.status ? (

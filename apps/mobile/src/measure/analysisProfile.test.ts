@@ -1,6 +1,7 @@
-import { buildReadingResult, type FrameStat, type Sample } from '@lumen/core';
+import { buildReadingResult, type FrameStat, rateDevice, type Sample } from '@lumen/core';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
+import { saveDeviceRating } from '@/store/deviceRating';
 import { saveHealthNote } from '@/store/profile';
 
 import { analyzeKeptCapture } from './analyzeKeptCapture';
@@ -40,7 +41,7 @@ function slowPulse(): KeptCapture {
     samples.push({ tNs, r: 0.7 - 0.012 * (Math.sin(phase) + 0.3 * Math.sin(2 * phase)), g: 0.1, b: 0.1 });
     stats.push({ tNs, spatialStdR: 0.02, clipFrac: 0, exposureNs: 8e6 });
   }
-  return { captureFps: FPS, samples, stats, motionSpans: [], coldHandsSpans: [], sqi: null };
+  return { captureFps: FPS, lensId: null, samples, stats, motionSpans: [], coldHandsSpans: [], sqi: null };
 }
 
 const analyse = () => analyzeKeptCapture(slowPulse(), { mode: 'full', restTimerDone: true }, () => {});
@@ -92,5 +93,31 @@ describe('analysis reads the saved profile', () => {
     );
     expect(reading.metrics.rhythm?.class).toBe('af');
     expect(reading.metrics.rhythm?.flag).toBeNull();
+  });
+});
+
+describe('analysis reads the stored rating tier', () => {
+  it('judges an unrated phone with no tier', async () => {
+    expect((await analyse()).context.tier).toBeNull();
+  });
+
+  it('hands the stored tier to the reading context', async () => {
+    await saveDeviceRating(
+      rateDevice(
+        {
+          rearLenses: [{ id: 'main', maxFps: 30, torchUsable: true }],
+          torch: { available: true },
+          locks: { exposure: true, whiteBalance: true, focus: true },
+        },
+        {
+          lensId: 'main',
+          achievedFps: 30,
+          frameIntervalSdMs: 0.5,
+          coupling: { perfusionIndexPct: 1.2, snrDb: 14 },
+        },
+      ),
+      { testedAt: 1_700_000_000_000, osVersion: '26.0', appVersion: null, lensId: 'main', practice: null },
+    );
+    expect((await analyse()).context.tier).toBe('basic');
   });
 });

@@ -1,4 +1,3 @@
-import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
@@ -6,13 +5,14 @@ import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View }
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
+import { callNumber, opensOk } from '@/profile/dial';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { useTheme } from '@/theme';
 
 import { CareMapView } from './CareMapView';
 import { ClinicCard } from './ClinicCard';
 import { type Coordinates, findPlace, type NearbyClinic, nearestClinics } from './clinics';
-import { callNumber, directionsUrl, doctorSearchUrl, opensOk } from './contact';
+import { directionsUrl, doctorSearchUrl } from './contact';
 import {
   canSearchNearbyDoctors,
   type NearbyDoctor,
@@ -100,12 +100,14 @@ export function CareMapScreen() {
   };
 
   return (
-    <Screen>
-      <Stack.Screen options={{ title: t('careMap.title') }} />
+    <Screen headerless>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ gap: spacing.md, flex: 1 }}
       >
+        <AppText variant="title" accessibilityRole="header">
+          {t('careMap.title')}
+        </AppText>
         {doctorPhone ? (
           <View style={{ gap: spacing.xs }}>
             <Button label={t('careMap.callMyDoctor')} onPress={() => void call(doctorPhone)} />
@@ -165,7 +167,12 @@ export function CareMapScreen() {
                 fontSize: type.body.size,
               }}
             />
-            <Button label={t('careMap.search')} onPress={searchPlace} disabled={query.trim() === ''} />
+            <Button
+              label={t('careMap.search')}
+              variant="secondary"
+              onPress={searchPlace}
+              disabled={query.trim() === ''}
+            />
           </View>
           {placeNotFound ? (
             <AppText accessibilityRole="alert" tone="textDim">

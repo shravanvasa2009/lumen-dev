@@ -8,10 +8,9 @@ type Preferences = {
 };
 
 // Held in memory only: storage and scheduling arrive with the notification and storage tracks.
-let current: Preferences = {
-  appearance: 'system',
-  hideWidgetValues: false,
-};
+const defaults: Preferences = { appearance: 'system', hideWidgetValues: false };
+
+let current: Preferences = defaults;
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void) {
@@ -25,5 +24,10 @@ export function usePreferences() {
 
 export function setPreference<Key extends keyof Preferences>(key: Key, value: Preferences[Key]) {
   current = { ...current, [key]: value };
+  listeners.forEach((listener) => listener());
+}
+
+export function resetPreferences() {
+  current = defaults;
   listeners.forEach((listener) => listener());
 }

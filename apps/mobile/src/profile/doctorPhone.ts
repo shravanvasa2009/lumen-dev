@@ -1,4 +1,6 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
+
+import { profileValue, setProfileValue } from '@/store/profile';
 
 // Digits, spaces and + - ( ) only, with at least one digit so "()" cannot be saved as a number.
 const PHONE_PATTERN = /^[0-9 +\-()]+$/;
@@ -7,8 +9,15 @@ export function isValidPhone(text: string): boolean {
   return PHONE_PATTERN.test(text) && /\d/.test(text);
 }
 
-// Held in memory only, like the preferences: the profile has no persistent store yet.
-let current: string | null = null;
+const DOCTOR_PHONE_KEY = 'doctorPhone';
+
+type Problem = 'load' | 'save' | null;
+type DoctorPhoneState = { phone: string | null; problem: Problem };
+
+let current: DoctorPhoneState = { phone: null, problem: null };
+// A number typed before the stored one arrives is newer than it, so the late load must not overwrite it.
+let changedBeforeLoad = false;
+let loading: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void) {
@@ -16,12 +25,45 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-function setPhone(phone: string | null) {
-  current = phone;
+function publish(next: DoctorPhoneState) {
+  current = next;
   listeners.forEach((listener) => listener());
 }
 
-export function useDoctorPhone(): { phone: string | null; setPhone(phone: string | null): void } {
-  const phone = useSyncExternalStore(subscribe, () => current);
-  return { phone, setPhone };
+// An empty string is how a cleared number is stored: the profile table keeps text values only.
+function loadOnce() {
+  loading ??= profileValue(DOCTOR_PHONE_KEY).then(
+    (saved) => {
+      if (!changedBeforeLoad) publish({ phone: saved === '' ? null : saved, problem: null });
+    },
+    () => {
+      loading = null;
+      publish({ ...current, problem: 'load' });
+    },
+  );
+}
+
+// After the profile is wiped. A read still in flight may carry the old number, so it must not publish, and
+// the next mount reads the (empty) profile again.
+export function resetDoctorPhone() {
+  changedBeforeLoad = true;
+  loading = null;
+  publish({ phone: null, problem: null });
+}
+
+function setPhone(phone: string | null) {
+  changedBeforeLoad = true;
+  publish({ phone, problem: null });
+  setProfileValue(DOCTOR_PHONE_KEY, phone ?? '').catch(() => publish({ ...current, problem: 'save' }));
+}
+
+// `problem` is set when the stored number could not be read or the latest change could not be saved.
+export function useDoctorPhone(): {
+  phone: string | null;
+  problem: Problem;
+  setPhone(phone: string | null): void;
+} {
+  const { phone, problem } = useSyncExternalStore(subscribe, () => current);
+  useEffect(loadOnce, []);
+  return { phone, problem, setPhone };
 }

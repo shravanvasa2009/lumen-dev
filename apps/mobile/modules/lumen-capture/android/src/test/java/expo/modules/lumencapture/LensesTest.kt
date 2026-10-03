@@ -1,7 +1,12 @@
 package expo.modules.lumencapture
 
+import android.hardware.camera2.CameraMetadata.CONTROL_AF_MODE_AUTO
+import android.hardware.camera2.CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+import android.hardware.camera2.CameraMetadata.CONTROL_AF_MODE_OFF
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LensKindTest {
@@ -42,5 +47,34 @@ class PickFpsRangeTest {
     @Test
     fun noRangesGiveNull() {
         assertNull(pickFpsRange(emptyList(), 60))
+    }
+}
+
+// Spec §5.1 counts a fixed-focus lens like a focus lock (ADR 0058 item 5).
+class FocusTest {
+    private val autofocus = intArrayOf(CONTROL_AF_MODE_AUTO, CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+
+    @Test
+    fun zeroMinimumFocusDistanceIsFixedFocus() {
+        assertTrue(isFixedFocus(intArrayOf(CONTROL_AF_MODE_OFF), 0f))
+        assertFalse(isFixedFocus(intArrayOf(CONTROL_AF_MODE_OFF) + autofocus, 10f))
+    }
+
+    @Test
+    fun onlyAfModeOffIsFixedFocus() {
+        assertTrue(isFixedFocus(intArrayOf(CONTROL_AF_MODE_OFF), null))
+    }
+
+    @Test
+    fun missingMinimumFocusDistanceIsNotFixedFocus() {
+        assertFalse(isFixedFocus(autofocus, null))
+        assertFalse(isFixedFocus(IntArray(0), null))
+    }
+
+    @Test
+    fun focusHoldsWhenFixedOrManual() {
+        assertTrue(focusHolds(IntArray(0), fixedFocus = true))
+        assertTrue(focusHolds(intArrayOf(CONTROL_AF_MODE_OFF) + autofocus, fixedFocus = false))
+        assertFalse(focusHolds(autofocus, fixedFocus = false))
     }
 }

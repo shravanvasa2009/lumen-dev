@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+import { keepDemoReading } from '@/demo/demoReadings';
+import { resyncNotifications } from '@/settings/applyPrefs';
 import { saveReading } from '@/store/readings';
 
 import { analyzeKeptCapture, type AnalysisRequest } from './analyzeKeptCapture';
@@ -30,8 +32,12 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
   const outcome = analyzeKeptCapture(capture, { mode, restTimerDone }, (progress) => {
     tracker.latest = progress;
     for (const listener of tracker.listeners) listener(progress);
-  }).then(async ({ readingId, recordedMs, context, models, reading, progress }) => {
+  }).then(async (analysed) => {
+    const { readingId, recordedMs, context, models, reading, progress } = analysed;
+    // §8.5: a Demo reading is shown from memory and never reaches the readings table.
+    if (capture.demo) return { readingId: keepDemoReading(analysed, mode), progress };
     await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
+    resyncNotifications();
     return { readingId, progress };
   });
   outcome.catch(() => runs.delete(capture));

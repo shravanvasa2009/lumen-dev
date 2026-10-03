@@ -7,6 +7,7 @@ import math
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
 from typing import NamedTuple
 
 import numpy as np
@@ -66,10 +67,14 @@ NOT_AF = LABELS.index("other")
 # Reading id = subject index × this + 90 s block, so ids sort by subject, then time, and decode back.
 BLOCKS_PER_SUBJECT = 1000
 # ADR 0045: the diabetes pipeline's holdout scorer, called only from run() after the ledger records a
-# start: score_holdout(entry, models_dir, holdout_ids) -> {"onnxSha256", "holdoutWithoutPleth",
-# "subjects": [{"subject", "diabetic", "score"}]}, scoring models_dir / entry["file"] with onnxruntime.
+# start: score_holdout(entry, models_dir, holdout_ids) -> {"onnxSha256", "holdoutUnscored",
+# "holdoutUnscoredReasons", "subjects": [{"subject", "diabetic", "score"}]}, scoring
+# models_dir / entry["file"] with onnxruntime. Its check_release(entry, models_dir) runs in preflight.
 DIABETES_SCORER = "train.diabetes_holdout"
 HOLDOUT_DATASET = "vitaldb-holdout"
+# ADR 0069: the only reasons a locked-holdout patient may go unscored. No PLETH track; PLETH but no stable
+# 90 s window; or windows, but no segment with an averaged beat that the app would read.
+UNSCORED_REASONS = ("noPlethTrack", "noStableWindow", "noScorableSegment")
 MIMIC = next(dataset for dataset in registry.DATASETS if dataset.key == "mimic-perform-af")
 
 log = logging.getLogger("eval.external")
@@ -286,22 +291,21 @@ def sqi_part(entry: dict, analyses: list[RecordingAnalysis], models_dir: Path) -
     }
 
 
-def diabetes_scorer() -> HoldoutScorer:
+def diabetes_scorer() -> ModuleType:
     # Imported only when the diabetes part runs, so this module loads before track/ml-diabetes merges.
     try:
-        module = importlib.import_module(DIABETES_SCORER)
+        return importlib.import_module(DIABETES_SCORER)
     except ModuleNotFoundError as error:
         if error.name != DIABETES_SCORER:
             raise
         raise ExternalTestRefusedError(
             f"{DIABETES_SCORER}.score_holdout (the diabetes pipeline's holdout scorer) is not on this branch"
         ) from error
-    return module.score_holdout
 
 
 def holdout_units(scored: dict, holdout: list[int], onnx_sha256: str) -> Units:
-    # One P(pattern) per locked-holdout patient. ADR 0014's amendment lets only patients without PLETH
-    # drop out, so the scored patients plus those must be the whole holdout.
+    # One P(pattern) per locked-holdout patient. ADR 0069 lets a patient go unscored only for one of
+    # UNSCORED_REASONS, so the scored patients plus the unscored ones must be the whole holdout.
     rows = scored.get("subjects")
     wrong = []
     if scored.get("onnxSha256") != onnx_sha256:
@@ -321,14 +325,27 @@ def holdout_units(scored: dict, holdout: list[int], onnx_sha256: str) -> Units:
         wrong.append("diabetic must be true or false for every subject")
     if not all(isinstance(row.get("score"), float | int) and 0 <= row["score"] <= 1 for row in rows):
         wrong.append("score must be a probability for every subject")
-    without_pleth = scored.get("holdoutWithoutPleth")
-    if not (isinstance(without_pleth, int) and without_pleth >= 0):
-        wrong.append("holdoutWithoutPleth must be a count")
-    elif len(ids) + without_pleth != len(holdout):
+    unscored = scored.get("holdoutUnscored")
+    reasons = scored.get("holdoutUnscoredReasons")
+    if not (isinstance(unscored, int) and unscored >= 0):
+        wrong.append("holdoutUnscored must be a count")
+    elif len(ids) + unscored != len(holdout):
         wrong.append(
-            f"{len(ids)} scored + {without_pleth} without PLETH is not the {len(holdout)} holdout "
-            "patients (ADR 0014)"
+            f"{len(ids)} scored + {unscored} unscored is not the {len(holdout)} holdout patients (ADR 0069)"
         )
+    if not (
+        isinstance(reasons, dict)
+        and set(reasons) == set(UNSCORED_REASONS)
+        and all(
+            isinstance(count, int) and not isinstance(count, bool) and count >= 0
+            for count in reasons.values()
+        )
+    ):
+        wrong.append(
+            f"holdoutUnscoredReasons must count each of {', '.join(UNSCORED_REASONS)} and nothing else"
+        )
+    elif sum(reasons.values()) != unscored:
+        wrong.append(f"holdoutUnscoredReasons sum to {sum(reasons.values())}, not holdoutUnscored {unscored}")
     if wrong:
         raise ValueError("holdout scores: " + "; ".join(wrong))
     return Units(
@@ -348,7 +365,8 @@ def diabetes_part(entry: dict, units: Units, scored: dict) -> dict:
         "subjects": report["units"],
         "diabeticSubjects": report["positives"],
         "nonDiabeticSubjects": report["negatives"],
-        "holdoutWithoutPleth": scored["holdoutWithoutPleth"],
+        "holdoutUnscored": scored["holdoutUnscored"],
+        "holdoutUnscoredReasons": scored["holdoutUnscoredReasons"],
         **{
             key: report[key] for key in ("threshold", "auroc", "sensitivity", "specificity", "ci95", "ppvNpv")
         },
@@ -398,13 +416,21 @@ def preflight(parts: Sequence[str], models_dir: Path, dataset_dir: Path) -> Pref
         holdout = load_split()["holdout"]
         if not holdout:
             raise ExternalTestRefusedError(f"{SPLIT_FILE} lists no holdout patients")
-        score_holdout = diabetes_scorer()
+        scorer = diabetes_scorer()
+        score_holdout = scorer.score_holdout
         try:
             inspect.signature(score_holdout).bind(entries["diabetes"][0], models_dir, holdout)
         except TypeError as error:
             raise ExternalTestRefusedError(
                 f"{DIABETES_SCORER}.score_holdout must take (entry, models_dir, holdout_ids): {error}"
             ) from error
+        if not hasattr(scorer, "check_release"):
+            raise ExternalTestRefusedError(
+                f"{DIABETES_SCORER}.check_release (the holdout scorer's release check) is not on this branch"
+            )
+        # The scorer's own checks (feature order, fill values, the rhythm model it labels with) run here,
+        # so a release it would refuse is refused before the approval is used.
+        scorer.check_release(entries["diabetes"][0], models_dir)
         vitaldb = next(dataset for dataset in registry.DATASETS if dataset.key == "vitaldb")
         if not download.is_complete(vitaldb):
             raise ExternalTestRefusedError("the VitalDB tables are not downloaded (datasets.download --open)")

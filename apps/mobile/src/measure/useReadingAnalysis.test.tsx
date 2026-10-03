@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react-native';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
+import { resyncNotifications } from '@/settings/applyPrefs';
 import { lumenDatabase } from '@/store/database';
 import { listReadings } from '@/store/readings';
 import { makeReading } from '@/testing/reading';
@@ -11,6 +12,10 @@ import { type KeptCapture, keepCapture } from './keptCapture';
 import { type AnalysisState, useReadingAnalysis } from './useReadingAnalysis';
 
 jest.mock('./analyzeKeptCapture', () => ({ analyzeKeptCapture: jest.fn() }));
+jest.mock('@/settings/applyPrefs', () => ({
+  ...jest.requireActual('@/settings/applyPrefs'),
+  resyncNotifications: jest.fn(),
+}));
 
 const TAKEN_AT = 1_700_000_000_000;
 const REQUEST = { mode: 'full', restTimerDone: true } as const;
@@ -44,6 +49,7 @@ function analysedReading(): AnalysedReading {
 
 const newCapture = (): KeptCapture => ({
   captureFps: 60,
+  lensId: null,
   samples: [],
   stats: [],
   motionSpans: [],
@@ -54,6 +60,7 @@ const newCapture = (): KeptCapture => ({
 beforeEach(() => {
   emptyMockDatabases();
   keepCapture(newCapture());
+  jest.mocked(resyncNotifications).mockClear();
   jest.mocked(analyzeKeptCapture).mockReset();
   jest.mocked(analyzeKeptCapture).mockImplementation(async (_capture, _request, report) => {
     report(pendingProgress);
@@ -68,6 +75,28 @@ afterEach(() => {
 });
 
 describe('saving the analysed reading', () => {
+  it('re-syncs the reminders once the reading is saved, and not when the save fails', async () => {
+    const database = await lumenDatabase();
+    jest.spyOn(database, 'runAsync').mockRejectedValueOnce(new Error('disk full'));
+    const failed = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(failed.result.current.phase).toBe('failed'));
+    expect(resyncNotifications).not.toHaveBeenCalled();
+    failed.unmount();
+
+    const saved = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(saved.result.current.phase).toBe('done'));
+    expect(await listReadings()).toHaveLength(1);
+    expect(resyncNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-sync the reminders for a Demo reading, which is never stored', async () => {
+    keepCapture({ ...newCapture(), demo: true });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('done'));
+    expect(await listReadings()).toEqual([]);
+    expect(resyncNotifications).not.toHaveBeenCalled();
+  });
+
   it('ends in the failed state when the reading cannot be saved', async () => {
     const database = await lumenDatabase();
     jest.spyOn(database, 'runAsync').mockRejectedValueOnce(new Error('disk full'));

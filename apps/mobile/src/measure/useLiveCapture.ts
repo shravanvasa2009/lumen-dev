@@ -92,8 +92,12 @@ function captureConfig(capabilities: Capabilities, lens: LensInfo | undefined, f
 }
 
 // Runs the rear camera and torch for as long as the screen is mounted, feeds every batch and status to a
-// LiveSession, and keeps the frames for the Processing screen.
-export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture): LiveCapture {
+// LiveSession, and keeps the frames for the Processing screen. `demo` marks them as Demo mode's synthetic
+// recording.
+export function useLiveCapture(
+  capture: LumenCaptureModule | null = LumenCapture,
+  { demo = false }: { demo?: boolean } = {},
+): LiveCapture {
   const [live, setLive] = useState<LiveCapture>(idle(capture ? 'starting' : 'unavailable'));
 
   useEffect(() => {
@@ -105,6 +109,7 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
     let firstNs: number | null = null;
     let session: LiveSession | null = null;
     let captureFps = 0;
+    let lensId: string | null = null;
     const samples: Sample[] = [];
     const stats: FrameStat[] = [];
     const sqiWindows: { endNs: number; pClean: number }[] = [];
@@ -172,11 +177,13 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
         const rejectedSpans = session.rejectedSpans;
         keepCapture({
           captureFps,
+          lensId,
           samples,
           stats,
           motionSpans: spansOf(rejectedSpans, 'motion', startNs),
           coldHandsSpans: spansOf(rejectedSpans, 'coldHands', startNs),
           sqi: sqiWindows.length > 0 && threshold !== null ? { threshold, windows: sqiWindows } : null,
+          ...(demo ? { demo: true as const } : {}),
         });
       }
       setLive((previous) => ({
@@ -211,6 +218,7 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
         // without clean seconds rather than with a guessed rate.
         if (lens) {
           captureFps = captureFpsFor(capabilities.platform, lens);
+          lensId = lens.id;
           session = createLiveSession({
             captureFps,
             sqiThreshold: threshold ?? 0,
@@ -243,7 +251,7 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
       mounted = false;
       stopCamera();
     };
-  }, [capture]);
+  }, [capture, demo]);
 
   return live;
 }

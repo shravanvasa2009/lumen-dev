@@ -6,7 +6,7 @@ import { Dimensions, Keyboard, Linking, Platform, StyleSheet } from 'react-nativ
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { useDoctorPhone } from '@/profile/doctorPhone';
-import { expectNavTitle } from '@/testing/navHeader';
+import tokens from '@/theme/tokens.json';
 
 import { distanceMiles, findPlace, nearestClinics } from './clinics';
 import { SEARCH_THROTTLED_CODE } from './nearbyDoctors';
@@ -52,7 +52,7 @@ function denyLocation() {
 }
 
 async function openCareMap() {
-  renderRouter(appDirectory, { initialUrl: '/care-map' });
+  renderRouter(appDirectory, { initialUrl: '/care' });
   await act(async () => {});
 }
 
@@ -121,7 +121,7 @@ describe('Care map with location allowed', () => {
 
   it('shows the map, the legend, the privacy line and nearby clinics', async () => {
     await openCareMap();
-    expectNavTitle(en['careMap.title']);
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
     expect(screen.getByTestId('care-map-view')).toBeOnTheScreen();
     expect(screen.getByText(en['careMap.legendClinic'])).toBeOnTheScreen();
     expect(screen.getByText(en['careMap.legendYou'])).toBeOnTheScreen();
@@ -286,6 +286,21 @@ describe('Care map with location allowed', () => {
     expect(frameHeight()).toBe(0);
     act(() => listeners.get('keyboardDidHide')?.());
     expect(frameHeight()).toBeGreaterThan(0);
+  });
+
+  it('puts Call my doctor first as the filled primary button when a number is saved', async () => {
+    saveDoctorPhone('(713) 555-0100');
+    await openCareMap();
+    const buttons = screen.getAllByRole('button');
+    expect(buttons[0]).toBe(screen.getByRole('button', { name: en['careMap.callMyDoctor'] }));
+    expect(StyleSheet.flatten(buttons[0]!.props.style)).toMatchObject({
+      backgroundColor: tokens.dark.accentFill,
+    });
+    expect(
+      StyleSheet.flatten(screen.getByRole('button', { name: en['careMap.search'] }).props.style),
+    ).toMatchObject({
+      backgroundColor: 'transparent',
+    });
   });
 
   it('dials the clinic with a tel: link', async () => {

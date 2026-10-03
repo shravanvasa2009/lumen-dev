@@ -165,7 +165,8 @@ def hrv(
     segments: Sequence[Sequence[MeasuredBeat]], rhythm: str, capture_fps: float, clean_s: float
 ) -> Hrv | None:
     dsp12 = DSP_CONFIG["dsp12"]
-    if rhythm != "sinus" or not capture_fps >= dsp12["minFps"]:
+    # A capture format has a finite rate: +Infinity fails like NaN.
+    if rhythm != "sinus" or not (math.isfinite(capture_fps) and capture_fps >= dsp12["minFps"]):
         return None
     runs = _filtered_runs(_nn_runs(segments))
     intervals_s = [interval_s for run in runs for interval_s in run]

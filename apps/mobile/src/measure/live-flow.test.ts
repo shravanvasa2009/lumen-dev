@@ -174,6 +174,7 @@ describe('reading analysis of a kept capture', () => {
     jest.useRealTimers();
     keepCapture({
       captureFps: FPS,
+      lensId: null,
       samples: [{ tNs: 1, r: 0.7, g: 0.1, b: 0.1 }],
       stats: [],
       motionSpans: [],

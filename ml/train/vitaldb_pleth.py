@@ -16,7 +16,7 @@ import vitaldb
 
 from datasets import paths, registry
 from datasets.splits import ensure_not_external
-from datasets.vitaldb_cases import eligible_cases, ensure_dev_only, load_split, select_dev_cases
+from datasets.vitaldb_cases import HOLDOUT_KEY, eligible_cases, ensure_dev_only, load_split, select_dev_cases
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import butter_bandpass, filter_zero_phase
 from lumen_dsp.resample import ResampledSegment, resample_cubic
@@ -85,7 +85,7 @@ def selection_params() -> dict:
     }
 
 
-def read_pleth(path: Path | str) -> PlethRecord | None:
+def _local_file(path: Path | str) -> Path:
     # ADR 0015: the vitaldb package also accepts case numbers and URLs, which it fetches from vitaldb.net
     # behind a data-use agreement. Only a local file path ever reaches it.
     if urlparse(str(path)).netloc:
@@ -93,7 +93,25 @@ def read_pleth(path: Path | str) -> PlethRecord | None:
     path = Path(path)
     if not path.is_file():
         raise FileNotFoundError(path)
+    return path
+
+
+def read_pleth(path: Path | str) -> PlethRecord | None:
+    path = _local_file(path)
     ensure_not_external(path, "train")
+    return _pleth_track(path)
+
+
+def read_holdout_pleth(path: Path | str) -> PlethRecord | None:
+    # ADR 0045: the locked holdout is read only by train.diabetes_holdout inside eval.external's approved
+    # run, and this reader takes nothing else, so it can never become a way into other files.
+    path = _local_file(path)
+    if not path.resolve().is_relative_to((paths.external_dir() / HOLDOUT_KEY).resolve()):
+        raise ValueError(f"{path} is not a locked holdout case")
+    return _pleth_track(path)
+
+
+def _pleth_track(path: Path) -> PlethRecord | None:
     vital = vitaldb.VitalFile(str(path), track_names=[PLETH_TRACK])
     if PLETH_TRACK not in vital.get_track_names():
         return None
@@ -181,6 +199,22 @@ def select_segments(codes: np.ndarray, limit: int) -> tuple[list[int], dict[str,
     return starts, dict(rejections)
 
 
+def selected_windows(record: PlethRecord) -> tuple[np.ndarray | None, list[float], dict[str, int]]:
+    starts, rejections = select_segments(record.codes, SEGMENTS_PER_CASE)
+    window = SEGMENT_S * PLETH_RATE_HZ
+    codes = np.stack([record.codes[start : start + window] for start in starts]) if starts else None
+    return codes, [start / PLETH_RATE_HZ for start in starts], rejections
+
+
+def segment_bands(codes: np.ndarray, start_s: float, gain: float, offset: float) -> SegmentBands:
+    dsp2 = DSP_CONFIG["dsp2"]
+    return SegmentBands(
+        start_s=float(start_s),
+        model=morphology_band(codes, gain, offset, dsp2["modelRateHz"]),
+        shape=morphology_band(codes, gain, offset, dsp2["shapeRateHz"]),
+    )
+
+
 def write_atomic(path: Path, write) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     partial = path.with_name(path.name + ".partial")
@@ -210,22 +244,20 @@ def extract_case(caseid: int, subjectid: int, vital_path: Path, out_dir: Path) -
     if record is None:
         status |= {"recordS": None, "segments": 0, "dropped": "no-pleth", "rejections": {}, "startS": []}
     else:
-        starts, rejections = select_segments(record.codes, SEGMENTS_PER_CASE)
-        window = SEGMENT_S * PLETH_RATE_HZ
-        start_s = [start / PLETH_RATE_HZ for start in starts]
+        codes, start_s, rejections = selected_windows(record)
         status |= {
             "recordS": len(record.codes) / PLETH_RATE_HZ,
-            "segments": len(starts),
-            "dropped": None if starts else "no-stable-segment",
+            "segments": len(start_s),
+            "dropped": None if start_s else "no-stable-segment",
             "rejections": rejections,
             "startS": start_s,
         }
-        if starts:
+        if start_s:
             write_atomic(
                 _segments_path(caseid, out_dir),
                 lambda handle: np.savez_compressed(
                     handle,
-                    codes=np.stack([record.codes[start : start + window] for start in starts]),
+                    codes=codes,
                     start_s=np.asarray(start_s),
                     gain=record.gain,
                     offset=record.offset,
@@ -240,13 +272,8 @@ def extract_case(caseid: int, subjectid: int, vital_path: Path, out_dir: Path) -
 def load_segments(caseid: int, out_dir: Path) -> list[SegmentBands]:
     cached = np.load(_segments_path(caseid, out_dir))
     gain, offset = float(cached["gain"]), float(cached["offset"])
-    dsp2 = DSP_CONFIG["dsp2"]
     return [
-        SegmentBands(
-            start_s=float(start_s),
-            model=morphology_band(codes, gain, offset, dsp2["modelRateHz"]),
-            shape=morphology_band(codes, gain, offset, dsp2["shapeRateHz"]),
-        )
+        segment_bands(codes, start_s, gain, offset)
         for codes, start_s in zip(cached["codes"], cached["start_s"], strict=True)
     ]
 

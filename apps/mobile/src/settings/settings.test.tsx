@@ -1,14 +1,25 @@
 import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
-import { Linking, Platform } from 'react-native';
+import { Dimensions, Linking, Platform, ScrollView, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
-import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
+import { expectNavTitle, focusedNavHeader, sheetScreenProps } from '@/testing/navHeader';
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { startOnboarded } from '@/testing/onboarded';
 import { setPreference } from '@/theme/preferences';
 import tokens from '@/theme/tokens.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+
+// The jest safe-area context reports no insets, so both are pinned to prove the cap subtracts them.
+const STATUS_BAR_INSET = 24;
+const HOME_INDICATOR_INSET = 34;
+// The app-start reminder sync has nothing to schedule here.
+jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
+jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual('react-native-safe-area-context'),
+  useSafeAreaInsets: () => ({ top: STATUS_BAR_INSET, bottom: HOME_INDICATOR_INSET, left: 0, right: 0 }),
+}));
 
 fixClockAtMorning();
 
@@ -40,8 +51,8 @@ describe('Settings tab', () => {
     ] as const) {
       expect(screen.getByRole('button', { name: new RegExp(en[key]) })).toBeOnTheScreen();
     }
-    expect(screen.queryByRole('button', { name: new RegExp(en['settings.delete']) })).toBeNull();
-    expect(screen.getAllByText(en['settings.comingSoon'])).toHaveLength(5);
+    expect(screen.getByRole('button', { name: new RegExp(en['settings.delete']) })).toBeOnTheScreen();
+    expect(screen.getAllByText(en['settings.comingSoon'])).toHaveLength(4);
     expect(screen.queryByRole('button', { name: new RegExp(en['settings.demoMode']) })).toBeNull();
     expect(screen.queryByText(/8:00/)).toBeNull();
     const reminders = screen.getByRole('button', { name: new RegExp(en['notifications.title']) });
@@ -227,20 +238,71 @@ describe('Lock-screen previews', () => {
 describe('Doctor follow-up', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it('offers the three answers and the test to ask for', () => {
+  it('offers the three answers and the test to ask for', async () => {
+    await startOnboarded();
     renderRouter(appDirectory, { initialUrl: '/follow-up' });
     for (const key of ['followUp.saw', 'followUp.booked', 'followUp.notYet'] as const) {
       expect(screen.getByRole('button', { name: en[key] })).toBeOnTheScreen();
     }
     expect(screen.getByText(en['followUp.whatToAskBody'])).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: en['followUp.booked'] }));
-    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+  });
+
+  it('is a native form sheet with its own grabber, not a hand-drawn card', async () => {
+    // A stack's first screen is always pushed, so the sheet is opened from Home like a person would.
+    await startOnboarded();
+    renderRouter(appDirectory, { initialUrl: '/' });
+    fireEvent.press(await screen.findByRole('button', { name: en['home.followUp'] }));
+    expect(sheetScreenProps()).toMatchObject({
+      stackPresentation: 'formSheet',
+      sheetGrabberVisible: true,
+      // react-native-screens turns 'fitToContents' into the single detent -1 before the native view.
+      sheetAllowedDetents: [-1],
+    });
+  });
+
+  it('draws its own grabber on Android only, where sheetGrabberVisible does nothing', () => {
+    const platform = Platform.OS;
+    try {
+      Platform.OS = 'android';
+      renderRouter(appDirectory, { initialUrl: '/follow-up' });
+      expect(screen.getByTestId('sheet-grabber')).toBeOnTheScreen();
+      screen.unmount();
+      Platform.OS = 'ios';
+      renderRouter(appDirectory, { initialUrl: '/follow-up' });
+      expect(screen.queryByTestId('sheet-grabber')).toBeNull();
+    } finally {
+      Platform.OS = platform;
+    }
+  });
+
+  it('caps the sheet content below the window height so tall text scrolls', () => {
+    const originalWindow = Dimensions.get('window');
+    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
+    try {
+      renderRouter(appDirectory, { initialUrl: '/follow-up' });
+      const { maxHeight } = StyleSheet.flatten(screen.UNSAFE_getByType(ScrollView).props.style);
+      expect(maxHeight).toBe(640 - STATUS_BAR_INSET - HOME_INDICATOR_INSET - 2 * tokens.spacing.screen);
+    } finally {
+      act(() => Dimensions.set({ window: originalWindow }));
+    }
+  });
+
+  it('closes the sheet before the Care map opens, so Back returns to Home', async () => {
+    await startOnboarded();
+    renderRouter(appDirectory, { initialUrl: '/' });
+    fireEvent.press(await screen.findByRole('button', { name: en['home.followUp'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
+    expect(screen.queryByRole('header', { name: en['followUp.title'] })).toBeNull();
+    await screen.findByText(en['careMap.denied']);
   });
 
   it('opens the Care map from Find a doctor nearby', async () => {
     renderRouter(appDirectory, { initialUrl: '/follow-up' });
     fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
-    expectNavTitle(en['careMap.title']);
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
     await screen.findByText(en['careMap.denied']);
   });
 

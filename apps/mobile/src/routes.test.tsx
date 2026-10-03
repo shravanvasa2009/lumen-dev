@@ -1,10 +1,11 @@
-import { act, fireEvent, getMockContext, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, getMockContext, renderRouter, screen, within } from 'expo-router/testing-library';
 import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
+import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
@@ -16,6 +17,8 @@ jest.mock('expo-notifications', () => ({
   useLastNotificationResponse: () => null,
   setNotificationHandler: jest.fn(),
 }));
+
+jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
 
 fixClockAtMorning();
 
@@ -44,6 +47,7 @@ const routes: readonly Route[] = [
   { file: '(onboarding)/reminders', url: '/reminders', title: 'reminders.title', place: 'body' },
   { file: '(tabs)/index', url: '/', title: 'home.greetingMorning', place: 'body' },
   { file: '(tabs)/trends', url: '/trends', title: 'trends.title', place: 'body' },
+  { file: '(tabs)/care', url: '/care', title: 'careMap.title', place: 'body' },
   { file: '(tabs)/learn', url: '/learn', title: 'learn.title', place: 'body' },
   { file: '(tabs)/settings', url: '/settings', title: 'settings.title', place: 'body' },
   { file: 'measure/mode', url: '/measure/mode', title: 'mode.title', place: 'nav' },
@@ -77,7 +81,6 @@ const routes: readonly Route[] = [
     place: 'nav',
   },
   { file: 'follow-up', url: '/follow-up', title: 'followUp.title', place: 'body' },
-  { file: 'care-map', url: '/care-map', title: 'careMap.title', place: 'nav' },
 ];
 
 // Resolved against the working directory, which is apps/mobile when the mobile workspace runs jest.
@@ -130,7 +133,7 @@ describe('route list', () => {
     );
   });
 
-  it('lists the 34 screens of the inventory and the Care map (ADR 0054)', () => {
+  it('lists the 34 screens of the inventory and the Care tab (ADRs 0054, 0065)', () => {
     expect(routes).toHaveLength(35);
   });
 });
@@ -144,7 +147,10 @@ describe.each([
   });
 
   it.each(routes)('renders $url with its translated title', async ({ url, title, place }) => {
+    if (url === '/') await startOnboarded();
     renderRouter(appDirectory, { initialUrl: url });
+    // Home shows nothing until the profile says onboarding is done.
+    if (url === '/') await screen.findByRole('header', { name: en[title] });
     const isEmergency = url === '/emergency';
     if (place === 'nav') {
       expect(focusedNavHeader()).toMatchObject(navHeaderLook(en[title], colors));
@@ -163,18 +169,58 @@ describe.each([
     expect(drawn.includes(colors.criticalText)).toBe(isEmergency);
 
     // The Care map answers its location lookup after the first render; waiting keeps that update inside act.
-    if (url === '/care-map') await screen.findByText(en['careMap.denied']);
+    if (url === '/care') await screen.findByText(en['careMap.denied']);
   });
 });
 
 describe('tab bar', () => {
-  it('draws an icon on each of the four tabs', () => {
+  const careLabel = en['tabs.careLabel'];
+
+  it('draws an icon on each of the four plain tabs', () => {
     mockScheme = 'dark';
     renderRouter(appDirectory, { initialUrl: '/' });
     for (const label of ['tabs.home', 'tabs.trends', 'tabs.learn', 'tabs.settings'] as const) {
       const tab = screen.getByLabelText(new RegExp(`^${en[label]}, tab`));
       expect(tab.findAll((node) => String(node.type) === 'RNSVGSvgView')).not.toHaveLength(0);
     }
+  });
+
+  it('has five tabs with Care in the middle, drawn as a raised accent circle', () => {
+    mockScheme = 'dark';
+    renderRouter(appDirectory, { initialUrl: '/' });
+    const tabs = screen.getAllByLabelText(
+      new RegExp(
+        `^(${[en['tabs.home'], en['tabs.trends'], en['tabs.care'], en['tabs.learn'], en['tabs.settings']].join('|')}),`,
+      ),
+    );
+    const names = tabs.map((tab) => tab.props.accessibilityLabel as string);
+    expect(names).toHaveLength(5);
+    expect(names[2]).toBe(careLabel);
+    const care = screen.getByLabelText(careLabel);
+    expect(care.findAll((node) => String(node.type) === 'RNSVGSvgView')).not.toHaveLength(0);
+    expect(within(care).getByText(en['tabs.care'])).toBeOnTheScreen();
+    const circle = care.findAll(
+      (node) => StyleSheet.flatten(node.props.style)?.backgroundColor === tokens.dark.accentFill,
+    );
+    expect(circle).not.toHaveLength(0);
+  });
+
+  it.each(['light', 'dark'] as const)('keeps a 44 dp Care target in the %s theme', (scheme) => {
+    mockScheme = scheme;
+    renderRouter(appDirectory, { initialUrl: '/' });
+    expect(StyleSheet.flatten(screen.getByLabelText(careLabel).props.style).minHeight).toBeGreaterThanOrEqual(
+      44,
+    );
+  });
+
+  it('opens the Care map when Care is pressed and marks it selected', async () => {
+    mockScheme = 'dark';
+    renderRouter(appDirectory, { initialUrl: '/' });
+    expect(screen.getByLabelText(careLabel).props.accessibilityState).toMatchObject({ selected: false });
+    fireEvent.press(screen.getByLabelText(careLabel));
+    await screen.findByText(en['careMap.denied']);
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
+    expect(screen.getByLabelText(careLabel).props.accessibilityState).toMatchObject({ selected: true });
   });
 });
 
@@ -214,8 +260,11 @@ describe('navigation', () => {
     expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
-  it('walks Home through a measurement to results', () => {
-    followButtons('/', [['home.measure', 'mode.title']]);
+  it('walks Home through a measurement to results', async () => {
+    await startOnboarded();
+    renderRouter(appDirectory, { initialUrl: '/' });
+    await screen.findByRole('button', { name: en['home.measure'] });
+    pressThrough([['home.measure', 'mode.title']]);
     fireEvent.press(screen.getByText(en['mode.quick']));
     expectTitleOnScreen('precheck.title');
     fireEvent.press(screen.getByRole('button', { name: en['precheck.start'] }));

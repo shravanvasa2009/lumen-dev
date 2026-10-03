@@ -1,5 +1,7 @@
 import type { Profile } from '@lumen/core';
 
+import { isDemoActive } from '@/demo/demoSession';
+
 import { lumenDatabase } from './database';
 
 export async function profileValue(key: string): Promise<string | null> {
@@ -11,12 +13,23 @@ export async function profileValue(key: string): Promise<string | null> {
   return row?.value ?? null;
 }
 
+const UPSERT =
+  'INSERT INTO profile (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value';
+
+// §8.5: Demo mode writes nothing, so every profile write is skipped while a demo session is on.
 export async function setProfileValue(key: string, value: string): Promise<void> {
+  if (isDemoActive()) return;
   const database = await lumenDatabase();
-  await database.runAsync(
-    'INSERT INTO profile (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-    [key, value],
-  );
+  await database.runAsync(UPSERT, [key, value]);
+}
+
+// All or none: a failure part-way leaves the earlier values as they were.
+export async function setProfileValues(entries: Record<string, string>): Promise<void> {
+  if (isDemoActive()) return;
+  const database = await lumenDatabase();
+  await database.withTransactionAsync(async () => {
+    for (const [key, value] of Object.entries(entries)) await database.runAsync(UPSERT, [key, value]);
+  });
 }
 
 const HEALTH_NOTES = [

@@ -10,7 +10,6 @@ import tokens from '@/theme/tokens.json';
 
 import { readingById } from './fixtures';
 import { formatClock, formatDay } from './format';
-import { expectNavTitle } from '@/testing/navHeader';
 
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -233,24 +232,24 @@ describe('Care map entry points', () => {
     mockDemo.withoutPattern = false;
   });
 
-  it('offers Find a doctor nearby under a flagged reading and keeps the safety sheet', async () => {
+  it('offers Find care near you under a flagged reading and keeps the safety sheet', async () => {
     openResults('demo-flag');
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
-    expectNavTitle(en['careMap.title']);
+    fireEvent.press(screen.getByRole('button', { name: en['results.findCare'] }));
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
     await screen.findByText(en['careMap.denied']);
   });
 
   it('offers it inside the amber diabetes card', async () => {
     mockEvidence.diabetesPassed = true;
     openResults('demo');
-    fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
-    expectNavTitle(en['careMap.title']);
+    fireEvent.press(screen.getByRole('button', { name: en['results.findCare'] }));
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
     await screen.findByText(en['careMap.denied']);
   });
 
   it('does not offer it on a reading with no flag', () => {
     openResults('demo');
-    expect(screen.queryByRole('button', { name: en['careMap.enter'] })).toBeNull();
+    expect(screen.queryByRole('button', { name: en['results.findCare'] })).toBeNull();
   });
 });

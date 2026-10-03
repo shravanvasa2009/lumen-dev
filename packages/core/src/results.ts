@@ -7,6 +7,9 @@ export type EvidenceLabel = 'checked' | 'public-data' | 'experimental';
 export type Confidence = 'high' | 'moderate' | 'low';
 // Rhythm-Net classes (§11).
 export type RhythmClass = 'sinus' | 'af' | 'other';
+// The reading's rhythm decision: a Rhythm-Net class, or 'uncertain' when its top probability is under
+// rules.uncertainBelowTopProb.
+export type ReadingRhythm = RhythmClass | 'uncertain';
 // Appendix C result.* strings that headline a reading.
 export type HeadlineKey =
   | 'result.regular'

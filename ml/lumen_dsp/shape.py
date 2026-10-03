@@ -87,8 +87,8 @@ def ensemble_beat(
     dsp14 = DSP_CONFIG["dsp14"]
     samples, lead = dsp14["beatSamples"], dsp14["leadFraction"]
     # The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
-    # nominal 60 fps session measures 59.9x. Written so that NaN fails the gate.
-    if not capture_fps >= dsp14["minFps"]:
+    # nominal 60 fps session measures 59.9x. NaN and +Infinity are no rate, so both fail the gate.
+    if not (math.isfinite(capture_fps) and capture_fps >= dsp14["minFps"]):
         return None
     values = [float(value) for value in morphology_256]
     starts = [float(onset) for onset in onsets]

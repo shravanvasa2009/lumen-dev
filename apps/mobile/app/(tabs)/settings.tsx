@@ -1,27 +1,43 @@
 import Constants from 'expo-constants';
 import { type Href, useRouter } from 'expo-router';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
+import { useDemoActive } from '@/demo/demoSession';
+import { tierLabel } from '@/rating/labels';
 import { Toggle } from '@/settings/Toggle';
+import { deleteAllData } from '@/store/deleteAllData';
+import { useStoredRating } from '@/store/useStoredRating';
 import { usePreferences } from '@/theme/preferences';
 
 // Seven quick taps open Lab mode; a pause longer than this starts the count over.
 const LAB_TAPS = 7;
 const LAB_TAP_WINDOW_MS = 2000;
 
-type SettingsRow = { title: string; value?: string; href?: Href };
+type SettingsRow = {
+  title: string;
+  value?: string;
+  href?: Href;
+  onPress?: () => void;
+  expanded?: boolean;
+  busy?: boolean;
+};
+
+type DeleteStep = 'idle' | 'confirming' | 'deleting' | 'failed';
 
 export default function SettingsScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { appearance } = usePreferences();
+  const rating = useStoredRating();
   const versionTaps = useRef({ count: 0, at: 0 });
+  const [deleteStep, setDeleteStep] = useState<DeleteStep>('idle');
 
   const appearanceNames = {
     system: t('appearance.segmentSystem'),
@@ -41,15 +57,31 @@ export default function SettingsScreen() {
   const accuracyRows: readonly SettingsRow[] = [
     { title: t('settings.accuracy'), href: '/settings/accuracy' },
   ];
+  const demo = useDemoActive();
   const phoneRows: readonly SettingsRow[] = [
-    { title: t('settings.phone'), value: t('settings.phoneNotTested'), href: '/settings/phone' },
+    {
+      title: t('settings.phone'),
+      value:
+        rating === undefined
+          ? undefined
+          : rating === null
+            ? t('settings.phoneNotTested')
+            : t('settings.phoneRated', { tier: tierLabel(t, rating.tier), score: rating.score }),
+      href: '/settings/phone',
+    },
     { title: t('settings.widgets'), href: '/settings/widgets' },
-    { title: t('settings.replayTutorial'), href: '/welcome' },
+    // Onboarding cannot finish in demo, so Replay tutorial would be a dead end there.
+    ...(demo ? [] : [{ title: t('settings.replayTutorial'), href: '/welcome' }]),
     { title: t('settings.demoMode') },
   ];
   const dataRows: readonly SettingsRow[] = [
     { title: t('settings.export') },
-    { title: t('settings.delete') },
+    {
+      title: t('settings.delete'),
+      expanded: deleteStep !== 'idle',
+      busy: deleteStep === 'deleting',
+      onPress: () => setDeleteStep(deleteStep === 'idle' ? 'confirming' : 'idle'),
+    },
     { title: t('settings.about') },
   ];
 
@@ -61,19 +93,34 @@ export default function SettingsScreen() {
     if (count === LAB_TAPS) router.push('/settings/lab');
   }
 
+  // Deleting is two steps: the row opens the confirmation, and only its own button deletes. A failure is
+  // shown, never hidden, because the person has to know whether their data is gone.
+  async function deleteEverything() {
+    setDeleteStep('deleting');
+    try {
+      await deleteAllData(i18n.language);
+    } catch {
+      setDeleteStep('failed');
+      return;
+    }
+    router.replace('/welcome');
+  }
+
   // A row with no destination is a feature that does not exist yet, so it shows "Coming soon" and does nothing.
   function renderRows(rows: readonly SettingsRow[]) {
-    return rows.map(({ title, value, href }, index) => {
-      const shownValue = value ?? (href === undefined ? t('settings.comingSoon') : undefined);
+    return rows.map(({ title, value, href, onPress, expanded, busy }, index) => {
+      const opens = href !== undefined || onPress !== undefined;
+      const shownValue = value ?? (opens ? undefined : t('settings.comingSoon'));
       return (
         <ListRow
           key={title}
           title={title}
           last={index === rows.length - 1}
           chevron={href !== undefined}
-          disabled={href === undefined}
+          disabled={!opens || busy}
+          expanded={expanded}
           trailing={shownValue ? <AppText tone="textDim">{shownValue}</AppText> : undefined}
-          onPress={href === undefined ? undefined : () => router.push(href)}
+          onPress={onPress ?? (href === undefined ? undefined : () => router.push(href))}
         />
       );
     });
@@ -92,6 +139,26 @@ export default function SettingsScreen() {
       </Card>
       <Card flush>{renderRows(phoneRows)}</Card>
       <Card flush>{renderRows(dataRows)}</Card>
+      {deleteStep === 'idle' ? null : (
+        <Card>
+          <AppText variant="headline">{t('settings.deleteConfirmTitle')}</AppText>
+          <AppText tone="textDim">{t('settings.deleteConfirmBody')}</AppText>
+          {deleteStep === 'failed' ? (
+            <AppText accessibilityRole="alert">{t('settings.deleteFailed')}</AppText>
+          ) : null}
+          <Button
+            label={deleteStep === 'deleting' ? t('settings.deleting') : t('settings.deleteConfirm')}
+            disabled={deleteStep === 'deleting'}
+            onPress={() => void deleteEverything()}
+          />
+          <Button
+            label={t('settings.deleteCancel')}
+            variant="link"
+            disabled={deleteStep === 'deleting'}
+            onPress={() => setDeleteStep('idle')}
+          />
+        </Card>
+      )}
       <Pressable accessibilityRole="button" onPress={countVersionTap}>
         <AppText variant="caption" tone="textFaint" style={{ textAlign: 'center' }}>
           {t('settings.version', { version: Constants.expoConfig?.version ?? '' })}

@@ -110,7 +110,8 @@ describe('ReadingResult shape', () => {
       BASE.segments.flat().filter((beat) => beat.longPause).length,
     );
     expect(outcome.experimental.pulseShape).toEqual({ available: true });
-    expect(build(analysisWith({}, { captureFps: 30 })).experimental.pulseShape).toEqual({ available: false });
+    // Available exactly when analyzeReading found a DSP-14 averaged beat.
+    expect(build(analysisWith({ pulseShape: null })).experimental.pulseShape).toEqual({ available: false });
   });
 });
 

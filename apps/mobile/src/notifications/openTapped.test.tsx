@@ -10,6 +10,7 @@ jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(async () => ({ status: 'granted', granted: true })),
   useLastNotificationResponse: () => mockResponse,
 }));
+jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'light',

@@ -11,6 +11,8 @@ import { useWindowInsets } from '@/demo/DemoStrip';
 import { type FollowUpAnswer, saveFollowUpAnswer } from '@/profile/followUp';
 import { resyncNotifications } from '@/settings/applyPrefs';
 import { useTheme } from '@/theme';
+import { currentPreferences } from '@/theme/preferences';
+import { publishWidgets } from '@/widgets/publish';
 
 // HRSA's health-center finder; opened only when the person taps the link (spec 8.4).
 const CARE_FINDER_URL = 'https://findahealthcenter.hrsa.gov';
@@ -37,6 +39,12 @@ export default function FollowUpScreen() {
     saveFollowUpAnswer(choice, Date.now()).then(
       () => {
         void resyncNotifications();
+        // A "saw a doctor" answer lifts the widget's held see-doctor status now, not at the next reading
+        // (ADR 0005). The answer is saved, so a failed widget write is only reported.
+        publishWidgets(currentPreferences()).catch((error: unknown) => {
+          const reason = error instanceof Error ? error.message : String(error);
+          console.warn(`Widget update failed: ${reason}`);
+        });
         router.replace('/');
       },
       () => setAnswerFailed(true),

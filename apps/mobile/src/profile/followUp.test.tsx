@@ -6,6 +6,7 @@ import { resyncNotifications } from '@/settings/applyPrefs';
 import { lumenDatabase } from '@/store/database';
 import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import { publishWidgets } from '@/widgets/publish';
 
 import { followUpAnsweredAt, saveFollowUpAnswer } from './followUp';
 
@@ -24,6 +25,8 @@ jest.mock('@/settings/applyPrefs', () => ({
   resyncNotifications: jest.fn(),
 }));
 
+jest.mock('@/widgets/publish', () => ({ publishWidgets: jest.fn(async () => undefined) }));
+
 preloadAppRoutes();
 
 const ANSWERED_AT = Date.UTC(2026, 9, 2, 15, 30);
@@ -31,6 +34,7 @@ const ANSWERED_AT = Date.UTC(2026, 9, 2, 15, 30);
 beforeEach(() => {
   emptyMockDatabases();
   jest.mocked(resyncNotifications).mockClear();
+  jest.mocked(publishWidgets).mockClear();
 });
 
 afterEach(() => jest.restoreAllMocks());
@@ -73,6 +77,7 @@ describe('the follow-up sheet', () => {
     expect(savedAt).not.toBeNull();
     expect(savedAt).toBeGreaterThanOrEqual(before);
     expect(resyncNotifications).toHaveBeenCalledTimes(1);
+    expect(publishWidgets).toHaveBeenCalledTimes(1);
   });
 
   it('stores "Booked" without it counting as a visit', async () => {
@@ -93,5 +98,6 @@ describe('the follow-up sheet', () => {
     await waitFor(() => expect(screen.getByText(en['profile.saveFailed'])).toBeOnTheScreen());
     expect(screen.getByRole('header', { name: en['followUp.title'] })).toBeOnTheScreen();
     expect(resyncNotifications).not.toHaveBeenCalled();
+    expect(publishWidgets).not.toHaveBeenCalled();
   });
 });

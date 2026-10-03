@@ -1,10 +1,12 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
+import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { useTheme } from '@/theme';
 
@@ -26,7 +28,8 @@ function SectionCaption({ text }: { text: string }) {
 export function WhyReading({ reading }: { reading: FixtureReading }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { colors, radius, spacing } = useTheme();
+  const [poincareOpen, setPoincareOpen] = useState(false);
+  const { colors, radius, spacing, control } = useTheme();
   const { rhythm } = reading.scan.metrics;
   if (!rhythm || reading.intervalsMs.length === 0) {
     return (
@@ -66,39 +69,14 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
           {why.title}
         </AppText>
 
-        <SectionCaption text={t('why.intervals')} />
+        <SectionCaption text={t('why.plainWords')} />
         <Card>
-          <Tachogram intervalsMs={reading.intervalsMs} color={seriesColor} />
-        </Card>
-
-        <SectionCaption text={t('why.poincare')} />
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
-          <View style={{ flex: 1, gap: spacing.sm }}>
-            <PoincarePlot
-              intervalsMs={reading.intervalsMs}
-              axis={axis}
-              color={plotColor}
-              label={t('why.yours')}
-            />
-            <AppText tone="textDim" style={{ textAlign: 'center' }}>
-              {t('why.yours')}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <Icon name="pulse" size={control.chevronSize} color={seriesColor} />
+            <AppText variant="headline" style={{ flex: 1 }}>
+              {why.explain}
             </AppText>
           </View>
-          <View style={{ flex: 1, gap: spacing.sm }}>
-            <PoincarePlot
-              intervalsMs={regularIntervalsMs}
-              axis={axis}
-              color={colors.accentFill}
-              label={t('why.typical')}
-            />
-            <AppText tone="textDim" style={{ textAlign: 'center' }}>
-              {t('why.typical')}
-            </AppText>
-          </View>
-        </View>
-
-        <Card>
-          <AppText>{why.explain}</AppText>
           <View
             style={{
               flexDirection: 'row',
@@ -135,6 +113,12 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
           </View>
         </Card>
 
+        <SectionCaption text={t('why.seeBeats')} />
+        <SectionCaption text={t('why.intervals')} />
+        <Card>
+          <Tachogram intervalsMs={reading.intervalsMs} color={seriesColor} />
+        </Card>
+
         <Card>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <AppText tone="textDim">{t('why.extraBeats')}</AppText>
@@ -142,6 +126,67 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
           </View>
           <AppText>{t('why.extraBeatsNote', { rate: reading.scan.experimental.extraBeatsPerMin })}</AppText>
         </Card>
+
+        <Card flush>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('why.learnMore')}
+            accessibilityState={{ expanded: poincareOpen }}
+            onPress={() => setPoincareOpen(!poincareOpen)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: spacing.md,
+              minHeight: control.minTarget,
+              paddingHorizontal: spacing.lg,
+            }}
+          >
+            <AppText variant="headline" importantForAccessibility="no">
+              {t('why.poincare')}
+            </AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+              <AppText tone="textDim" importantForAccessibility="no">
+                {t('why.learnMore')}
+              </AppText>
+              <View style={{ transform: [{ rotate: poincareOpen ? '-90deg' : '90deg' }] }}>
+                <Icon name="chevron" size={control.chevronSize} color={colors.text} />
+              </View>
+            </View>
+          </Pressable>
+          {poincareOpen ? (
+            <View
+              style={{ flexDirection: 'row', gap: spacing.md, padding: spacing.lg, paddingTop: spacing.xs }}
+            >
+              <View style={{ flex: 1, gap: spacing.sm }}>
+                <PoincarePlot
+                  intervalsMs={reading.intervalsMs}
+                  axis={axis}
+                  color={plotColor}
+                  label={t('why.yours')}
+                />
+                <AppText tone="textDim" style={{ textAlign: 'center' }}>
+                  {t('why.yours')}
+                </AppText>
+              </View>
+              <View style={{ flex: 1, gap: spacing.sm }}>
+                <PoincarePlot
+                  intervalsMs={regularIntervalsMs}
+                  axis={axis}
+                  color={colors.accentFill}
+                  label={t('why.typical')}
+                />
+                <AppText tone="textDim" style={{ textAlign: 'center' }}>
+                  {t('why.typical')}
+                </AppText>
+              </View>
+            </View>
+          ) : null}
+        </Card>
+
+        <AppText variant="caption" tone="textFaint" style={{ textAlign: 'center' }}>
+          {t('prototype.banner')}
+        </AppText>
       </ScrollView>
     </Screen>
   );

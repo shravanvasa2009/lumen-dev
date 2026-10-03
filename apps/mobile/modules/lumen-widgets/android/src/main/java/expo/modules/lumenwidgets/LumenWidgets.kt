@@ -59,8 +59,11 @@ private const val ONE_LINE_TITLE_CHARS = 12
 // The mark's body is 88 x 172 in the brand SVG.
 private const val MARK_ASPECT = 88f / 172f
 
-// The medium widget's button column, as a share of its width (mockup 32).
-private const val BUTTON_COLUMN_SHARE = 0.4f
+// The medium widget's button column, as a share of its width, and its button height (mockup 32). The small
+// widget keeps 36 dp: at its 140 dp design size a 40 dp button would push the status line out.
+private const val BUTTON_COLUMN_SHARE = 0.45f
+private const val SMALL_PILL_HEIGHT = 36
+private const val MEDIUM_PILL_HEIGHT = 40
 
 private const val CARD_RADIUS = 24f
 private const val BORDER = 1f
@@ -141,8 +144,9 @@ private fun Pill(
     filled: Boolean,
     scale: Float,
     modifier: GlanceModifier,
+    heightDp: Int = SMALL_PILL_HEIGHT,
 ) {
-    val height = (36 * scale).dp
+    val height = (heightDp * scale).dp
     val caption =
         @Composable {
             Text(
@@ -268,9 +272,9 @@ private fun MediumBody(view: WidgetView, scale: Float, width: Dp, check: Action,
                 modifier = GlanceModifier.width(width * BUTTON_COLUMN_SHARE).fillMaxHeight(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Pill(view, view.checkNow, check, filled = true, scale = scale, modifier = GlanceModifier.fillMaxWidth())
+                Pill(view, view.checkNow, check, true, scale, GlanceModifier.fillMaxWidth(), MEDIUM_PILL_HEIGHT)
                 Spacer(GlanceModifier.height((10 * scale).dp))
-                Pill(view, view.fullScan, fullScan, filled = false, scale = scale, modifier = GlanceModifier.fillMaxWidth())
+                Pill(view, view.fullScan, fullScan, false, scale, GlanceModifier.fillMaxWidth(), MEDIUM_PILL_HEIGHT)
             }
         }
     }

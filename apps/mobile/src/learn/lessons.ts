@@ -27,9 +27,8 @@ export type LessonTemplate = {
   question: LessonQuestion;
 };
 
-type LessonContent = { body: (t: TFunction) => readonly string[] } | { template: LessonTemplate };
-
-export type Lesson = LessonContent & {
+export type Lesson = {
+  template: LessonTemplate;
   // The slug is the route segment of /learn/[slug].
   slug: string;
   tone: LessonTone;
@@ -85,7 +84,24 @@ export const lessons: readonly Lesson[] = [
     tone: 'flag',
     title: (t) => t('learn.lessonAfib'),
     length: (t) => t('learn.minutes', { minutes: 3 }),
-    body: (t) => [t('learn.afib.p1'), t('learn.afib.p2'), t('learn.afib.p3'), t('learn.afib.p4')],
+    template: {
+      sections: [
+        { heading: (t) => t('learn.afib.h1'), body: (t) => t('learn.afib.p1'), diagram: 'rhythm-gaps' },
+        { heading: (t) => t('learn.afib.h2'), body: (t) => t('learn.afib.p2') },
+        { heading: (t) => t('learn.afib.h3'), body: (t) => t('learn.afib.p3') },
+        { heading: (t) => t('learn.afib.h4'), body: (t) => t('learn.afib.p4') },
+      ],
+      takeaway: (t) => t('learn.afib.takeaway'),
+      question: {
+        prompt: (t) => t('learn.afib.question'),
+        options: (t) => [
+          t('learn.afib.answerDiagnosis'),
+          t('learn.afib.answerRetake'),
+          t('learn.afib.answerIgnore'),
+        ],
+        correctIndex: 1,
+      },
+    },
   },
   {
     slug: 'how-the-rhythm-check-works',
@@ -130,48 +146,168 @@ export const lessons: readonly Lesson[] = [
     tone: 'flag',
     title: (t) => t('learn.lessonStroke'),
     length: (t) => t('learn.minutes', { minutes: 1 }),
-    body: (t) => [
-      t('learn.stroke.intro'),
-      t('learn.stroke.balance'),
-      t('learn.stroke.eyes'),
-      t('learn.stroke.face'),
-      t('learn.stroke.arm'),
-      t('learn.stroke.speech'),
-      t('learn.stroke.time'),
-    ],
+    template: {
+      sections: [
+        { heading: (t) => t('learn.stroke.h1'), body: (t) => t('learn.stroke.intro') },
+        { heading: (t) => t('learn.stroke.h2'), body: (t) => t('learn.stroke.balance') },
+        { heading: (t) => t('learn.stroke.h3'), body: (t) => t('learn.stroke.eyes') },
+        { heading: (t) => t('learn.stroke.h4'), body: (t) => t('learn.stroke.face') },
+        { heading: (t) => t('learn.stroke.h5'), body: (t) => t('learn.stroke.arm') },
+        { heading: (t) => t('learn.stroke.h6'), body: (t) => t('learn.stroke.speech') },
+        { heading: (t) => t('learn.stroke.h7'), body: (t) => t('learn.stroke.time') },
+      ],
+      takeaway: (t) => t('learn.stroke.takeaway'),
+      question: {
+        prompt: (t) => t('learn.stroke.question'),
+        options: (t) => [
+          t('learn.stroke.answerTemperature'),
+          t('learn.stroke.answerTime'),
+          t('learn.stroke.answerTremor'),
+        ],
+        correctIndex: 1,
+      },
+    },
   },
   {
     slug: 'diabetes-and-your-pulse',
     tone: 'flag',
     title: (t) => t('learn.lessonDiabetes'),
     length: (t) => t('learn.minutes', { minutes: 2 }),
-    body: (t) => [t('learn.diabetes.p1'), t('learn.diabetes.p2'), t('learn.diabetes.p3')],
+    template: {
+      sections: [
+        { heading: (t) => t('learn.diabetes.h1'), body: (t) => t('learn.diabetes.p1') },
+        {
+          heading: (t) => t('learn.diabetes.h2'),
+          body: (t) => t('learn.diabetes.p2'),
+          chips: {
+            label: (t) => t('learn.diabetes.alsoLabel'),
+            items: (t) => [
+              t('learn.diabetes.chipAge'),
+              t('learn.diabetes.chipCold'),
+              t('learn.diabetes.chipMedicines'),
+            ],
+          },
+        },
+        { heading: (t) => t('learn.diabetes.h3'), body: (t) => t('learn.diabetes.p3') },
+      ],
+      takeaway: (t) => t('learn.diabetes.takeaway'),
+      question: {
+        prompt: (t) => t('learn.diabetes.question'),
+        options: (t) => [
+          t('learn.diabetes.answerDiagnosis'),
+          t('learn.diabetes.answerA1c'),
+          t('learn.diabetes.answerIgnore'),
+        ],
+        correctIndex: 1,
+      },
+    },
   },
   {
     slug: 'heart-rate-variability',
     tone: 'public',
     title: (t) => t('learn.lessonHrv'),
     length: (t) => t('learn.minutes', { minutes: 2 }),
-    body: (t) => [t('learn.hrv.p1'), t('learn.hrv.p2'), t('learn.hrv.p3'), t('learn.hrv.p4')],
+    template: {
+      sections: [
+        { heading: (t) => t('learn.hrv.h1'), body: (t) => t('learn.hrv.p1') },
+        {
+          heading: (t) => t('learn.hrv.h2'),
+          body: (t) => t('learn.hrv.p2'),
+          chips: {
+            label: (t) => t('learn.hrv.recoveryLabel'),
+            items: (t) => [t('learn.hrv.chipStress'), t('learn.hrv.chipExercise'), t('learn.hrv.chipSleep')],
+          },
+        },
+        { heading: (t) => t('learn.hrv.h3'), body: (t) => t('learn.hrv.p3') },
+        { heading: (t) => t('learn.hrv.h4'), body: (t) => t('learn.hrv.p4') },
+      ],
+      takeaway: (t) => t('learn.hrv.takeaway'),
+      question: {
+        prompt: (t) => t('learn.hrv.question'),
+        options: (t) => [t('learn.hrv.answerOthers'), t('learn.hrv.answerOwn'), t('learn.hrv.answerTimes')],
+        correctIndex: 1,
+      },
+    },
   },
   {
     slug: 'what-lumen-cannot-measure',
     tone: 'public',
     title: (t) => t('learn.lessonLimits'),
     length: (t) => t('learn.minutes', { minutes: 2 }),
-    body: (t) => [t('learn.limits.p1'), t('learn.limits.p2'), t('learn.limits.p3'), t('learn.limits.p4')],
+    template: {
+      sections: [
+        { heading: (t) => t('learn.limits.h1'), body: (t) => t('learn.limits.p1') },
+        {
+          heading: (t) => t('learn.limits.h2'),
+          body: (t) => t('learn.limits.p2'),
+          chips: {
+            items: (t) => [
+              t('learn.limits.chipPressure'),
+              t('learn.limits.chipOxygen'),
+              t('learn.limits.chipArteries'),
+              t('learn.limits.chipHeartAttack'),
+            ],
+          },
+        },
+        { heading: (t) => t('learn.limits.h3'), body: (t) => t('learn.limits.p3') },
+        { heading: (t) => t('learn.limits.h4'), body: (t) => t('learn.limits.p4') },
+      ],
+      takeaway: (t) => t('learn.limits.takeaway'),
+      question: {
+        prompt: (t) => t('learn.limits.question'),
+        options: (t) => [
+          t('learn.limits.answerPressure'),
+          t('learn.limits.answerOxygen'),
+          t('learn.limits.answerPulse'),
+        ],
+        correctIndex: 2,
+      },
+    },
   },
   {
     slug: 'when-to-see-a-doctor',
     tone: 'accent',
     title: (t) => t('learn.lessonDoctor'),
     length: (t) => t('learn.minutes', { minutes: 2 }),
-    body: (t) => [
-      t('learn.doctor.p1'),
-      t('learn.doctor.p2'),
-      t('learn.doctor.p3'),
-      t('learn.doctor.p4'),
-      t('learn.doctor.p5'),
-    ],
+    template: {
+      sections: [
+        { heading: (t) => t('learn.doctor.h1'), body: (t) => t('learn.doctor.p1') },
+        {
+          heading: (t) => t('learn.doctor.h2'),
+          body: (t) => t('learn.doctor.p2'),
+          chips: {
+            items: (t) => [
+              t('learn.doctor.chipChest'),
+              t('learn.doctor.chipFainting'),
+              t('learn.doctor.chipBreath'),
+              t('learn.doctor.chipStroke'),
+            ],
+          },
+        },
+        {
+          heading: (t) => t('learn.doctor.h3'),
+          body: (t) => t('learn.doctor.p3'),
+          chips: {
+            items: (t) => [
+              t('learn.doctor.chipRepeat'),
+              t('learn.doctor.chipRate'),
+              t('learn.doctor.chipRacing'),
+            ],
+          },
+        },
+        { heading: (t) => t('learn.doctor.h4'), body: (t) => t('learn.doctor.p4') },
+        { heading: (t) => t('learn.doctor.h5'), body: (t) => t('learn.doctor.p5') },
+      ],
+      takeaway: (t) => t('learn.doctor.takeaway'),
+      question: {
+        prompt: (t) => t('learn.doctor.question'),
+        options: (t) => [
+          t('learn.doctor.answerRepeat'),
+          t('learn.doctor.answerFainting'),
+          t('learn.doctor.answerCost'),
+        ],
+        correctIndex: 1,
+      },
+    },
   },
 ];

@@ -40,9 +40,10 @@ def _seeded_input(rng: np.random.Generator, name: str, shape: list[int], count: 
     if name == "features":
         return rng.normal(0.0, 2.0, size=(count, *shape[1:])).astype(np.float32)
     if name == "beat":
-        # DSP-14's averaged beat is a mean of min–max normalized beats, so it lies in [0, 1]. Beats far
-        # outside that range saturate a trained diabetes-net to exactly 1.0, which leaves nothing to
-        # compare. A min–max normalized random walk keeps the input in range with a pulse-like slow shape.
+        # Drawn in DSP-14's output range, 0 to 1: the averaged beat is a mean of min–max normalized beats.
+        # Beats far outside it saturate a trained diabetes-net to exactly 1.0, leaving nothing to compare.
+        # Only the inputs changed; the 1e-4 tolerance and the constant-output check are the same. A
+        # min–max normalized random walk gives a pulse-like slow shape.
         walk = rng.normal(size=(count, *shape[1:])).cumsum(axis=-1)
         low, high = walk.min(axis=-1, keepdims=True), walk.max(axis=-1, keepdims=True)
         return ((walk - low) / (high - low)).astype(np.float32)

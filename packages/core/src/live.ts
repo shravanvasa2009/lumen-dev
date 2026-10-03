@@ -210,9 +210,13 @@ class Session implements LiveSession {
   }
 
   setSqi(windowEndS: number, pClean: number): void {
+    // A window ends inside the reading; outside it, start + end can pass 2^53 ns and round.
+    if (!(this.count > 0 && windowEndS >= 0 && windowEndS <= this.latestS))
+      throw new RangeError(`window end ${windowEndS} s is outside the reading (0 to ${this.latestS} s)`);
     // readingInput hands the end on in whole ns; a finer end would come back as a different span.
     if (Math.round(windowEndS * 1e9) / 1e9 !== windowEndS)
       throw new RangeError(`window end ${windowEndS} s is not a whole ns; pass sqiWindow.endS unchanged`);
+    if (!(pClean >= 0 && pClean <= 1)) throw new RangeError(`P(clean) must be in [0, 1], got ${pClean}`);
     this.modelRan = true;
     this.scores.push({ endS: windowEndS, pClean });
     if (pClean < this.config.sqiThreshold) this.rejectWindow(windowEndS);

@@ -224,14 +224,14 @@ describe('LiveSession rejected spans and clean seconds', () => {
   });
 
   it('SQI: a score under the threshold rejects its 4 s window; none before the first score', () => {
-    let scored = false;
+    const pending = [12, 13];
     const { session } = play(frames({ seconds: 30 }), {
       onBatch: (live, tS) => {
-        if (scored || tS < 12) return;
-        expect(spansOf(live, 'quality')).toEqual([]);
-        live.setSqi(12, 0.2);
-        live.setSqi(13, 0.9);
-        scored = true;
+        // Each score arrives once its window has ended: setSqi refuses an end after the newest frame.
+        if (pending.length === 0 || tS < pending[0]!) return;
+        if (pending[0] === 12) expect(spansOf(live, 'quality')).toEqual([]);
+        const endS = pending.shift()!;
+        live.setSqi(endS, endS === 12 ? 0.2 : 0.9);
       },
     });
     expect(spansOf(session, 'quality')).toEqual([{ startS: 8, endS: 12, reason: 'quality' }]);
@@ -339,6 +339,16 @@ describe('LiveSession input checks and buffer size', () => {
       expect(session.recentWaveform.ppg.every(Number.isFinite)).toBe(true);
       expect(session.sqiWindow).not.toBeNull();
     }
+  });
+
+  it('refuses an SQI window end outside the reading, and a P(clean) outside [0, 1]', () => {
+    const { session } = play(frames({ seconds: 12 }));
+    for (const endS of [NaN, Infinity, -Infinity, -1, 9_002_345.606197001])
+      expect(() => session.setSqi(endS, 0.1)).toThrow(RangeError);
+    for (const pClean of [NaN, -0.1, 1.1, Infinity])
+      expect(() => session.setSqi(8, pClean)).toThrow(RangeError);
+    expect(() => createLiveSession(CONFIG).setSqi(0, 0.1)).toThrow(RangeError);
+    expect(session.readingInput().sqi).toBeNull();
   });
 
   it('refuses a capture rate whose Nyquist frequency is not above the 8 Hz morphology band edge', () => {

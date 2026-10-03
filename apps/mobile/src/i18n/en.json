@@ -849,7 +849,6 @@
   "checks.diabetes.what": "A pulse pattern linked to diabetes",
   "checks.pots.whatShort": "Heart-rate rise when you stand",
   "rating.checksHere": "Lumen can check on this phone",
-  "rating.notOnPhone": "Not available on this phone",
   "rating.ambient": "Your flash isn't reaching your finger well, so Lumen works with room light and offers Quick Check only.",
   "rating.failNoCamera": "This phone has no rear camera Lumen can use.",
   "rating.failFps": "This phone's rear camera can't film fast enough to see a pulse.",

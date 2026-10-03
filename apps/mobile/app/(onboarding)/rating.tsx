@@ -12,6 +12,7 @@ import { TryDemoButton } from '@/demo/TryDemoButton';
 import { ratingModeLabel, tierLabel } from '@/rating/labels';
 import { useRatingReveal } from '@/rating/useRatingReveal';
 import { RatingGauge } from '@/settings/RatingGauge';
+import { SectionLabel } from '@/settings/SectionLabel';
 import type { StoredRating } from '@/store/deviceRating';
 import { useTheme } from '@/theme';
 
@@ -78,21 +79,16 @@ function CheckableList({ rating }: { rating: StoredRating }) {
         overflow: 'hidden',
       }}
     >
-      <AppText
-        variant="caption"
-        tone="textDim"
-        accessibilityRole="header"
-        style={{ fontWeight: '600', textTransform: 'uppercase', padding: spacing.md }}
-      >
-        {t('rating.checksHere')}
-      </AppText>
+      <View style={{ padding: spacing.md }}>
+        <SectionLabel>{t('rating.checksHere')}</SectionLabel>
+      </View>
       {rows.map((row) => {
         const open = rating.unlocks.includes(row.mode);
         return (
           <View
             key={row.mode}
             accessible
-            accessibilityLabel={`${row.name}: ${open ? row.what : t('rating.notOnPhone')}`}
+            accessibilityLabel={`${row.name}: ${open ? row.what : t('mode.locked60fps')}`}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
@@ -122,7 +118,7 @@ function CheckableList({ rating }: { rating: StoredRating }) {
                 {row.experimental ? <EvidenceBadge metric="diabetes" /> : null}
               </View>
               <AppText variant="caption" tone="textDim">
-                {open ? row.what : t('rating.notOnPhone')}
+                {open ? row.what : t('mode.locked60fps')}
               </AppText>
             </View>
             <Icon name={open ? 'check' : 'lock'} size={20} color={open ? colors.accent : colors.textFaint} />

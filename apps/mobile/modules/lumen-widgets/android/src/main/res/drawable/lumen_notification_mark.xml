@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lumen brand mark as a notification small icon, from assets/brand/mark-mono.svg (viewBox 200). Android draws
+     small icons from the alpha channel only, so the lens hole and the pulse line must be transparent. With no
+     masks in VectorDrawable, one even-odd path holds the body, the lens circle, and the pulse line's outline
+     (stroke width 10, round joins, flat where the SVG's mask crops it at the body's edges); each cut-out sits
+     inside the body, so even-odd leaves it empty.
+     https://developer.android.com/develop/ui/views/notifications#icon -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M80,14 H120 A24,24 0 0 1 144,38 V162 A24,24 0 0 1 120,186 H80 A24,24 0 0 1 56,162 V38 A24,24 0 0 1 80,14 Z M75,40 A7,7 0 1 0 89,40 A7,7 0 1 0 75,40 Z M56,121 L80,121 A5,5 0 0 0 84.72,117.65 L92.86,94.39 L105.11,151.06 A5,5 0 0 0 114.71,151.66 L125.54,121 L144,121 L144,111 L122,111 A5,5 0 0 0 117.29,114.34 L111.16,131.7 L98.89,74.94 A5,5 0 0 0 89.28,74.35 L76.45,111 L56,111 Z" />
+</vector>

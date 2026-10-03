@@ -1,7 +1,9 @@
 import { act, renderHook } from '@testing-library/react-native';
+import i18next from 'i18next';
 
 import '@/i18n';
 import { lockscreenStrings } from '@/i18n/lockscreen';
+import tokens from '@/theme/tokens.json';
 
 import { useStandingLiveTimer } from './useStandingLiveTimer';
 import { type StandingTestSource, useStandingTest } from './useStandingTest';
@@ -21,6 +23,8 @@ jest.mock('../../modules/lumen-widgets/src', () => ({
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 const TEST_BPM = 70;
+// Lying 5, standing 10, and the last reading's 45-second window.
+const TEST_MINUTES = 15.75;
 const lock = lockscreenStrings('en');
 
 const source: StandingTestSource = { now: () => Date.now(), readHeartRate: async () => TEST_BPM };
@@ -51,9 +55,10 @@ beforeEach(() => {
   jest.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
-afterEach(() => {
+afterEach(async () => {
   jest.useRealTimers();
   jest.restoreAllMocks();
+  await i18next.changeLanguage('en');
 });
 
 describe('standing-test live timer', () => {
@@ -70,6 +75,9 @@ describe('standing-test live timer', () => {
       step: 'Step 1 of 5',
       tapHint: lock['live.standing.tap'],
       countdownMs: 4 * MINUTE,
+      progress: 0,
+      accentLight: tokens.light.accent,
+      accentDark: tokens.dark.accent,
     });
   });
 
@@ -84,7 +92,9 @@ describe('standing-test live timer', () => {
     expect(lastContent(mockWidgets.updateStandingTimer)).toMatchObject({
       step: 'Step 2 of 5',
       text: lock['notif.standing'],
+      tapHint: 'Tap to measure',
       countdownMs: null,
+      progress: 4 / TEST_MINUTES,
     });
 
     await act(async () => test.current.takeReading());
@@ -94,8 +104,25 @@ describe('standing-test live timer', () => {
       step: 'Step 2 of 5',
       text: 'Next reading in',
       countdownMs: 2 * MINUTE,
+      progress: 4 / TEST_MINUTES,
     });
     expect(mockWidgets.startStandingTimer).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves the progress bar at each update and shows the Spanish copy', async () => {
+    const { result: test } = renderStandingTest();
+    await act(async () => i18next.changeLanguage('es'));
+    act(() => test.current.start());
+    advance(4 * MINUTE);
+    await act(async () => test.current.takeReading());
+    advance(2 * MINUTE);
+    expect(lastContent(mockWidgets.updateStandingTimer)).toMatchObject({
+      title: 'Prueba de pie',
+      step: 'Paso 3 de 5',
+      tapHint: 'Toca para medir',
+      countdownMs: null,
+      progress: 6 / TEST_MINUTES,
+    });
   });
 
   it('ends when the test is stopped', () => {

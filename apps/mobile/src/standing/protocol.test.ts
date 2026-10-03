@@ -40,6 +40,16 @@ describe('standing test steps', () => {
     expect(viewAt(started, at(6)).lyingRemainingMs).toBe(0);
   });
 
+  it('tracks progress through the 15:45 test, held at 0 before it and 1 after it', () => {
+    expect(viewAt(newTest(), at(3)).progress).toBe(0);
+    expect(viewAt(started, at(0)).progress).toBe(0);
+    expect(viewAt(started, at(4)).progress).toBeCloseTo(4 / 15.75);
+    expect(viewAt(started, at(10)).progress).toBeCloseTo(10 / 15.75);
+    expect(viewAt(started, at(15, 45)).progress).toBe(1);
+    expect(viewAt(started, at(30)).progress).toBe(1);
+    expect(viewAt(stop(started, at(2)), at(30)).progress).toBeCloseTo(2 / 15.75);
+  });
+
   it('offers the baseline reading in minute 4 to 5 only', () => {
     expect(viewAt(started, at(3)).dueSlot).toBeNull();
     expect(viewAt(started, at(4, 10)).dueSlot).toEqual({ minute: 0 });

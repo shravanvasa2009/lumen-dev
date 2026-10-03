@@ -19,14 +19,24 @@ from export.to_onnx import source_model
 from export.verify_onnx import seeded_inputs
 from eval.external import diabetes_part
 from eval.external_stats import (
+    MAX_GAP_PTS,
+    MIN_CLEAN_WINDOWS_PER_GROUP,
     RHYTHM_PREVALENCES,
     BiasWindows,
     binary_report,
     rhythm_bias_report,
 )
-from export.write_manifest import EXTERNAL_NOT_RUN, NOT_CALIBRATED, NOT_MEASURED, logistic_rule
+from export.write_manifest import (
+    ACCEPTANCE_HEADING,
+    EXTERNAL_NOT_RUN,
+    NOT_CALIBRATED,
+    NOT_MEASURED,
+    ExternalRun,
+    logistic_rule,
+    model_card,
+)
 from nets.rhythm_net import LABELS
-from tests.training_artifacts import fit_baseline, save_trained
+from tests.training_artifacts import fit_baseline, save_trained, valid_metrics
 from train.rhythm import LOGISTIC_FEATURES, Units, sensitivity_at, specificity_at, with_ci
 from train.rhythm_windows import FEATURE_NAMES
 
@@ -40,6 +50,7 @@ CARD_HEADINGS = [
     "## Ablation",
     "## Calibration",
     "## What the app shows when the model abstains",
+    f"## {ACCEPTANCE_HEADING}",
 ]
 
 NETWORKS = sorted(name for name, spec in SPECS.items() if spec.kind == "torch")
@@ -820,3 +831,93 @@ def test_a_trained_model_without_calibration_says_so_not_that_it_is_untrained(tr
     calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
     assert NOT_CALIBRATED in calibration and NOT_MEASURED not in calibration
     assert "this version has none" in card and "team captures hand-labeled clean." not in card
+
+
+PARITY_ENTRY = {
+    "onnxSha256": "a" * 64,
+    "sourceSha256": "b" * 64,
+    "nInputs": 502,
+    "maxAbsDiff": 2.5e-07,
+    "outputStd": 0.02,
+}
+
+
+def _sqi_metrics(ml2=0.668, gap=2.3, groups=1776):
+    measured = {"windowAuroc": {"estimate": 0.84, "low": 0.78, "high": 0.89}}
+    if ml2 is not None:
+        measured["ml2HrWithin5BpmOfAccepted"] = {"estimate": ml2, "low": ml2 - 0.25, "high": ml2 + 0.04}
+    if gap is not None:
+        measured["ml4GapSinusMinusAfPts"] = {"estimate": gap, "low": gap - 4.7, "high": gap + 12.7}
+    return {
+        **valid_metrics(SPECS["sqi-finger"], "c" * 64),
+        "development": {"subjects": 9, "metrics": measured},
+        "windowCounts": [
+            {"set": "retimed", "kind": kind, "windows": groups, "records": 148, "subjects": 9}
+            for kind in ("retimed-af", "retimed-premature", "retimed-sinus")
+        ],
+    }
+
+
+def _acceptance(card):
+    return card.split(f"## {ACCEPTANCE_HEADING}", 1)[1].split("\n## ", 1)[0].strip()
+
+
+def test_acceptance_section_renders_from_the_metrics_and_parity():
+    section = _acceptance(model_card(SPECS["sqi-finger"], _sqi_metrics(), None, PARITY_ENTRY))
+    assert f"max abs diff 2.500e-07 over 502 inputs, tolerance {TOLERANCE:g}: met" in section
+    assert "Python check" in section
+    assert "development proxy" in section and "held-out BUT PPG dev-val subjects" in section
+    assert "0.668 (95% CI 0.418-0.708), target ≥ 95%: not met." in section
+    assert "1776 AF and 1776 sinus windows" in section and "re-timed BUT PPG" in section
+    assert f"2.3 points (95% CI -2.4 to 15.0), limit ±{MAX_GAP_PTS:g} points" in section
+    assert "within the limit" in section
+    assert "The decisive ML-4 check is the external run, shown in External test." in section
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"ml2": 0.96}, "target ≥ 95%: met on development data, where τ was chosen."),
+        ({"gap": -6.0}, "outside the limit"),
+        ({"groups": MIN_CLEAN_WINDOWS_PER_GROUP - 1}, "insufficient data"),
+    ],
+)
+def test_acceptance_verdicts_follow_the_numbers(overrides, expected):
+    section = _acceptance(model_card(SPECS["sqi-finger"], _sqi_metrics(**overrides), None, PARITY_ENTRY))
+    assert expected in section
+
+
+def test_failed_parity_is_not_met():
+    entry = {**PARITY_ENTRY, "maxAbsDiff": 2 * TOLERANCE}
+    assert ": not met." in _acceptance(model_card(SPECS["rhythm-net"], None, None, entry))
+
+
+@pytest.mark.parametrize("metrics", [None, _sqi_metrics(ml2=None, gap=None)])
+def test_missing_acceptance_numbers_say_not_measured(metrics):
+    section = _acceptance(model_card(SPECS["sqi-finger"], metrics, None, None))
+    lines = section.splitlines()
+    assert len(lines) == 3 and all("not measured" in line for line in lines)
+
+
+def test_only_sqi_cards_carry_ml2_and_ml4():
+    section = _acceptance(model_card(SPECS["rhythm-net"], None, None, PARITY_ENTRY))
+    assert "ML-3" in section and "ML-2" not in section and "ML-4" not in section
+
+
+def test_acceptance_section_shows_no_external_numbers(monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    rng = np.random.default_rng(3)
+    is_af = np.repeat([True, False], 300)
+    subjects = np.where(is_af, "af", "sinus") + (np.arange(600) % 3).astype(str)
+    windows = BiasWindows(subjects, is_af, rng.random(600) < np.where(is_af, 0.7, 0.9), np.full(600, 80.0))
+    report = {
+        "subjects": 6,
+        **rhythm_bias_report(windows, ["af0", "af1", "af2"], ["sinus0", "sinus1", "sinus2"]),
+    }
+    run = {"approval": "H-050", "commit": "0" * 40, "finishedAt": "2026-10-20T11:00:00+00:00"}
+    card = model_card(SPECS["sqi-finger"], _sqi_metrics(), ExternalRun(run, report), PARITY_ENTRY)
+    external_gap = report["rhythmBiasGapPts"]
+    assert str(external_gap) in card.split("## External test", 1)[1]
+    section = _acceptance(card)
+    for number in (external_gap, *report["ci95"]):
+        assert str(number) not in section and f"{number:.1f}" not in section

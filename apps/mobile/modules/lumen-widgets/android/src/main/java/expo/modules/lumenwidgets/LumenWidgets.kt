@@ -7,6 +7,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.GlanceTheme
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.action.Action
 import androidx.glance.action.clickable
@@ -26,6 +29,7 @@ import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.padding
+import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
@@ -53,13 +57,26 @@ private fun Pill(label: String, action: Action, fill: ColorProvider, content: Co
     }
 }
 
+// Before the app first publishes there is no copy or palette, so the widget shows the app icon on Glance's
+// widget surface, which follows the phone's light or dark mode, like the iOS no-data state. The app name is
+// the icon's description for TalkBack, so no English is hard-coded. The whole widget still opens a check.
 @Composable
-private fun WidgetBody(view: WidgetView?, medium: Boolean) {
+private fun EmptyWidget(icon: ImageProvider, appName: String, open: Action) {
+    Box(
+        modifier = GlanceModifier.fillMaxSize().background(GlanceTheme.colors.widgetBackground).cornerRadius(20.dp).clickable(open),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(icon, contentDescription = appName, modifier = GlanceModifier.size(40.dp))
+    }
+}
+
+@Composable
+internal fun WidgetBody(view: WidgetView?, medium: Boolean) {
     val context = LocalContext.current
     val check = actionStartActivity(linkIntent(context, CHECK_LINK))
-    // Before the app first publishes there is no copy to show; the whole widget still opens a check.
     if (view == null) {
-        Box(modifier = GlanceModifier.fillMaxSize().clickable(check)) {}
+        val app = context.applicationInfo
+        EmptyWidget(ImageProvider(app.icon), app.loadLabel(context.packageManager).toString(), check)
         return
     }
     val textColor = view.color { it.text }

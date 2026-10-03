@@ -38,6 +38,12 @@ dependencies {
   // the app graph.
   implementation 'androidx.core:core-ktx:1.13.1'
   testImplementation 'junit:junit:4.13.2'
+  // Renders widget composables on the JVM, without a launcher, and checks their nodes and click actions.
+  // https://developer.android.com/develop/ui/compose/glance/testing
+  testImplementation 'androidx.glance:glance-appwidget-testing:1.2.0'
+  // That environment builds a real Bundle, which the stub android.jar can't; Robolectric 4.17 is the latest
+  // release (2026-09-10). https://robolectric.org/getting-started/
+  testImplementation 'org.robolectric:robolectric:4.17'
   // org.json is part of Android, but local unit tests get stubs that throw, so the tests use the real one.
   testImplementation 'org.json:json:20260814'
 }

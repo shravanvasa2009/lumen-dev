@@ -4,7 +4,7 @@ import { dcLevel } from './finger-signal';
 import type { ClassifiedBeat, RejectedSpan } from './live-session';
 import { median } from './median';
 import type { ResampledSegment } from './resample';
-import type { RhythmClass } from './results';
+import type { ReadingRhythm } from './results';
 
 // Readings arrive as one beat list per DSP-2 segment (classifyBeats output); no interval ever spans two
 // segments, since the gap between them may hide beats. Every clean-seconds and fps gate is written as
@@ -137,7 +137,7 @@ function filteredRuns(runs: number[][]): number[][] {
 /** DSP-12: RMSSD, SDNN, and pNN50 from NN intervals. */
 export function hrv(
   segments: ClassifiedBeat[][],
-  rhythm: RhythmClass,
+  rhythm: ReadingRhythm | null, // null: no rhythm card
   captureFps: number,
   cleanS: number,
 ): Hrv | null {
@@ -172,7 +172,7 @@ export function hrv(
 /** ML-6: diabetes-net's HR/HRV summary [HR bpm, RMSSD ms, SDNN ms, pNN50] by DSP-11 and DSP-12. */
 export function hrSummary(
   segments: ClassifiedBeat[][],
-  rhythm: RhythmClass,
+  rhythm: ReadingRhythm | null, // null: no rhythm card
   captureFps: number,
   cleanS: number,
 ): (number | null)[] {

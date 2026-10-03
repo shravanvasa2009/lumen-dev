@@ -20,6 +20,7 @@ export type {
   LostSeconds,
   NotChecked,
   ReadingResult,
+  ReadingRhythm,
   RespMetric,
   RhythmClass,
   RhythmFlag,
@@ -77,6 +78,7 @@ export {
 export {
   buildReadingResult,
   isProbabilityRow,
+  readingRhythm,
   type DiabetesOutputs,
   type EvidenceFile,
   type ModelOutputs,
@@ -87,6 +89,7 @@ export {
 export { createLiveSession, type LiveSessionConfig } from './live';
 export { SHAPE_FEATURE_NAMES, shapeFeatures } from './shape-features';
 export { hrSummary } from './reading-metrics';
+export { diabetesModelInput, type DiabetesModelInput } from './diabetes-input';
 export {
   rateDevice,
   tierUnlocks,

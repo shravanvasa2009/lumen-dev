@@ -1,4 +1,3 @@
-import { longPauseReference } from './beat-classes';
 import { DSP_CONFIG } from './config';
 import type { RejectedSpan } from './live-session';
 import { median } from './median';
@@ -38,34 +37,29 @@ function cleanIntervals(intervals: BeatInterval[], rejectedSpans: RejectedSpan[]
     .sort((x, y) => x.endNs - y.endNs);
 }
 
-// Beats per clean interval: a DSP-9 long pause (≥ longPauseRatio × the median of its DSP-9 neighbours,
-// the same reference DSP-9 uses) counts as round(interval / that median) beats, any other interval as 1.
-// A beat missed in noise (one ≈ 2× interval) then counts as the 2 beats it spans, so it no longer pulls
-// the rate down (red team v2 N1). A real pause counted as 2 raises the rate: the safe side for this rule.
-// DSP-9 withholds the judgement near segment edges to protect HRV; here every clean interval is judged.
-function beatCounts(intervals: CleanInterval[]): number[] {
-  const { longPauseRatio } = DSP_CONFIG.dsp9;
-  const lengths = intervals.map(({ ns }) => ns);
-  return lengths.map((ns, q) => {
-    const reference = longPauseReference(lengths, q);
-    return reference !== null && ns >= longPauseRatio * reference ? Math.round(ns / reference) : 1;
-  });
+// The window's rolling HR: the larger of the mean rate (60 × intervals / their sum) and the median-interval
+// rate (60 / the median interval, DSP-11's estimate). Each is a standard HR estimate and each covers what the
+// other misses (ADR 0076):
+// - beats missed in noise (≈ 2× intervals, red team v2 N1, v3 R2) lengthen a minority of intervals, so the
+//   median keeps the true rate where the mean drops;
+// - a repeating pattern (alternating, period 3 or 4, red team v1 F1, v2 N2) can flip the median between
+//   values, but the mean is exact for it, as for a premature beat with its compensatory pause;
+// - a blocked premature beat with sinus reset (a 1.6–1.8× pause, v3 R1) leaves the mean below the pulse and
+//   the median at the sinus rate, so the rule never reads above the HR the screen shows.
+function rollingBpm(lengthsNs: number[], sumNs: number): number {
+  return Math.max((60e9 * lengthsNs.length) / sumNs, 60e9 / median(lengthsNs));
 }
 
 // A point is the window of the last windowS clean seconds of intervals up to one interval. It is fast when
-// it holds ≥ windowMinCleanS clean seconds and 60 × its beats / its summed intervals clears fastBpm. The
-// sum is exact for any repeating pattern (alternating, period 3 or 4, a premature beat with its
-// compensatory pause, all under 1.6×), where a median interval or two-beat span flips between values
-// (red team v1 F1, v2 N2). A run of consecutive fast points counts its first window and then each
-// interval, and must reach sustainS clean seconds. A gap between clean intervals up to maxBreakS is
-// bridged but never counted; a longer one restarts the window and the count.
+// it holds ≥ windowMinCleanS clean seconds and its rolling HR clears fastBpm. A run of consecutive fast
+// points counts its first window and then each interval, and must reach sustainS clean seconds. A gap
+// between clean intervals up to maxBreakS is bridged but never counted; a longer one restarts the window
+// and the count.
 function sustainedFast(intervals: CleanInterval[]): boolean {
   const { fastBpm, fastMarginBpm, sustainS, windowS, windowMinCleanS, maxBreakS } =
     DSP_CONFIG.rules.emergency;
-  const beats = beatCounts(intervals);
   let windowFirst = 0;
   let windowNs = 0;
-  let windowBeats = 0;
   let inRun = false;
   let runNs = 0;
   for (let k = 0; k < intervals.length; k++) {
@@ -74,19 +68,21 @@ function sustainedFast(intervals: CleanInterval[]): boolean {
     if (previous && interval.startNs - previous.endNs > maxBreakS * 1e9) {
       windowFirst = k;
       windowNs = 0;
-      windowBeats = 0;
       inRun = false;
     }
     windowNs += interval.ns;
-    windowBeats += beats[k]!;
     // An interval longer than windowS leaves the window empty.
     while (windowNs > windowS * 1e9 && windowFirst <= k) {
       windowNs -= intervals[windowFirst]!.ns;
-      windowBeats -= beats[windowFirst]!;
       windowFirst++;
     }
     const fast =
-      windowNs >= windowMinCleanS * 1e9 && (60e9 * windowBeats) / windowNs > fastBpm + fastMarginBpm;
+      windowNs >= windowMinCleanS * 1e9 &&
+      rollingBpm(
+        intervals.slice(windowFirst, k + 1).map(({ ns }) => ns),
+        windowNs,
+      ) >
+        fastBpm + fastMarginBpm;
     if (!fast) {
       inRun = false;
       continue;

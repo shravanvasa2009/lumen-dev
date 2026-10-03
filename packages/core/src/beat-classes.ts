@@ -50,13 +50,6 @@ function balancedNeighbours<T>(items: T[], p: number, count: number, minimum: nu
   return perParity < minimum ? null : [...odd.slice(0, perParity), ...even.slice(0, perParity)];
 }
 
-/** DSP-9 long-pause reference: the median of interval q's balanced neighbours, or null when too few. */
-export function longPauseReference(lengths: number[], q: number): number | null {
-  const config = DSP_CONFIG.dsp9;
-  const others = balancedNeighbours(lengths, q, config.neighbours, config.minNeighboursPerParity);
-  return others ? median(others) : null;
-}
-
 /**
  * DSP-9: class and long-pause flag for each beat of one segment; acquisition evidence comes only from
  * the rejected spans and impossible intervals, never from interval irregularity.
@@ -180,10 +173,10 @@ export function classifyBeats(
     cleanIntervals.push({ end: i, lengthS: beat.peakS - beats[start]!.peakS });
   });
   const longPauses = new Set<number>();
-  const cleanLengths = cleanIntervals.map(({ lengthS }) => lengthS);
   cleanIntervals.forEach(({ end, lengthS }, q) => {
-    const reference = longPauseReference(cleanLengths, q);
-    if (reference !== null && lengthS >= config.longPauseRatio * reference) longPauses.add(end);
+    const others = references(cleanIntervals, q);
+    if (others && lengthS >= config.longPauseRatio * median(others.map((n) => n.lengthS)))
+      longPauses.add(end);
   });
 
   return beats.map((beat, i) => ({

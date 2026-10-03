@@ -1,6 +1,6 @@
 import { type ReactNode, useContext } from 'react';
 import { Modal, Pressable, View } from 'react-native';
-import Animated, { SlideInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 
 import { useTheme } from '@/theme';
 import { easeOut, motion, reduceMotionMode, StillMotion, useReduceMotion } from '@/theme/motion';
@@ -13,10 +13,10 @@ type BottomSheetProps = {
   children: ReactNode;
 };
 
-// The in-app modal sheet. The Modal fades the dimmed area in and out natively, and the panel slides up on
-// the UI thread, both at the 200 ms token. Under Reduce Motion the panel just appears; on the capture screen
-// nothing animates (ADR 0075). The content unmounts the moment `visible` is false and no
-// button waits for an animation, so SafetySheet's route to the emergency screen is never delayed.
+// The in-app modal sheet. The Modal itself does not animate (the OS would pick its own duration); the dimmed
+// area fades in and the panel slides up on the UI thread, both at the 200 ms token. Under Reduce Motion they
+// just appear; on the capture screen nothing animates (ADR 0075). The content unmounts the moment `visible`
+// is false and no button waits for an animation, so SafetySheet's route to the emergency screen is never delayed.
 export function BottomSheet({ visible, onDismiss, dismissLabel, children }: BottomSheetProps) {
   const { colors, radius, spacing } = useTheme();
   const reduceMotion = useReduceMotion();
@@ -25,13 +25,19 @@ export function BottomSheet({ visible, onDismiss, dismissLabel, children }: Bott
     <Modal
       visible={visible}
       transparent
-      animationType={onCaptureScreen || reduceMotion ? 'none' : 'fade'}
+      animationType="none"
       onRequestClose={onDismiss}
     >
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <Pressable
-          accessibilityLabel={dismissLabel}
-          onPress={onDismiss}
+        <Animated.View
+          testID="sheet-scrim"
+          entering={
+            onCaptureScreen
+              ? undefined
+              : FadeIn.duration(motion.durationMs)
+                  .easing(easeOut)
+                  .reduceMotion(reduceMotionMode(reduceMotion))
+          }
           style={{
             position: 'absolute',
             top: 0,
@@ -40,8 +46,11 @@ export function BottomSheet({ visible, onDismiss, dismissLabel, children }: Bott
             left: 0,
             backgroundColor: colors.scrim,
           }}
-        />
+        >
+          <Pressable accessibilityLabel={dismissLabel} onPress={onDismiss} style={{ flex: 1 }} />
+        </Animated.View>
         <Animated.View
+          testID="sheet-panel"
           entering={
             onCaptureScreen
               ? undefined

@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AccessibilityInfo, Modal, Text } from 'react-native';
 
+import { ReduceMotion } from 'react-native-reanimated';
+
 import { motion, StillMotion, useReduceMotion } from '@/theme/motion';
 
 import { BottomSheet } from './BottomSheet';
@@ -85,19 +87,34 @@ describe('BottomSheet motion', () => {
     </BottomSheet>
   );
   const animationType = () => screen.UNSAFE_getByType(Modal).props.animationType;
+  const entering = (testID: string) => screen.getByTestId(testID).props.entering;
 
-  it('fades in, and stops animating when Reduce Motion is switched on while open', () => {
+  it('leaves the fade to the scrim and the slide to the panel, never to the OS', () => {
     render(sheet);
-    expect(animationType()).toBe('fade');
-    setSystemReduceMotion(true);
     expect(animationType()).toBe('none');
-    setSystemReduceMotion(false);
-    expect(animationType()).toBe('fade');
+    expect(entering('sheet-scrim')).toBeDefined();
+    expect(entering('sheet-panel')).toBeDefined();
   });
 
-  it('appears without animation on the capture screen', () => {
+  it('runs both at the 200 ms token and follows Reduce Motion while open', () => {
+    const builders = [reanimated.FadeIn, reanimated.SlideInDown];
+    const durations = builders.map((builder) => jest.spyOn(builder, 'duration'));
+    const modes = builders.map((builder) => jest.spyOn(builder, 'reduceMotion'));
+    render(sheet);
+    durations.forEach((spy) => expect(spy).toHaveBeenLastCalledWith(motion.durationMs));
+    modes.forEach((spy) => expect(spy).toHaveBeenLastCalledWith(ReduceMotion.Never));
+    setSystemReduceMotion(true);
+    expect(animationType()).toBe('none');
+    modes.forEach((spy) => expect(spy).toHaveBeenLastCalledWith(ReduceMotion.Always));
+    setSystemReduceMotion(false);
+    modes.forEach((spy) => expect(spy).toHaveBeenLastCalledWith(ReduceMotion.Never));
+  });
+
+  it('appears without any fade or slide on the capture screen', () => {
     render(<StillMotion.Provider value>{sheet}</StillMotion.Provider>);
     expect(animationType()).toBe('none');
+    expect(entering('sheet-scrim')).toBeUndefined();
+    expect(entering('sheet-panel')).toBeUndefined();
   });
 });
 

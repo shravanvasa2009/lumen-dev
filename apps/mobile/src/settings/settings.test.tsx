@@ -6,6 +6,7 @@ import en from '@/i18n/en.json';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { startOnboarded } from '@/testing/onboarded';
 import { setPreference } from '@/theme/preferences';
 import tokens from '@/theme/tokens.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -227,14 +228,15 @@ describe('Lock-screen previews', () => {
 describe('Doctor follow-up', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it('offers the three answers and the test to ask for', () => {
+  it('offers the three answers and the test to ask for', async () => {
+    await startOnboarded();
     renderRouter(appDirectory, { initialUrl: '/follow-up' });
     for (const key of ['followUp.saw', 'followUp.booked', 'followUp.notYet'] as const) {
       expect(screen.getByRole('button', { name: en[key] })).toBeOnTheScreen();
     }
     expect(screen.getByText(en['followUp.whatToAskBody'])).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: en['followUp.booked'] }));
-    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
   it('opens the Care map from Find a doctor nearby', async () => {

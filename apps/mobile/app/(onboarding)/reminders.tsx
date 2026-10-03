@@ -6,10 +6,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
 import { ListRow } from '@/components/ListRow';
 import { loadNotificationPrefs } from '@/notifications/prefs';
+import { finishOnboarding } from '@/profile/onboarding';
 import { askPermission, saveAndSyncNotifications } from '@/settings/applyPrefs';
 import { formatClock } from '@/settings/formatClock';
 import { Toggle } from '@/settings/Toggle';
@@ -28,6 +28,7 @@ export default function RemindersScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { spacing } = useTheme();
+  const [finishFailed, setFinishFailed] = useState(false);
   const [hour, setHour] = useState(DEFAULT_HOUR);
   const [enabled, setEnabled] = useState<Record<Reminder, boolean>>({
     daily: false,
@@ -47,6 +48,18 @@ export default function RemindersScreen() {
     { reminder: 'followUp', title: t('notifications.followUp') },
     { reminder: 'doctor', title: t('notifications.doctor') },
   ];
+
+  // Home is the first screen on every later launch only once this is saved, so a failed save keeps the
+  // person here with a message instead of showing Welcome again next time without a word.
+  async function openHome() {
+    try {
+      await finishOnboarding();
+    } catch {
+      setFinishFailed(true);
+      return;
+    }
+    router.replace('/');
+  }
 
   // The app works without notifications, so a refusal or a failed request still moves on to Home.
   async function askPermissionThenOpenHome() {
@@ -72,7 +85,7 @@ export default function RemindersScreen() {
         `Notification permission request failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    router.replace('/');
+    await openHome();
   }
 
   return (
@@ -83,7 +96,7 @@ export default function RemindersScreen() {
       footer={
         <>
           <Button label={t('reminders.turnOn')} onPress={() => void askPermissionThenOpenHome()} />
-          <NavButton label={t('reminders.notNow')} href="/" variant="link" replace />
+          <Button label={t('reminders.notNow')} variant="link" onPress={() => void openHome()} />
         </>
       }
     >
@@ -135,6 +148,11 @@ export default function RemindersScreen() {
       <AppText variant="caption" tone="textDim">
         {t('reminders.localOnly')}
       </AppText>
+      {finishFailed ? (
+        <AppText variant="caption" tone="textDim" accessibilityRole="alert">
+          {t('profile.saveFailed')}
+        </AppText>
+      ) : null}
     </OnboardingStep>
   );
 }

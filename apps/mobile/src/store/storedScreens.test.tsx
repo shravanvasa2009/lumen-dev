@@ -2,10 +2,10 @@ import { renderHook } from '@testing-library/react-native';
 import { type ReactNode, Component } from 'react';
 import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
-import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import { startOnboarded } from '@/testing/onboarded';
 import { makeReading } from '@/testing/reading';
 
 import { lumenDatabase } from './database';
@@ -48,7 +48,7 @@ async function saveHeartRate(hr: number): Promise<void> {
   });
 }
 
-beforeEach(emptyMockDatabases);
+beforeEach(startOnboarded);
 
 afterEach(() => jest.restoreAllMocks());
 

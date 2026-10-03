@@ -3,6 +3,7 @@ import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 fixClockAtMorning();
@@ -35,10 +36,11 @@ describe('emergency screen', () => {
     expect(await screen.findByText(en['emergency.callFailed'])).toBeOnTheScreen();
   });
 
-  it('returns to Home when there is nothing to go back to', () => {
+  it('returns to Home when there is nothing to go back to', async () => {
+    await startOnboarded();
     renderRouter('./app', { initialUrl: '/emergency' });
     fireEvent.press(screen.getByRole('button', { name: en['emergency.okay'] }));
-    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
   it('shows the stroke signs and no made-up doctor number', () => {

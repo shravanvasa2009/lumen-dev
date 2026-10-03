@@ -25,7 +25,7 @@ export default function WelcomeScreen() {
       footer={
         <>
           <NavButton label={t('welcome.getStarted')} href="/consent" />
-          <NavButton label={t('welcome.tryDemo')} href="/" variant="secondary" replace />
+          <NavButton label={t('welcome.tryDemo')} href="/?demo=1" variant="secondary" replace />
           <LanguageSwitch />
           <AppText variant="caption" tone="textFaint" style={styles.centeredText}>
             {t('welcome.footer')}

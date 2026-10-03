@@ -2,6 +2,7 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 fixClockAtMorning();
@@ -47,9 +48,10 @@ describe('inconclusive screen', () => {
     expect(screen.getByRole('header', { name: en['mode.quick'] })).toBeOnTheScreen();
   });
 
-  it('closes to Home', () => {
+  it('closes to Home', async () => {
+    await startOnboarded();
     renderRouter('./app', { initialUrl: '/measure/inconclusive' });
     fireEvent.press(screen.getByRole('button', { name: en['inconclusive.close'] }));
-    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 });

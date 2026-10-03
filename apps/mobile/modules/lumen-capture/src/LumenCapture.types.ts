@@ -75,6 +75,19 @@ export interface LabDiagnostics {
   locked: { exposure: boolean; whiteBalance: boolean; focus: boolean };
 }
 
+// iOS only (ADR 0054 §4): one Apple Maps search near a point per call, for the Care map's doctors' offices.
+export interface NearbyPlace {
+  name: string;
+  phone?: string;
+  lat: number;
+  lon: number;
+  address: string; // one line; empty when Apple has no postal address for the place
+}
+export interface CareSearch {
+  // Rejects with CARE_SEARCH_THROTTLED_CODE when Apple rate-limits searches; places beyond radiusM are dropped.
+  searchNearbyCare(lat: number, lon: number, radiusM: number, query: string): Promise<NearbyPlace[]>;
+}
+
 // Event name to payload, matching the addListener overloads below; the native binding is typed with it.
 export type LumenCaptureEvents = {
   samples: (b: SampleBatch) => void;

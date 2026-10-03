@@ -83,6 +83,13 @@ public final class LumenCaptureModule: Module {
       }
     }.runOnQueue(capture.sessionQueue)
 
+    // ADR 0054 §4: iOS only; Android's Care map opens the user's maps app instead. Expo runs an async closure as
+    // a concurrent function, so a slow search never holds the capture queue.
+    AsyncFunction("searchNearbyCare") {
+      (lat: Double, lon: Double, radiusM: Double, query: String) async throws -> [[String: Any]] in
+      try await searchNearbyCare(lat: lat, lon: lon, radiusM: radiusM, query: query)
+    }
+
     AsyncFunction("lockExposure") { (promise: Promise) in
       self.capture.lockExposure { error in
         if let error {

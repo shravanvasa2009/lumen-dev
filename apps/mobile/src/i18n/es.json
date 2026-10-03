@@ -690,6 +690,7 @@
   "results.sublineFollowUp": "Hay un patrón para revisar, abajo.",
   "inconclusive.rowSeconds": "{{label}} {{seconds}} s",
   "why.rhythmCheck": "Revisión de ritmo con IA",
+  "why.learnMore": "Más información",
   "dm.experimental": "Experimental: patrón del pulso relacionado con la diabetes en investigaciones. No es una prueba de diabetes.",
   "demo.banner": "Datos de demostración: una medición de ejemplo, no la tuya",
   "results.flag": "Aviso",

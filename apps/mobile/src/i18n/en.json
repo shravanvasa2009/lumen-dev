@@ -690,6 +690,7 @@
   "results.sublineFollowUp": "One pattern to follow up, below.",
   "inconclusive.rowSeconds": "{{label}} {{seconds}} s",
   "why.rhythmCheck": "AI rhythm check",
+  "why.learnMore": "Learn more",
   "dm.experimental": "Experimental: pulse pattern linked to diabetes in research. Not a diabetes test.",
   "demo.banner": "Demo data — a sample reading, not yours",
   "results.flag": "Flag",

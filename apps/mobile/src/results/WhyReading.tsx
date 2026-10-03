@@ -1,10 +1,12 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
+import { ListRow } from '@/components/ListRow';
 import { Screen } from '@/components/Screen';
 import { useTheme } from '@/theme';
 
@@ -26,6 +28,7 @@ function SectionCaption({ text }: { text: string }) {
 export function WhyReading({ reading }: { reading: FixtureReading }) {
   const { t } = useTranslation();
   const router = useRouter();
+  const [poincareOpen, setPoincareOpen] = useState(false);
   const { colors, radius, spacing } = useTheme();
   const { rhythm } = reading.scan.metrics;
   if (!rhythm || reading.intervalsMs.length === 0) {
@@ -66,37 +69,6 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
           {why.title}
         </AppText>
 
-        <SectionCaption text={t('why.intervals')} />
-        <Card>
-          <Tachogram intervalsMs={reading.intervalsMs} color={seriesColor} />
-        </Card>
-
-        <SectionCaption text={t('why.poincare')} />
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
-          <View style={{ flex: 1, gap: spacing.sm }}>
-            <PoincarePlot
-              intervalsMs={reading.intervalsMs}
-              axis={axis}
-              color={plotColor}
-              label={t('why.yours')}
-            />
-            <AppText tone="textDim" style={{ textAlign: 'center' }}>
-              {t('why.yours')}
-            </AppText>
-          </View>
-          <View style={{ flex: 1, gap: spacing.sm }}>
-            <PoincarePlot
-              intervalsMs={regularIntervalsMs}
-              axis={axis}
-              color={colors.accentFill}
-              label={t('why.typical')}
-            />
-            <AppText tone="textDim" style={{ textAlign: 'center' }}>
-              {t('why.typical')}
-            </AppText>
-          </View>
-        </View>
-
         <Card>
           <AppText>{why.explain}</AppText>
           <View
@@ -135,6 +107,11 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
           </View>
         </Card>
 
+        <SectionCaption text={t('why.intervals')} />
+        <Card>
+          <Tachogram intervalsMs={reading.intervalsMs} color={seriesColor} />
+        </Card>
+
         <Card>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <AppText tone="textDim">{t('why.extraBeats')}</AppText>
@@ -142,6 +119,42 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
           </View>
           <AppText>{t('why.extraBeatsNote', { rate: reading.scan.experimental.extraBeatsPerMin })}</AppText>
         </Card>
+
+        <ListRow
+          title={t('why.learnMore')}
+          chevron
+          expanded={poincareOpen}
+          onPress={() => setPoincareOpen(!poincareOpen)}
+        />
+        {poincareOpen ? (
+          <>
+            <SectionCaption text={t('why.poincare')} />
+            <View style={{ flexDirection: 'row', gap: spacing.md }}>
+              <View style={{ flex: 1, gap: spacing.sm }}>
+                <PoincarePlot
+                  intervalsMs={reading.intervalsMs}
+                  axis={axis}
+                  color={plotColor}
+                  label={t('why.yours')}
+                />
+                <AppText tone="textDim" style={{ textAlign: 'center' }}>
+                  {t('why.yours')}
+                </AppText>
+              </View>
+              <View style={{ flex: 1, gap: spacing.sm }}>
+                <PoincarePlot
+                  intervalsMs={regularIntervalsMs}
+                  axis={axis}
+                  color={colors.accentFill}
+                  label={t('why.typical')}
+                />
+                <AppText tone="textDim" style={{ textAlign: 'center' }}>
+                  {t('why.typical')}
+                </AppText>
+              </View>
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </Screen>
   );

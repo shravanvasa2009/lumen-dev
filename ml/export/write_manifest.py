@@ -15,9 +15,11 @@ from sklearn.preprocessing import StandardScaler
 
 from export.provenance import (
     ALL_BAD_BASIS,
+    TOLERANCE,
     ProvenanceError,
     check_parity,
     check_threshold_bases,
+    entry_problems,
     load_metrics,
     sha256_of,
     threshold_approval,
@@ -36,6 +38,7 @@ from export.specs import (
 )
 from export.to_onnx import source_model
 from eval.external_gate import RESULTS_FILE, read_results
+from eval.external_stats import MAX_GAP_PTS, MIN_CLEAN_WINDOWS_PER_GROUP
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
 # Pass or fail facts eval.external writes next to the numbers (§11.5, ML-1, ML-4, ML-6). The role and the
@@ -48,6 +51,7 @@ LEVEL_UNITS = {
 }
 # Where the spec states each family's "ship the network only if it beats the baselines" rule.
 SHIP_RULE_SECTION = {"sqi": "§11.1", "rhythm": "§11.3", "diabetes": "§11.4"}
+ACCEPTANCE_HEADING = "Acceptance evidence (development data, not the external test)"
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
 NOT_CALIBRATED = "Not measured: the training run recorded no calibration for this model version."
 # §11.10: when the rhythm model fails to load, the app runs this rule in code (@lumen/core) as "basic
@@ -647,6 +651,68 @@ def _external_section(spec: ModelSpec, external: ExternalRun | None) -> str:
     return "\n\n".join(parts)
 
 
+def _parity_line(spec: ModelSpec, parity: dict | None) -> str:
+    if parity is None:
+        return "- ML-3 (Python check): not measured; models/parity.json has no entry for this file."
+    diff = parity["maxAbsDiff"]
+    shown = f"{diff:.3e}" if isinstance(diff, float | int) else diff
+    verdict = "not met" if entry_problems(spec.name, parity) else "met"
+    return (
+        f"- ML-3 (Python check, onnxruntime against the source model): max abs diff {shown} over "
+        f"{parity['nInputs']} inputs, tolerance {TOLERANCE:g}: {verdict}. The app and Node runtimes are not "
+        "covered by this line."
+    )
+
+
+def _ml2_line(measured: dict) -> str:
+    label = (
+        "- ML-2 (development proxy: share of accepted windows whose spectral-peak HR is within 5 bpm of the "
+        "ECG reference, on held-out BUT PPG dev-val subjects)"
+    )
+    share = measured.get("ml2HrWithin5BpmOfAccepted")
+    if share is None:
+        return f"{label}: not measured."
+    if share["estimate"] < ML2_TARGET:
+        return f"{label}: {_ci(share)}, target ≥ {ML2_TARGET:.0%}: not met."
+    return f"{label}: {_ci(share)}, target ≥ {ML2_TARGET:.0%}: met on development data, where τ was chosen."
+
+
+def _ml4_line(metrics: dict) -> str:
+    # ADR 0028's rule, as eval.external_stats applies it to the external run: the point estimate against
+    # MAX_GAP_PTS, and too few windows in either group is insufficient data, not a pass.
+    sizes = {
+        row["kind"]: row["windows"] for row in metrics.get("windowCounts", []) if row.get("set") == "retimed"
+    }
+    af, sinus = sizes.get("retimed-af"), sizes.get("retimed-sinus")
+    counted = "" if af is None or sinus is None else f", {af} AF and {sinus} sinus windows"
+    label = (
+        "- ML-4 (development proxy, ADR 0028: acceptance of re-timed BUT PPG sinus minus re-timed AF "
+        f"windows on dev-val subjects{counted})"
+    )
+    decisive = " The decisive ML-4 check is the external run, shown in External test."
+    gap = metrics.get("development", {}).get("metrics", {}).get("ml4GapSinusMinusAfPts")
+    if gap is None:
+        return f"{label}: not measured.{decisive}"
+    if not counted:
+        verdict = "not judged, since the group sizes are not recorded"
+    elif min(af, sinus) < MIN_CLEAN_WINDOWS_PER_GROUP:
+        verdict = f"insufficient data (fewer than {MIN_CLEAN_WINDOWS_PER_GROUP} windows in a group)"
+    else:
+        verdict = "within the limit" if abs(gap["estimate"]) <= MAX_GAP_PTS else "outside the limit"
+    return (
+        f"{label}: {gap['estimate']:.1f} points (95% CI {gap['low']:.1f} to {gap['high']:.1f}), limit "
+        f"±{MAX_GAP_PTS:g} points on the estimate: {verdict}.{decisive}"
+    )
+
+
+def _acceptance_section(spec: ModelSpec, metrics: dict | None, parity: dict | None) -> str:
+    lines = [_parity_line(spec, parity)]
+    if spec.family == "sqi":
+        recorded = metrics or {}
+        lines += [_ml2_line(recorded.get("development", {}).get("metrics", {})), _ml4_line(recorded)]
+    return "\n".join(lines)
+
+
 def _app_readings_section(app: dict) -> str:
     # ADR 0041: eval.external's app_readings applies the rhythm-card rule, abstainBelow and the 2-of-3 rule.
     def interval_row(metric: str, value: dict | None) -> dict:
@@ -675,7 +741,9 @@ def _app_readings_section(app: dict) -> str:
     )
 
 
-def model_card(spec: ModelSpec, metrics: dict | None, external: ExternalRun | None = None) -> str:
+def model_card(
+    spec: ModelSpec, metrics: dict | None, external: ExternalRun | None = None, parity: dict | None = None
+) -> str:
     text = CARD_TEXT[spec.family]
     if not spec.ships:
         role = "ablation model, not shipped"
@@ -700,6 +768,7 @@ def model_card(spec: ModelSpec, metrics: dict | None, external: ExternalRun | No
         "## Ablation\n\nThe neural model ships only if it beats its classical baseline on held-out "
         "subjects.\n\n" + (_table(ablation) if ablation else NOT_MEASURED),
         f"## Calibration\n\n{_calibration_section(spec, calibration) if metrics else NOT_MEASURED}",
+        f"## {ACCEPTANCE_HEADING}\n\n{_acceptance_section(spec, metrics, parity)}",
         f"## External test\n\n{_external_section(spec, external)}",
         f"## Limitations\n\n{text['limitations']}{_measured_limits(spec, metrics)}",
         f"## What the app shows when the model abstains\n\n{text['abstain']}",
@@ -774,8 +843,10 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
     check_parity(models_dir, entries, source_shas)
     # Every check, and every card render, happens before anything is written, so a failure leaves no
     # manifest or cards behind.
+    parity = json.loads((models_dir / "parity.json").read_text(encoding="utf-8"))["models"]
     cards = {
-        spec.file_stem: model_card(spec, metrics_by_name[spec.name], externals[spec.name]) for spec in specs
+        spec.file_stem: model_card(spec, metrics_by_name[spec.name], externals[spec.name], parity[spec.name])
+        for spec in specs
     }
     plots: dict[str, str | None] = {}
     for spec in specs:

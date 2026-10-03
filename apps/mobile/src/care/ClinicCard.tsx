@@ -36,6 +36,9 @@ export function ClinicCard({
       style={{ borderRadius: radius.card, borderWidth: selected ? 2 : 0, borderColor: colors.accent }}
     >
       <Card>
+        <AppText variant="caption" tone="textDim" testID={`clinic-kind-${clinic.id}`}>
+          {clinic.kind === 'regular' ? t('careMap.legendRegular') : t('careMap.legendClinic')}
+        </AppText>
         <AppText variant="headline">{clinic.name}</AppText>
         <AppText tone="textDim">
           {clinic.street}, {clinic.city}, {clinic.state} {clinic.zip} · {miles}

@@ -115,7 +115,10 @@ export function ProgressRing({
   const reduceMotion = useReduceMotion();
   const target = Math.min(1, Math.max(0, fraction));
   // The arc eases to each new value on the UI thread instead of jumping once a second.
-  const arc = useDerivedValue(() => withTiming(target, timingConfig(reduceMotion)));
+  // Built on the JS thread: timingConfig is a plain function, and calling one inside the worklet below
+  // crashes the app on a phone ("Tried to synchronously call a Remote Function").
+  const timing = timingConfig(reduceMotion);
+  const arc = useDerivedValue(() => withTiming(target, timing));
   const arcProps = useAnimatedProps(() => ({
     strokeDasharray: `${circumference * arc.value} ${circumference}`,
   }));

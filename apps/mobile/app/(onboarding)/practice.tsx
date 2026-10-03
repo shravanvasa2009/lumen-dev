@@ -12,8 +12,9 @@ import { useLiveCapture } from '@/measure/useLiveCapture';
 import { FingerPreview, ProgressRing, SignalMeter, SignalScale } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
 
-// Spec §8.2 step 6: practice passes after 15 steady seconds at Strong.
-const STEADY_SECONDS_NEEDED = 15;
+// H-047 option A (ADR 0073): practice passes after 30 steady seconds, not spec §8.2's 15, so it holds the
+// 30 clean seconds DSP-10 needs for a perfusion index and the phone gets a real rating.
+const STEADY_SECONDS_NEEDED = 30;
 
 export default function PracticeScreen() {
   const { t } = useTranslation();

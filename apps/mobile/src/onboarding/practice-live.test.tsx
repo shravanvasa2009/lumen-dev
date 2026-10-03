@@ -33,7 +33,7 @@ describe('practice with a running capture', () => {
     expect(screen.getByTestId('live-waveform', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.queryByText(en['coach.cover'])).toBeNull();
     expect(screen.getByText(en['capture.waiting'])).toBeOnTheScreen();
-    expect(screen.getByText('0 of 15 steady seconds')).toBeOnTheScreen();
+    expect(screen.getByText('0 of 30 steady seconds')).toBeOnTheScreen();
   });
 
   it('coaches to cover the lens when the module reports no finger', () => {
@@ -45,7 +45,7 @@ describe('practice with a running capture', () => {
   it('shows the steady seconds and the coaching key a session supplies', () => {
     mockLive = { ...running, cleanSeconds: 9.6, coachingKey: 'coach.still' };
     renderRouter('./app', { initialUrl: '/practice' });
-    expect(screen.getByText('9 of 15 steady seconds')).toBeOnTheScreen();
+    expect(screen.getByText('9 of 30 steady seconds')).toBeOnTheScreen();
     expect(screen.getByText(en['coach.still'])).toBeOnTheScreen();
   });
 });

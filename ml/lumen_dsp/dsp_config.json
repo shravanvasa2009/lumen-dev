@@ -106,6 +106,7 @@
     "fastRegularMaxNormalizedRmssd": 0.03,
     "rhythmMinCleanS": 60,
     "uncertainBelowTopProb": 0.6,
+    "rhythmRowSumTolerance": 1e-5,
     "possibleAfPositives": 2,
     "possibleAfReadings": 3,
     "possibleAfWindowHours": 24,
@@ -144,5 +145,31 @@
     "minBpm": 40,
     "maxBpm": 180,
     "minSnrDb": 6
+  },
+  "rating": {
+    "fpsLevels": [
+      { "minFps": 120, "points": 30 },
+      { "minFps": 60, "points": 24 },
+      { "minFps": 30, "points": 14 },
+      { "minFps": 24, "points": 6 }
+    ],
+    "achievedFpsToleranceFps": 0.5,
+    "couplingPoints": 35,
+    "couplingFullPiPct": 1.0,
+    "couplingFullSnrDb": 12,
+    "ambientBelowCouplingPoints": 10,
+    "exposureLockPoints": 6,
+    "whiteBalanceLockPoints": 5,
+    "focusLockPoints": 4,
+    "timingLevels": [
+      { "belowSdMs": 1, "points": 20 },
+      { "belowSdMs": 3, "points": 12 },
+      { "belowSdMs": 6, "points": 6 }
+    ],
+    "fullMinScore": 80,
+    "fullMinFps": 60,
+    "basicMinScore": 50,
+    "basicMinFps": 30,
+    "limitedMinScore": 25
   }
 }

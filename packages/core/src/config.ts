@@ -160,6 +160,9 @@ export const DSP_CONFIG = {
     fastRegularMaxNormalizedRmssd: 0.03, // strictly below
     rhythmMinCleanS: 60, // irregular rhythm; also needs dsp15.minUsableIntervals
     uncertainBelowTopProb: 0.6, // "Couldn't tell — retake"
+    // §11.1 Rhythm-Net output check (initial): each window's sinus, af, other must sum to 1 within this.
+    // ONNX Runtime returns float32 softmax rows, whose sums are off by a few 1e-7.
+    rhythmRowSumTolerance: 1e-5,
     possibleAfPositives: 2, // 2 of 3 readings within 24 h
     possibleAfReadings: 3,
     possibleAfWindowHours: 24,
@@ -218,5 +221,40 @@ export const DSP_CONFIG = {
     minBpm: 40,
     maxBpm: 180,
     minSnrDb: 6, // peak power over the median power of the scanned bins
+  },
+  // Lumen Compatibility Rating (§5.1 points, §5.2 tiers; spec initial values, "tune on real phones").
+  // Readings of the spec where it is silent are in ADR 0058.
+  rating: {
+    // §5.1 frame rate: the points of the highest level reached; below the last level is a hard fail.
+    fpsLevels: [
+      { minFps: 120, points: 30 },
+      { minFps: 60, points: 24 },
+      { minFps: 30, points: 14 },
+      { minFps: 24, points: 6 },
+    ],
+    // Not given by the spec (ADR 0058); owner decision H-039 pending. A practice capture at a 60 fps
+    // format measures 59.6–60, not exactly 60, so the achieved rate reaches a level when it is within
+    // this many fps of it. This loosens every "≥ N fps" test in §5.1/§5.2; 0 makes them strict.
+    achievedFpsToleranceFps: 0.5,
+    // §5.1 coupling: couplingPoints × min(1, PI / fullPi) × min(1, SNR / fullSnr), floored.
+    couplingPoints: 35,
+    couplingFullPiPct: 1.0,
+    couplingFullSnrDb: 12,
+    ambientBelowCouplingPoints: 10, // §5.2 and §4.4: ambient-light mode under this many coupling points
+    exposureLockPoints: 6,
+    whiteBalanceLockPoints: 5,
+    focusLockPoints: 4,
+    // §5.1 frame timing: SD of frame intervals strictly below each limit (ms) scores its points, else 0.
+    timingLevels: [
+      { belowSdMs: 1, points: 20 },
+      { belowSdMs: 3, points: 12 },
+      { belowSdMs: 6, points: 6 },
+    ],
+    // §5.2 tiers.
+    fullMinScore: 80,
+    fullMinFps: 60,
+    basicMinScore: 50,
+    basicMinFps: 30,
+    limitedMinScore: 25,
   },
 };

@@ -150,6 +150,12 @@ describe('LiveSession on a clean capture', () => {
     expect(sd).toBeCloseTo(1, 5);
   });
 
+  it('offers the first SQI window at the 4 s check, starting at the first frame (ADR 0057)', () => {
+    const ends: number[] = [];
+    play(frames({ seconds: 4.5 }), { onBatch: (live) => live.sqiWindow && ends.push(live.sqiWindow.endS) });
+    expect(ends[0]).toBe(4);
+  });
+
   it('offers no SQI window before 4 s of covered signal', () => {
     const early: (number | null)[] = [];
     play(frames({ seconds: 6 }), {
@@ -312,6 +318,27 @@ describe('LiveSession input checks and buffer size', () => {
     expect(() => session.pushSamples({ samples: samples.slice(5, 7), stats: stats.slice(6, 8) })).toThrow(
       RangeError,
     );
+  });
+
+  it('refuses an SQI window end finer than 1 ns, which readingInput could not hand on exactly', () => {
+    const { session } = play(frames({ seconds: 12 }));
+    expect(() => session.setSqi(10 + 1 / 3, 0.1)).toThrow(RangeError);
+    expect(session.readingInput().sqi).toBeNull();
+    session.setSqi(10.3, 0.1);
+    expect(spansOf(session, 'quality')).toEqual([{ startS: 10.3 - 4, endS: 10.3, reason: 'quality' }]);
+  });
+
+  it('takes a frame with non-finite red as uncovered and keeps the waveform finite', () => {
+    for (const bad of [NaN, Infinity, -Infinity]) {
+      const capture = frames({ seconds: 20 });
+      capture.samples[600]!.r = bad;
+      const { session } = play(capture);
+      expect(spansOf(session, 'coverage')).toEqual([
+        { startS: 10, endS: (capture.samples[601]!.tNs - CLOCK_START_NS) / 1e9, reason: 'coverage' },
+      ]);
+      expect(session.recentWaveform.ppg.every(Number.isFinite)).toBe(true);
+      expect(session.sqiWindow).not.toBeNull();
+    }
   });
 
   it('refuses a capture rate whose Nyquist frequency is not above the 8 Hz morphology band edge', () => {

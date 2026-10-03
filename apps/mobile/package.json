@@ -11,6 +11,7 @@
     "test": "jest --passWithNoTests",
     "test:routes": "jest src/routes.test.tsx",
     "test:evidence": "jest src/evidence",
+    "test:notifications": "jest src/notifications",
     "test:widgets": "jest src/widgets"
   },
   "dependencies": {

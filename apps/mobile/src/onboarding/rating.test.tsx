@@ -10,7 +10,11 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 }));
 
 // Continue opens Reminders, which imports the notification module; it warns outside a development build.
-jest.mock('expo-notifications', () => ({ requestPermissionsAsync: jest.fn() }));
+jest.mock('expo-notifications', () => ({
+  requestPermissionsAsync: jest.fn(),
+  useLastNotificationResponse: () => null,
+  setNotificationHandler: jest.fn(),
+}));
 
 preloadAppRoutes();
 

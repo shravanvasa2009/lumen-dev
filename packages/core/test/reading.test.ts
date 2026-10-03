@@ -174,6 +174,19 @@ describe('analyzeReading acquisition spans', () => {
     }
   });
 
+  it('DSP-4: a frame with a non-finite value is uncovered, and the capture is analyzed around it', () => {
+    const base = syntheticReading({ seconds: 30 });
+    for (const bad of [NaN, Infinity, -Infinity]) {
+      const samples = base.samples.map((sample) => ({ ...sample }));
+      samples[600]!.r = bad;
+      const analysis = analyzeReading({ samples, stats: base.stats }, CONTEXT);
+      expect(spansOf(analysis, 'coverage')).toEqual([
+        { startS: 10, endS: (samples[601]!.tNs - CLOCK_START_NS) / 1e9, reason: 'coverage' },
+      ]);
+      expect(analysis.heartRateBpm).not.toBeNull();
+    }
+  });
+
   it('DSP-4: clipping over 5% on a covered frame is a clipping span, counted as pressure', () => {
     const analysis = analyze(syntheticReading({ clipped: (tS) => tS >= 40 && tS < 43 }));
     expect(spansOf(analysis, 'clipping')).toHaveLength(1);
@@ -237,6 +250,30 @@ describe('analyzeReading acquisition spans', () => {
       expect(analysis.sqiAvailable).toBe(sqi !== null);
     }
     expect(spansOf(analyze(base), 'quality')).toEqual([]);
+  });
+
+  it('ADR 0057: the first window starts at the first frame, so a flat start is rejected from 0 s', () => {
+    const base = syntheticReading({ seconds: 20 });
+    const samples = base.samples.map((sample, k) => (k < 360 ? { ...sample, r: 0.62 } : sample)); // 0–6 s
+    const quality = spansOf(analyzeReading({ samples, stats: base.stats }, CONTEXT), 'quality');
+    expect(quality[0]).toEqual({ startS: 0, endS: 4, reason: 'quality' });
+  });
+
+  it('ADR 0057: a gap-free run of constant red too short for any window is rejected whole', () => {
+    // 0.62 red with a 300 ms dropout every 3 s: no window ever fits between the gaps.
+    const flat = syntheticReading({ seconds: 15, dropped: (tS) => tS % 3 >= 2.7 });
+    const samples = flat.samples.map((sample) => ({ ...sample, r: 0.62 }));
+    const analysis = analyzeReading({ samples, stats: flat.stats }, CONTEXT);
+    const runs = spansOf(analysis, 'quality');
+    expect(runs).toHaveLength(5);
+    expect(runs[0]).toEqual({
+      startS: 0,
+      endS: (samples[161]!.tNs - CLOCK_START_NS) / 1e9,
+      reason: 'quality',
+    });
+    // One changed frame makes a run not flat.
+    samples[100]!.r = 0.621;
+    expect(spansOf(analyzeReading({ samples, stats: flat.stats }, CONTEXT), 'quality')).toHaveLength(4);
   });
 
   it('splits at a dropped 300 ms stretch: no interval spans the gap', () => {

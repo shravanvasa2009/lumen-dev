@@ -76,6 +76,7 @@ export {
 } from './reading';
 export {
   buildReadingResult,
+  isProbabilityRow,
   type DiabetesOutputs,
   type EvidenceFile,
   type ModelOutputs,
@@ -86,4 +87,14 @@ export {
 export { createLiveSession, type LiveSessionConfig } from './live';
 export { SHAPE_FEATURE_NAMES, shapeFeatures } from './shape-features';
 export { hrSummary } from './reading-metrics';
+export {
+  rateDevice,
+  tierUnlocks,
+  type DeviceRating,
+  type HardFail,
+  type RatingCapabilities,
+  type RatingMeasures,
+  type RatingMode,
+  type RatingTier,
+} from './rating';
 export { logisticRhythmOutputs } from './rhythm-rule';

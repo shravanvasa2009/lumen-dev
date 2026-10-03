@@ -1,6 +1,8 @@
+import { act, renderHook, within } from '@testing-library/react-native';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import { Linking } from 'react-native';
 
+import { useDoctorPhone } from '@/profile/doctorPhone';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -9,9 +11,15 @@ fixClockAtMorning();
 
 preloadAppRoutes();
 
+function savePhone(phone: string | null) {
+  const store = renderHook(() => useDoctorPhone());
+  act(() => store.result.current.setPhone(phone));
+}
+
 describe('emergency screen', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+    savePhone(null);
   });
 
   it('has no Care map entry; it is only for calling emergency services', () => {
@@ -45,5 +53,32 @@ describe('emergency screen', () => {
     renderRouter('./app', { initialUrl: '/emergency' });
     expect(screen.getByText(en['emergency.strokeLetters'])).toBeOnTheScreen();
     expect(screen.getAllByRole('button')).toHaveLength(2);
+  });
+
+  it('offers no Call my doctor when no number is saved', () => {
+    renderRouter('./app', { initialUrl: '/emergency' });
+    expect(screen.queryByRole('button', { name: en['careMap.callMyDoctor'] })).toBeNull();
+    expect(screen.getByRole('button', { name: en['emergency.call'] })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: en['emergency.okay'] })).toBeOnTheScreen();
+  });
+
+  it('dials the saved doctor number under Call 911', () => {
+    savePhone('(713) 555-0100');
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValueOnce(true);
+    renderRouter('./app', { initialUrl: '/emergency' });
+    expect(
+      screen.getAllByRole('button').map((button) => within(button).getByText(/./).props.children),
+    ).toEqual([en['emergency.call'], en['careMap.callMyDoctor'], en['emergency.okay']]);
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.callMyDoctor'] }));
+    expect(openURL).toHaveBeenCalledWith('tel:7135550100');
+  });
+
+  it('shows the doctor number as selectable text when the call cannot start', async () => {
+    savePhone('(713) 555-0100');
+    jest.spyOn(Linking, 'openURL').mockRejectedValueOnce(new Error('no dialer'));
+    renderRouter('./app', { initialUrl: '/emergency' });
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.callMyDoctor'] }));
+    const number = await screen.findByText('(713) 555-0100');
+    expect(number.props.selectable).toBe(true);
   });
 });

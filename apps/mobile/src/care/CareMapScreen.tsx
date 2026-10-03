@@ -6,13 +6,14 @@ import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'rea
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
+import { callNumber, opensOk } from '@/profile/dial';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { useTheme } from '@/theme';
 
 import { CareMapView, Pin } from './CareMapView';
 import { ClinicCard } from './ClinicCard';
 import { type Coordinates, findPlace, type NearbyClinic, nearestClinics } from './clinics';
-import { callNumber, directionsUrl, doctorSearchUrl, opensOk } from './contact';
+import { directionsUrl, doctorSearchUrl } from './contact';
 import {
   canSearchNearbyDoctors,
   type NearbyDoctor,

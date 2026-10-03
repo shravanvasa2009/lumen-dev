@@ -3,7 +3,7 @@ import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testin
 import { Linking, Platform } from 'react-native';
 
 import en from '@/i18n/en.json';
-import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
+import { expectNavTitle, focusedNavHeader, sheetScreenProps } from '@/testing/navHeader';
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { setPreference } from '@/theme/preferences';
@@ -256,6 +256,17 @@ describe('Doctor follow-up', () => {
     expect(screen.getByText(en['followUp.whatToAskBody'])).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: en['followUp.booked'] }));
     expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+  });
+
+  it('is a native form sheet with its own grabber, not a hand-drawn card', () => {
+    // A stack's first screen is always pushed, so the sheet is opened from Home like a person would.
+    renderRouter(appDirectory, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: en['home.followUp'] }));
+    expect(sheetScreenProps()).toMatchObject({
+      stackPresentation: 'formSheet',
+      sheetGrabberVisible: true,
+      sheetAllowedDetents: [0.9],
+    });
   });
 
   it('opens the Care map from Find a doctor nearby', async () => {

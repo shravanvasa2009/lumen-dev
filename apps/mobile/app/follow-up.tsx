@@ -10,35 +10,16 @@ import { useTheme } from '@/theme';
 
 // HRSA's health-center finder; opened only when the person taps the link (spec 8.4).
 const CARE_FINDER_URL = 'https://findahealthcenter.hrsa.gov';
-const GRABBER_WIDTH = 40;
 
 export default function FollowUpScreen() {
   const { t } = useTranslation();
-  const { colors, radius, spacing } = useTheme();
+  const { spacing } = useTheme();
   const [careFinderFailed, setCareFinderFailed] = useState(false);
   const openCareFinder = () => Linking.openURL(CARE_FINDER_URL).catch(() => setCareFinderFailed(true));
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}>
-        <View
-          style={{
-            backgroundColor: colors.surface,
-            borderColor: colors.line,
-            borderWidth: 1,
-            borderRadius: radius.sheet,
-            padding: spacing.xl,
-            gap: spacing.md,
-          }}
-        >
-          <View
-            style={{
-              alignSelf: 'center',
-              width: GRABBER_WIDTH,
-              height: 4,
-              borderRadius: 2,
-              backgroundColor: colors.line2,
-            }}
-          />
+      <ScrollView>
+        <View style={{ gap: spacing.md }}>
           <AppText variant="title" accessibilityRole="header">
             {t('followUp.title')}
           </AppText>

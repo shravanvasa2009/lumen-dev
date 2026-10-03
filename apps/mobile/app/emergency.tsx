@@ -7,16 +7,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
+import { callNumber } from '@/profile/dial';
+import { useDoctorPhone } from '@/profile/doctorPhone';
 import { useTheme } from '@/theme';
 
 export default function EmergencyScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors, radius, spacing, control } = useTheme();
+  const { phone: doctorPhone } = useDoctorPhone();
   const [callFailed, setCallFailed] = useState(false);
+  const [doctorCallFailed, setDoctorCallFailed] = useState(false);
   // Simulators, tablets, and phones without a SIM can't open the dialer; the person must still be told
   // how to get help, so a failed call becomes visible instructions instead of an unhandled rejection.
   const callEmergency = () => Linking.openURL('tel:911').catch(() => setCallFailed(true));
+  const callDoctor = async (phone: string) => setDoctorCallFailed(!(await callNumber(phone)));
   return (
     <SafeAreaView
       edges={['top', 'left', 'right', 'bottom']}
@@ -45,6 +50,20 @@ export default function EmergencyScreen() {
           <AppText tone="criticalText" accessibilityRole="alert" style={{ textAlign: 'center' }}>
             {t('emergency.callFailed')}
           </AppText>
+        ) : null}
+        {doctorPhone ? (
+          <>
+            <Button
+              label={t('careMap.callMyDoctor')}
+              variant="secondary"
+              onPress={() => void callDoctor(doctorPhone)}
+            />
+            {doctorCallFailed ? (
+              <AppText tone="criticalText" accessibilityRole="alert" style={{ textAlign: 'center' }}>
+                {t('careMap.callFailed')} <AppText selectable>{doctorPhone}</AppText>
+              </AppText>
+            ) : null}
+          </>
         ) : null}
         <Pressable
           accessibilityRole="button"

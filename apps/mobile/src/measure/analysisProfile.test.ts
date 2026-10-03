@@ -26,7 +26,8 @@ jest.mock('../ml/runtime', () => ({
 jest.setTimeout(60_000);
 
 const FPS = 60;
-const SECONDS = 70;
+// Full Scan needs 90 clean seconds (spec 07), so the capture runs longer than the rhythm rules need.
+const SECONDS = 100;
 const BEATS_PER_MIN = 45;
 
 // SYNTHETIC: a smooth steady pulse at 45 beats/min in red on a covered lens, long enough for rhythm rules.
@@ -44,7 +45,19 @@ function slowPulse(): KeptCapture {
   return { captureFps: FPS, lensId: null, samples, stats, motionSpans: [], coldHandsSpans: [], sqi: null };
 }
 
-const analyse = () => analyzeKeptCapture(slowPulse(), { mode: 'full', restTimerDone: true }, () => {});
+// No finger on the lens: a constant dim frame with no pulse in it.
+function emptyLens(): KeptCapture {
+  const capture = slowPulse();
+  return { ...capture, samples: capture.samples.map(({ tNs }) => ({ tNs, r: 0.05, g: 0.05, b: 0.05 })) };
+}
+
+const request = { mode: 'full', restTimerDone: true } as const;
+
+async function analyse() {
+  const analysed = await analyzeKeptCapture(slowPulse(), request, () => {});
+  if ('kind' in analysed) throw new Error(`the capture was refused: ${analysed.reasons.join(', ')}`);
+  return analysed;
+}
 
 beforeEach(() => {
   emptyMockDatabases();
@@ -93,6 +106,15 @@ describe('analysis reads the saved profile', () => {
     );
     expect(reading.metrics.rhythm?.class).toBe('af');
     expect(reading.metrics.rhythm?.flag).toBeNull();
+  });
+});
+
+describe('a capture with too little clean signal', () => {
+  it('ends inconclusive with its clean seconds, and builds no reading', async () => {
+    jest.mocked(buildReadingResult).mockClear();
+    const analysed = await analyzeKeptCapture(emptyLens(), request, () => {});
+    expect(analysed).toMatchObject({ kind: 'inconclusive', cleanSeconds: 0, neededCleanSeconds: 90 });
+    expect(buildReadingResult).not.toHaveBeenCalled();
   });
 });
 

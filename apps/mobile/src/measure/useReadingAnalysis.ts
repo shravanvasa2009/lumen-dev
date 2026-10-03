@@ -1,3 +1,4 @@
+import type { InconclusiveOutcome } from '@lumen/core';
 import { useEffect, useState } from 'react';
 
 import { keepDemoReading } from '@/demo/demoReadings';
@@ -13,13 +14,17 @@ export type AnalysisState =
   | { phase: 'unavailable' }
   | { phase: 'running'; progress: AnalysisProgress }
   | { phase: 'done'; progress: AnalysisProgress; readingId: string }
+  | { phase: 'inconclusive'; progress: AnalysisProgress; outcome: InconclusiveOutcome }
   | { phase: 'failed'; progress: AnalysisProgress; reason: string };
 
 // The Processing route always passes what pre-check recorded; this is only for a caller that has none.
 const DEFAULT_REQUEST: AnalysisRequest = { mode: DEFAULT_MODE, restTimerDone: false };
 
 type Tracker = { latest: AnalysisProgress; listeners: Set<(progress: AnalysisProgress) => void> };
-type Run = { tracker: Tracker; outcome: Promise<{ readingId: string; progress: AnalysisProgress }> };
+type Finished =
+  | { kind: 'reading'; readingId: string; progress: AnalysisProgress }
+  | { kind: 'inconclusive'; outcome: InconclusiveOutcome };
+type Run = { tracker: Tracker; outcome: Promise<Finished> };
 
 // One analysis and one save per kept capture, however many times the screen mounts or its params change:
 // a second run would store the same reading again. A failed run is forgotten so the next mount can retry.
@@ -32,13 +37,14 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
   const outcome = analyzeKeptCapture(capture, { mode, restTimerDone }, (progress) => {
     tracker.latest = progress;
     for (const listener of tracker.listeners) listener(progress);
-  }).then(async (analysed) => {
+  }).then(async (analysed): Promise<Finished> => {
+    if ('kind' in analysed) return { kind: 'inconclusive', outcome: analysed };
     const { readingId, recordedMs, context, models, reading, progress } = analysed;
     // §8.5: a Demo reading is shown from memory and never reaches the readings table.
-    if (capture.demo) return { readingId: keepDemoReading(analysed, mode), progress };
+    if (capture.demo) return { kind: 'reading', readingId: keepDemoReading(analysed, mode), progress };
     await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
     resyncNotifications();
-    return { readingId, progress };
+    return { kind: 'reading', readingId, progress };
   });
   outcome.catch(() => runs.delete(capture));
   const run = { tracker, outcome };
@@ -67,8 +73,11 @@ export function useReadingAnalysis(request: AnalysisRequest = DEFAULT_REQUEST): 
     run.tracker.listeners.add(showProgress);
     showProgress(run.tracker.latest);
     run.outcome.then(
-      ({ readingId, progress }) => {
-        if (active) setState({ phase: 'done', progress, readingId });
+      (finished) => {
+        if (!active) return;
+        if (finished.kind === 'inconclusive')
+          setState({ phase: 'inconclusive', progress: run.tracker.latest, outcome: finished.outcome });
+        else setState({ phase: 'done', progress: finished.progress, readingId: finished.readingId });
       },
       (error: unknown) => {
         const reason = error instanceof Error ? error.message : String(error);

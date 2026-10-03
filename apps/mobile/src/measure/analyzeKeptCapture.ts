@@ -1,6 +1,8 @@
 import {
   analyzeReading,
   buildReadingResult,
+  readingOutcome,
+  type InconclusiveOutcome,
   type ModelOutputs,
   type ReadingAnalysis,
   type ReadingContext,
@@ -70,7 +72,7 @@ export async function analyzeKeptCapture(
   capture: KeptCapture,
   request: AnalysisRequest,
   report: (progress: AnalysisProgress) => void,
-): Promise<AnalysedReading> {
+): Promise<AnalysedReading | InconclusiveOutcome> {
   const recordedMs = Date.now();
   const context: ReadingContext = {
     captureFps: capture.captureFps,
@@ -89,6 +91,9 @@ export async function analyzeKeptCapture(
   await letScreenDraw();
   // The capture screen may still be appending frames, so the analysis works on a snapshot.
   const analysis = analyzeReading({ samples: [...capture.samples], stats: [...capture.stats] }, context);
+  // Spec 07: too little clean signal is not a reading, so nothing past this point runs for it.
+  const outcome = readingOutcome(analysis);
+  if (outcome.kind === 'inconclusive') return outcome;
   const detected = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');
   const counts = {
     beats: detected.length,

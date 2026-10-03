@@ -629,7 +629,7 @@
   "inconclusive.causePressure": "pressure",
   "confidence.high": "high confidence",
   "demo.synthetic": "Synthetic: made by the app, not recorded from a person.",
-  "demo.bar": "Demo mode: nothing here is saved",
+  "demo.bar": "Demo mode: readings are not saved",
   "demo.exit": "Exit demo",
   "results.sublineUsual": "Everything is within your usual range.",
   "results.dayAt": "{{day}}, {{time}}",

@@ -5,11 +5,11 @@ import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-li
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import en from '@/i18n/en.json';
 import { keepCapture } from '@/measure/keptCapture';
-import { startOnboarded } from '@/testing/onboarded';
-import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import { followUpAnsweredAt } from '@/profile/followUp';
 import { profileValue } from '@/store/profile';
 import { listReadings } from '@/store/readings';
+import { startOnboarded } from '@/testing/onboarded';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import { enterDemo, exitDemo } from './demoSession';
 
@@ -118,5 +118,15 @@ describe('demo session', () => {
     act(() => exitDemo());
     await playUntilResults(route);
     expect(route.getPathname()).toMatch(DEMO_RESULTS);
+  });
+
+  it('hides Replay tutorial in Settings during demo only', async () => {
+    await startOnboarded();
+    renderRouter('./app', { initialUrl: '/settings' });
+    expect(await screen.findByText(en['settings.replayTutorial'])).toBeOnTheScreen();
+
+    act(() => enterDemo());
+    await waitFor(() => expect(screen.queryByText(en['settings.replayTutorial'])).toBeNull());
+    expect(screen.getByText(en['settings.demoMode'])).toBeOnTheScreen();
   });
 });

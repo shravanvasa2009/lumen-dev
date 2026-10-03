@@ -629,7 +629,7 @@
   "inconclusive.causePressure": "presión",
   "confidence.high": "confianza alta",
   "demo.synthetic": "Sintética: creada por la app, no grabada de una persona.",
-  "demo.bar": "Modo demostración: nada de esto se guarda",
+  "demo.bar": "Modo demostración: las lecturas no se guardan",
   "demo.exit": "Salir de la demo",
   "results.sublineUsual": "Todo está dentro de tu rango habitual.",
   "results.dayAt": "{{day}}, {{time}}",

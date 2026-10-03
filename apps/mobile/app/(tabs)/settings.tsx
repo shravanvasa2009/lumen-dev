@@ -8,6 +8,7 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
+import { useDemoActive } from '@/demo/demoSession';
 import { tierLabel } from '@/rating/labels';
 import { Toggle } from '@/settings/Toggle';
 import { useStoredRating } from '@/store/useStoredRating';
@@ -44,6 +45,7 @@ export default function SettingsScreen() {
   const accuracyRows: readonly SettingsRow[] = [
     { title: t('settings.accuracy'), href: '/settings/accuracy' },
   ];
+  const demo = useDemoActive();
   const phoneRows: readonly SettingsRow[] = [
     {
       title: t('settings.phone'),
@@ -56,7 +58,8 @@ export default function SettingsScreen() {
       href: '/settings/phone',
     },
     { title: t('settings.widgets'), href: '/settings/widgets' },
-    { title: t('settings.replayTutorial'), href: '/welcome' },
+    // Onboarding cannot finish in demo, so Replay tutorial would be a dead end there.
+    ...(demo ? [] : [{ title: t('settings.replayTutorial'), href: '/welcome' }]),
     { title: t('settings.demoMode') },
   ];
   const dataRows: readonly SettingsRow[] = [

@@ -89,6 +89,14 @@ describe('saving the analysed reading', () => {
     expect(resyncNotifications).toHaveBeenCalledTimes(1);
   });
 
+  it('does not re-sync the reminders for a Demo reading, which is never stored', async () => {
+    keepCapture({ ...newCapture(), demo: true });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('done'));
+    expect(await listReadings()).toEqual([]);
+    expect(resyncNotifications).not.toHaveBeenCalled();
+  });
+
   it('ends in the failed state when the reading cannot be saved', async () => {
     const database = await lumenDatabase();
     jest.spyOn(database, 'runAsync').mockRejectedValueOnce(new Error('disk full'));

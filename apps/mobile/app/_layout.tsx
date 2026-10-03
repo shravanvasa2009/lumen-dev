@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 import '@/i18n';
 import { StorageErrorScreen } from '@/components/StorageErrorScreen';
+import { DemoStrip } from '@/demo/DemoStrip';
 import { showNotificationsInForeground } from '@/notifications/foreground';
 import { useOpenTappedNotification } from '@/notifications/openTapped';
 import { resyncNotifications } from '@/settings/applyPrefs';
@@ -25,7 +26,7 @@ export default function RootLayout() {
   // A sync missed in the background (app closed, failure) is repaired at the next launch.
   useEffect(resyncNotifications, []);
   return (
-    <>
+    <DemoStrip>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
@@ -56,6 +57,6 @@ export default function RootLayout() {
           }}
         />
       </Stack>
-    </>
+    </DemoStrip>
   );
 }

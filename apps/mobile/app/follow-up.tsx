@@ -2,12 +2,12 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Linking, Platform, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
+import { useWindowInsets } from '@/demo/DemoStrip';
 import { type FollowUpAnswer, saveFollowUpAnswer } from '@/profile/followUp';
 import { resyncNotifications } from '@/settings/applyPrefs';
 import { useTheme } from '@/theme';
@@ -25,7 +25,7 @@ export default function FollowUpScreen() {
   const router = useRouter();
   const { colors, spacing } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const insets = useWindowInsets();
   // Screen pads the sheet by spacing.screen top and bottom and adds the bottom inset, so the scroll area
   // must leave room for all of them or its last lines sit below the screen edge.
   const scrollMaxHeight = windowHeight - insets.top - insets.bottom - 2 * spacing.screen;

@@ -11,12 +11,20 @@ export async function profileValue(key: string): Promise<string | null> {
   return row?.value ?? null;
 }
 
+const UPSERT =
+  'INSERT INTO profile (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value';
+
 export async function setProfileValue(key: string, value: string): Promise<void> {
   const database = await lumenDatabase();
-  await database.runAsync(
-    'INSERT INTO profile (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-    [key, value],
-  );
+  await database.runAsync(UPSERT, [key, value]);
+}
+
+// All or none: a failure part-way leaves the earlier values as they were.
+export async function setProfileValues(entries: Record<string, string>): Promise<void> {
+  const database = await lumenDatabase();
+  await database.withTransactionAsync(async () => {
+    for (const [key, value] of Object.entries(entries)) await database.runAsync(UPSERT, [key, value]);
+  });
 }
 
 const HEALTH_NOTES = [

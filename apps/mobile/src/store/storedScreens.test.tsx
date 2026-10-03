@@ -2,10 +2,10 @@ import { renderHook } from '@testing-library/react-native';
 import { type ReactNode, Component } from 'react';
 import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
-import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import { startOnboarded } from '@/testing/onboarded';
 import { makeReading } from '@/testing/reading';
 
 import { lumenDatabase } from './database';
@@ -48,7 +48,7 @@ async function saveHeartRate(hr: number): Promise<void> {
   });
 }
 
-beforeEach(emptyMockDatabases);
+beforeEach(startOnboarded);
 
 afterEach(() => jest.restoreAllMocks());
 
@@ -109,6 +109,16 @@ describe('Results for a saved reading id', () => {
     await waitFor(() => expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen());
     expect(screen.getByText('71 bpm')).toBeOnTheScreen();
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
+  });
+
+  it('shows the error screen when the reading cannot be read, and Try again opens Home', async () => {
+    await saveHeartRate(71);
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(await lumenDatabase(), 'getFirstAsync').mockRejectedValueOnce(new Error('unreadable'));
+    renderRouter('./app', { initialUrl: `/results/${ID}` });
+    expect(await screen.findByRole('header', { name: en['error.title'] })).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['error.retry'] }));
+    expect(await screen.findByText(TODAY_LINE)).toBeOnTheScreen();
   });
 
   it('shows no values for an id that was never saved', async () => {

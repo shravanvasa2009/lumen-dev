@@ -7,8 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
+import { type FollowUpAnswer, saveFollowUpAnswer } from '@/profile/followUp';
 import { useTheme } from '@/theme';
 
 // HRSA's health-center finder; opened only when the person taps the link (spec 8.4).
@@ -29,7 +29,14 @@ export default function FollowUpScreen() {
   // must leave room for all of them or its last lines sit below the screen edge.
   const scrollMaxHeight = windowHeight - insets.top - insets.bottom - 2 * spacing.screen;
   const [careFinderFailed, setCareFinderFailed] = useState(false);
+  const [answerFailed, setAnswerFailed] = useState(false);
   const openCareFinder = () => Linking.openURL(CARE_FINDER_URL).catch(() => setCareFinderFailed(true));
+  // The sheet stays open when the answer cannot be saved, so a see-doctor status is not left standing silently.
+  const answer = (choice: FollowUpAnswer) =>
+    saveFollowUpAnswer(choice, Date.now()).then(
+      () => router.replace('/'),
+      () => setAnswerFailed(true),
+    );
   // The sheet closes first so the Care map opens as a normal screen instead of stacking on the sheet.
   const openCareMap = () => {
     if (router.canDismiss()) router.dismiss();
@@ -57,9 +64,14 @@ export default function FollowUpScreen() {
           {t('followUp.title')}
         </AppText>
         <AppText tone="textDim">{t('followUp.subtitle')}</AppText>
-        <NavButton label={t('followUp.saw')} href="/" replace />
-        <NavButton label={t('followUp.booked')} href="/" variant="secondary" replace />
-        <NavButton label={t('followUp.notYet')} href="/" variant="secondary" replace />
+        <Button label={t('followUp.saw')} onPress={() => void answer('saw')} />
+        <Button label={t('followUp.booked')} variant="secondary" onPress={() => void answer('booked')} />
+        <Button label={t('followUp.notYet')} variant="secondary" onPress={() => void answer('notYet')} />
+        {answerFailed ? (
+          <AppText variant="caption" tone="textDim" accessibilityRole="alert">
+            {t('profile.saveFailed')}
+          </AppText>
+        ) : null}
         <Button label={t('careMap.enter')} variant="secondary" onPress={openCareMap} />
         <Card>
           <AppText variant="headline">{t('followUp.whatToAsk')}</AppText>

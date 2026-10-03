@@ -6,6 +6,7 @@ import en from '@/i18n/en.json';
 import { expectNavTitle, focusedNavHeader, sheetScreenProps } from '@/testing/navHeader';
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { startOnboarded } from '@/testing/onboarded';
 import { setPreference } from '@/theme/preferences';
 import tokens from '@/theme/tokens.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -235,20 +236,22 @@ describe('Lock-screen previews', () => {
 describe('Doctor follow-up', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it('offers the three answers and the test to ask for', () => {
+  it('offers the three answers and the test to ask for', async () => {
+    await startOnboarded();
     renderRouter(appDirectory, { initialUrl: '/follow-up' });
     for (const key of ['followUp.saw', 'followUp.booked', 'followUp.notYet'] as const) {
       expect(screen.getByRole('button', { name: en[key] })).toBeOnTheScreen();
     }
     expect(screen.getByText(en['followUp.whatToAskBody'])).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: en['followUp.booked'] }));
-    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
-  it('is a native form sheet with its own grabber, not a hand-drawn card', () => {
+  it('is a native form sheet with its own grabber, not a hand-drawn card', async () => {
     // A stack's first screen is always pushed, so the sheet is opened from Home like a person would.
+    await startOnboarded();
     renderRouter(appDirectory, { initialUrl: '/' });
-    fireEvent.press(screen.getByRole('button', { name: en['home.followUp'] }));
+    fireEvent.press(await screen.findByRole('button', { name: en['home.followUp'] }));
     expect(sheetScreenProps()).toMatchObject({
       stackPresentation: 'formSheet',
       sheetGrabberVisible: true,
@@ -285,8 +288,9 @@ describe('Doctor follow-up', () => {
   });
 
   it('closes the sheet before the Care map opens, so Back returns to Home', async () => {
+    await startOnboarded();
     renderRouter(appDirectory, { initialUrl: '/' });
-    fireEvent.press(screen.getByRole('button', { name: en['home.followUp'] }));
+    fireEvent.press(await screen.findByRole('button', { name: en['home.followUp'] }));
     fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
     expectNavTitle(en['careMap.title']);
     expect(screen.queryByRole('header', { name: en['followUp.title'] })).toBeNull();

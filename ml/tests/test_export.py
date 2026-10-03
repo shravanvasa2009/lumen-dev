@@ -266,7 +266,7 @@ def test_failed_parity_leaves_no_vectors_behind(tmp_path):
     _export("--name", "sqi-finger", "--random-init", 1, "--out-dir", tmp_path)
     _verify("--name", "sqi-finger", "--random-init", 1, "--models-dir", tmp_path)
     assert (tmp_path / VECTORS_FILE).exists()
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match="ONNX parity"):
         _verify("--name", "sqi-finger", "--random-init", 2, "--models-dir", tmp_path)
     assert not (tmp_path / VECTORS_FILE).exists()
 

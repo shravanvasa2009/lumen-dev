@@ -864,7 +864,7 @@ def _acceptance(card):
 
 def test_acceptance_section_renders_from_the_metrics_and_parity():
     section = _acceptance(model_card(SPECS["sqi-finger"], _sqi_metrics(), None, PARITY_ENTRY))
-    assert f"max abs diff 2.500e-07 over 502 inputs, tolerance {TOLERANCE:g}: met" in section
+    assert f"max abs diff 2.500e-07 over 502 inputs, tolerance {TOLERANCE:g}: Python half met" in section
     assert "Python check" in section
     assert "development proxy" in section and "held-out BUT PPG dev-val subjects" in section
     assert "0.668 (95% CI 0.418-0.708), target ≥ 95%: not met." in section
@@ -887,9 +887,16 @@ def test_acceptance_verdicts_follow_the_numbers(overrides, expected):
     assert expected in section
 
 
+def test_a_retimed_group_without_a_row_is_insufficient_data():
+    metrics = _sqi_metrics()
+    metrics["windowCounts"] = [row for row in metrics["windowCounts"] if row["kind"] != "retimed-af"]
+    section = _acceptance(model_card(SPECS["sqi-finger"], metrics, None, PARITY_ENTRY))
+    assert "0 AF and 1776 sinus windows" in section and "insufficient data" in section
+
+
 def test_failed_parity_is_not_met():
     entry = {**PARITY_ENTRY, "maxAbsDiff": 2 * TOLERANCE}
-    assert ": not met." in _acceptance(model_card(SPECS["rhythm-net"], None, None, entry))
+    assert ": Python half not met." in _acceptance(model_card(SPECS["rhythm-net"], None, None, entry))
 
 
 @pytest.mark.parametrize("metrics", [None, _sqi_metrics(ml2=None, gap=None)])

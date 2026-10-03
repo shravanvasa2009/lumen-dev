@@ -75,6 +75,16 @@ def shipped_rhythm_entry(models_dir: Path) -> dict:
     return entry
 
 
+def check_release(entry: dict, models_dir: Path) -> None:
+    # eval.external's preflight calls this before the ledger records a start, so a release that cannot be
+    # scored is refused without using the owner's approval (ADR 0045). It reads no holdout file or label.
+    check_inputs(entry)
+    path = models_dir / entry["file"]
+    if sha256_of(path) != entry["sha256"]:
+        raise ExternalTestRefusedError(f"{path} does not match the manifest's sha256")
+    shipped_rhythm_entry(models_dir)
+
+
 def release_rhythm_model(rhythm_entry: dict, models_dir: Path) -> ShippedRhythm:
     # The ONNX file in models_dir, not the pickle the dev cache loaded: ml/runs is not in the repo, so at
     # external-test time the release's ONNX is the only copy, and it is what the app runs. ML-3's parity
@@ -123,11 +133,9 @@ def model_inputs(entry: dict, segments: pd.DataFrame) -> dict[str, np.ndarray]:
 def score_holdout(entry: dict, models_dir: Path, holdout: list[int]) -> dict:
     # Only eval.external calls this, inside its approved run. Every check that needs no holdout file
     # comes first.
-    check_inputs(entry)
+    check_release(entry, models_dir)
     path = models_dir / entry["file"]
-    onnx_sha256 = sha256_of(path)
-    if onnx_sha256 != entry["sha256"]:
-        raise ExternalTestRefusedError(f"{path} does not match the manifest's sha256")
+    onnx_sha256 = entry["sha256"]
     rhythm_entry = shipped_rhythm_entry(models_dir)
     clinical = pd.read_csv(VITALDB.local_dir / "clinical_data.csv")
     caseids = holdout_caseids(clinical, holdout)

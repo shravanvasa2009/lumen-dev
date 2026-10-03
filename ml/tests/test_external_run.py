@@ -111,6 +111,25 @@ def test_a_scorer_with_the_wrong_signature_is_refused_before_the_start(setup, mo
     assert not setup["results_path"].exists()
 
 
+def test_a_scorer_without_its_release_check_is_refused_before_the_start(setup, monkeypatch):
+    approve(setup)
+    module = type(sys)("train.diabetes_holdout")
+    module.score_holdout = lambda entry, models_dir, holdout: {}
+    monkeypatch.setitem(sys.modules, "train.diabetes_holdout", module)
+    with pytest.raises(ExternalTestRefusedError, match="check_release"):
+        run(setup, parts=("diabetes",))
+    assert not setup["results_path"].exists()
+
+
+def test_a_release_the_scorer_refuses_stops_before_the_ledger_records_a_start(setup, monkeypatch):
+    approve(setup)
+    calls = install_fake_scorer(monkeypatch, release_problem="diabetes-net@1.0.0 has no fillMedians")
+    with pytest.raises(ExternalTestRefusedError, match="no fillMedians"):
+        run(setup, parts=("diabetes",))
+    assert not setup["results_path"].exists()
+    assert calls == []
+
+
 def test_missing_holdout_case_files_are_refused_before_the_start(setup, monkeypatch):
     approve(setup)
     calls = install_fake_scorer(monkeypatch)

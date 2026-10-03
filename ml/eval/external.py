@@ -7,6 +7,7 @@ import math
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
 from typing import NamedTuple
 
 import numpy as np
@@ -68,7 +69,7 @@ BLOCKS_PER_SUBJECT = 1000
 # ADR 0045: the diabetes pipeline's holdout scorer, called only from run() after the ledger records a
 # start: score_holdout(entry, models_dir, holdout_ids) -> {"onnxSha256", "holdoutWithoutPleth",
 # "withoutPlethReasons", "subjects": [{"subject", "diabetic", "score"}]}, scoring
-# models_dir / entry["file"] with onnxruntime.
+# models_dir / entry["file"] with onnxruntime. Its check_release(entry, models_dir) runs in preflight.
 DIABETES_SCORER = "train.diabetes_holdout"
 HOLDOUT_DATASET = "vitaldb-holdout"
 MIMIC = next(dataset for dataset in registry.DATASETS if dataset.key == "mimic-perform-af")
@@ -287,17 +288,16 @@ def sqi_part(entry: dict, analyses: list[RecordingAnalysis], models_dir: Path) -
     }
 
 
-def diabetes_scorer() -> HoldoutScorer:
+def diabetes_scorer() -> ModuleType:
     # Imported only when the diabetes part runs, so this module loads before track/ml-diabetes merges.
     try:
-        module = importlib.import_module(DIABETES_SCORER)
+        return importlib.import_module(DIABETES_SCORER)
     except ModuleNotFoundError as error:
         if error.name != DIABETES_SCORER:
             raise
         raise ExternalTestRefusedError(
             f"{DIABETES_SCORER}.score_holdout (the diabetes pipeline's holdout scorer) is not on this branch"
         ) from error
-    return module.score_holdout
 
 
 def holdout_units(scored: dict, holdout: list[int], onnx_sha256: str) -> Units:
@@ -401,13 +401,21 @@ def preflight(parts: Sequence[str], models_dir: Path, dataset_dir: Path) -> Pref
         holdout = load_split()["holdout"]
         if not holdout:
             raise ExternalTestRefusedError(f"{SPLIT_FILE} lists no holdout patients")
-        score_holdout = diabetes_scorer()
+        scorer = diabetes_scorer()
+        score_holdout = scorer.score_holdout
         try:
             inspect.signature(score_holdout).bind(entries["diabetes"][0], models_dir, holdout)
         except TypeError as error:
             raise ExternalTestRefusedError(
                 f"{DIABETES_SCORER}.score_holdout must take (entry, models_dir, holdout_ids): {error}"
             ) from error
+        if not hasattr(scorer, "check_release"):
+            raise ExternalTestRefusedError(
+                f"{DIABETES_SCORER}.check_release (the holdout scorer's release check) is not on this branch"
+            )
+        # The scorer's own checks (feature order, fill values, the rhythm model it labels with) run here,
+        # so a release it would refuse is refused before the approval is used.
+        scorer.check_release(entries["diabetes"][0], models_dir)
         vitaldb = next(dataset for dataset in registry.DATASETS if dataset.key == "vitaldb")
         if not download.is_complete(vitaldb):
             raise ExternalTestRefusedError("the VitalDB tables are not downloaded (datasets.download --open)")

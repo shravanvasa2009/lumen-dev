@@ -217,22 +217,36 @@ def test_the_holdout_reader_takes_only_locked_holdout_files(tmp_path, data_dir):
         diabetes_holdout.vitaldb_pleth.read_holdout_pleth(tmp_path / "0001.vital")
 
 
-def test_an_approved_run_scores_the_holdout_with_the_real_scorer(
-    models_dir, holdout_files, monkeypatch, tmp_path
-):
-    # eval.external end to end on a six-patient holdout: four scored, two without a usable PLETH segment.
+def approved_run(models_dir, data_dir, monkeypatch) -> dict:
+    # eval.external's diabetes part on the six-patient holdout, with the real scorer.
     monkeypatch.setattr(external, "load_split", lambda: {"holdout": HOLDOUT, "dev": [1, 2]})
-    approval = tmp_path / "external-approval.json"
+    approval = data_dir / "external-approval.json"
     approval.write_text(json.dumps({"request": "H-031", "models": ["diabetes-net@1.0.0"]}), encoding="utf-8")
-    results = external.run(
+    return external.run(
         ("diabetes",),
         models_dir=models_dir,
         results_path=models_dir / "external-test.json",
         approval_path=approval,
-        dataset_dir=holdout_files / "external" / "mimic-perform-af",
+        dataset_dir=data_dir / "external" / "mimic-perform-af",
         commit="0" * 40,
         now=lambda: "2026-10-20T10:00:00+00:00",
     )
+
+
+def test_preflight_refuses_a_release_the_real_scorer_cannot_score(models_dir, holdout_files, monkeypatch):
+    manifest_path = models_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    next(entry for entry in manifest["models"] if entry["name"] == "diabetes-net").pop("fillMedians")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ExternalTestRefusedError, match="fillMedians"):
+        approved_run(models_dir, holdout_files, monkeypatch)
+    # The ledger never recorded a start, so the owner's approval is unused.
+    assert not (models_dir / "external-test.json").exists()
+
+
+def test_an_approved_run_scores_the_holdout_with_the_real_scorer(models_dir, holdout_files, monkeypatch):
+    # Four patients scored, two without a usable PLETH segment.
+    results = approved_run(models_dir, holdout_files, monkeypatch)
     diabetes = results["diabetes"]
     assert (diabetes["subjects"], diabetes["diabeticSubjects"], diabetes["holdoutWithoutPleth"]) == (4, 2, 2)
     assert diabetes["holdoutWithoutPlethReasons"] == {NO_PLETH_TRACK: 1, NO_STABLE_WINDOW: 1}

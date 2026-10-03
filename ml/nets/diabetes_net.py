@@ -1,12 +1,16 @@
 import torch
 from torch import nn
 
+from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES
 from nets.blocks import Standardize, conv_block
 
 # §11.4: one ensemble-averaged beat at 256 Hz (DSP-14), 12 shape features, 4 HR/HRV summary values.
 BEAT = 256
-SHAPE_FEATURES = 12
-HR_SUMMARY = 4
+# lumen_dsp's names and order, which a core test keeps equal to packages/core (ADR 0059).
+SHAPE_FEATURES = len(SHAPE_FEATURE_NAMES)
+# The order lumen_dsp.metrics.hr_summary returns them, in bpm, ms, ms, and a fraction.
+HR_SUMMARY_NAMES = ("hrBpm", "rmssdMs", "sdnnMs", "pnn50")
+HR_SUMMARY = len(HR_SUMMARY_NAMES)
 
 
 class DiabetesNet(nn.Module):

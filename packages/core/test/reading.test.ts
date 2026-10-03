@@ -174,6 +174,41 @@ describe('analyzeReading acquisition spans', () => {
     }
   });
 
+  it('DSP-4: a frame with a non-finite value is uncovered, and the capture is analyzed around it', () => {
+    const base = syntheticReading({ seconds: 30 });
+    for (const bad of [NaN, Infinity, -Infinity]) {
+      const samples = base.samples.map((sample) => ({ ...sample }));
+      samples[600]!.r = bad;
+      const analysis = analyzeReading({ samples, stats: base.stats }, CONTEXT);
+      expect(spansOf(analysis, 'coverage')).toEqual([
+        { startS: 10, endS: (samples[601]!.tNs - CLOCK_START_NS) / 1e9, reason: 'coverage' },
+      ]);
+      expect(analysis.heartRateBpm).not.toBeNull();
+    }
+  });
+
+  it('DSP-4: a channel outside 0..1 (Appendix A) is a broken frame: coverage, and left out of the signal', () => {
+    const base = syntheticReading({ seconds: 30 });
+    for (const patch of [{ r: 153 }, { g: -0.01 }, { b: 1.5 }]) {
+      const samples = base.samples.map((sample, k) => (k === 600 ? { ...sample, ...patch } : sample));
+      const analysis = analyzeReading({ samples, stats: base.stats }, CONTEXT);
+      expect(spansOf(analysis, 'coverage')).toEqual([
+        { startS: 10, endS: (samples[601]!.tNs - CLOCK_START_NS) / 1e9, reason: 'coverage' },
+      ]);
+      expect(analysis.heartRateBpm).toBeCloseTo(analyze(base).heartRateBpm!, 6);
+    }
+  });
+
+  it('DSP-2: broken frames are splined across like dropped ones, and do not make beats artifacts', () => {
+    const base = syntheticReading({ seconds: 40 });
+    const samples = base.samples.map((sample, k) => (k % 2 === 1 ? { ...sample, r: NaN } : sample));
+    const analysis = analyzeReading({ samples, stats: base.stats }, CONTEXT);
+    expect(analysis.segments).toHaveLength(1);
+    expect(analysis.cleanSeconds).toBeCloseTo(analysis.durationS / 2, 1);
+    expect(analysis.segments[0]!.filter((beat) => beat.beatClass === 'artifact')).toEqual([]);
+    expect(analysis.heartRateBpm).toBeCloseTo(analyze(base).heartRateBpm!, 0);
+  });
+
   it('DSP-4: clipping over 5% on a covered frame is a clipping span, counted as pressure', () => {
     const analysis = analyze(syntheticReading({ clipped: (tS) => tS >= 40 && tS < 43 }));
     expect(spansOf(analysis, 'clipping')).toHaveLength(1);
@@ -217,6 +252,95 @@ describe('analyzeReading acquisition spans', () => {
     expect(analysis.sqiAvailable).toBe(true);
     expect(spansOf(analysis, 'quality')).toEqual([{ startS: 7, endS: 11, reason: 'quality' }]);
     expect(analysis.cleanSeconds).toBeCloseTo(analysis.durationS - 4, 9);
+  });
+
+  it('ADR 0023: rejects each 4 s window of equal red frames from the capture, with or without SQI-Net', () => {
+    const base = syntheticReading({ seconds: 40 });
+    const samples = base.samples.map((sample) => ({ ...sample }));
+    for (let k = 600; k < 1200; k++) samples[k]!.r = 0.62; // 10 s to 19.98 s flat
+    for (const sqi of [null, { threshold: 0.5, windows: [] }]) {
+      const analysis = analyzeReading({ samples, stats: base.stats }, { ...CONTEXT, sqi });
+      // The ADR 0057 flat stretch (at least live.minFlatS of equal red) covers the whole flat run.
+      const stretch = { startS: 10, endS: (samples[1199]!.tNs - CLOCK_START_NS) / 1e9, reason: 'quality' };
+      const quality = spansOf(analysis, 'quality').filter((span) => span.endS !== stretch.endS);
+      expect(spansOf(analysis, 'quality')).toContainEqual(stretch);
+      expect(quality.length).toBeGreaterThan(0);
+      for (const span of quality) {
+        expect(span.endS - span.startS).toBeCloseTo(DSP_CONFIG.dsp3.modelWindowS, 9);
+        // 64 Hz grid ends (ADR 0023), inside the flat frames.
+        expect(span.endS * 64).toBe(Math.round(span.endS * 64));
+        expect(span.startS).toBeGreaterThanOrEqual(10);
+        expect(span.endS).toBeLessThanOrEqual(1199 / 60);
+      }
+      expect(analysis.sqiAvailable).toBe(sqi !== null);
+    }
+    expect(spansOf(analyze(base), 'quality')).toEqual([]);
+  });
+
+  it('ADR 0057: the first window starts at the first frame, so a flat start is rejected from 0 s', () => {
+    const base = syntheticReading({ seconds: 20 });
+    const samples = base.samples.map((sample, k) => (k < 360 ? { ...sample, r: 0.62 } : sample)); // 0–6 s
+    const quality = spansOf(analyzeReading({ samples, stats: base.stats }, CONTEXT), 'quality');
+    expect(quality[0]).toEqual({ startS: 0, endS: 4, reason: 'quality' });
+  });
+
+  it('ADR 0057: a gap-free run of constant red too short for any window is rejected whole', () => {
+    // 0.62 red with a 300 ms dropout every 3 s: no window ever fits between the gaps.
+    const flat = syntheticReading({ seconds: 15, dropped: (tS) => tS % 3 >= 2.7 });
+    const samples = flat.samples.map((sample) => ({ ...sample, r: 0.62 }));
+    const analysis = analyzeReading({ samples, stats: flat.stats }, CONTEXT);
+    const runs = spansOf(analysis, 'quality');
+    expect(runs).toHaveLength(5);
+    expect(runs[0]).toEqual({
+      startS: 0,
+      endS: (samples[161]!.tNs - CLOCK_START_NS) / 1e9,
+      reason: 'quality',
+    });
+    // One changed frame makes a run not flat.
+    samples[100]!.r = 0.621;
+    expect(spansOf(analyzeReading({ samples, stats: flat.stats }, CONTEXT), 'quality')).toHaveLength(4);
+  });
+
+  it('ADR 0057: equal red for live.minFlatS inside a longer pulse run is rejected; shorter is not', () => {
+    expect(DSP_CONFIG.live.minFlatS).toBe(2);
+    const base = syntheticReading({ seconds: 30 });
+    const flatFor = (seconds: number) =>
+      base.samples.map((sample, k) => (k >= 600 && k < 600 + seconds * 60 ? { ...sample, r: 0.62 } : sample));
+    const long = spansOf(analyzeReading({ samples: flatFor(2.5), stats: base.stats }, CONTEXT), 'quality');
+    expect(long).toEqual([
+      { startS: 10, endS: (base.samples[749]!.tNs - CLOCK_START_NS) / 1e9, reason: 'quality' },
+    ]);
+    expect(spansOf(analyzeReading({ samples: flatFor(1.5), stats: base.stats }, CONTEXT), 'quality')).toEqual(
+      [],
+    );
+  });
+
+  it('ADR 0057: a one-frame finger lift is splined across, so its windows are still checked', () => {
+    const base = syntheticReading({ seconds: 30 });
+    const samples = base.samples.map((sample, k) =>
+      k === 600
+        ? { ...sample, r: 0.2, g: 0.3, b: 0.3 }
+        : k > 300 && k < 900
+          ? { ...sample, r: 0.62 }
+          : sample,
+    );
+    const quality = spansOf(analyzeReading({ samples, stats: base.stats }, CONTEXT), 'quality');
+    // Flat windows ending on both sides of the lifted frame at 10 s, and none for want of a window.
+    expect(quality.some((span) => span.startS < 10 && span.endS > 10 && span.endS - span.startS === 4)).toBe(
+      true,
+    );
+  });
+
+  it('ADR 0057: with SQI-Net, a check with no window (bad frames past the gap limit) leaves 4 s not clean', () => {
+    const reading = syntheticReading({ seconds: 30, fingerOff: (tS) => tS >= 20 && tS < 20.5 });
+    const withModel = analyze(reading, { sqi: { threshold: 0.5, windows: [] } });
+    const without = analyze(reading);
+    const unscored = spansOf(withModel, 'quality');
+    expect(spansOf(without, 'quality')).toEqual([]);
+    expect(unscored.map((span) => span.endS)).toEqual([21, 22, 23, 24]);
+    for (const span of unscored) expect(span.endS - span.startS).toBe(4);
+    // [17, 24] unscored, less the 0.5 s already lost to coverage.
+    expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - 6.5, 9);
   });
 
   it('splits at a dropped 300 ms stretch: no interval spans the gap', () => {

@@ -134,6 +134,12 @@ export const DSP_CONFIG = {
     maxSpreadBrpm: 4, // report the mean only when max − min of the three estimates is ≤ this
     minCleanS: 60, // §6.2 "Breathing rate"
   },
+  // diabetes-net's 12 waveform-shape features from the DSP-14 beat (§11.4, ML-6).
+  diabetesFeatures: {
+    // Systolic peak widths are measured at these fractions of the peak's height above the beat's minimum
+    // (features 2 and 3 in the order §11.4 lists them; ADR 0059). Initial values.
+    widthLevels: [0.5, 0.25],
+  },
   dsp15: {
     // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).
     windowIntervals: 32,
@@ -143,6 +149,15 @@ export const DSP_CONFIG = {
     sampleEntropyM: 2,
     sampleEntropyR: 0.2, // × the window's population SD
     minUsableIntervals: 40, // a reading needs this many intervals that do not span an artifact
+  },
+  // Standing heart-rate test (§10 DSP-16, §10.1 "Large rise on standing"; readings of the spec in ADR 0063).
+  dsp16: {
+    minAgeYears: 13, // §6.6: the profile blocks younger ages
+    adolescentMaxAgeYears: 19, // ages minAgeYears..this (inclusive, whole years) use adolescentRiseBpm
+    adolescentRiseBpm: 40, // HR − baseline at or above this, ages 13–19
+    adultRiseBpm: 30, // HR − baseline at or above this, ages 20 and over
+    standingMinutes: [1, 3, 5, 10], // minutes after standing, in protocol order
+    consecutiveReadings: 2, // the rise must hold in this many consecutive standing readings
   },
   // §10.1 decision rules (spec initial values) and §6.2 floors that are not a DSP metric's own.
   rules: {
@@ -154,6 +169,9 @@ export const DSP_CONFIG = {
     fastRegularMaxNormalizedRmssd: 0.03, // strictly below
     rhythmMinCleanS: 60, // irregular rhythm; also needs dsp15.minUsableIntervals
     uncertainBelowTopProb: 0.6, // "Couldn't tell — retake"
+    // §11.1 Rhythm-Net output check (initial): each window's sinus, af, other must sum to 1 within this.
+    // ONNX Runtime returns float32 softmax rows, whose sums are off by a few 1e-7.
+    rhythmRowSumTolerance: 1e-5,
     possibleAfPositives: 2, // 2 of 3 readings within 24 h
     possibleAfReadings: 3,
     possibleAfWindowHours: 24,
@@ -161,10 +179,6 @@ export const DSP_CONFIG = {
     diabetesMinCleanS: 90, // §6.2, per reading
     personalBandMinReadings: 7, // §7: the first 7 readings are "learning"
     personalBandIqrs: 1.5, // band = median ± 1.5 IQR
-    // DSP-14 preconditions for pulseShape.available. track/dsp-shape (ADR 0030) adds a dsp14 block with
-    // minNormalBeats; these two move there when both branches meet.
-    pulseShapeMinNormalBeats: 20,
-    pulseShapeMinFps: 60,
   },
   // §7 confidence (ADR 0041; initial values, not given by the spec): the lowest of clean coverage, the
   // SQI and tier caps, and for the rhythm card the calibrated top probability.
@@ -182,6 +196,10 @@ export const DSP_CONFIG = {
     frameMargin: 0.25,
     waveformS: 6, // §9.3: the live waveform shows the last 6 s
     sqiEveryS: 1, // §11.2: SQI-Net runs every 1 s on the last 4 s (dsp3.modelWindowS)
+    // ADR 0057 flat stretches: exactly equal red this long is one whole beat at 30 bpm, below the 36 bpm
+    // edge of the HR band, so it holds no beat. A pulse of at least half an 8-bit step changes red at least
+    // twice a period, so its longest equal stretch is under half a period (1 s at 30 bpm).
+    minFlatS: 2,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.
@@ -212,5 +230,40 @@ export const DSP_CONFIG = {
     minBpm: 40,
     maxBpm: 180,
     minSnrDb: 6, // peak power over the median power of the scanned bins
+  },
+  // Lumen Compatibility Rating (§5.1 points, §5.2 tiers; spec initial values, "tune on real phones").
+  // Readings of the spec where it is silent are in ADR 0058.
+  rating: {
+    // §5.1 frame rate: the points of the highest level reached; below the last level is a hard fail.
+    fpsLevels: [
+      { minFps: 120, points: 30 },
+      { minFps: 60, points: 24 },
+      { minFps: 30, points: 14 },
+      { minFps: 24, points: 6 },
+    ],
+    // Not given by the spec (ADR 0058); owner decision H-039 pending. A practice capture at a 60 fps
+    // format measures 59.6–60, not exactly 60, so the achieved rate reaches a level when it is within
+    // this many fps of it. This loosens every "≥ N fps" test in §5.1/§5.2; 0 makes them strict.
+    achievedFpsToleranceFps: 0.5,
+    // §5.1 coupling: couplingPoints × min(1, PI / fullPi) × min(1, SNR / fullSnr), floored.
+    couplingPoints: 35,
+    couplingFullPiPct: 1.0,
+    couplingFullSnrDb: 12,
+    ambientBelowCouplingPoints: 10, // §5.2 and §4.4: ambient-light mode under this many coupling points
+    exposureLockPoints: 6,
+    whiteBalanceLockPoints: 5,
+    focusLockPoints: 4,
+    // §5.1 frame timing: SD of frame intervals strictly below each limit (ms) scores its points, else 0.
+    timingLevels: [
+      { belowSdMs: 1, points: 20 },
+      { belowSdMs: 3, points: 12 },
+      { belowSdMs: 6, points: 6 },
+    ],
+    // §5.2 tiers.
+    fullMinScore: 80,
+    fullMinFps: 60,
+    basicMinScore: 50,
+    basicMinFps: 30,
+    limitedMinScore: 25,
   },
 };

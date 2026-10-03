@@ -5,6 +5,8 @@ import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle } from '@/testing/navHeader';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import { startOnboarded } from '@/testing/onboarded';
 import { makeReading } from '@/testing/reading';
 
 import { LatestResultCard } from './LatestResultCard';
@@ -17,9 +19,13 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 
 fixClockAtMorning();
 
+preloadAppRoutes();
+
 describe('Home', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await startOnboarded();
     renderRouter('./app', { initialUrl: '/' });
+    await screen.findByRole('header', { name: en['home.greetingMorning'] });
   });
 
   it('greets by time of day under the date line', () => {
@@ -77,9 +83,10 @@ describe('Home in Spanish', () => {
   beforeAll(() => i18n.changeLanguage('es'));
   afterAll(() => i18n.changeLanguage('en'));
 
-  it('greets and formats the date in Spanish', () => {
+  it('greets and formats the date in Spanish', async () => {
+    await startOnboarded();
     renderRouter('./app', { initialUrl: '/' });
-    expect(screen.getByRole('header', { name: es['home.greetingMorning'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: es['home.greetingMorning'] })).toBeOnTheScreen();
     expect(screen.getByText(/^jueves/i)).toBeOnTheScreen();
   });
 });

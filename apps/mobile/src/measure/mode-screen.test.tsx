@@ -1,16 +1,21 @@
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { expectNavTitle } from '@/testing/navHeader';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'light',
 }));
 
+preloadAppRoutes();
+
 describe('choose a mode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     renderRouter('./app', { initialUrl: '/measure/mode' });
+    // The stored rating is read when the screen opens; the picker is settled once that read has landed.
+    await act(async () => undefined);
   });
 
   it('lists the four modes with their durations and marks Full Scan recommended', () => {

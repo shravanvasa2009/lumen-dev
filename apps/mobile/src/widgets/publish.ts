@@ -11,7 +11,11 @@ import { widgetSnapshot, type WidgetStatus } from './snapshot';
 
 type WidgetPreferences = { appearance: Appearance; hideWidgetValues: boolean };
 
-type ReadingHistory = { readings: readonly StoredReading[]; nextConfirmationAt: number | null };
+type ReadingHistory = {
+  readings: readonly StoredReading[];
+  nextConfirmationAt: number | null;
+  followUpAnsweredAt: number | null;
+};
 
 type Palette = Record<(typeof PALETTE_KEYS)[number], string>;
 
@@ -51,7 +55,7 @@ function widgetDisplay(language: string) {
 
 // Held in memory like the readings themselves (no reading storage exists yet), so a preference change
 // re-publishes the readings this session last published.
-let lastHistory: ReadingHistory = { readings: [], nextConfirmationAt: null };
+let lastHistory: ReadingHistory = { readings: [], nextConfirmationAt: null, followUpAnsweredAt: null };
 
 // Spec §9.6: called after every saved reading (with its history) and whenever a preference the snapshot
 // carries changes. Resolves without doing anything where the native module is not linked (iOS until its
@@ -66,6 +70,7 @@ export function publishWidgets(
   const snapshot = widgetSnapshot({
     readings: history.readings,
     nextConfirmationAt: history.nextConfirmationAt,
+    followUpAnsweredAt: history.followUpAnsweredAt,
     hideValues: preferences.hideWidgetValues,
     theme: preferences.appearance,
     now,

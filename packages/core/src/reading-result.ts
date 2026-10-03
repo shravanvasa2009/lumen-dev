@@ -10,6 +10,7 @@ import type {
   HrFlag,
   HrMetric,
   ReadingResult,
+  ReadingRhythm,
   RespMetric,
   RhythmClass,
   RhythmMetric,
@@ -51,7 +52,7 @@ export interface PastReading {
   diabetes: { day: string; probability: number; confidence: Confidence } | null;
 }
 
-const RHYTHM_CLASSES: RhythmClass[] = ['sinus', 'af', 'other'];
+export const RHYTHM_CLASSES: readonly RhythmClass[] = ['sinus', 'af', 'other'];
 const LEVELS: Confidence[] = ['low', 'moderate', 'high'];
 const lowest = (...levels: Confidence[]): Confidence =>
   LEVELS[Math.min(...levels.map((level) => LEVELS.indexOf(level)))]!;
@@ -111,6 +112,61 @@ interface RhythmCall {
   positive: boolean; // the irregular rule fired (before the 2-of-3 rule)
 }
 
+/** A rhythm row buildReadingResult accepts: one finite probability per class, summing to 1. */
+export function isProbabilityRow(row: readonly number[]): boolean {
+  if (row.length !== RHYTHM_CLASSES.length) return false;
+  let total = 0;
+  for (let c = 0; c < row.length; c++) {
+    const probability = row[c];
+    if (typeof probability !== 'number' || !(probability >= 0 && probability <= 1)) return false;
+    total += probability;
+  }
+  return Math.abs(total - 1) <= DSP_CONFIG.rules.rhythmRowSumTolerance;
+}
+
+// Reading-level probabilities in RHYTHM_CLASSES order (the mean over windows); null when the reading gets
+// no rhythm card.
+function readingRhythmProbs(
+  analysis: ReadingAnalysis,
+  outputs: RhythmOutputs | null,
+  profile: Profile,
+): number[] | null {
+  const rules = DSP_CONFIG.rules;
+  const windows = analysis.rhythmWindows.length;
+  if (outputs && outputs.windowProbs.length !== windows)
+    throw new RangeError(`${windows} rhythm windows but ${outputs.windowProbs.length} probability rows`);
+  // Like a wrong row count, a row that is not a probability distribution means the model or rule
+  // misbehaved; a NaN here once reached the card as a class-less "irregular, retake".
+  if (outputs && !outputs.windowProbs.every(isProbabilityRow))
+    throw new RangeError('each rhythm window needs sinus, af, other probabilities that sum to 1');
+  if (!outputs || profile.pacemaker || windows === 0) return null;
+  if (analysis.cleanSeconds < rules.rhythmMinCleanS || !analysis.enoughRhythmIntervals) return null;
+
+  return RHYTHM_CLASSES.map((_, c) => {
+    let total = 0;
+    for (const row of outputs.windowProbs) total += row[c]!;
+    return total / windows;
+  });
+}
+
+// The class with the highest probability, the first in RHYTHM_CLASSES order on a tie.
+const topClass = (probs: number[]) => probs.indexOf(Math.max(...probs));
+
+// With no rhythm model output it is the replay validation label (ADR 0041), null in the app.
+/** The rhythm decision that opens DSP-12 and diabetes-net's hrSummary; null with no rhythm card. */
+export function readingRhythm(
+  analysis: ReadingAnalysis,
+  outputs: RhythmOutputs | null,
+  profile: Profile,
+): ReadingRhythm | null {
+  // Validation only (ADR 0041): with no rhythm model output, a labelled rhythm stands in.
+  if (outputs === null) return analysis.context.validationRhythmLabel;
+  const probs = readingRhythmProbs(analysis, outputs, profile);
+  if (!probs) return null;
+  const top = topClass(probs);
+  return probs[top]! >= DSP_CONFIG.rules.uncertainBelowTopProb ? RHYTHM_CLASSES[top]! : 'uncertain';
+}
+
 function rhythmCall(
   analysis: ReadingAnalysis,
   outputs: RhythmOutputs | null,
@@ -120,19 +176,9 @@ function rhythmCall(
   confidence: Confidence,
 ): RhythmCall | null {
   const rules = DSP_CONFIG.rules;
-  const windows = analysis.rhythmWindows.length;
-  if (outputs && outputs.windowProbs.length !== windows)
-    throw new RangeError(`${windows} rhythm windows but ${outputs.windowProbs.length} probability rows`);
-  if (!outputs || profile.pacemaker || windows === 0) return null;
-  if (analysis.cleanSeconds < rules.rhythmMinCleanS || !analysis.enoughRhythmIntervals) return null;
-
-  // Reading-level probabilities: the mean over windows.
-  const probs = RHYTHM_CLASSES.map((_, c) => {
-    let total = 0;
-    for (const row of outputs.windowProbs) total += row[c]!;
-    return total / windows;
-  });
-  const top = probs.indexOf(Math.max(...probs));
+  const probs = readingRhythmProbs(analysis, outputs, profile);
+  if (!outputs || !probs) return null;
+  const top = topClass(probs);
   const topProb = probs[top]!;
   const fromProb: Confidence =
     topProb >= DSP_CONFIG.confidence.highTopProb
@@ -262,13 +308,7 @@ export function buildReadingResult(
   const rhythm = rhythmCall(analysis, models.rhythm, evidence, profile, history, confidence);
 
   let rmssd: RmssdMetric | null = null;
-  const confidentSinus =
-    rhythm !== null &&
-    rhythm.metric.class === 'sinus' &&
-    rhythm.topProb >= DSP_CONFIG.rules.uncertainBelowTopProb;
-  // Validation only (ADR 0041): with no rhythm model output, a labelled sinus rhythm opens the gate.
-  const labelledSinus = models.rhythm === null && analysis.context.validationRhythmLabel === 'sinus';
-  if ((confidentSinus || labelledSinus) && tierAtLeast(analysis, 'full')) {
+  if (readingRhythm(analysis, models.rhythm, profile) === 'sinus' && tierAtLeast(analysis, 'full')) {
     const values = hrv(analysis.segments, 'sinus', analysis.context.captureFps, analysis.cleanSeconds);
     if (values?.rmssdMs != null) {
       const earlier = history.flatMap((past) => (past.rmssdMs === null ? [] : [past.rmssdMs]));
@@ -290,7 +330,6 @@ export function buildReadingResult(
 
   const beats = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');
   const atypical = beats.filter((beat) => beat.beatClass === 'atypical').length;
-  const normal = beats.filter((beat) => beat.beatClass === 'normal').length;
   return {
     headlineKey: headline(hr, rhythm),
     cleanSeconds: analysis.cleanSeconds,
@@ -306,11 +345,7 @@ export function buildReadingResult(
     experimental: {
       extraBeatsPerMin: analysis.cleanSeconds > 0 ? atypical / (analysis.cleanSeconds / 60) : 0,
       longPauses: beats.filter((beat) => beat.longPause).length,
-      pulseShape: {
-        available:
-          analysis.context.captureFps >= DSP_CONFIG.rules.pulseShapeMinFps &&
-          normal >= DSP_CONFIG.rules.pulseShapeMinNormalBeats,
-      },
+      pulseShape: { available: analysis.pulseShape !== null },
     },
     lostSeconds: analysis.lostSeconds,
     notChecked: ['bp', 'spo2', 'heartAttack'],

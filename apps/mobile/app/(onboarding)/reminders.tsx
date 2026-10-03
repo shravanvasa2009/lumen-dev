@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router';
-import { requestPermissionsAsync } from 'expo-notifications';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -7,9 +6,12 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
 import { ListRow } from '@/components/ListRow';
+import { loadNotificationPrefs } from '@/notifications/prefs';
+import { finishOnboarding } from '@/profile/onboarding';
+import { askPermission, saveAndSyncNotifications } from '@/settings/applyPrefs';
+import { formatClock } from '@/settings/formatClock';
 import { Toggle } from '@/settings/Toggle';
 import { useTheme } from '@/theme';
 
@@ -26,6 +28,7 @@ export default function RemindersScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { spacing } = useTheme();
+  const [finishFailed, setFinishFailed] = useState(false);
   const [hour, setHour] = useState(DEFAULT_HOUR);
   const [enabled, setEnabled] = useState<Record<Reminder, boolean>>({
     daily: false,
@@ -33,12 +36,7 @@ export default function RemindersScreen() {
     doctor: true,
   });
   const timeOf = (hourOfDay: number, withPeriod = true) =>
-    new Intl.DateTimeFormat(i18n.language, { hour: 'numeric', minute: '2-digit' })
-      .formatToParts(new Date(2000, 0, 1, (hourOfDay + HOURS_PER_DAY) % HOURS_PER_DAY))
-      .filter((part) => withPeriod || part.type !== 'dayPeriod')
-      .map((part) => part.value)
-      .join('')
-      .trim();
+    formatClock({ hour: (hourOfDay + HOURS_PER_DAY) % HOURS_PER_DAY, minute: 0 }, i18n.language, withPeriod);
   // Each time is formatted once: the screen shows neighbours without AM/PM, screen readers get it in full.
   const selected = timeOf(hour);
   const spokenBefore = timeOf(hour - 1);
@@ -51,16 +49,43 @@ export default function RemindersScreen() {
     { reminder: 'doctor', title: t('notifications.doctor') },
   ];
 
+  // Home is the first screen on every later launch only once this is saved, so a failed save keeps the
+  // person here with a message instead of showing Welcome again next time without a word.
+  async function openHome() {
+    try {
+      await finishOnboarding();
+    } catch {
+      setFinishFailed(true);
+      return;
+    }
+    router.replace('/');
+  }
+
   // The app works without notifications, so a refusal or a failed request still moves on to Home.
   async function askPermissionThenOpenHome() {
     try {
-      await requestPermissionsAsync();
+      const permission = await askPermission();
+      const saved = loadNotificationPrefs();
+      await saveAndSyncNotifications(
+        {
+          ...saved,
+          enabled: {
+            ...saved.enabled,
+            daily: enabled.daily,
+            confirmation: enabled.followUp,
+            'doctor-followup': enabled.doctor,
+          },
+          dailyTime: { hour, minute: 0 },
+        },
+        i18n.language,
+        permission,
+      );
     } catch (error) {
       console.warn(
         `Notification permission request failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    router.replace('/');
+    await openHome();
   }
 
   return (
@@ -71,7 +96,7 @@ export default function RemindersScreen() {
       footer={
         <>
           <Button label={t('reminders.turnOn')} onPress={() => void askPermissionThenOpenHome()} />
-          <NavButton label={t('reminders.notNow')} href="/" variant="link" replace />
+          <Button label={t('reminders.notNow')} variant="link" onPress={() => void openHome()} />
         </>
       }
     >
@@ -123,6 +148,11 @@ export default function RemindersScreen() {
       <AppText variant="caption" tone="textDim">
         {t('reminders.localOnly')}
       </AppText>
+      {finishFailed ? (
+        <AppText variant="caption" tone="textDim" accessibilityRole="alert">
+          {t('reminders.finishFailed')}
+        </AppText>
+      ) : null}
     </OnboardingStep>
   );
 }

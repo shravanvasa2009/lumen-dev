@@ -3,9 +3,11 @@ import { classifyBeats } from './beat-classes';
 import { breathingRate, type BreathingRate } from './breathing';
 import type { FrameStat, Sample } from './capture';
 import { DSP_CONFIG } from './config';
-import { frameProblem } from './contact';
+import { frameProblem, validChannels } from './contact';
 import { butterBandpass, filterZeroPhase } from './filters';
 import { fingerSignals } from './finger-signal';
+import { FlatRuns, modelWindowAt, nextModelTickS, unscoredSpan } from './model-window';
+import { ensembleBeat, type PulseShape } from './pulse-shape';
 import type { RejectedSpan, RejectionReason } from './live-session';
 import { cleanSeconds, heartRate, measureBeats, perfusionIndex, type MeasuredBeat } from './reading-metrics';
 import { resampleCubic, type ResampledSegment } from './resample';
@@ -72,14 +74,22 @@ export interface ReadingAnalysis {
   rhythmWindows: RhythmWindow[];
   rhythmFeatures: number[][]; // rhythmFeatureVector per window: the Rhythm-Net / LightGBM input
   enoughRhythmIntervals: boolean;
+  pulseShape: PulseShape | null; // DSP-14 averaged beat (readingShape): diabetes-net's beat input
 }
 
 // A run of failing frames spans from its first frame to the next frame (the last frame ends the reading).
-function contactSpans(timebase: Timebase, samples: Sample[], stats: FrameStat[]): RejectedSpan[] {
+// With skipBroken, broken frames are passed over as if dropped.
+function contactSpans(
+  timebase: Timebase,
+  samples: Sample[],
+  stats: FrameStat[],
+  skipBroken: boolean,
+): RejectedSpan[] {
   const spans: RejectedSpan[] = [];
   const { tS } = timebase;
   let open: RejectedSpan | null = null;
   for (let i = 0; i < samples.length; i++) {
+    if (skipBroken && !validChannels(samples[i]!)) continue;
     const reason = frameProblem(samples[i]!, stats[i]!);
     if (open && open.reason !== reason) {
       open.endS = tS[i]!;
@@ -128,6 +138,36 @@ function callerSpans(context: ReadingContext, startNs: number): RejectedSpan[] {
   return [...motion, ...coldHands, ...quality];
 }
 
+// ADR 0023 flat windows (at the live session's once-per-second checks) and ADR 0057 flat runs, found
+// from the frames, so they are rejected whether or not SQI-Net ran and match the live screen.
+function frameQualitySpans(
+  timebase: Timebase,
+  samples: Sample[],
+  stats: FrameStat[],
+  modelRan: boolean,
+): RejectedSpan[] {
+  const covered = Uint8Array.from(samples, (sample, i) =>
+    frameProblem(sample, stats[i]!) === 'coverage' ? 0 : 1,
+  );
+  const windowS = DSP_CONFIG.dsp3.modelWindowS;
+  const spans: RejectedSpan[] = [];
+  const unscored: RejectedSpan[] = [];
+  const flatRuns = new FlatRuns();
+  let nextTickS = DSP_CONFIG.live.sqiEveryS;
+  timebase.tS.forEach((tS, i) => {
+    flatRuns.add(tS, timebase.r[i]!, covered[i] === 1);
+    if (tS < nextTickS) return;
+    nextTickS = nextModelTickS(tS);
+    const window = modelWindowAt(timebase.tS, timebase.r, covered, i + 1);
+    if (window && !window.input)
+      spans.push({ startS: window.endS - windowS, endS: window.endS, reason: 'quality' });
+    const missing = window ? null : unscoredSpan(timebase.tS, i + 1);
+    if (missing) unscored.push(missing);
+  });
+  // In LiveSession's order, so equal starts sort alike.
+  return [...spans, ...(modelRan ? unscored : []), ...flatRuns.spans()];
+}
+
 function lostSecondsOf(spans: RejectedSpan[], durationS: number): LostSeconds {
   // §7 coaching causes. Clipping is the saturated DC of pressing too hard; quality and exposure spans are
   // not coaching causes. Cold-hands pauses come from the live session (ADR 0042).
@@ -156,15 +196,25 @@ function morphologyBand(segment: ResampledSegment, rateHz: number): ResampledSeg
   };
 }
 
+interface BeatSegment {
+  beats: MeasuredBeat[];
+  shape: ResampledSegment; // DSP-6 morphology band at 256 Hz
+}
+
 // DSP-2 to DSP-9 per segment, then the DSP-10/13 per-beat values. Segments shorter than dsp7.minSegmentS
 // are not searched for beats.
-function beatSegments(timebase: Timebase, spans: RejectedSpan[]): MeasuredBeat[][] {
+function beatSegments(timebase: Timebase, samples: Sample[], spans: RejectedSpan[]): BeatSegment[] {
   const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
   const { primary } = fingerSignals(timebase);
-  const models = resampleCubic(timebase.tS, primary, modelRateHz);
-  const shapes = resampleCubic(timebase.tS, primary, shapeRateHz);
+  // A broken frame (already a coverage span) is left out as if dropped: DSP-2 splines across it when the
+  // frames either side are within its gap limit, and splits there otherwise.
+  const kept = samples.flatMap((sample, i) => (validChannels(sample) ? [i] : []));
+  const keptS = Float64Array.from(kept, (i) => timebase.tS[i]!);
+  const keptSignal = Float64Array.from(kept, (i) => primary[i]!);
+  const models = resampleCubic(keptS, keptSignal, modelRateHz);
+  const shapes = resampleCubic(keptS, keptSignal, shapeRateHz);
   // The two rates split at the same gaps, but a very short segment can lack a grid point at 64 Hz, so
-  // the pairs are matched by time; segments are > 150 ms apart, so at most one overlaps.
+  // the pairs are matched by time; at most one overlaps.
   const span = (segment: ResampledSegment, rateHz: number) =>
     [segment.firstIndex / rateHz, (segment.firstIndex + segment.values.length - 1) / rateHz] as const;
   return shapes.flatMap((raw) => {
@@ -176,45 +226,92 @@ function beatSegments(timebase: Timebase, spans: RejectedSpan[]): MeasuredBeat[]
     })!;
     const shape = morphologyBand(raw, shapeRateHz);
     const detected = detectBeats(morphologyBand(model, modelRateHz), shape);
-    return [measureBeats(detected, classifyBeats(detected, shape, spans), raw)];
+    return [{ beats: measureBeats(detected, classifyBeats(detected, shape, spans), raw), shape }];
   });
 }
 
-// Intervals per segment, between consecutive beats that are not "not a beat"; none crosses a segment gap.
+// One segment's beats that are not "not a beat". Two beats at the same or reversed times are one beat found
+// twice, not a cardiac cycle (as heartRate): the later-listed one is left out, and the interval that
+// bridges it (ending at the next kept beat) is not used, so no interval is ≤ 0 (DSP-7, DSP-15, ADR 0068).
+function distinctBeats(segment: MeasuredBeat[]): { beat: MeasuredBeat; bridgesDuplicate: boolean }[] {
+  const kept: { beat: MeasuredBeat; bridgesDuplicate: boolean }[] = [];
+  let bridgesDuplicate = false;
+  for (const beat of segment) {
+    if (beat.beatClass === 'not-a-beat') continue;
+    const previous = kept[kept.length - 1];
+    if (previous && !(beat.peakS > previous.beat.peakS)) {
+      bridgesDuplicate = true;
+      continue;
+    }
+    kept.push({ beat, bridgesDuplicate });
+    bridgesDuplicate = false;
+  }
+  return kept;
+}
+
+// DSP-14 called as ML-6 training calls it on a 90 s VitalDB segment (ml/train/diabetes_features.py):
+// onsets of every beat that is not "not a beat" and has an onset, in 256 Hz samples of the segment, and
+// normal = class "normal". The fps is the capture format's: DSP-14 gates on the configured rate, and
+// VitalDB's 500 Hz is exact.
+function segmentShape(segment: BeatSegment, captureFps: number): PulseShape | null {
+  const { shapeRateHz } = DSP_CONFIG.dsp2;
+  const onsets: number[] = [];
+  const normal: boolean[] = [];
+  for (const beat of segment.beats) {
+    if (beat.beatClass === 'not-a-beat' || beat.onsetS === null) continue;
+    onsets.push(beat.onsetS * shapeRateHz - segment.shape.firstIndex);
+    normal.push(beat.beatClass === 'normal');
+  }
+  return ensembleBeat(segment.shape.values, onsets, normal, captureFps);
+}
+
+// Training has one gap-free segment per scan, and ensembleBeat averages one signal. A reading split at a
+// gap tries its segments from longest to shortest (the first on a tie) and keeps the first that gives a
+// shape, so a long flat or moving stretch does not hide a shorter segment with a clean pulse.
+function readingShape(segments: BeatSegment[], captureFps: number): PulseShape | null {
+  const byLength = [...segments].sort((x, y) => y.shape.values.length - x.shape.values.length);
+  for (const segment of byLength) {
+    const shape = segmentShape(segment, captureFps);
+    if (shape) return shape;
+  }
+  return null;
+}
+
+// Intervals per segment, between consecutive distinct beats; none crosses a segment gap.
 function intervalsBySegment(segments: MeasuredBeat[][], startNs: number): BeatInterval[][] {
   const toNs = (peakS: number) => startNs + Math.round(peakS * 1e9);
   return segments.map((segment) => {
-    const beats = segment.filter((beat) => beat.beatClass !== 'not-a-beat');
-    return beats.slice(1).map((to, i) => {
-      const from = beats[i]!;
+    const beats = distinctBeats(segment);
+    return beats.slice(1).map(({ beat: to, bridgesDuplicate }, i) => {
+      const from = beats[i]!.beat;
       const tNs = toNs(to.peakS);
       return {
         tNs,
         ibiMs: (tNs - toNs(from.peakS)) / 1e6,
-        accepted: from.beatClass !== 'artifact' && to.beatClass !== 'artifact',
-        nn: from.beatClass === 'normal' && to.beatClass === 'normal' && !to.longPause,
+        accepted: !bridgesDuplicate && from.beatClass !== 'artifact' && to.beatClass !== 'artifact',
+        nn: !bridgesDuplicate && from.beatClass === 'normal' && to.beatClass === 'normal' && !to.longPause,
       };
     });
   });
 }
 
-// DSP-15 inputs over the whole reading: an interval spans an artifact when either beat is one, or when it
-// crosses a segment gap.
+// DSP-15 inputs over the whole reading: an interval spans an artifact when either beat is one, when it
+// bridges a beat found twice, or when it crosses a segment gap (segments do not overlap in time).
 function rhythmInputs(segments: MeasuredBeat[][]) {
   const beats: MeasuredBeat[] = [];
   const spansArtifact: boolean[] = [];
   const intervalsS: number[] = [];
   for (const segment of segments) {
-    segment
-      .filter((beat) => beat.beatClass !== 'not-a-beat')
-      .forEach((beat, i) => {
-        const previous = beats[beats.length - 1];
-        if (previous) {
-          intervalsS.push(beat.peakS - previous.peakS);
-          spansArtifact.push(i === 0 || previous.beatClass === 'artifact' || beat.beatClass === 'artifact');
-        }
-        beats.push(beat);
-      });
+    distinctBeats(segment).forEach(({ beat, bridgesDuplicate }, i) => {
+      const previous = beats[beats.length - 1];
+      if (previous) {
+        intervalsS.push(beat.peakS - previous.peakS);
+        spansArtifact.push(
+          i === 0 || bridgesDuplicate || previous.beatClass === 'artifact' || beat.beatClass === 'artifact',
+        );
+      }
+      beats.push(beat);
+    });
   }
   return { intervalsS, spansArtifact, atypicalBeats: beats.map((beat) => beat.beatClass === 'atypical') };
 }
@@ -240,24 +337,36 @@ function normalizedRmssdOf(bySegment: BeatInterval[][]): number | null {
   return differences > 0 ? Math.sqrt(squares / differences) / (total / count) : null;
 }
 
-/** DSP-1 to DSP-13 and DSP-15 over one capture, with DSP-4/DSP-5, motion, and SQI rejected spans. */
+/** DSP-1 to DSP-15 over one capture, with DSP-4/DSP-5, motion, and SQI rejected spans. */
 export function analyzeReading(
   capture: { samples: Sample[]; stats: FrameStat[] },
   context: ReadingContext,
 ): ReadingAnalysis {
   const timebase = buildTimebase(capture.samples, capture.stats);
   const durationS = timebase.tS[timebase.tS.length - 1]!;
-  const rejectedSpans = [
-    ...contactSpans(timebase, capture.samples, capture.stats),
+  const otherSpans = [
     ...exposureSpans(timebase),
     ...callerSpans(context, timebase.startNs),
-  ].sort((x, y) => x.startS - y.startS);
+    ...frameQualitySpans(timebase, capture.samples, capture.stats, context.sqi !== null),
+  ];
+  const byStart = (x: RejectedSpan, y: RejectedSpan) => x.startS - y.startS;
+  const rejectedSpans = [
+    ...contactSpans(timebase, capture.samples, capture.stats, false),
+    ...otherSpans,
+  ].sort(byStart);
   const clean = cleanSeconds(0, durationS, rejectedSpans);
+  // A broken frame keeps its coverage span for clean seconds, but beats are classified as if it were
+  // dropped (ADR 0057): a dropped frame does not make a beat an artifact.
+  const signalSpans = [...contactSpans(timebase, capture.samples, capture.stats, true), ...otherSpans].sort(
+    byStart,
+  );
 
-  const segments = beatSegments(timebase, rejectedSpans);
+  const bands = beatSegments(timebase, capture.samples, signalSpans);
+  const segments = bands.map((segment) => segment.beats);
   const bySegment = intervalsBySegment(segments, timebase.startNs);
   const { intervalsS, spansArtifact, atypicalBeats } = rhythmInputs(segments);
-  const windows = rhythmWindows(intervalsS, spansArtifact, atypicalBeats);
+  // rhythmWindows takes one flag per beat; with no beat at all there is nothing to window.
+  const windows = atypicalBeats.length > 0 ? rhythmWindows(intervalsS, spansArtifact, atypicalBeats) : [];
 
   return {
     context,
@@ -276,5 +385,6 @@ export function analyzeReading(
     rhythmWindows: windows,
     rhythmFeatures: windows.map(rhythmFeatureVector),
     enoughRhythmIntervals: hasEnoughUsableIntervals(spansArtifact),
+    pulseShape: readingShape(bands, context.captureFps),
   };
 }

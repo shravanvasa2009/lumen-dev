@@ -107,9 +107,11 @@ def upstroke(wave: Sequence[float], peak_index: int, search_start: int) -> Upstr
 
 
 def _parabolic_offset(before: float, at: float, after: float) -> float:
-    # Vertex of the parabola through (−1, before), (0, at), (1, after); 0 unless it opens downward.
+    # Vertex of the parabola through (−1, before), (0, at), (1, after), taken only at a local maximum, where
+    # it lies within half a sample. A window maximum on a slope is not a peak of the band: its parabola's
+    # vertex can be hundreds of samples away (VitalDB, order D.C_TASK-rhythm-windows-negative-interval).
     curvature = before - 2 * at + after
-    return (0.5 * (before - after)) / curvature if curvature < 0 else 0.0
+    return (0.5 * (before - after)) / curvature if at >= before and at >= after and curvature < 0 else 0.0
 
 
 # DSP-7/8: beats from one resampled segment's morphology band at 64 Hz (model) and 256 Hz (shape).
@@ -117,6 +119,7 @@ def detect_beats(model: ResampledSegment, shape: ResampledSegment) -> list[Detec
     model_hz = DSP_CONFIG["dsp2"]["modelRateHz"]
     shape_hz = DSP_CONFIG["dsp2"]["shapeRateHz"]
     refine_half = js_round(DSP_CONFIG["dsp7"]["refineHalfWindowS"] * shape_hz)
+    climb_half = (elgendi_windows(shape_hz)[0] - 1) // 2
     minimum_search = js_round(DSP_CONFIG["dsp8"]["minimumSearchS"] * shape_hz)
     wave = [float(value) for value in shape.values]
     last = len(wave) - 1
@@ -136,7 +139,24 @@ def detect_beats(model: ResampledSegment, shape: ResampledSegment) -> list[Detec
         for k in range(start + 1, stop + 1):
             if wave[k] > wave[peak]:
                 peak = k
+        # A window maximum on the window's edge with the band still rising beyond it is on a slope: climb to
+        # the local maximum it slopes up to (a block that opens just past a broad lobe's top, ADR 0068). At
+        # most half of W1 from the candidate: MA_peak averages over W1, so a block can open up to that far
+        # from the top of its wave.
+        lowest = max(0, centre - climb_half)
+        highest = min(last, centre + climb_half)
+        if peak == start:
+            while peak > lowest and wave[peak - 1] > wave[peak]:
+                peak -= 1
+        if peak == stop:
+            while peak < highest and wave[peak + 1] > wave[peak]:
+                peak += 1
         offset = _parabolic_offset(wave[peak - 1], wave[peak], wave[peak + 1]) if 0 < peak < last else 0.0
+        peak_s = to_seconds(peak + offset)
+        # Candidates two 64 Hz samples apart can share their window maximum, and nearby ones can climb to
+        # the same local maximum: one peak found twice.
+        if beats and peak_s <= beats[-1].peak_s:
+            continue
 
         clipped_at_start = previous_peak is None and peak - minimum_search < 0
         found = upstroke(wave, peak, max(previous_peak or 0, peak - minimum_search))
@@ -145,7 +165,7 @@ def detect_beats(model: ResampledSegment, shape: ResampledSegment) -> list[Detec
         foot_unseen = clipped_at_start and found is not None and found.foot_index == 0 and wave[1] > wave[0]
         beats.append(
             DetectedBeat(
-                peak_s=to_seconds(peak + offset),
+                peak_s=peak_s,
                 onset_s=to_seconds(found.onset_index) if found and not foot_unseen else None,
                 max_upslope=found.max_upslope * shape_hz if found else 0.0,
                 amplitude=wave[peak] - wave[found.foot_index] if found else 0.0,

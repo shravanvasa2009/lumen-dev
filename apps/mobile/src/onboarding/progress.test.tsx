@@ -1,12 +1,18 @@
 import { renderRouter, screen } from 'expo-router/testing-library';
 
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'dark',
 }));
 
 // Reminders imports the notification module, which warns outside a development build.
-jest.mock('expo-notifications', () => ({ requestPermissionsAsync: jest.fn() }));
+jest.mock('expo-notifications', () => ({
+  requestPermissionsAsync: jest.fn(),
+  useLastNotificationResponse: () => null,
+  setNotificationHandler: jest.fn(),
+}));
 
 // The mockups fill 1 segment on consent and count up by one per screen; Reminders shows all nine.
 const steps = [
@@ -21,6 +27,8 @@ const steps = [
 ] as const;
 
 jest.setTimeout(30_000);
+
+preloadAppRoutes();
 
 describe('onboarding progress bar', () => {
   it.each(steps)('%s fills %i of 9 segments', (url, step) => {

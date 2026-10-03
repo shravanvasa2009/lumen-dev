@@ -71,3 +71,9 @@ func planExposure(from current: ExposureSetting, factor: Double, limits: Exposur
 func lockWaitS(medianIntervalNs: Double) -> Double {
   min(max(10 * medianIntervalNs / 1e9, 1), 3)
 }
+
+// Spec §5.1 awards the focus points for a focus lock or a fixed-focus lens, and Appendix A has only `locks.focus`,
+// so a lens with no autofocus mode counts as holding focus: it cannot drift during a reading.
+func focusHolds(lockedSupported: Bool, autoFocusSupported: Bool, continuousAutoFocusSupported: Bool) -> Bool {
+  lockedSupported || (!autoFocusSupported && !continuousAutoFocusSupported)
+}

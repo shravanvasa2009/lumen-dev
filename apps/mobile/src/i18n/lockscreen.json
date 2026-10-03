@@ -12,7 +12,9 @@
     "live.standing.title": "Standing test",
     "live.standing.next": "Next reading in {{countdown}}",
     "live.standing.measureNow": "Measure now",
-    "live.standing.tap": "Tap to measure"
+    "live.standing.tap": "Tap to measure",
+    "channel.reminders": "Reminders",
+    "channel.standing": "Standing test"
   },
   "es": {
     "notif.daily": "Es hora de tu revisión de Lumen de 90 segundos.",
@@ -27,6 +29,8 @@
     "live.standing.title": "Prueba de pie",
     "live.standing.next": "Próxima medición en {{countdown}}",
     "live.standing.measureNow": "Medir ahora",
-    "live.standing.tap": "Toca para medir"
+    "live.standing.tap": "Toca para medir",
+    "channel.reminders": "Recordatorios",
+    "channel.standing": "Prueba de pie"
   }
 }

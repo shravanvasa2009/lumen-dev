@@ -1,4 +1,15 @@
-import type { CoachingKey } from '@lumen/core';
+import {
+  createLiveSession,
+  DSP_CONFIG,
+  type CoachingKey,
+  type FrameStat,
+  type LiveSession,
+  type NsSpan,
+  type RejectedSpan,
+  type RejectionReason,
+  type Sample,
+  type SqiWindow,
+} from '@lumen/core';
 import { useEffect, useState } from 'react';
 
 import {
@@ -6,9 +17,12 @@ import {
   type Capabilities,
   type CaptureConfig,
   type CaptureStatus,
+  type LensInfo,
   type LumenCaptureModule,
   type SampleBatch,
 } from '../../modules/lumen-capture/src';
+import { scoreSqiWindow, sqiThreshold } from '../ml/runtime';
+import { keepCapture } from './keptCapture';
 
 // The live waveform card shows the last 6 s (spec §12).
 const WAVEFORM_WINDOW_NS = 6e9;
@@ -25,9 +39,12 @@ export interface LiveCapture {
   recentRed: readonly number[];
   // Seconds on the frames' own clock since the first frame; not a timer.
   elapsedS: number;
-  // Null until a LiveSession from @lumen/core feeds this hook (ADR 0042): they are never estimated here.
+  // The live session's own values (ADR 0042), never estimated here; null while it is not running.
   cleanSeconds: number | null;
   coachingKey: CoachingKey | null;
+  // The session's filtered pulse of the last 6 s, and the spans it greyed out, in seconds from the first frame.
+  recentWaveform: { tS: number[]; ppg: number[] };
+  rejectedSpans: RejectedSpan[];
 }
 
 const idle = (phase: LivePhase): LiveCapture => ({
@@ -38,22 +55,44 @@ const idle = (phase: LivePhase): LiveCapture => ({
   elapsedS: 0,
   cleanSeconds: null,
   coachingKey: null,
+  recentWaveform: { tS: [], ppg: [] },
+  rejectedSpans: [],
 });
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+const spansOf = (spans: RejectedSpan[], reason: RejectionReason, startNs: number): NsSpan[] =>
+  spans
+    .filter((span) => span.reason === reason)
+    .map((span) => ({
+      startNs: startNs + Math.round(span.startS * 1e9),
+      endNs: startNs + Math.round(span.endS * 1e9),
+    }));
+
 // A wide lens that can light the torch, else any lens that can; no lens means the module's own default,
 // and then no torch, because native rejects a torch level on a phone that has none (ADR 0029 addendum).
-function captureConfig(capabilities: Capabilities): CaptureConfig {
+function chosenLens(capabilities: Capabilities): LensInfo | undefined {
   const lit = capabilities.rearLenses.filter((lens) => lens.torchUsable);
-  const lens = lit.find((candidate) => candidate.kind === 'wide') ?? lit[0];
+  return lit.find((candidate) => candidate.kind === 'wide') ?? lit[0];
+}
+
+// Spec 09-architecture §9.2 (frame rate): iOS up to 120 fps where formats allow (native caps iOS at 120 too);
+// Android requests 60. Native never reports the rate it chose, so the rate is chosen here, sent as targetFps,
+// and given to the live session and the reading's context unchanged.
+const CAPTURE_FPS_CEILING: Record<Capabilities['platform'], number> = { ios: 120, android: 60 };
+
+const captureFpsFor = (platform: Capabilities['platform'], lens: LensInfo): number =>
+  Math.min(lens.maxFps, CAPTURE_FPS_CEILING[platform]);
+
+function captureConfig(capabilities: Capabilities, lens: LensInfo | undefined, fps: number): CaptureConfig {
   return {
-    ...(lens ? { lensId: lens.id } : {}),
+    ...(lens ? { lensId: lens.id, targetFps: fps } : {}),
     torchLevel: lens && capabilities.torch.available ? 1 : 0,
   };
 }
 
-// Runs the rear camera and torch for as long as the screen is mounted and reports what the module sends.
+// Runs the rear camera and torch for as long as the screen is mounted, feeds every batch and status to a
+// LiveSession, and keeps the frames for the Processing screen.
 export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture): LiveCapture {
   const [live, setLive] = useState<LiveCapture>(idle(capture ? 'starting' : 'unavailable'));
 
@@ -64,6 +103,17 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
     let subscriptions: { remove(): void }[] = [];
     let recent: { tNs: number; r: number }[] = [];
     let firstNs: number | null = null;
+    let session: LiveSession | null = null;
+    let captureFps = 0;
+    let lensId: string | null = null;
+    const samples: Sample[] = [];
+    const stats: FrameStat[] = [];
+    const sqiWindows: { endNs: number; pClean: number }[] = [];
+    // The cut-off is null while no SQI model ships; then no window is scored and the session's threshold of 0
+    // can reject nothing, so a missing model never invents a quality verdict.
+    const threshold = sqiThreshold();
+    let scoredEndS: number | null = null;
+    let scoring = false;
 
     const stopCamera = () => {
       subscriptions.forEach((subscription) => subscription.remove());
@@ -71,20 +121,80 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
       if (started)
         capture.stop().catch((error: unknown) => console.warn(`Capture did not stop: ${reasonOf(error)}`));
       started = false;
+      session = null;
+    };
+
+    const scoreWindow = async (scored: LiveSession, window: SqiWindow, startNs: number) => {
+      scoring = true;
+      try {
+        const score = await scoreSqiWindow(window.input);
+        // A screen that closed, or a session that failed, while the model ran has no use for the score.
+        if (score.source !== 'model' || scored !== session) return;
+        scored.setSqi(window.endS, score.pClean);
+        sqiWindows.push({ endNs: startNs + Math.round(window.endS * 1e9), pClean: score.pClean });
+      } catch (error) {
+        console.warn(`SQI scoring failed: ${reasonOf(error)}`);
+      } finally {
+        scoring = false;
+      }
+    };
+
+    // A batch the session refuses (stats that do not match the samples, time going backwards) ends its
+    // counting: the frames after it can no longer be trusted to line up, so nothing is estimated in its place.
+    const feedSession = (batch: SampleBatch, startNs: number): string | null => {
+      if (!session) return null;
+      try {
+        session.pushSamples(batch);
+      } catch (error) {
+        session = null;
+        return reasonOf(error);
+      }
+      samples.push(...batch.samples);
+      stats.push(...batch.stats);
+      const window = session.sqiWindow;
+      if (threshold !== null && window && !scoring && window.endS !== scoredEndS) {
+        scoredEndS = window.endS;
+        void scoreWindow(session, window, startNs);
+      }
+      return null;
     };
 
     const onSamples = (batch: SampleBatch) => {
       const newest = batch.samples[batch.samples.length - 1];
       if (!newest) return;
       firstNs ??= batch.samples[0]?.tNs ?? newest.tNs;
+      const startNs = firstNs;
       recent = [...recent, ...batch.samples.map(({ tNs, r }) => ({ tNs, r }))].filter(
         (sample) => newest.tNs - sample.tNs <= WAVEFORM_WINDOW_NS,
       );
-      const startNs = firstNs;
+      const hadSession = session !== null;
+      const refusal = feedSession(batch, startNs);
+      if (session) {
+        const rejectedSpans = session.rejectedSpans;
+        keepCapture({
+          captureFps,
+          lensId,
+          samples,
+          stats,
+          motionSpans: spansOf(rejectedSpans, 'motion', startNs),
+          coldHandsSpans: spansOf(rejectedSpans, 'coldHands', startNs),
+          sqi: sqiWindows.length > 0 && threshold !== null ? { threshold, windows: sqiWindows } : null,
+        });
+      }
       setLive((previous) => ({
         ...previous,
         recentRed: recent.map((sample) => sample.r),
         elapsedS: (newest.tNs - startNs) / 1e9,
+        ...(session
+          ? {
+              cleanSeconds: session.cleanSeconds,
+              coachingKey: session.coachingKey,
+              recentWaveform: session.recentWaveform,
+              rejectedSpans: session.rejectedSpans,
+            }
+          : hadSession
+            ? { cleanSeconds: null, coachingKey: null, failure: refusal }
+            : {}),
       }));
     };
 
@@ -96,13 +206,29 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
           setLive(idle('denied'));
           return;
         }
-        const config = captureConfig(await capture.getCapabilities());
+        const capabilities = await capture.getCapabilities();
         if (!mounted) return;
+        const lens = chosenLens(capabilities);
+        // With no torch-capable lens there is no rate to ask for or to give the session, so that phone runs
+        // without clean seconds rather than with a guessed rate.
+        if (lens) {
+          captureFps = captureFpsFor(capabilities.platform, lens);
+          lensId = lens.id;
+          session = createLiveSession({
+            captureFps,
+            sqiThreshold: threshold ?? 0,
+            perfusionFloorPct: DSP_CONFIG.live.defaultPerfusionFloorPct,
+          });
+        }
+        keepCapture(null);
         subscriptions = [
           capture.addListener('samples', onSamples),
-          capture.addListener('status', (status) => setLive((previous) => ({ ...previous, status }))),
+          capture.addListener('status', (status) => {
+            session?.pushStatus(status);
+            setLive((previous) => ({ ...previous, status }));
+          }),
         ];
-        await capture.start(config);
+        await capture.start(captureConfig(capabilities, lens, captureFps));
         started = true;
         // The screen closed while the camera was starting, so its cleanup had nothing to stop yet.
         if (!mounted) stopCamera();

@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, View } from 'react-native';
@@ -10,18 +10,32 @@ import { LatestResultCard } from '@/home/LatestResultCard';
 import { MeasureButton } from '@/home/MeasureButton';
 import { MetricTile } from '@/home/MetricTile';
 import { dateLine, dayPeriod } from '@/home/moment';
-import { latestReading, type StoredReading, tileSeries } from '@/home/readings';
+import { latestReading, tileSeries } from '@/home/readings';
 import { WidgetPromo } from '@/home/WidgetPromo';
 import { durationLabel } from '@/measure/durationLabel';
 import { DEFAULT_MODE, MODES } from '@/measure/mode';
+import { useOnboardingState } from '@/profile/onboarding';
+import { useStoredReadings } from '@/store/useStoredReadings';
 import { useTheme } from '@/theme';
 
-// Nothing saves readings on the phone yet, so Home has none to show; this stays empty until storage lands.
-const noStoredReadingsYet: readonly StoredReading[] = [];
-
+// A fresh install opens on Welcome. Welcome's "Try demo mode" comes here with ?demo=1 and skips the gate
+// without recording that onboarding is done, so the next launch still starts at Welcome.
+// Only the launch screen is gated: a widget or notification link (lumen://check) opens its own screen
+// directly, which a person who never finished onboarding can reach, and Home then sends them to Welcome.
 export default function HomeScreen() {
+  const { demo } = useLocalSearchParams<{ demo?: string }>();
+  const onboarding = useOnboardingState();
+  if (demo === undefined) {
+    if (onboarding === 'loading') return null;
+    if (onboarding === 'needed') return <Redirect href="/welcome" />;
+  }
+  return <Home />;
+}
+
+function Home() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const readings = useStoredReadings();
   const { spacing } = useTheme();
   const [promoDismissed, setPromoDismissed] = useState(false);
   const now = new Date();
@@ -53,23 +67,19 @@ export default function HomeScreen() {
           />
           <NavButton label={t('home.changeMode')} href="/measure/mode" variant="link" />
         </View>
-        <LatestResultCard reading={latestReading(noStoredReadingsYet)} now={now} />
+        <LatestResultCard reading={latestReading(readings)} now={now} />
         {promoDismissed ? null : <WidgetPromo onDismiss={() => setPromoDismissed(true)} />}
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <MetricTile
             label={t('home.restingHr')}
             unit={t('home.unitBpm')}
-            points={tileSeries(noStoredReadingsYet, 'hr')}
+            points={tileSeries(readings, 'hr')}
           />
-          <MetricTile
-            label={t('home.hrv')}
-            unit={t('home.unitMs')}
-            points={tileSeries(noStoredReadingsYet, 'rmssd')}
-          />
+          <MetricTile label={t('home.hrv')} unit={t('home.unitMs')} points={tileSeries(readings, 'rmssd')} />
           <MetricTile
             label={t('home.breathing')}
             unit={t('home.unitPerMin')}
-            points={tileSeries(noStoredReadingsYet, 'resp')}
+            points={tileSeries(readings, 'resp')}
           />
         </View>
         <NavButton label={t('home.followUp')} href="/follow-up" variant="link" />

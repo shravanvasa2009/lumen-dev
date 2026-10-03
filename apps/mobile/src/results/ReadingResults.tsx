@@ -98,7 +98,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
       }
     >
       <ScrollView contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xxl }}>
-        <DemoBanner synthetic={reading.synthetic} />
+        {reading.sample ? <DemoBanner synthetic={reading.synthetic} /> : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <AppText variant="title" accessibilityRole="header">
             {t('results.title')}
@@ -129,6 +129,8 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
             {metaParts.join(' · ')}
           </AppText>
         </View>
+
+        {acuteFlag ? <Button label={t('careMap.enter')} onPress={() => router.push('/care-map')} /> : null}
 
         {diabetesCard ? (
           <View
@@ -161,6 +163,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
             >
               {t('results.diabetesNext')} ›
             </AppText>
+            <Button label={t('careMap.enter')} variant="secondary" onPress={() => router.push('/care-map')} />
           </View>
         ) : null}
 

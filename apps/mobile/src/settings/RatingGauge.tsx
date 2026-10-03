@@ -10,28 +10,52 @@ const RADIUS = (SIZE - STROKE) / 2;
 const CENTER = SIZE / 2;
 // The ring opens at the bottom: it starts 150 degrees clockwise from the right and sweeps 240 degrees.
 const START_DEGREES = 150;
-const END_DEGREES = 30;
+const SWEEP_DEGREES = 240;
+const MAX_SCORE = 100;
 
 function pointAt(degrees: number) {
   const radians = (degrees * Math.PI) / 180;
   return `${CENTER + RADIUS * Math.cos(radians)} ${CENTER + RADIUS * Math.sin(radians)}`;
 }
 
-const ringPath = `M ${pointAt(START_DEGREES)} A ${RADIUS} ${RADIUS} 0 1 1 ${pointAt(END_DEGREES)}`;
+function arcPath(sweepDegrees: number) {
+  const largeArc = sweepDegrees > 180 ? 1 : 0;
+  return `M ${pointAt(START_DEGREES)} A ${RADIUS} ${RADIUS} 0 ${largeArc} 1 ${pointAt(START_DEGREES + sweepDegrees)}`;
+}
 
-// Draws the empty ring: no score exists until the phone check has run on this phone.
-export function RatingGauge({ placeholder, caption }: { placeholder: string; caption: string }) {
+const ringPath = arcPath(SWEEP_DEGREES);
+
+type RatingGaugeProps = {
+  // The big label: the score, or the placeholder dash while there is none.
+  label: string;
+  caption: string;
+  // 0 to 100. Null draws the empty ring: no score exists until the phone has been rated.
+  score: number | null;
+};
+
+export function RatingGauge({ label, caption, score }: RatingGaugeProps) {
   const { colors } = useTheme();
+  const filledDegrees =
+    score === null ? 0 : (Math.min(Math.max(score, 0), MAX_SCORE) / MAX_SCORE) * SWEEP_DEGREES;
   return (
-    <View style={styles.gauge}>
+    <View accessible accessibilityLabel={`${label}, ${caption}`} style={styles.gauge}>
       <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} accessibilityElementsHidden>
         <Path d={ringPath} stroke={colors.surface3} strokeWidth={STROKE} strokeLinecap="round" fill="none" />
+        {filledDegrees > 0 ? (
+          <Path
+            d={arcPath(filledDegrees)}
+            stroke={colors.accentFill}
+            strokeWidth={STROKE}
+            strokeLinecap="round"
+            fill="none"
+          />
+        ) : null}
       </Svg>
       <View style={styles.label}>
-        <AppText variant="display" tone="textDim">
-          {placeholder}
+        <AppText variant="display" tone={score === null ? 'textDim' : 'text'}>
+          {label}
         </AppText>
-        <AppText variant="headline" tone="textDim">
+        <AppText variant="headline" tone={score === null ? 'textDim' : 'accent'}>
           {caption}
         </AppText>
       </View>

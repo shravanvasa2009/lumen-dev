@@ -31,25 +31,39 @@ class PulseShape:
     beats_used: int
 
 
-def _is_local_max(y: np.ndarray, i: int) -> bool:
+def is_local_max(y: Sequence[float], i: int) -> bool:
     return y[i - 1] < y[i] >= y[i + 1]
 
 
-def _is_local_min(y: np.ndarray, i: int) -> bool:
+def is_local_min(y: Sequence[float], i: int) -> bool:
     return y[i - 1] > y[i] <= y[i + 1]
 
 
-def _label_waves(smoothed: np.ndarray, second: np.ndarray, span_end: int) -> WaveLabels:
+def systolic_span_end() -> int:
+    # End (exclusive) of the systolic span searched for the peak, the a–e waves, and the dicrotic notch.
+    dsp14 = DSP_CONFIG["dsp14"]
+    return math.floor((dsp14["leadFraction"] + dsp14["systoleFraction"]) * dsp14["beatSamples"] + 0.5)
+
+
+def systolic_peak_index(smoothed: Sequence[float]) -> int:
+    # The first highest sample of the smoothed beat within the systolic span; the a–e labels and the
+    # diabetes-net shape features share it, as packages/core systolicPeakIndex.
+    peak = 0
+    for k in range(1, systolic_span_end()):
+        if smoothed[k] > smoothed[peak]:
+            peak = k
+    return peak
+
+
+def _label_waves(smoothed: np.ndarray, second: np.ndarray) -> WaveLabels:
     # a: the largest local maximum of the second derivative before the systolic peak; then b, c, d, e: the
     # first local minimum, maximum, minimum, maximum after it, in the spec's order. All within the systolic
     # span; a wave that is not found leaves it and every later wave None.
-    systolic_peak = 0
-    for k in range(1, span_end):
-        if smoothed[k] > smoothed[systolic_peak]:
-            systolic_peak = k
+    span_end = systolic_span_end()
+    systolic_peak = systolic_peak_index(smoothed)
     a = None
     for i in range(1, systolic_peak):
-        if _is_local_max(second, i) and (a is None or second[i] > second[a]):
+        if is_local_max(second, i) and (a is None or second[i] > second[a]):
             a = i
     if a is None:
         return WaveLabels(None, None, None, None, None)
@@ -57,10 +71,10 @@ def _label_waves(smoothed: np.ndarray, second: np.ndarray, span_end: int) -> Wav
     def following(start: int, is_wave) -> int | None:
         return next((i for i in range(start + 1, span_end - 1) if is_wave(second, i)), None)
 
-    b = following(a, _is_local_min)
-    c = None if b is None else following(b, _is_local_max)
-    d = None if c is None else following(c, _is_local_min)
-    e = None if d is None else following(d, _is_local_max)
+    b = following(a, is_local_min)
+    c = None if b is None else following(b, is_local_max)
+    d = None if c is None else following(c, is_local_min)
+    e = None if d is None else following(d, is_local_max)
     return WaveLabels(a, b, c, d, e)
 
 
@@ -73,8 +87,8 @@ def ensemble_beat(
     dsp14 = DSP_CONFIG["dsp14"]
     samples, lead = dsp14["beatSamples"], dsp14["leadFraction"]
     # The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
-    # nominal 60 fps session measures 59.9x.
-    if capture_fps < dsp14["minFps"]:
+    # nominal 60 fps session measures 59.9x. NaN and +Infinity are no rate, so both fail the gate.
+    if not (math.isfinite(capture_fps) and capture_fps >= dsp14["minFps"]):
         return None
     values = [float(value) for value in morphology_256]
     starts = [float(onset) for onset in onsets]
@@ -96,6 +110,10 @@ def ensemble_beat(
         last = onset + ((samples - 1) / samples - lead) * period
         if period > longest_period or first < 0 or math.floor(last) + 1 > len(values) - 1:
             continue
+        # One non-finite sample would turn the whole average into NaN, so its beat is skipped like one that
+        # runs off the signal (ADR 0059).
+        if not all(math.isfinite(values[j]) for j in range(math.floor(first), math.floor(last) + 2)):
+            continue
         raw = []
         for k in range(samples):
             x = onset + (k / samples - lead) * period
@@ -114,5 +132,4 @@ def ensemble_beat(
     window, order = dsp14["savgolWindow"], dsp14["savgolOrder"]
     smoothed = signal.savgol_filter(beat, window, order, deriv=0, mode="interp")
     second = signal.savgol_filter(beat, window, order, deriv=2, mode="interp")
-    span_end = math.floor((lead + dsp14["systoleFraction"]) * samples + 0.5)
-    return PulseShape(beat, smoothed, second, _label_waves(smoothed, second, span_end), beats_used)
+    return PulseShape(beat, smoothed, second, _label_waves(smoothed, second), beats_used)

@@ -1,5 +1,7 @@
 /** @jest-environment node */
 import type { ExpoConfig } from 'expo/config';
+import { getConfig } from 'expo/config';
+import { AndroidConfig, compileModsAsync } from 'expo/config-plugins';
 
 const ENV_KEYS = ['LUMEN_IOS_PERSONAL_TEAM', 'LUMEN_IOS_TEAM_ID'] as const;
 
@@ -89,5 +91,58 @@ describe('app.config Bluetooth for the Lab chest strap', () => {
         bluetoothAlwaysPermission: 'Used only in Lab mode to compare Lumen with a heart-rate chest strap.',
       },
     ]);
+  });
+});
+
+describe('app.config Care map location (ADR 0054)', () => {
+  // Jest runs from apps/mobile, where app.config.ts lives.
+  const projectRoot = process.cwd();
+  let evaluated: ExpoConfig;
+  let androidManifest: {
+    manifest: { 'uses-permission'?: { $: { 'android:name': string; 'tools:node'?: string } }[] };
+  };
+
+  // Runs every plugin in app.config.ts against Expo's templates, in memory, as a prebuild would. Prebuild
+  // itself turns android.blockedPermissions into manifest entries, so that step is applied here too.
+  beforeAll(async () => {
+    const { exp } = getConfig(projectRoot, {
+      skipSDKVersionRequirement: true,
+      isPublicConfig: false,
+      isModdedConfig: true,
+    });
+    evaluated = await compileModsAsync(AndroidConfig.Permissions.withInternalBlockedPermissions(exp), {
+      projectRoot,
+      introspect: true,
+      platforms: ['ios', 'android'],
+    });
+    androidManifest = evaluated._internal?.modResults.android.manifest;
+  }, 60_000);
+
+  it('gives the iOS location prompt in English and Spanish', () => {
+    expect(evaluated.ios?.infoPlist?.NSLocationWhenInUseUsageDescription).toMatch(
+      /^Lumen uses your location/,
+    );
+    expect(evaluated.locales?.es).toMatchObject({
+      ios: {
+        NSLocationWhenInUseUsageDescription: expect.stringMatching(/^Lumen usa tu ubicación/),
+        NSCameraUsageDescription: expect.stringMatching(/^Lumen usa la cámara/),
+      },
+    });
+  });
+
+  it('asks for no Always, motion or background location on iOS', () => {
+    const keys = Object.keys(evaluated.ios?.infoPlist ?? {});
+    expect(keys.filter((key) => key.startsWith('NSLocationAlways'))).toEqual([]);
+    expect(keys).not.toContain('NSMotionUsageDescription');
+    expect(evaluated.ios?.infoPlist?.UIBackgroundModes ?? []).not.toContain('location');
+  });
+
+  it('keeps coarse location on Android and blocks the precise one', () => {
+    const kept = (androidManifest.manifest['uses-permission'] ?? [])
+      .filter((entry) => entry.$['tools:node'] !== 'remove')
+      .map((entry) => entry.$['android:name']);
+    expect(kept).toContain('android.permission.ACCESS_COARSE_LOCATION');
+    expect(kept).not.toContain('android.permission.ACCESS_FINE_LOCATION');
+    expect(kept).not.toContain('android.permission.ACCESS_BACKGROUND_LOCATION');
   });
 });

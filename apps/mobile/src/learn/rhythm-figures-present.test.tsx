@@ -1,6 +1,7 @@
 import { renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import '@/i18n';
 
@@ -18,6 +19,8 @@ jest.mock('../../assets/evidence.json', () => ({
     },
   },
 }));
+
+preloadAppRoutes();
 
 it('shows both rhythm figures from evidence.json as percentages', () => {
   renderRouter('./app', { initialUrl: '/learn/how-the-rhythm-check-works' });

@@ -1,6 +1,8 @@
+import { renderHook } from '@testing-library/react-native';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import { type AnalysisProgress, completedPercent, pendingProgress } from './analysisProgress';
 import type { AnalysisState } from './useReadingAnalysis';
@@ -19,10 +21,13 @@ const midway: AnalysisProgress = {
   rejectedBeats: 6,
 };
 
+preloadAppRoutes();
+
 describe('useReadingAnalysis', () => {
   it('reports unavailable until analyzeReading is in the app', () => {
     const actual = jest.requireActual<typeof import('./useReadingAnalysis')>('./useReadingAnalysis');
-    expect(actual.useReadingAnalysis()).toEqual({
+    const { result: analysis } = renderHook(() => actual.useReadingAnalysis());
+    expect(analysis.current).toEqual({
       phase: 'unavailable',
     });
   });

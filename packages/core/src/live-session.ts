@@ -1,4 +1,5 @@
-import type { CaptureStatus, SampleBatch } from './capture';
+import type { CaptureStatus, FrameStat, Sample, SampleBatch } from './capture';
+import type { NsSpan, SqiScores } from './reading';
 
 // DSP-9. Never assigned from interval irregularity alone.
 export type BeatClass = 'not-a-beat' | 'artifact' | 'atypical' | 'normal';
@@ -37,11 +38,21 @@ export interface SqiWindow {
 export interface LiveSession {
   pushSamples(batch: SampleBatch): void;
   pushStatus(status: CaptureStatus): void;
-  // SQI-Net runs in the app every 1 s on the last 4 s window (§11.2).
+  // SQI-Net runs in the app every 1 s on the last 4 s window (§11.2). Pass sqiWindow.endS unchanged. A
+  // RangeError for an end outside the reading or not a whole ns (readingInput could not hand it on
+  // exactly), or a pClean outside [0, 1].
   setSqi(windowEndS: number, pClean: number): void;
   readonly cleanSeconds: number;
   readonly recentWaveform: { tS: number[]; ppg: number[] }; // last 6 s
   readonly coachingKey: CoachingKey | null;
   readonly rejectedSpans: RejectedSpan[];
   readonly sqiWindow: SqiWindow | null; // null until 4 s of covered signal exists
+  // H-025: everything analyzeReading needs from the session, so the saved result matches the live screen.
+  // Spans still open are closed at the newest frame. sqi is null until the first setSqi.
+  readingInput(): {
+    capture: { samples: Sample[]; stats: FrameStat[] };
+    motionSpans: NsSpan[];
+    coldHandsSpans: NsSpan[];
+    sqi: SqiScores | null;
+  };
 }

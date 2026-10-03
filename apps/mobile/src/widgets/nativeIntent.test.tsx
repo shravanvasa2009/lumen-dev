@@ -1,6 +1,7 @@
 import { renderRouter } from 'expo-router/testing-library';
 
 import { redirectSystemPath } from '../../app/+native-intent';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 // Resolved against the working directory, which is apps/mobile when the mobile workspace runs jest.
 const appDirectory = './app';
@@ -14,6 +15,8 @@ const links = [
   { link: 'LUMEN://Check?Mode=Full', path: '/measure/precheck', mode: 'full' },
   { link: 'lumen://standing', path: '/measure/standing-test', mode: undefined },
 ] as const;
+
+preloadAppRoutes();
 
 describe('widget and notification links', () => {
   it.each(links)('$link opens $path', ({ link, path, mode }) => {

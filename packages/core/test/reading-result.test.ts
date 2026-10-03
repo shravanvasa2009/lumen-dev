@@ -1,6 +1,9 @@
 import {
   analyzeReading,
   buildReadingResult,
+  DSP_CONFIG,
+  isProbabilityRow,
+  logisticRhythmOutputs,
   type EvidenceFile,
   type FrameStat,
   type ModelOutputs,
@@ -11,6 +14,7 @@ import {
   type Sample,
 } from '../src';
 import seedEvidence from '../../../docs/validation/evidence.json';
+import ruleFixture from './fixtures/rhythm-logistic.json';
 
 const CLOCK_START_NS = 5_000_000_000_000;
 const HOUR_MS = 3_600_000;
@@ -106,7 +110,8 @@ describe('ReadingResult shape', () => {
       BASE.segments.flat().filter((beat) => beat.longPause).length,
     );
     expect(outcome.experimental.pulseShape).toEqual({ available: true });
-    expect(build(analysisWith({}, { captureFps: 30 })).experimental.pulseShape).toEqual({ available: false });
+    // Available exactly when analyzeReading found a DSP-14 averaged beat.
+    expect(build(analysisWith({ pulseShape: null })).experimental.pulseShape).toEqual({ available: false });
   });
 });
 
@@ -266,6 +271,34 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
     expect(() => build(BASE, oneExtra)).toThrow(RangeError);
   });
 
+  // A NaN row once became a card with no class and P(AF) NaN under an "irregular, retake" headline.
+  it.each([
+    ['a NaN', [Number.NaN, 0.5, 0.5]],
+    ['an infinite', [Infinity, 0, 0]],
+    ['a negative', [1.1, -0.1, 0]],
+    ['a non-normalised', [0.5, 0.2, 0.2]],
+  ] as [string, [number, number, number]][])('refuses %s window probability row', (_, bad) => {
+    const rows = [...SINUS.rhythm!.windowProbs];
+    rows[rows.length - 1] = bad;
+    const outputs: ModelOutputs = { rhythm: { windowProbs: rows, tauAf: 0.5 }, diabetes: null };
+    expect(() => build(BASE, outputs)).toThrow(/probabilit/);
+    expect(() => build(BASE, outputs, seedEvidence, { ...PROFILE, pacemaker: true })).toThrow(RangeError);
+  });
+
+  // The app drops just the rhythm card on a row this rejects, so it must agree with buildReadingResult.
+  it('exports the same row check that buildReadingResult applies', () => {
+    const float32Row = Array.from(Float32Array.from([0.9, 0.05, 0.05]));
+    expect(isProbabilityRow(float32Row)).toBe(true);
+    expect(isProbabilityRow([0.5, 0.2, 0.2])).toBe(false);
+    expect(isProbabilityRow([Number.NaN, 0.5, 0.5])).toBe(false);
+    expect(isProbabilityRow([0.5, 0.5])).toBe(false);
+  });
+
+  it('accepts a row that sums to 1 only within float32 rounding, as ONNX Runtime returns it', () => {
+    const float32Row = Array.from(Float32Array.from([0.9, 0.05, 0.05])) as [number, number, number];
+    expect(build(BASE, rhythmOf(float32Row)).metrics.rhythm!.class).toBe('sinus');
+  });
+
   it('turns rhythm screening off with a pacemaker, and rhythm flags off with known AFib', () => {
     expect(build(BASE, AF, seedEvidence, { ...PROFILE, pacemaker: true }).metrics.rhythm).toBeNull();
     expect(build(BASE, AF, seedEvidence, { ...PROFILE, knownAf: true }).metrics.rhythm!.flag).toBeNull();
@@ -300,6 +333,51 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
     expect(build(unknownTime, AF, seedEvidence, PROFILE, [past(3, true)]).metrics.rhythm!.flag).toBe(
       'irregular',
     );
+  });
+});
+
+describe('basic analysis: the logistic rule feeds the same rhythm decision (§11.1, §11.10)', () => {
+  const ABSTAIN = DSP_CONFIG.rules.uncertainBelowTopProb;
+  const EPS = 1e-6;
+  const entryWith = (rule: object, tauAf: number) => ({
+    inputs: ruleFixture.inputs,
+    threshold: { af: tauAf },
+    abstainBelow: ABSTAIN,
+    rule,
+  });
+  // Zero coefficients make every window's probabilities softmax(log probs) = probs.
+  const constantRule = (probs: number[]) => ({
+    ...ruleFixture.rule,
+    classes: ['sinus', 'af', 'other'],
+    coefficients: ruleFixture.rule.coefficients.map((row) => row.map(() => 0)),
+    intercepts: probs.map(Math.log),
+  });
+  const ruleModels = (probs: number[], tauAf: number): ModelOutputs => ({
+    rhythm: logisticRhythmOutputs(entryWith(constantRule(probs), tauAf), BASE.rhythmFeatures),
+    diabetes: null,
+  });
+  const withTop = (top: number) => [top, (1 - top) / 2, (1 - top) / 2];
+
+  it('scores every DSP-15 window, and the card reports their mean P(AF)', () => {
+    const rhythm = logisticRhythmOutputs(entryWith(ruleFixture.rule, 0.5), BASE.rhythmFeatures);
+    const meanAf = rhythm.windowProbs.reduce((total, probs) => total + probs[1], 0) / windows;
+    expect(rhythm.windowProbs).toHaveLength(windows);
+    expect(build(BASE, { rhythm, diabetes: null }).metrics.rhythm!.pAF).toBeCloseTo(meanAf, 12);
+  });
+
+  it('abstains just below the top-probability line and answers just above it', () => {
+    const below = build(BASE, ruleModels(withTop(ABSTAIN - EPS), 0.5));
+    expect(below.headlineKey).toBe('result.uncertain');
+    expect(below.metrics.rhythm).toMatchObject({ class: 'sinus', confidence: 'low', flag: null });
+    const above = build(BASE, ruleModels(withTop(ABSTAIN + EPS), 0.5));
+    expect(above.headlineKey).toBe('result.regular');
+    expect(above.metrics.rhythm!.confidence).toBe('moderate');
+  });
+
+  it('flags irregular when the mean P(AF) reaches τ_AF, and not just below it', () => {
+    const probs = [0.05, 0.9, 0.05];
+    expect(build(BASE, ruleModels(probs, 0.9 - EPS)).metrics.rhythm!.flag).toBe('irregular');
+    expect(build(BASE, ruleModels(probs, 0.9 + EPS)).metrics.rhythm!.flag).toBeNull();
   });
 });
 

@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 
 // PRIV-1: release builds must make no network requests during a reading. The only network code allowed
-// is the development-build capture sender, which must live under src/dev/ and be guarded by __DEV__.
+// is the development-build capture sender, which must live under src/dev/ and be guarded by __DEV__,
+// plus the user-opened Care map (ADR 0054), whose tile host and map library stay inside the Care map paths.
 // Native code (the capture module now, Track F's widget targets later) may make no network calls at all:
 // the Polar strap and the capture sender both run in JS.
 const ROOTS = [
@@ -35,6 +37,36 @@ const NATIVE_NETWORK = new RegExp(
     '\\borg\\.chromium\\.net\\.',
   ].join('|'),
 );
+// ADR 0054: the Care map, opened only by the user, loads map tiles from OpenFreeMap. The host, the map
+// library, and imports of the care code are allowed only in the Care map route files and src/care/, so no
+// other screen (such as a reading) can reach them.
+const TILE_HOST = /tiles\.openfreemap\.org/;
+// The old stack route stays allowed only until the Care tab move (ADR 0065) lands on main; remove it
+// from this list in the same change that deletes app/care-map.tsx, so main never fails this check.
+const CARE_MAP_ROUTES = ['apps/mobile/app/(tabs)/care.tsx', 'apps/mobile/app/care-map.tsx'];
+const CARE_MAP_DIR = 'apps/mobile/src/care/';
+const MAP_LIBRARY = '@maplibre/maplibre-react-native';
+const IMPORT_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*['"`]([^'"`]+)['"`]/g;
+
+function inCareMap(file) {
+  return CARE_MAP_ROUTES.includes(file) || file.startsWith(CARE_MAP_DIR);
+}
+
+function importsCareMapCode(file, text) {
+  return [...text.matchAll(IMPORT_SPECIFIER)].some(([, specifier]) => {
+    if (specifier === MAP_LIBRARY || specifier.startsWith(`${MAP_LIBRARY}/`)) return true;
+    if (specifier === '@/care' || specifier.startsWith('@/care/')) return true;
+    if (!specifier.startsWith('.')) return false;
+    const target = path.posix.join(path.posix.dirname(file), specifier);
+    return (
+      target === CARE_MAP_DIR.slice(0, -1) ||
+      target.startsWith(CARE_MAP_DIR) ||
+      CARE_MAP_ROUTES.includes(target) ||
+      CARE_MAP_ROUTES.includes(`${target}.tsx`)
+    );
+  });
+}
+
 const INTERNET_PERMISSION = /android\.permission\.INTERNET/;
 
 // Tracked and not-ignored files, so a hand-written file can't hide under a folder name such as build.
@@ -59,6 +91,14 @@ for (const file of files) {
     if (NATIVE_NETWORK.test(text)) violations.push(`${file}: native network call (none are allowed)`);
     continue;
   }
+  if (!inCareMap(file)) {
+    if (TILE_HOST.test(text))
+      violations.push(`${file}: map tile host outside the Care map routes (/care-map, Care tab)`);
+    if (importsCareMapCode(file, text))
+      violations.push(
+        `${file}: imports the map library or care code outside the Care map routes (/care-map, Care tab)`,
+      );
+  }
   const inDev = file.startsWith(DEV_DIR);
   if (NETWORK.test(text) && !inDev) violations.push(`${file}: network call outside ${DEV_DIR}`);
   if (inDev && NETWORK.test(text) && !/__DEV__/.test(text))
@@ -68,4 +108,4 @@ if (violations.length) {
   console.error(`PRIV-1 failed:\n${violations.join('\n')}`);
   process.exit(1);
 }
-console.log('PRIV-1 OK: no network code outside development-only paths');
+console.log('PRIV-1 OK: no network code outside development-only paths and the Care map routes');

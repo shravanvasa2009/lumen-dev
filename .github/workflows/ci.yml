@@ -45,8 +45,6 @@ jobs:
       - name: Commit format (commitlint)
         if: github.event_name == 'pull_request' && hashFiles('package-lock.json') != ''
         run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
-      # test:notifications and test:widgets join this list when their tracks implement them;
-      # until then they exit 1 on purpose.
       - name: Lint, types, tests, dead code
         if: hashFiles('package-lock.json') != ''
         run: |
@@ -94,6 +92,10 @@ jobs:
       - name: Evidence labels (EVID-1)
         if: hashFiles('package-lock.json') != ''
         run: npm run test:evidence
+      # npm test already runs these; separate steps make NOTIF-1 and WID-1 visible in the CI summary.
+      - name: Notification schedule (NOTIF-1)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:notifications
       - name: Widget snapshot and deep links (WID-1)
         if: hashFiles('package-lock.json') != ''
         run: npm run test:widgets
@@ -210,8 +212,24 @@ jobs:
         with:
           api-level: 34
           arch: x86_64
-          target: google_apis
-          # The default profile is a 480x800 Nexus One, about 320x533 dp. Lumen's scrolling screens then
-          # keep buttons and rows below the fold, where Maestro cannot see or tap them (it does not scroll).
+          # No Google apps or Play services: Lumen's flows don't use them, and their background work
+          # starved the CI emulator (Pixel Launcher ANR in run 37079462854).
+          target: default
+          # The default profile boots at 320x640 dp (run 37045872239 logs 320x640, 160 dpi). Lumen's
+          # scrolling screens then keep buttons and rows below the fold, where Maestro cannot see or tap
+          # them (it does not scroll).
           profile: pixel_6
-          script: npm run e2e:android
+          # A freshly booted CI emulator is still busy for a while (splash stuck in run 37077177757, ANR
+          # dialog over Home in run 37079462854), so let it settle and dismiss system dialogs first. The
+          # broadcast closes only dialogs already showing (the shell holds BROADCAST_CLOSE_SYSTEM_DIALOGS).
+          # On failure, keep the whole device log next to Maestro's output (its own log covers one flow).
+          script: adb wait-for-device && sleep 30 && adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS && npm run e2e:android || (mkdir -p "$HOME/.maestro/tests"; adb logcat -d > "$HOME/.maestro/tests/logcat.txt"; exit 1)
+      # Maestro saves a screenshot and the view hierarchy for each failed step under ~/.maestro/tests; CI
+      # failures were otherwise text-only. https://github.com/actions/upload-artifact
+      - name: Upload Maestro output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-output
+          path: ~/.maestro/tests
+          retention-days: 7

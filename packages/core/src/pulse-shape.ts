@@ -78,16 +78,31 @@ export function savgolFilter(values: ArrayLike<number>, deriv: number): Float64A
   return filtered;
 }
 
-const isLocalMax = (y: Float64Array, i: number) => y[i - 1]! < y[i]! && y[i]! >= y[i + 1]!;
-const isLocalMin = (y: Float64Array, i: number) => y[i - 1]! > y[i]! && y[i]! <= y[i + 1]!;
+export const isLocalMax = (y: Float64Array, i: number) => y[i - 1]! < y[i]! && y[i]! >= y[i + 1]!;
+export const isLocalMin = (y: Float64Array, i: number) => y[i - 1]! > y[i]! && y[i]! <= y[i + 1]!;
+
+// End (exclusive) of the systolic span searched for the peak, the a–e waves, and the dicrotic notch.
+export function systolicSpanEnd(): number {
+  const { leadFraction, systoleFraction, beatSamples } = DSP_CONFIG.dsp14;
+  return Math.floor((leadFraction + systoleFraction) * beatSamples + 0.5);
+}
+
+// The first highest sample of the smoothed beat within the systolic span; the a–e labels and the
+// diabetes-net shape features share it.
+export function systolicPeakIndex(smoothed: Float64Array): number {
+  const spanEnd = systolicSpanEnd();
+  let systolicPeak = 0;
+  for (let k = 1; k < spanEnd; k++) if (smoothed[k]! > smoothed[systolicPeak]!) systolicPeak = k;
+  return systolicPeak;
+}
 
 // a: the largest local maximum of the second derivative before the systolic peak; then b, c, d, e: the
 // first local minimum, maximum, minimum, maximum after it, in the spec's order. All within the systolic
 // span; a wave that is not found leaves it and every later wave null.
-function labelWaves(smoothed: Float64Array, secondDerivative: Float64Array, spanEnd: number): WaveLabels {
+function labelWaves(smoothed: Float64Array, secondDerivative: Float64Array): WaveLabels {
   const waves: WaveLabels = { a: null, b: null, c: null, d: null, e: null };
-  let systolicPeak = 0;
-  for (let k = 1; k < spanEnd; k++) if (smoothed[k]! > smoothed[systolicPeak]!) systolicPeak = k;
+  const spanEnd = systolicSpanEnd();
+  const systolicPeak = systolicPeakIndex(smoothed);
   for (let i = 1; i < systolicPeak; i++) {
     if (
       isLocalMax(secondDerivative, i) &&
@@ -107,6 +122,11 @@ function labelWaves(smoothed: Float64Array, secondDerivative: Float64Array, span
   return waves;
 }
 
+function allFinite(values: ArrayLike<number>, from: number, to: number): boolean {
+  for (let j = from; j <= to; j++) if (!Number.isFinite(values[j]!)) return false;
+  return true;
+}
+
 /** DSP-14: ensemble beat of ≥ 20 normal beats of the 0.5–8 Hz morphology band at 256 Hz, with a–e labels. */
 export function ensembleBeat(
   morphology256: ArrayLike<number>,
@@ -116,11 +136,10 @@ export function ensembleBeat(
 ): PulseShape | null {
   if (onsets.length !== normal.length)
     throw new RangeError(`${onsets.length} onsets but ${normal.length} normal-beat flags`);
-  const { minNormalBeats, beatSamples, leadFraction, systoleFraction, minFps, maxPeriodRatio } =
-    DSP_CONFIG.dsp14;
+  const { minNormalBeats, beatSamples, leadFraction, minFps, maxPeriodRatio } = DSP_CONFIG.dsp14;
   // The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
-  // nominal 60 fps session measures 59.9x.
-  if (captureFps < minFps) return null;
+  // nominal 60 fps session measures 59.9x. NaN and +Infinity are no rate, so both fail the gate.
+  if (!(Number.isFinite(captureFps) && captureFps >= minFps)) return null;
 
   // A beat runs from its onset to the next one, so both beats must be normal.
   const candidates: number[] = [];
@@ -138,6 +157,9 @@ export function ensembleBeat(
     const first = onset - leadFraction * period;
     const last = onset + ((beatSamples - 1) / beatSamples - leadFraction) * period;
     if (period > longestPeriod || first < 0 || Math.floor(last) + 1 > morphology256.length - 1) continue;
+    // One non-finite sample would turn the whole average into NaN, so its beat is skipped like one that
+    // runs off the signal (ADR 0059).
+    if (!allFinite(morphology256, Math.floor(first), Math.floor(last) + 1)) continue;
     const raw = new Float64Array(beatSamples);
     for (let k = 0; k < beatSamples; k++) {
       const x = onset + (k / beatSamples - leadFraction) * period;
@@ -159,12 +181,11 @@ export function ensembleBeat(
   const beat = sums.map((sum) => sum / beatsUsed);
   const smoothed = savgolFilter(beat, 0);
   const secondDerivative = savgolFilter(beat, 2);
-  const spanEnd = Math.floor((leadFraction + systoleFraction) * beatSamples + 0.5);
   return {
     beat,
     smoothed,
     secondDerivative,
-    waves: labelWaves(smoothed, secondDerivative, spanEnd),
+    waves: labelWaves(smoothed, secondDerivative),
     beatsUsed,
   };
 }

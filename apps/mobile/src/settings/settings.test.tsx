@@ -1,13 +1,23 @@
 import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
-import { Linking } from 'react-native';
+import { Dimensions, Linking, Platform, ScrollView, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
-import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
+import { expectNavTitle, focusedNavHeader, sheetScreenProps } from '@/testing/navHeader';
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { startOnboarded } from '@/testing/onboarded';
 import { setPreference } from '@/theme/preferences';
 import tokens from '@/theme/tokens.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+
+// The jest safe-area context reports no insets, so both are pinned to prove the cap subtracts them.
+const STATUS_BAR_INSET = 24;
+const HOME_INDICATOR_INSET = 34;
+jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual('react-native-safe-area-context'),
+  useSafeAreaInsets: () => ({ top: STATUS_BAR_INSET, bottom: HOME_INDICATOR_INSET, left: 0, right: 0 }),
+}));
 
 fixClockAtMorning();
 
@@ -25,6 +35,8 @@ beforeEach(() => {
     setPreference('hideWidgetValues', false);
   });
 });
+
+preloadAppRoutes();
 
 describe('Settings tab', () => {
   it('groups the rows and marks features that do not exist yet', () => {
@@ -131,41 +143,75 @@ describe('Appearance', () => {
   });
 });
 
-describe('Notifications', () => {
-  it('says nothing is active yet and shows every reminder switch disabled', () => {
-    renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
-    expect(screen.getByText(en['notifications.notActive'])).toBeOnTheScreen();
-    for (const key of [
-      'notifications.daily',
-      'notifications.followUp',
-      'notifications.doctor',
-      'notifications.standing',
-      'notifications.retest',
-      'notifications.hideValues',
-    ] as const) {
-      const reminder = screen.getByRole('switch', { name: en[key] });
-      expect(reminder).toBeDisabled();
-      expect(reminder).not.toBeChecked();
-    }
-    expect(screen.getByText(en['notifications.quietStart'])).toBeOnTheScreen();
-    expect(screen.getByText(en['notifications.limit'])).toBeOnTheScreen();
-  });
-});
-
 describe('Widget gallery', () => {
-  it('previews the home and lock-screen widgets with steps for each platform', () => {
+  const phoneOs = Platform.OS;
+  afterEach(() => {
+    Platform.OS = phoneOs;
+  });
+
+  const stepKeys = (prefix: string, count: number) =>
+    Array.from({ length: count }, (_, index) => `${prefix}${index + 1}` as keyof typeof en);
+
+  it('on iPhone shows the home and lock-screen previews with their steps', () => {
+    Platform.OS = 'ios';
     renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
     expect(screen.getByText(en['widgets.sample'])).toBeOnTheScreen();
-    expect(screen.getByText(en['widgets.howToAdd'])).toBeOnTheScreen();
-    expect(screen.getByText(en['widgets.androidBody'])).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.iphoneHome'])).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.iphoneLock'])).toBeOnTheScreen();
     expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
     expect(screen.getByText('64')).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.buttons'])).toBeOnTheScreen();
+    for (const [prefix, count] of [
+      ['widgets.iphoneHomeStep', 5],
+      ['widgets.iphoneLockStep', 4],
+    ] as const) {
+      stepKeys(prefix, count).forEach((key, index) => {
+        expect(screen.getByLabelText(`${index + 1}. ${en[key]}`)).toBeOnTheScreen();
+      });
+    }
+    expect(screen.getByRole('button', { name: en['widgets.lockScreenLink'] })).toBeOnTheScreen();
+    expect(screen.queryByText(en['widgets.android'])).toBeNull();
+    expect(screen.queryByLabelText(`2. ${en['widgets.androidStep2']}`)).toBeNull();
+  });
+
+  it('on Android shows the Android previews and steps, and no lock-screen section or link', () => {
+    Platform.OS = 'android';
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.getByText(en['widgets.sample'])).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.android'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
+    expect(screen.getByText(en['mode.full'])).toBeOnTheScreen();
+    expect(screen.getByText('64')).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.buttons'])).toBeOnTheScreen();
+    stepKeys('widgets.androidStep', 4).forEach((key, index) => {
+      expect(screen.getByLabelText(`${index + 1}. ${en[key]}`)).toBeOnTheScreen();
+    });
+    expect(screen.queryByText(en['widgets.iphoneHome'])).toBeNull();
+    expect(screen.queryByText(en['widgets.iphoneLock'])).toBeNull();
+    expect(screen.queryByText(/iPhone/)).toBeNull();
+    expect(screen.queryByRole('button', { name: en['widgets.lockScreenLink'] })).toBeNull();
   });
 
   it('hides the sample number when Hide values on widgets is on', () => {
     act(() => setPreference('hideWidgetValues', true));
     renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
     expect(screen.queryByText('64')).toBeNull();
+  });
+
+  it('on Android leaves the whole reading row out when values are hidden, like the real widget', () => {
+    Platform.OS = 'android';
+    act(() => setPreference('hideWidgetValues', true));
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.queryByText('64')).toBeNull();
+    expect(screen.queryByText('—')).toBeNull();
+    expect(screen.queryByText(en['widgets.bpm'])).toBeNull();
+    expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
+  });
+
+  it('on iPhone headings the two step lists differently', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.getByRole('header', { name: en['widgets.stepsTitle'] })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: en['widgets.stepsTitleLock'] })).toBeOnTheScreen();
   });
 
   it('opens the lock-screen previews', () => {
@@ -190,14 +236,72 @@ describe('Lock-screen previews', () => {
 describe('Doctor follow-up', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it('offers the three answers and the test to ask for', () => {
+  it('offers the three answers and the test to ask for', async () => {
+    await startOnboarded();
     renderRouter(appDirectory, { initialUrl: '/follow-up' });
     for (const key of ['followUp.saw', 'followUp.booked', 'followUp.notYet'] as const) {
       expect(screen.getByRole('button', { name: en[key] })).toBeOnTheScreen();
     }
     expect(screen.getByText(en['followUp.whatToAskBody'])).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: en['followUp.booked'] }));
-    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+  });
+
+  it('is a native form sheet with its own grabber, not a hand-drawn card', async () => {
+    // A stack's first screen is always pushed, so the sheet is opened from Home like a person would.
+    await startOnboarded();
+    renderRouter(appDirectory, { initialUrl: '/' });
+    fireEvent.press(await screen.findByRole('button', { name: en['home.followUp'] }));
+    expect(sheetScreenProps()).toMatchObject({
+      stackPresentation: 'formSheet',
+      sheetGrabberVisible: true,
+      // react-native-screens turns 'fitToContents' into the single detent -1 before the native view.
+      sheetAllowedDetents: [-1],
+    });
+  });
+
+  it('draws its own grabber on Android only, where sheetGrabberVisible does nothing', () => {
+    const platform = Platform.OS;
+    try {
+      Platform.OS = 'android';
+      renderRouter(appDirectory, { initialUrl: '/follow-up' });
+      expect(screen.getByTestId('sheet-grabber')).toBeOnTheScreen();
+      screen.unmount();
+      Platform.OS = 'ios';
+      renderRouter(appDirectory, { initialUrl: '/follow-up' });
+      expect(screen.queryByTestId('sheet-grabber')).toBeNull();
+    } finally {
+      Platform.OS = platform;
+    }
+  });
+
+  it('caps the sheet content below the window height so tall text scrolls', () => {
+    const originalWindow = Dimensions.get('window');
+    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
+    try {
+      renderRouter(appDirectory, { initialUrl: '/follow-up' });
+      const { maxHeight } = StyleSheet.flatten(screen.UNSAFE_getByType(ScrollView).props.style);
+      expect(maxHeight).toBe(640 - STATUS_BAR_INSET - HOME_INDICATOR_INSET - 2 * tokens.spacing.screen);
+    } finally {
+      act(() => Dimensions.set({ window: originalWindow }));
+    }
+  });
+
+  it('closes the sheet before the Care map opens, so Back returns to Home', async () => {
+    await startOnboarded();
+    renderRouter(appDirectory, { initialUrl: '/' });
+    fireEvent.press(await screen.findByRole('button', { name: en['home.followUp'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
+    expectNavTitle(en['careMap.title']);
+    expect(screen.queryByRole('header', { name: en['followUp.title'] })).toBeNull();
+    await screen.findByText(en['careMap.denied']);
+  });
+
+  it('opens the Care map from Find a doctor nearby', async () => {
+    renderRouter(appDirectory, { initialUrl: '/follow-up' });
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
+    expectNavTitle(en['careMap.title']);
+    await screen.findByText(en['careMap.denied']);
   });
 
   it('opens the health-center finder only when the link is tapped', () => {

@@ -65,7 +65,14 @@ function FingerOnLens() {
           stroke={colors.illustrationDeviceLine}
         />
         <Circle cx={28} cy={26} r={8} fill={colors.illustrationLens} stroke={colors.illustrationDeviceLine} />
-        <Circle cx={28} cy={50} r={5} fill={colors.accent} />
+        <Circle
+          cx={28}
+          cy={50}
+          r={5}
+          fill={colors.accentFill}
+          stroke={colors.illustrationDeviceLine}
+          strokeWidth={1.5}
+        />
         <Ellipse cx={30} cy={38} rx={20} ry={32} fill={colors.illustrationFinger} opacity={0.92} />
         <Line
           x1={52}

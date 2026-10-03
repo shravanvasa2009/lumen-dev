@@ -1,0 +1,56 @@
+// Glance widgets are Compose code, so this module needs the Compose compiler plugin at React Native's Kotlin
+// version, set up the same way @expo/ui 57 does it (ADR 0005).
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath("org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:${kotlinVersion}")
+  }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+group = 'expo.modules.lumenwidgets'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.lumenwidgets"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  buildFeatures {
+    compose true
+  }
+  lintOptions {
+    abortOnError false
+  }
+  // The widget tests read the module's fallback colors and strings, which Robolectric loads only with this.
+  // https://developer.android.com/training/testing/local-tests/robolectric
+  testOptions {
+    unitTests {
+      includeAndroidResources = true
+    }
+  }
+}
+
+dependencies {
+  // Glance 1.2.0 is the latest stable release (2026-08-26) and builds on Compose runtime 1.7.8 and
+  // kotlin-stdlib 2.0.21, which React Native 0.86's Kotlin 2.1.20 can compile against.
+  implementation 'androidx.glance:glance-appwidget:1.2.0'
+  // NotificationCompat; Glance brings core-ktx only at runtime, and Gradle resolves the highest version in
+  // the app graph.
+  implementation 'androidx.core:core-ktx:1.13.1'
+  testImplementation 'junit:junit:4.13.2'
+  // Renders widget composables on the JVM, without a launcher, and checks their nodes and click actions.
+  // https://developer.android.com/develop/ui/compose/glance/testing
+  testImplementation 'androidx.glance:glance-appwidget-testing:1.2.0'
+  // That environment builds a real Bundle, which the stub android.jar can't; Robolectric 4.17 is the latest
+  // release (2026-09-10). https://robolectric.org/getting-started/
+  testImplementation 'org.robolectric:robolectric:4.17'
+  // org.json is part of Android, but local unit tests get stubs that throw, so the tests use the real one.
+  testImplementation 'org.json:json:20260814'
+}

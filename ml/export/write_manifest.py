@@ -49,6 +49,7 @@ LEVEL_UNITS = {
 # Where the spec states each family's "ship the network only if it beats the baselines" rule.
 SHIP_RULE_SECTION = {"sqi": "§11.1", "rhythm": "§11.3", "diabetes": "§11.4"}
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
+NOT_CALIBRATED = "Not measured: the training run recorded no calibration for this model version."
 # §11.10: when the rhythm model fails to load, the app runs this rule in code (@lumen/core) as "basic
 # analysis", so its manifest entry carries every number the rule needs, read from the trained pickle.
 CODED_FALLBACKS = ("rhythm-logistic",)
@@ -71,9 +72,10 @@ CARD_TEXT = {
             "(ADR 0023). Clean windows: BUT PPG finger windows whose PPG heart rate matches the ECG "
             "reference; "
             "clean BUT PPG beats re-timed with real interval patterns from AF and premature-beat episodes "
-            "(MIT-BIH AF, Long-Term AF, MIT-BIH Arrhythmia); team captures hand-labeled clean. Bad windows: "
-            "synthetic motion, pressure, flicker, and dropout corruptions of clean windows, and team "
-            "captures hand-labeled bad. MIMIC PERform AF is never used for training or tuning."
+            "(MIT-BIH AF, Long-Term AF, MIT-BIH Arrhythmia). Bad windows: synthetic motion, pressure, "
+            "flicker, and dropout corruptions of clean windows. §11.2 also calls for team captures "
+            "hand-labeled clean and bad; this version has none (see Trained on). MIMIC PERform AF is never "
+            "used for training or tuning."
         ),
         "limitations": (
             "- If clean training windows were all regular, the model could reject AF windows as noisy. The "
@@ -291,9 +293,14 @@ def manifest_entry(
         "date": date,
         "card": f"{spec.file_stem}.md",
         **({"rule": rule} if rule else {}),
-        # ML-6: the app fills a missing input feature with the dev-train median the model was trained with,
-        # and must feed the features in this order; neither is inside the ONNX file.
-        **{key: metrics[key] for key in ("featureOrder", "fillMedians") if metrics and key in metrics},
+        # ML-6: the app fills a missing diabetes feature with the dev-train median the model was trained with,
+        # and must feed the features in this order; neither is inside the ONNX file. Diabetes only: rhythm and
+        # SQI metrics also record a featureOrder (a list, for training), which the app never reads.
+        **{
+            key: metrics[key]
+            for key in ("featureOrder", "fillMedians")
+            if spec.family == "diabetes" and metrics and key in metrics
+        },
     }
 
 
@@ -512,7 +519,7 @@ def _reliability_rows(rows: list[dict]) -> list[dict]:
 
 def _calibration_section(spec: ModelSpec, calibration: dict | None) -> str:
     if not calibration:
-        return NOT_MEASURED
+        return NOT_CALIBRATED
     facts = "\n".join(
         f"- {key}: {value}" for key, value in calibration.items() if not isinstance(value, list)
     )
@@ -697,7 +704,7 @@ def model_card(spec: ModelSpec, metrics: dict | None, external: ExternalRun | No
         *filter(None, [_threshold_section(spec, metrics)]),
         "## Ablation\n\nThe neural model ships only if it beats its classical baseline on held-out "
         "subjects.\n\n" + (_table(ablation) if ablation else NOT_MEASURED),
-        f"## Calibration\n\n{_calibration_section(spec, calibration)}",
+        f"## Calibration\n\n{_calibration_section(spec, calibration) if metrics else NOT_MEASURED}",
         f"## External test\n\n{_external_section(spec, external)}",
         f"## Limitations\n\n{text['limitations']}{_measured_limits(spec, metrics)}",
         f"## What the app shows when the model abstains\n\n{text['abstain']}",

@@ -124,7 +124,11 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
 
   // MARK: Start and stop (sessionQueue)
 
-  func start(lensId: String?, targetFps: Double?, torchLevel requestedTorch: Double?, exposureTarget bounds: [Double]?) throws {
+  // Returns the frame rate the device kept after startRunning() (ADR 0067), read back rather than assumed, so JS
+  // learns when the lens or a session preset change gave it less than it asked for.
+  func start(lensId: String?, targetFps: Double?, torchLevel requestedTorch: Double?, exposureTarget bounds: [Double]?)
+    throws -> Double
+  {
     guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else {
       throw captureError("Camera permission is not granted")
     }
@@ -212,6 +216,11 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     log.info(
       "HDR \(device.isVideoHDREnabled), stabilization mode \(stabilization), low-light boost \(device.isLowLightBoostEnabled), torch \(Double(device.torchLevel))"
     )
+    guard frameS.isFinite, frameS > 0 else {
+      stopCapture()
+      throw captureError("The camera reports no frame duration")
+    }
+    return 1 / frameS
   }
 
   // Rejects without a running capture, like setTorch and lockExposure, so Lab never shows the previous run's counts.

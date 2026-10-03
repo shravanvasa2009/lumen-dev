@@ -45,14 +45,15 @@ public final class LumenCaptureModule: Module {
       }
     }
 
-    AsyncFunction("start") { (config: CaptureConfigRecord) in
+    AsyncFunction("start") { (config: CaptureConfigRecord) -> [String: Any] in
       do {
-        try self.capture.start(
+        let activeFps = try self.capture.start(
           lensId: config.lensId,
           targetFps: config.targetFps,
           torchLevel: config.torchLevel,
           exposureTarget: config.exposureTarget
         )
+        return ["activeFps": activeFps]
       } catch {
         throw captureError(wrapping: error)
       }

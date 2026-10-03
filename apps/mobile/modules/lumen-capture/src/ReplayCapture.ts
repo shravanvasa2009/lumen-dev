@@ -2,6 +2,7 @@ import type {
   CameraPermission,
   Capabilities,
   CaptureConfig,
+  CaptureStarted,
   CaptureStatus,
   CaptureSummary,
   FrameStat,
@@ -92,7 +93,8 @@ export class ReplayCapture implements LumenCaptureModule {
     return GRANTED;
   }
 
-  async start(config: CaptureConfig): Promise<void> {
+  // The recording's own rate stands in for the camera's: targetFps cannot change frames already recorded.
+  async start(config: CaptureConfig): Promise<CaptureStarted> {
     this.clearTimers();
     this.sampleCursor = 0;
     this.statCursor = 0;
@@ -104,6 +106,7 @@ export class ReplayCapture implements LumenCaptureModule {
       setInterval(() => this.emitBatch(), BATCH_MS),
       setInterval(() => this.emitStatus(), STATUS_MS),
     ];
+    return { activeFps: 1e9 / this.medianNs };
   }
 
   // Rejects without a running capture, as the native modules do (ADR 0029 Addendum).

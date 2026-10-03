@@ -133,8 +133,11 @@ class LumenCaptureModule : Module() {
             if (failure != null) {
                 if (session === started) session = null
                 started.stop()
+                return@start settle(promise, failure)
             }
-            settle(promise, failure)
+            // ADR 0067: the top of the AE target range set on every request. It comes from the lens's own
+            // CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES, so the camera must accept it; it can be below targetFps.
+            promise.resolve(mapOf("activeFps" to fps.upper.toDouble()))
         }
     }
 

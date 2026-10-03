@@ -45,6 +45,12 @@ export interface CaptureConfig {
   torchLevel?: number; // 0 = off (ambient mode), 0..1
   exposureTarget?: [number, number]; // red-mean window, default [0.55, 0.80]
 }
+// What start() resolves with (ADR 0067). activeFps can be lower than targetFps when the lens or platform caps
+// the rate. iOS reads it back from the device after start; Android reports the top of the frame-rate range it
+// requested (the camera can run below it when that range is variable); Replay reports the recording's rate.
+export interface CaptureStarted {
+  activeFps: number;
+}
 export interface CaptureSummary {
   startedNs: number;
   stoppedNs: number;
@@ -86,7 +92,7 @@ export interface LumenCaptureModule {
   getCapabilities(): Promise<Capabilities>;
   getPermission(): Promise<CameraPermission>;
   requestPermission(): Promise<CameraPermission>;
-  start(config: CaptureConfig): Promise<void>;
+  start(config: CaptureConfig): Promise<CaptureStarted>;
   stop(): Promise<CaptureSummary>;
   setTorch(level: number): Promise<void>;
   // Locks exposure, white balance, and focus together (spec §4.2 step 3; ADR 0013).

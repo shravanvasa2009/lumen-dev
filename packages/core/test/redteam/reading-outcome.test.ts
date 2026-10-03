@@ -141,6 +141,7 @@ describe('red team: readingOutcome on captures analyzeReading made (spec 07)', (
         lostSeconds: { motion: 0, pressure: 0, coverage: analysis.durationS, coldHands: 0 },
         otherLostSeconds: 0,
         causes: ['coverage'],
+        urgent: null,
       });
     },
   );
@@ -153,7 +154,7 @@ describe('red team: readingOutcome on captures analyzeReading made (spec 07)', (
   it('a finger lifted at 30.5 s of 60 s: a Quick Check reading, a Full Scan inconclusive on light', () => {
     const lifted: Channels = (tS) => (tS < 30.5 ? pulse(tS) : emptyRoom(tS));
     const capture = captureAt(regularOffsets(30, 60), lifted);
-    expect(judge(capture, { mode: 'quick' }).outcome).toEqual({ kind: 'reading' });
+    expect(judge(capture, { mode: 'quick' }).outcome).toEqual({ kind: 'reading', urgent: null });
     const full = inconclusive(judge(capture, { mode: 'full' }).outcome);
     expect(full.reasons).toEqual(['tooFewCleanSeconds']);
     expect(full.cleanSeconds).toBeCloseTo(30.5, 6);
@@ -266,7 +267,7 @@ describe('red team: Quick, Full, and Deep at their targets, at 30, 60, and 240 f
       const offsets = offsetsUpTo(fps, needed);
       const atTarget = judge(captureAt(offsets, pulse), { mode, captureFps: fps });
       expect(atTarget.analysis.cleanSeconds).toBe(needed);
-      expect(atTarget.outcome).toEqual({ kind: 'reading' });
+      expect(atTarget.outcome).toEqual({ kind: 'reading', urgent: null });
       const short = judge(captureAt(offsets.slice(0, -1), pulse), { mode, captureFps: fps });
       expect(inconclusive(short.outcome).reasons).toEqual(['tooFewCleanSeconds']);
     },
@@ -313,7 +314,7 @@ describe('red team: the clean-seconds target under float error', () => {
   it('at exactly the target with no spans, the count is exact and the capture is a reading', () => {
     const { analysis, outcome } = judge(captureAt(offsetsUpTo(30, 30), pulse), { mode: 'quick' });
     expect(analysis.cleanSeconds).toBe(30);
-    expect(outcome).toEqual({ kind: 'reading' });
+    expect(outcome).toEqual({ kind: 'reading', urgent: null });
   });
 
   // Frame times 16.066666651 s to 16.766666651 s (whole ns) under motion, in a capture whose last frame is

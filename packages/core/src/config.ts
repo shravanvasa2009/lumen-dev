@@ -182,6 +182,20 @@ export const DSP_CONFIG = {
     diabetesMinCleanS: 90, // §6.2, per reading
     personalBandMinReadings: 7, // §7: the first 7 readings are "learning"
     personalBandIqrs: 1.5, // band = median ± 1.5 IQR
+    // §10.1 Emergency screen: "HR > 150 bpm sustained 60 s at rest; or HR < 40 bpm with symptoms"
+    // (ADR 0076). fastBpm, sustainS, and slowBpm are the spec's; windowS and windowMinCleanS are not given by
+    // the spec (initial).
+    emergency: {
+      fastBpm: 150, // rolling HR strictly above this
+      sustainS: 60, // clean seconds, bridged breaks not counted
+      // Rolling HR = 60 / the median clean interval of the last this-many seconds: DSP-11's reporting
+      // floor, the shortest stretch Lumen reports an HR from.
+      windowS: 15,
+      // A window judges the HR only with this many clean seconds, so a break (a motion burst, one 4 s SQI
+      // window) is bridged but not counted, and one over windowS − this (5 s) restarts the count.
+      windowMinCleanS: 10,
+      slowBpm: 40, // the reading's DSP-11 HR strictly below this; the app adds symptoms
+    },
   },
   // §7 confidence (ADR 0041; initial values, not given by the spec): the lowest of clean coverage, the
   // SQI and tier caps, and for the rhythm card the calibrated top probability.

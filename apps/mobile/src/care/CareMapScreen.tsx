@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
@@ -9,7 +9,7 @@ import { callNumber, opensOk } from '@/profile/dial';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { useTheme } from '@/theme';
 
-import { CareMapView, Pin } from './CareMapView';
+import { CareMapView } from './CareMapView';
 import { ClinicCard } from './ClinicCard';
 import { type Coordinates, findPlace, type NearbyClinic, nearestClinics } from './clinics';
 import { directionsUrl, doctorSearchUrl } from './contact';
@@ -22,18 +22,6 @@ import {
 import { useCareLocation } from './useCareLocation';
 
 type DoctorNotice = 'searchBusy' | 'searchFailed' | 'mapsFailed';
-
-function LegendItem({ shape, label }: { shape: 'clinic' | 'doctor' | 'you'; label: string }) {
-  const { spacing } = useTheme();
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-      <Pin shape={shape} />
-      <AppText variant="caption" tone="textDim">
-        {label}
-      </AppText>
-    </View>
-  );
-}
 
 export function CareMapScreen() {
   const { t } = useTranslation();
@@ -49,6 +37,12 @@ export function CareMapScreen() {
   const [failedCallPhone, setFailedCallPhone] = useState<string | null>(null);
   const [directionsFailedId, setDirectionsFailedId] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
+  // Android hides the keyboard (back key, chevron) without blurring the field, so the folded map would stay
+  // hidden after a search; the map comes back whenever the keyboard goes away.
+  useEffect(() => {
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
+    return () => hidden.remove();
+  }, []);
 
   const you = location.status === 'ready' ? location.origin : null;
   const centre = searchedPlace ?? you;
@@ -59,6 +53,8 @@ export function CareMapScreen() {
   ];
 
   const searchPlace = () => {
+    Keyboard.dismiss();
+    setTyping(false);
     const found = findPlace(query);
     setPlaceNotFound(found === null);
     if (found) {
@@ -186,11 +182,6 @@ export function CareMapScreen() {
 
           {centre ? (
             <>
-              <View style={{ gap: spacing.sm }}>
-                <LegendItem shape="clinic" label={t('careMap.legendClinic')} />
-                {doctors.length > 0 ? <LegendItem shape="doctor" label={t('careMap.legendDoctor')} /> : null}
-                {searchedPlace ? null : <LegendItem shape="you" label={t('careMap.legendYou')} />}
-              </View>
               <Button
                 label={canSearchNearbyDoctors() ? t('careMap.showDoctors') : t('careMap.searchDoctors')}
                 variant="secondary"

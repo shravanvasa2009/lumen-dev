@@ -1,7 +1,7 @@
 import { requireOptionalNativeModule } from 'expo';
 import * as Location from 'expo-location';
 import { act, fireEvent, renderHook, renderRouter, screen, within } from 'expo-router/testing-library';
-import { Dimensions, Linking, Platform, StyleSheet } from 'react-native';
+import { Dimensions, Keyboard, Linking, Platform, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
@@ -129,7 +129,7 @@ describe('Care map with location allowed', () => {
     expect(screen.getAllByRole('button', { name: en['careMap.call'] }).length).toBeGreaterThan(5);
   });
 
-  it('uses the liberty style in light and the dark style in dark, chosen at mount', async () => {
+  it('uses the liberty style in light', async () => {
     mockScheme = 'light';
     await openCareMap();
     expect(screen.getByTestId('care-map-view').props.accessibilityLabel).toBe(
@@ -137,11 +137,74 @@ describe('Care map with location allowed', () => {
     );
   });
 
-  it('uses the dark style in the dark theme', async () => {
+  it('uses the same liberty style in the dark theme, where the dark style was unreadable', async () => {
     await openCareMap();
     expect(screen.getByTestId('care-map-view').props.accessibilityLabel).toBe(
-      'https://tiles.openfreemap.org/styles/dark',
+      'https://tiles.openfreemap.org/styles/liberty',
     );
+  });
+
+  it('shows a loading placeholder until the map has rendered', async () => {
+    await openCareMap();
+    expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
+    expect(screen.getByText(en['careMap.loadingMap'])).toBeOnTheScreen();
+    expect(screen.getByTestId('care-map-legend')).toBeOnTheScreen();
+    fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMap');
+    expect(screen.queryByTestId('care-map-loading')).toBeNull();
+  });
+
+  it('also clears the placeholder on a full render, which is sent instead of the partial one', async () => {
+    await openCareMap();
+    fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMapFully');
+    expect(screen.queryByTestId('care-map-loading')).toBeNull();
+  });
+
+  it('keeps a working map when a failure event arrives after it rendered', async () => {
+    await openCareMap();
+    fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMapFully');
+    fireEvent(screen.getByTestId('care-map-view'), 'didFailLoadingMap');
+    expect(screen.queryByText(en['careMap.mapFailed'])).toBeNull();
+  });
+
+  it('keeps the legend under the loading and failure overlays, and out of touch handling', async () => {
+    await openCareMap();
+    const frame = screen.getByTestId('care-map-frame');
+    const order = (testID: string) =>
+      frame.children.findIndex((child) => typeof child !== 'string' && child.props.testID === testID);
+    expect(screen.getByTestId('care-map-legend').props.pointerEvents).toBe('none');
+    expect(order('care-map-legend')).toBeLessThan(order('care-map-loading'));
+    fireEvent(screen.getByTestId('care-map-view'), 'didFailLoadingMap');
+    expect(order('care-map-legend')).toBeLessThan(order('care-map-failed'));
+  });
+
+  it('shows a failure message with Retry, and Retry remounts the map', async () => {
+    await openCareMap();
+    const firstMap = screen.getByTestId('care-map-view');
+    fireEvent(firstMap, 'didFailLoadingMap');
+    expect(screen.getByText(en['careMap.mapFailed'])).toBeOnTheScreen();
+    expect(screen.queryByTestId('care-map-loading')).toBeNull();
+    expect(screen.getAllByRole('button', { name: en['careMap.call'] }).length).toBeGreaterThan(5);
+
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.retry'] }));
+    expect(screen.queryByText(en['careMap.mapFailed'])).toBeNull();
+    expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
+    expect(screen.getByTestId('care-map-view')).not.toBe(firstMap);
+  });
+
+  it('lists clinic and you in the legend, and the doctor once doctors are shown', async () => {
+    Platform.OS = 'ios';
+    jest.mocked(requireOptionalNativeModule).mockReturnValue({
+      searchNearbyCare: jest.fn(async () => [
+        { name: 'Dr. Rivera', phone: '713-555-0111', lat: 29.77, lon: -95.36, address: '1 Main St' },
+      ]),
+    });
+    await openCareMap();
+    const legend = within(screen.getByTestId('care-map-legend'));
+    expect(legend.getByText(en['careMap.legendClinic'])).toBeOnTheScreen();
+    expect(legend.getByText(en['careMap.legendYou'])).toBeOnTheScreen();
+    expect(legend.queryByText(en['careMap.legendDoctor'])).toBeNull();
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: en['careMap.showDoctors'] })));
+    expect(legend.getByText(en['careMap.legendDoctor'])).toBeOnTheScreen();
   });
 
   it('turns the map attribution on', async () => {
@@ -194,6 +257,34 @@ describe('Care map with location allowed', () => {
     fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'focus');
     expect(frameHeight()).toBe(0);
     fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'blur');
+    expect(frameHeight()).toBeGreaterThan(0);
+  });
+
+  // Android hides the keyboard without blurring the field; the folded map must still come back.
+  it('unfolds the map after a search, even though the ZIP field keeps focus', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss');
+    await openCareMap();
+    const frameHeight = () => StyleSheet.flatten(screen.getByTestId('care-map-frame').props.style).height;
+    const zip = screen.getByLabelText(en['careMap.zipLabel']);
+    fireEvent(zip, 'focus');
+    fireEvent.changeText(zip, '77002');
+    expect(frameHeight()).toBe(0);
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.search'] }));
+    expect(dismiss).toHaveBeenCalled();
+    expect(frameHeight()).toBeGreaterThan(0);
+  });
+
+  it('unfolds the map when the keyboard hides without a blur', async () => {
+    const listeners = new Map<string, () => void>();
+    jest.spyOn(Keyboard, 'addListener').mockImplementation((event, listener) => {
+      listeners.set(event, listener as () => void);
+      return { remove: jest.fn() } as unknown as ReturnType<typeof Keyboard.addListener>;
+    });
+    await openCareMap();
+    const frameHeight = () => StyleSheet.flatten(screen.getByTestId('care-map-frame').props.style).height;
+    fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'focus');
+    expect(frameHeight()).toBe(0);
+    act(() => listeners.get('keyboardDidHide')?.());
     expect(frameHeight()).toBeGreaterThan(0);
   });
 
@@ -342,6 +433,9 @@ describe('Care map with location denied', () => {
     expect(screen.getByTestId('care-map-view')).toBeOnTheScreen();
     expect(screen.getAllByRole('button', { name: en['careMap.call'] }).length).toBeGreaterThan(5);
     expect(screen.queryByText(en['careMap.legendYou'])).toBeNull();
+    expect(
+      within(screen.getByTestId('care-map-legend')).getByText(en['careMap.legendClinic']),
+    ).toBeOnTheScreen();
   });
 
   it('says so when the place is not in the list', async () => {
@@ -358,6 +452,28 @@ describe('Care map with location denied', () => {
     await openCareMap();
     expect(screen.getByText(en['careMap.locationFailed'])).toBeOnTheScreen();
     expect(screen.queryByTestId('care-map-view')).toBeNull();
+  });
+});
+
+describe('Care map loading timeout', () => {
+  beforeEach(allowLocation);
+
+  it('offers Retry after 20 seconds without a render or a failure event, and a late render still shows the map', async () => {
+    await openCareMap();
+    fireEvent(screen.getByTestId('care-map-view'), 'didFailLoadingMap');
+    // A faked clock stalled the router and left Jest unable to exit on CI, so the timer that Retry
+    // starts is caught and fired by hand instead.
+    const timers = jest.spyOn(global, 'setTimeout');
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.retry'] }));
+    const loadingTimeout = timers.mock.calls.find(([, delay]) => delay === 20_000);
+    expect(loadingTimeout).toBeDefined();
+    expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
+    act(() => (loadingTimeout![0] as () => void)());
+    expect(screen.queryByTestId('care-map-loading')).toBeNull();
+    expect(screen.getByText(en['careMap.mapFailed'])).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: en['careMap.retry'] })).toBeOnTheScreen();
+    fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMap');
+    expect(screen.queryByTestId('care-map-failed')).toBeNull();
   });
 });
 

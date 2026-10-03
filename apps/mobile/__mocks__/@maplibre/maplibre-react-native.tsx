@@ -2,22 +2,29 @@ import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
 // MapLibre is a native view that Jest cannot load. This stand-in keeps the props the Care map tests read:
-// the style URL and the attribution switch on the map, and each pin's press handler (called with the event
-// the test passes to fireEvent.press).
+// the style URL, the attribution switch and the load events on the map (spread onto the View, which has no
+// such props), and each pin's press handler (called with the event the test passes to fireEvent.press).
 export function Map({
   children,
   mapStyle,
   attribution,
+  onDidFinishRenderingMap,
+  onDidFinishRenderingMapFully,
+  onDidFailLoadingMap,
 }: {
   children?: ReactNode;
   mapStyle: string;
   attribution?: boolean;
+  onDidFinishRenderingMap?: () => void;
+  onDidFinishRenderingMapFully?: () => void;
+  onDidFailLoadingMap?: () => void;
 }) {
   return (
     <View
       testID="care-map-view"
       accessibilityLabel={mapStyle}
       accessibilityHint={`attribution:${attribution}`}
+      {...{ onDidFinishRenderingMap, onDidFinishRenderingMapFully, onDidFailLoadingMap }}
     >
       {children}
     </View>

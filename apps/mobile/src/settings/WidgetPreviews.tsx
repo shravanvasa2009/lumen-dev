@@ -8,12 +8,14 @@ import tokens from '@/theme/tokens.json';
 import { LumenMark } from './LumenMark';
 
 const SMALL_SIZE = 160;
-const MARK_SIZE = 34;
+const SMALL_MARK_SIZE = 34;
+const MEDIUM_MARK_SIZE = 26;
 const DOT_SIZE = 10;
 const LOCK_CIRCLE_SIZE = 64;
 // Sizes that mimic OS widget buttons; they are previews, not touch targets, so control.minTarget does not apply.
-const PILL_MIN_HEIGHT = 32;
+const PILL_MIN_HEIGHT = 40;
 const BUTTON_COLUMN_WIDTH = 132;
+const LOCK_DOT_SIZE = 10;
 // Android home-screen cells: 2x2 is about 110 dp and 4x2 about 250 x 110 dp (res/xml/lumen_widget_*.xml).
 const ANDROID_SMALL_WIDTH = 110;
 const ANDROID_WIDGET_MIN_HEIGHT = 110;
@@ -75,8 +77,8 @@ export function SmallWidgetPreview({ status, detail, action }: SmallWidgetProps)
   return (
     <WidgetFrame width={SMALL_SIZE}>
       <View style={styles.spread}>
-        <LumenMark size={MARK_SIZE} color={colors.accentFill} />
-        <View style={[styles.dot, { backgroundColor: colors.accentFill, marginTop: spacing.xs }]} />
+        <LumenMark size={SMALL_MARK_SIZE} color={colors.accent} />
+        <View style={[styles.dot, { backgroundColor: colors.accent, marginTop: spacing.xs }]} />
       </View>
       <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
         <AppText variant="headline">{status}</AppText>
@@ -102,23 +104,27 @@ export function MediumWidgetPreview({ name, reading, unit, status, checkNow, ful
   const { colors, spacing } = useTheme();
   return (
     <WidgetFrame>
-      <View style={styles.spread}>
-        <View style={[styles.logoRow, { gap: spacing.sm }]}>
-          <LumenMark size={MARK_SIZE} color={colors.accentFill} />
-          <AppText tone="textDim">{name}</AppText>
+      <View style={[styles.mediumColumns, { gap: spacing.md }]}>
+        <View style={[styles.mediumInfo, { gap: spacing.xs }]}>
+          <View style={[styles.logoRow, { gap: spacing.sm }]}>
+            <LumenMark size={MEDIUM_MARK_SIZE} color={colors.accent} />
+            <AppText tone="textDim">{name}</AppText>
+          </View>
+          <View style={styles.mediumReading}>
+            <View style={[styles.readingRow, { gap: spacing.sm }]}>
+              <AppText variant="display">{reading}</AppText>
+              <AppText variant="headline" tone="textDim">
+                {unit}
+              </AppText>
+            </View>
+            <AppText tone="textDim">{status}</AppText>
+          </View>
         </View>
-        <View style={{ gap: spacing.sm, width: BUTTON_COLUMN_WIDTH }}>
+        <View style={{ gap: spacing.sm, width: BUTTON_COLUMN_WIDTH, justifyContent: 'center' }}>
           <PreviewPill label={checkNow} filled />
           <PreviewPill label={fullScan} filled={false} />
         </View>
       </View>
-      <View style={[styles.readingRow, { gap: spacing.sm }]}>
-        <AppText variant="display">{reading}</AppText>
-        <AppText variant="headline" tone="textDim">
-          {unit}
-        </AppText>
-      </View>
-      <AppText tone="textDim">{status}</AppText>
     </WidgetFrame>
   );
 }
@@ -240,8 +246,9 @@ export function LockCirclePreview({ scheme }: { scheme?: Scheme }) {
   const theme = useTheme();
   const colors = scheme ? tokens[scheme] : theme.colors;
   return (
-    <View style={[styles.lockCircle, { backgroundColor: colors.surface3, borderColor: colors.line }]}>
-      <LumenMark size={MARK_SIZE + 8} color={colors.text} />
+    <View style={[styles.lockCircle, { backgroundColor: colors.surface2 }]}>
+      <LumenMark size={SMALL_MARK_SIZE + 8} color={colors.text} />
+      <View style={[styles.lockDot, { backgroundColor: colors.accent }]} />
     </View>
   );
 }
@@ -259,9 +266,7 @@ export function LockRectanglePreview({ name, status, scheme }: LockRectangleProp
         height: LOCK_CIRCLE_SIZE,
         paddingHorizontal: spacing.lg,
         borderRadius: radius.card,
-        backgroundColor: colors.surface3,
-        borderColor: colors.line,
-        borderWidth: 1,
+        backgroundColor: colors.surface2,
       }}
     >
       <AppText variant="headline" style={{ color: colors.text }}>
@@ -290,8 +295,18 @@ const styles = StyleSheet.create({
     width: LOCK_CIRCLE_SIZE,
     height: LOCK_CIRCLE_SIZE,
     borderRadius: LOCK_CIRCLE_SIZE / 2,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  lockDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: LOCK_DOT_SIZE,
+    height: LOCK_DOT_SIZE,
+    borderRadius: LOCK_DOT_SIZE / 2,
+  },
+  mediumColumns: { flexDirection: 'row', alignItems: 'stretch' },
+  mediumInfo: { flex: 1, justifyContent: 'space-between' },
+  mediumReading: { gap: 2 },
 });

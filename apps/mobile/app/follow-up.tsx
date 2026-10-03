@@ -38,7 +38,7 @@ export default function FollowUpScreen() {
   const answer = (choice: FollowUpAnswer) =>
     saveFollowUpAnswer(choice, Date.now()).then(
       () => {
-        resyncNotifications();
+        void resyncNotifications();
         // A "saw a doctor" answer lifts the widget's held see-doctor status now, not at the next reading
         // (ADR 0005). The answer is saved, so a failed widget write is only reported.
         publishWidgets(currentPreferences()).catch((error: unknown) => {

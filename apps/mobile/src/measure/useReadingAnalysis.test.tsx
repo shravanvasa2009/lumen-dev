@@ -18,7 +18,8 @@ import { type AnalysisState, useReadingAnalysis } from './useReadingAnalysis';
 jest.mock('./analyzeKeptCapture', () => ({ analyzeKeptCapture: jest.fn() }));
 jest.mock('@/settings/applyPrefs', () => ({
   ...jest.requireActual('@/settings/applyPrefs'),
-  resyncNotifications: jest.fn(),
+  // Same contract as the real one: it never rejects and says whether the reminders were updated.
+  resyncNotifications: jest.fn(async () => true),
 }));
 jest.mock('expo-file-system', () => mockFileSystem);
 jest.mock('../../modules/lumen-widgets/src', () => ({ LumenWidgets: { publishSnapshot: jest.fn() } }));

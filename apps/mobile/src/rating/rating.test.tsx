@@ -23,6 +23,11 @@ jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
 }));
 
+// The launch re-sync waits for the saved language, so it would land in the middle of these tests.
+jest.mock('@/i18n/language', () => ({
+  ...jest.requireActual('@/i18n/language'),
+  useSavedLanguage: jest.fn(),
+}));
 jest.mock('@/settings/applyPrefs', () => ({
   ...jest.requireActual('@/settings/applyPrefs'),
   resyncNotifications: jest.fn(),

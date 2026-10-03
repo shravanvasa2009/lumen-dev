@@ -52,14 +52,16 @@ export async function saveAndSyncNotifications(
   saveNotificationPrefs(prefs);
 }
 
-// For a saved reading, follow-up answer, or phone rating: the saved choices are unchanged, but the
-// reminders that follow a result move. The data is already saved, so a failure here is reported and the
-// app stays usable; the next sync repairs the schedule.
-export function resyncNotifications(): void {
-  currentPermission()
-    .then((permission) => syncStored(loadNotificationPrefs(), i18next.language, permission))
-    .catch((error: unknown) => {
-      const reason = error instanceof Error ? error.message : String(error);
-      console.warn(`Reminders could not be updated: ${reason}`);
-    });
+// For a saved reading, follow-up answer, phone rating, or language change: the saved choices are
+// unchanged, but the reminders move or need new text. A failure is reported and the app stays usable; the
+// next sync repairs the schedule. Resolves false on failure so a screen can say so.
+export async function resyncNotifications(languageTag: string = i18next.language): Promise<boolean> {
+  try {
+    await syncStored(loadNotificationPrefs(), languageTag, await currentPermission());
+    return true;
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`Reminders could not be updated: ${reason}`);
+    return false;
+  }
 }

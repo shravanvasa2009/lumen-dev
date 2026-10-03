@@ -10,8 +10,11 @@ import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
 import { useDemoActive } from '@/demo/demoSession';
+import { useStartDemo } from '@/demo/useStartDemo';
+import { shareReadingsCsv } from '@/export/shareReadings';
 import { tierLabel } from '@/rating/labels';
-import { Toggle } from '@/settings/Toggle';
+import { AboutCard } from '@/settings/AboutCard';
+import { LanguagePicker } from '@/settings/LanguagePicker';
 import { deleteAllData } from '@/store/deleteAllData';
 import { useStoredRating } from '@/store/useStoredRating';
 import { usePreferences } from '@/theme/preferences';
@@ -30,6 +33,8 @@ type SettingsRow = {
 };
 
 type DeleteStep = 'idle' | 'confirming' | 'deleting' | 'failed';
+type ExportStep = 'idle' | 'busy' | 'empty' | 'unavailable' | 'failed';
+type OpenPanel = 'language' | 'about' | null;
 
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
@@ -38,6 +43,14 @@ export default function SettingsScreen() {
   const rating = useStoredRating();
   const versionTaps = useRef({ count: 0, at: 0 });
   const [deleteStep, setDeleteStep] = useState<DeleteStep>('idle');
+  const [exportStep, setExportStep] = useState<ExportStep>('idle');
+  const [panel, setPanel] = useState<OpenPanel>(null);
+  const startDemo = useStartDemo();
+  const exportMessages = {
+    empty: t('settings.exportEmpty'),
+    unavailable: t('settings.exportUnavailable'),
+    failed: t('settings.exportFailed'),
+  };
 
   const appearanceNames = {
     system: t('appearance.segmentSystem'),
@@ -52,7 +65,12 @@ export default function SettingsScreen() {
       href: '/settings/notifications',
     },
     { title: t('appearance.title'), value: appearanceNames[appearance], href: '/settings/appearance' },
-    { title: t('settings.language') },
+    {
+      title: t('settings.language'),
+      value: i18n.language === 'es' ? t('language.es') : t('language.en'),
+      expanded: panel === 'language',
+      onPress: () => setPanel(panel === 'language' ? null : 'language'),
+    },
   ];
   const accuracyRows: readonly SettingsRow[] = [
     { title: t('settings.accuracy'), href: '/settings/accuracy' },
@@ -72,17 +90,26 @@ export default function SettingsScreen() {
     { title: t('settings.widgets'), href: '/settings/widgets' },
     // Onboarding cannot finish in demo, so Replay tutorial would be a dead end there.
     ...(demo ? [] : [{ title: t('settings.replayTutorial'), href: '/welcome' }]),
-    { title: t('settings.demoMode') },
+    // Already in a demo, so the row would only restart it.
+    ...(demo ? [] : [{ title: t('settings.demoMode'), onPress: startDemo }]),
   ];
   const dataRows: readonly SettingsRow[] = [
-    { title: t('settings.export') },
+    {
+      title: t('settings.export'),
+      busy: exportStep === 'busy',
+      onPress: () => void exportReadings(),
+    },
     {
       title: t('settings.delete'),
       expanded: deleteStep !== 'idle',
       busy: deleteStep === 'deleting',
       onPress: () => setDeleteStep(deleteStep === 'idle' ? 'confirming' : 'idle'),
     },
-    { title: t('settings.about') },
+    {
+      title: t('settings.about'),
+      expanded: panel === 'about',
+      onPress: () => setPanel(panel === 'about' ? null : 'about'),
+    },
   ];
 
   function countVersionTap() {
@@ -91,6 +118,17 @@ export default function SettingsScreen() {
     const count = inStreak ? versionTaps.current.count + 1 : 1;
     versionTaps.current = { count: count === LAB_TAPS ? 0 : count, at: now };
     if (count === LAB_TAPS) router.push('/settings/lab');
+  }
+
+  // The share sheet is the only way out: Lumen sends nothing itself. Closing it without sending is not an error.
+  async function exportReadings() {
+    setExportStep('busy');
+    try {
+      const outcome = await shareReadingsCsv();
+      setExportStep(outcome === 'shared' ? 'idle' : outcome);
+    } catch {
+      setExportStep('failed');
+    }
   }
 
   // Deleting is two steps: the row opens the confirmation, and only its own button deletes. A failure is
@@ -106,20 +144,17 @@ export default function SettingsScreen() {
     router.replace('/welcome');
   }
 
-  // A row with no destination is a feature that does not exist yet, so it shows "Coming soon" and does nothing.
   function renderRows(rows: readonly SettingsRow[]) {
     return rows.map(({ title, value, href, onPress, expanded, busy }, index) => {
-      const opens = href !== undefined || onPress !== undefined;
-      const shownValue = value ?? (opens ? undefined : t('settings.comingSoon'));
       return (
         <ListRow
           key={title}
           title={title}
           last={index === rows.length - 1}
           chevron={href !== undefined}
-          disabled={!opens || busy}
+          disabled={busy}
           expanded={expanded}
-          trailing={shownValue ? <AppText tone="textDim">{shownValue}</AppText> : undefined}
+          trailing={value ? <AppText tone="textDim">{value}</AppText> : undefined}
           onPress={onPress ?? (href === undefined ? undefined : () => router.push(href))}
         />
       );
@@ -129,16 +164,16 @@ export default function SettingsScreen() {
   return (
     <RouteShell tabRoot title={t('settings.title')}>
       <Card flush>{renderRows(accountRows)}</Card>
-      <Card flush>
-        <ListRow
-          title={t('settings.healthSync')}
-          disabled
-          trailing={<Toggle label={t('settings.healthSync')} value={false} disabled />}
-        />
-        {renderRows(accuracyRows)}
-      </Card>
+      {panel === 'language' ? <LanguagePicker /> : null}
+      <Card flush>{renderRows(accuracyRows)}</Card>
       <Card flush>{renderRows(phoneRows)}</Card>
       <Card flush>{renderRows(dataRows)}</Card>
+      {exportStep === 'idle' || exportStep === 'busy' ? null : (
+        <AppText accessibilityRole="alert" tone="textDim">
+          {exportMessages[exportStep]}
+        </AppText>
+      )}
+      {panel === 'about' ? <AboutCard /> : null}
       {deleteStep === 'idle' ? null : (
         <Card>
           <AppText variant="headline">{t('settings.deleteConfirmTitle')}</AppText>

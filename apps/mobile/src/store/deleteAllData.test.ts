@@ -218,6 +218,13 @@ describe('deleteAllData', () => {
     expect([...memoryFiles.keys()]).toEqual(['cache/other.bin']);
   });
 
+  it('removes a readings export left behind when the app closed during sharing', async () => {
+    memoryFiles.set('lumen-readings.csv', 'taken_at_utc,mode');
+    memoryFiles.set('cache/other.bin', 'x');
+    await deleteAllData('en');
+    expect([...memoryFiles.keys()]).toEqual(['cache/other.bin']);
+  });
+
   it('turns secure_delete on before the deletes and vacuums after them', async () => {
     await fillEveryTable();
     const database = await lumenDatabase();

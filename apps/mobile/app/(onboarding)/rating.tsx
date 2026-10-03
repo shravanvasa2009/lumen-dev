@@ -94,9 +94,12 @@ export default function RatingScreen() {
             </AppText>
           )}
           {rating.tier === 'unsupported' ? (
-            <AppText tone="textDim" style={{ textAlign: 'center' }}>
-              {t('rating.demoOffer')}
-            </AppText>
+            <>
+              <AppText tone="textDim" style={{ textAlign: 'center' }}>
+                {t('rating.demoOffer')}
+              </AppText>
+              <NavButton label={t('welcome.tryDemo')} href="/?demo=1" variant="secondary" replace />
+            </>
           ) : (
             <UnlockedModes rating={rating} />
           )}

@@ -721,8 +721,8 @@
   "mode.lockedBasic": "Needs a phone rated Basic or Full.",
   "mode.locked60fps": "Needs a phone that films at 60 frames per second.",
   "mode.lockedFull": "Needs a phone rated Full.",
-  "rating.failScore": "This phone's pulse signal is too weak for Lumen to measure reliably.",
-  "rating.demoOffer": "Demo mode, coming soon in Settings, will show how Lumen works.",
+  "rating.failScore": "This phone's camera and flash can't give Lumen a clear enough pulse signal to measure reliably.",
+  "rating.demoOffer": "You can still try Demo mode to see how Lumen works.",
   "mode.lockedFlash": "Needs a phone whose flash reaches your finger.",
   "mode.lockedUnsupported": "Lumen can't measure a pulse on this phone.",
   "mode.ratingFooter": "{{tier}} rating ({{score}})"

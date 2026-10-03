@@ -205,6 +205,7 @@ describe('the rating from the probe and practice', () => {
     renderRouter('./app', { initialUrl: '/rating' });
     expect(await screen.findByText(en['rating.failScore'])).toBeOnTheScreen();
     expect(screen.getByText(en['rating.demoOffer'])).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: en['welcome.tryDemo'] })).toBeOnTheScreen();
     expect(screen.queryByText(en['rating.unlocked'])).toBeNull();
   });
 

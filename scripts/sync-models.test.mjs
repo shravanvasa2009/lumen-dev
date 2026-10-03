@@ -24,14 +24,17 @@ function snapshot(dir) {
     : null;
 }
 
+const LOGISTIC_FILE = 'rhythm-logistic@1.0.0.onnx';
+const LOGISTIC_BYTES = Buffer.from('weights of rhythm-logistic');
+
 function ruleEntry() {
   return {
     name: 'rhythm-logistic',
     family: 'rhythm',
     ships: false,
     role: 'basic-analysis fallback',
-    file: null,
-    sha256: null,
+    file: LOGISTIC_FILE,
+    sha256: digest(LOGISTIC_BYTES),
     inputs: { features: [1, 3] },
     threshold: { af: 0.5 },
     abstainBelow: 0.5,
@@ -65,6 +68,7 @@ function makeRepo(mutate = () => {}) {
     fs.writeFileSync(path.join(root, 'models', `${name}@1.0.0.onnx`), bytes);
     return { name, family, ships, file: `${name}@1.0.0.onnx`, sha256: digest(bytes) };
   });
+  fs.writeFileSync(path.join(root, 'models', LOGISTIC_FILE), LOGISTIC_BYTES);
   models.push(ruleEntry());
   mutate(models, root);
   fs.writeFileSync(path.join(root, 'models', 'manifest.json'), JSON.stringify({ models }));
@@ -167,19 +171,37 @@ test('names a shipped entry whose family is unknown', () => {
   assert.match(syncModels({ root }).errors.join(', '), /rhythm-net ships but has unknown family "ecg"/);
 });
 
-test('copies a rule entry without a model file and keeps the one-shipped check on ships: true', () => {
+test('copies a rule entry into the app manifest but not its .onnx', () => {
+  const root = makeRepo();
+  assert.ok(fs.existsSync(path.join(root, 'models', LOGISTIC_FILE)));
+  const { copied } = syncModels({ root });
+  assert.ok(!copied.includes(LOGISTIC_FILE));
+  assert.ok(!fs.readdirSync(path.join(root, APP)).includes(LOGISTIC_FILE));
+  const subset = JSON.parse(fs.readFileSync(path.join(root, APP, 'manifest.json'), 'utf8'));
+  assert.deepEqual(subset.models.filter((model) => model.name === 'rhythm-logistic'), [ruleEntry()]);
+});
+
+test('--check flags a rule entry .onnx found in the app folder', () => {
   const root = makeRepo();
   syncModels({ root });
-  assert.deepEqual(fs.readdirSync(path.join(root, APP)).sort(), [
-    'diabetes-net@1.0.0.onnx',
-    'manifest.json',
-    'rhythm-lgbm@1.0.0.onnx',
-    'sqi-net@1.0.0.onnx',
-  ]);
-  const noRule = makeRepo((models) => models.pop());
-  syncModels({ root: noRule });
-  const copied = JSON.parse(fs.readFileSync(path.join(noRule, APP, 'manifest.json'), 'utf8'));
-  assert.equal(copied.models.length, 3);
+  fs.writeFileSync(path.join(root, APP, LOGISTIC_FILE), LOGISTIC_BYTES);
+  const { errors } = syncModels({ root, check: true });
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /rhythm-logistic@1.0.0.onnx is not a shipped model/);
+});
+
+test('a rule entry that itself ships is listed once and its .onnx is copied', () => {
+  const root = makeRepo((models) => {
+    models[0].ships = false;
+    models[4].ships = true;
+  });
+  const { errors, copied } = syncModels({ root });
+  assert.deepEqual(errors, []);
+  assert.ok(copied.includes(LOGISTIC_FILE));
+  assert.ok(fs.existsSync(path.join(root, APP, LOGISTIC_FILE)));
+  const subset = JSON.parse(fs.readFileSync(path.join(root, APP, 'manifest.json'), 'utf8'));
+  assert.equal(subset.models.filter((model) => model.name === 'rhythm-logistic').length, 1);
+  assert.equal(subset.models.length, 3);
 });
 
 test('--check fails when a rule entry is missing or differs from the source', () => {

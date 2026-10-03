@@ -879,5 +879,8 @@
   "checks.diabetes.name": "Diabetes",
   "checks.state.ready": "Ready",
   "checks.state.working": "Checking",
-  "checks.state.unavailable": "Not on this phone"
+  "checks.state.unavailable": "Not on this phone",
+  "checks.pots.name": "POTS",
+  "checks.state.off": "Not in this scan",
+  "checks.pots.standingNote": "POTS, not in this scan. It runs in the Standing test."
 }

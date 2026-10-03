@@ -879,5 +879,8 @@
   "checks.diabetes.name": "Diabetes",
   "checks.state.ready": "Listo",
   "checks.state.working": "Revisando",
-  "checks.state.unavailable": "No en este teléfono"
+  "checks.state.unavailable": "No en este teléfono",
+  "checks.pots.name": "POTS",
+  "checks.state.off": "No está en este escaneo",
+  "checks.pots.standingNote": "POTS, no está en este escaneo. Se revisa en la prueba de pie."
 }

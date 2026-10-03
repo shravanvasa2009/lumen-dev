@@ -12,6 +12,8 @@
     <color name="lumen_widget_light_on_accent_fill">#0B0E14</color>
     <color name="lumen_widget_light_flag">#8A5A12</color>
     <color name="lumen_widget_light_critical_text">#C62828</color>
+    <color name="lumen_widget_light_badge_experimental_fg">#4A5263</color>
+    <color name="lumen_widget_light_badge_experimental_bg">#EBEBEB</color>
     <color name="lumen_widget_dark_surface">#141925</color>
     <color name="lumen_widget_dark_line">#262E40</color>
     <color name="lumen_widget_dark_line2">#3A4458</color>
@@ -22,4 +24,6 @@
     <color name="lumen_widget_dark_on_accent_fill">#0B0E14</color>
     <color name="lumen_widget_dark_flag">#F5A524</color>
     <color name="lumen_widget_dark_critical_text">#F87171</color>
+    <color name="lumen_widget_dark_badge_experimental_fg">#A7AFBF</color>
+    <color name="lumen_widget_dark_badge_experimental_bg">#272B36</color>
 </resources>

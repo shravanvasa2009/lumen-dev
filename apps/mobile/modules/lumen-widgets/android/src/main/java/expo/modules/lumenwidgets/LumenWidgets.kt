@@ -212,11 +212,12 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
                 // Four-checks proposal A: the small widget has room for the icons only.
                 if (view.checks.isNotEmpty()) {
                     Row(modifier = GlanceModifier.padding(start = (8 * scale).dp, top = (7 * scale).dp)) {
-                        CHECK_ICONS.forEach { icon ->
+                        CHECK_ICONS.forEachIndexed { index, icon ->
+                            if (index > 0) Spacer(GlanceModifier.width((3 * scale).dp))
                             Image(
                                 ImageProvider(icon),
                                 contentDescription = null,
-                                modifier = GlanceModifier.size((11 * scale).dp).padding(end = (3 * scale).dp),
+                                modifier = GlanceModifier.size((11 * scale).dp),
                                 colorFilter = ColorFilter.tint(view.color { it.textDim }),
                             )
                         }
@@ -245,8 +246,8 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
     }
 }
 
-// Four-checks proposal A (owner, 2026-10-03): each check's icon and name, with the Diabetes evidence tag while it
-// is Experimental. Home screen only; the lock screen never names a condition (WID-2).
+// Four-checks proposal A (owner, 2026-10-03; ADR 0083): each check's icon and name, with the Diabetes evidence tag
+// while it is Experimental. Home screen only; the lock screen never names a condition (WID-2).
 // Each check is its own Row: a Glance Row holds at most 10 children (RemoteViews), and four checks with their spacers
 // and the tag are 17; "Row container cannot have more than 10 elements" on the API 37 emulator, 2026-10-03.
 @Composable

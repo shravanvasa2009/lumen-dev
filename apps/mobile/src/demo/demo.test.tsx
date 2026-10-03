@@ -120,13 +120,14 @@ describe('demo session', () => {
     expect(route.getPathname()).toMatch(DEMO_RESULTS);
   });
 
-  it('hides Replay tutorial in Settings during demo only', async () => {
+  it('hides Replay tutorial and Demo mode in Settings during demo only', async () => {
     await startOnboarded();
     renderRouter('./app', { initialUrl: '/settings' });
     expect(await screen.findByText(en['settings.replayTutorial'])).toBeOnTheScreen();
+    expect(screen.getByText(en['settings.demoMode'])).toBeOnTheScreen();
 
     act(() => enterDemo());
     await waitFor(() => expect(screen.queryByText(en['settings.replayTutorial'])).toBeNull());
-    expect(screen.getByText(en['settings.demoMode'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['settings.demoMode'])).toBeNull();
   });
 });

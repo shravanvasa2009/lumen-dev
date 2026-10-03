@@ -13,6 +13,9 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 // The first render of the router compiles every route, which is slow on a busy machine.
 jest.setTimeout(30_000);
 
+let mockRating: { tier: string } | null = null;
+jest.mock('@/store/useStoredRating', () => ({ useStoredRating: () => mockRating }));
+
 preloadAppRoutes();
 
 describe('formatClock', () => {
@@ -59,6 +62,12 @@ describe('pre-check', () => {
     expect(caffeine).not.toBeChecked();
   });
 
+  it('says a Quick Check runs none of the four checks and names them all', () => {
+    expect(screen.getByText(en['checks.thisScanMode'].replace('{{mode}}', en['mode.quick']))).toBeOnTheScreen();
+    expect(screen.queryByTestId('evidence-badge')).toBeNull();
+    expect(screen.getByText('Not in this scan: AFib, HRV, Diabetes, POTS')).toBeOnTheScreen();
+  });
+
   it('starts the reading in the chosen mode from the pinned button', () => {
     fireEvent.press(screen.getByRole('button', { name: en['precheck.start'] }));
     expect(screen.getByRole('header', { name: en['mode.quick'] })).toBeOnTheScreen();
@@ -81,5 +90,32 @@ describe('pre-check', () => {
     for (let second = 0; second < 120; second++) act(() => jest.advanceTimersByTime(1000));
     fireEvent.press(screen.getByRole('button', { name: en['precheck.start'] }));
     expect(view.getSearchParams()).toEqual({ mode: 'quick', restDone: 'true', context: '' });
+  });
+});
+
+describe('pre-check for a Full Scan', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockRating = null;
+  });
+  afterEach(() => {
+    screen.unmount();
+    jest.useRealTimers();
+  });
+
+  it('lists AFib, HRV and Diabetes with its Experimental pill, and leaves POTS to the Standing test', () => {
+    renderRouter('./app', { initialUrl: '/measure/precheck?mode=full' });
+    expect(screen.getByText(en['checks.hrv.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.diabetes.name'])).toBeOnTheScreen();
+    expect(screen.getAllByTestId('evidence-badge')).toHaveLength(1);
+    expect(screen.getByText('Not in this scan: POTS')).toBeOnTheScreen();
+  });
+
+  it('shows HRV and Diabetes locked with the 60 fps reason on a Basic phone', () => {
+    mockRating = { tier: 'basic' };
+    renderRouter('./app', { initialUrl: '/measure/precheck?mode=full' });
+    expect(screen.getByText(`${en['checks.hrv.name']}: ${en['mode.locked60fps']}`)).toBeOnTheScreen();
+    expect(screen.getByText(`${en['checks.diabetes.name']}: ${en['mode.locked60fps']}`)).toBeOnTheScreen();
+    expect(screen.queryByTestId('evidence-badge')).toBeNull();
   });
 });

@@ -96,6 +96,7 @@ describe('Your phone', () => {
     expect(screen.getAllByRole('button', { name: en['phoneRating.retest'] })).toHaveLength(1);
     expect(screen.getByText(en['phoneRating.notTestedBody'])).toBeOnTheScreen();
     expect(screen.queryAllByTestId('rating-bar')).toHaveLength(0);
+    expect(screen.getByTestId('not-tested-tile')).toBeOnTheScreen();
     expect(screen.getByText(en['phoneRating.tip'])).toBeOnTheScreen();
   });
 

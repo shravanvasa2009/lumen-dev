@@ -20,7 +20,6 @@ const MAX_COUPLING = 35;
 const MAX_LOCKS = 15;
 const MAX_TIMING = 20;
 
-// Frame timing has no glyph that fits yet, so its row keeps an empty tile.
 type ComponentLine = {
   icon: IconName;
   name: string;
@@ -98,6 +97,16 @@ export default function PhoneRatingScreen() {
     >
       {rating === null ? (
         <Card>
+          <View
+            testID="not-tested-tile"
+            style={[
+              styles.tile,
+              styles.cardTile,
+              { backgroundColor: colors.surface2, borderRadius: radius.card / 2 },
+            ]}
+          >
+            <Icon name="phone" size={20} color={colors.textDim} />
+          </View>
           <AppText variant="headline" style={styles.centered}>
             {t('phoneRating.notTested')}
           </AppText>

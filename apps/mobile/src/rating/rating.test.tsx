@@ -168,6 +168,7 @@ describe('the rating from the probe and practice', () => {
     expect(screen.queryByText(en['phoneRating.notTested'])).toBeNull();
     expect(screen.getByLabelText('94, Full')).toBeOnTheScreen();
     expect(screen.getAllByTestId('rating-bar')).toHaveLength(4);
+    expect(screen.queryByTestId('not-tested-tile')).toBeNull();
   });
 
   it('says the phone is not rated yet when neither the probe nor a stored rating gives one', async () => {

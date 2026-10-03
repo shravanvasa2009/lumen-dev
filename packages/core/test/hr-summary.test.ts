@@ -28,6 +28,11 @@ describe('ML-6 diabetes-net HR/HRV summary (hand-computed answers)', () => {
     expect(summary.slice(1)).toEqual([null, null, null]);
   });
 
+  it('nulls HRV when the rhythm model abstained or gave no card', () => {
+    expect(hrSummary([alternatingBeats()], 'uncertain', 60, 300).slice(1)).toEqual([null, null, null]);
+    expect(hrSummary([alternatingBeats()], null, 60, 300).slice(1)).toEqual([null, null, null]);
+  });
+
   it('nulls HRV below 60 fps and SDNN below 300 clean seconds', () => {
     expect(hrSummary([alternatingBeats()], 'sinus', 30, 300).slice(1)).toEqual([null, null, null]);
     const shorter = hrSummary([alternatingBeats()], 'sinus', 60, 120);

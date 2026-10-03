@@ -10,6 +10,7 @@ import type {
   HrFlag,
   HrMetric,
   ReadingResult,
+  ReadingRhythm,
   RespMetric,
   RhythmClass,
   RhythmMetric,
@@ -123,14 +124,13 @@ export function isProbabilityRow(row: readonly number[]): boolean {
   return Math.abs(total - 1) <= DSP_CONFIG.rules.rhythmRowSumTolerance;
 }
 
-function rhythmCall(
+// Reading-level probabilities in RHYTHM_CLASSES order (the mean over windows); null when the reading gets
+// no rhythm card.
+function readingRhythmProbs(
   analysis: ReadingAnalysis,
   outputs: RhythmOutputs | null,
-  evidence: EvidenceFile,
   profile: Profile,
-  history: PastReading[],
-  confidence: Confidence,
-): RhythmCall | null {
+): number[] | null {
   const rules = DSP_CONFIG.rules;
   const windows = analysis.rhythmWindows.length;
   if (outputs && outputs.windowProbs.length !== windows)
@@ -142,13 +142,42 @@ function rhythmCall(
   if (!outputs || profile.pacemaker || windows === 0) return null;
   if (analysis.cleanSeconds < rules.rhythmMinCleanS || !analysis.enoughRhythmIntervals) return null;
 
-  // Reading-level probabilities: the mean over windows.
-  const probs = RHYTHM_CLASSES.map((_, c) => {
+  return RHYTHM_CLASSES.map((_, c) => {
     let total = 0;
     for (const row of outputs.windowProbs) total += row[c]!;
     return total / windows;
   });
-  const top = probs.indexOf(Math.max(...probs));
+}
+
+// The class with the highest probability, the first in RHYTHM_CLASSES order on a tie.
+const topClass = (probs: number[]) => probs.indexOf(Math.max(...probs));
+
+/** The rhythm decision that opens DSP-12 and diabetes-net's hrSummary; null with no rhythm card. */
+export function readingRhythm(
+  analysis: ReadingAnalysis,
+  outputs: RhythmOutputs | null,
+  profile: Profile,
+): ReadingRhythm | null {
+  // Validation only (ADR 0041): with no rhythm model output, a labelled rhythm stands in.
+  if (outputs === null) return analysis.context.validationRhythmLabel;
+  const probs = readingRhythmProbs(analysis, outputs, profile);
+  if (!probs) return null;
+  const top = topClass(probs);
+  return probs[top]! >= DSP_CONFIG.rules.uncertainBelowTopProb ? RHYTHM_CLASSES[top]! : 'uncertain';
+}
+
+function rhythmCall(
+  analysis: ReadingAnalysis,
+  outputs: RhythmOutputs | null,
+  evidence: EvidenceFile,
+  profile: Profile,
+  history: PastReading[],
+  confidence: Confidence,
+): RhythmCall | null {
+  const rules = DSP_CONFIG.rules;
+  const probs = readingRhythmProbs(analysis, outputs, profile);
+  if (!outputs || !probs) return null;
+  const top = topClass(probs);
   const topProb = probs[top]!;
   const fromProb: Confidence =
     topProb >= DSP_CONFIG.confidence.highTopProb
@@ -278,13 +307,7 @@ export function buildReadingResult(
   const rhythm = rhythmCall(analysis, models.rhythm, evidence, profile, history, confidence);
 
   let rmssd: RmssdMetric | null = null;
-  const confidentSinus =
-    rhythm !== null &&
-    rhythm.metric.class === 'sinus' &&
-    rhythm.topProb >= DSP_CONFIG.rules.uncertainBelowTopProb;
-  // Validation only (ADR 0041): with no rhythm model output, a labelled sinus rhythm opens the gate.
-  const labelledSinus = models.rhythm === null && analysis.context.validationRhythmLabel === 'sinus';
-  if ((confidentSinus || labelledSinus) && tierAtLeast(analysis, 'full')) {
+  if (readingRhythm(analysis, models.rhythm, profile) === 'sinus' && tierAtLeast(analysis, 'full')) {
     const values = hrv(analysis.segments, 'sinus', analysis.context.captureFps, analysis.cleanSeconds);
     if (values?.rmssdMs != null) {
       const earlier = history.flatMap((past) => (past.rmssdMs === null ? [] : [past.rmssdMs]));

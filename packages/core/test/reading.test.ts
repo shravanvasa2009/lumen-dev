@@ -187,6 +187,28 @@ describe('analyzeReading acquisition spans', () => {
     }
   });
 
+  it('DSP-4: a channel outside 0..1 (Appendix A) is a broken frame: coverage, and left out of the signal', () => {
+    const base = syntheticReading({ seconds: 30 });
+    for (const patch of [{ r: 153 }, { g: -0.01 }, { b: 1.5 }]) {
+      const samples = base.samples.map((sample, k) => (k === 600 ? { ...sample, ...patch } : sample));
+      const analysis = analyzeReading({ samples, stats: base.stats }, CONTEXT);
+      expect(spansOf(analysis, 'coverage')).toEqual([
+        { startS: 10, endS: (samples[601]!.tNs - CLOCK_START_NS) / 1e9, reason: 'coverage' },
+      ]);
+      expect(analysis.heartRateBpm).toBeCloseTo(analyze(base).heartRateBpm!, 6);
+    }
+  });
+
+  it('DSP-2: broken frames are splined across like dropped ones, and do not make beats artifacts', () => {
+    const base = syntheticReading({ seconds: 40 });
+    const samples = base.samples.map((sample, k) => (k % 2 === 1 ? { ...sample, r: NaN } : sample));
+    const analysis = analyzeReading({ samples, stats: base.stats }, CONTEXT);
+    expect(analysis.segments).toHaveLength(1);
+    expect(analysis.cleanSeconds).toBeCloseTo(analysis.durationS / 2, 1);
+    expect(analysis.segments[0]!.filter((beat) => beat.beatClass === 'artifact')).toEqual([]);
+    expect(analysis.heartRateBpm).toBeCloseTo(analyze(base).heartRateBpm!, 0);
+  });
+
   it('DSP-4: clipping over 5% on a covered frame is a clipping span, counted as pressure', () => {
     const analysis = analyze(syntheticReading({ clipped: (tS) => tS >= 40 && tS < 43 }));
     expect(spansOf(analysis, 'clipping')).toHaveLength(1);

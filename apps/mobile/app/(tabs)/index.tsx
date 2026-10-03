@@ -1,17 +1,17 @@
 import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, useWindowDimensions, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
 import { useDemoActive } from '@/demo/demoSession';
-import { LatestResultCard } from '@/home/LatestResultCard';
+import { ChecksSection } from '@/home/ChecksSection';
 import { MeasureButton } from '@/home/MeasureButton';
 import { MetricTile } from '@/home/MetricTile';
 import { dateLine, dayPeriod } from '@/home/moment';
-import { latestReading, tileSeries } from '@/home/readings';
+import { tileSeries } from '@/home/readings';
 import { WidgetPromo } from '@/home/WidgetPromo';
 import { durationLabel } from '@/measure/durationLabel';
 import { DEFAULT_MODE, MODES } from '@/measure/mode';
@@ -33,11 +33,18 @@ export default function HomeScreen() {
   return <Home />;
 }
 
+// Below this window height (a 360 x 640 phone) the Measure button shrinks and the check cards drop their icons.
+const COMPACT_HEIGHT = 700;
+const MEASURE_SIZE = 240;
+const MEASURE_SIZE_COMPACT = 164;
+
 function Home() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const readings = useStoredReadings();
   const { spacing } = useTheme();
+  const { height } = useWindowDimensions();
+  const compact = height < COMPACT_HEIGHT;
   const [promoDismissed, setPromoDismissed] = useState(false);
   const now = new Date();
   const greetings = {
@@ -53,23 +60,23 @@ function Home() {
 
   return (
     <Screen headerless>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, gap: spacing.lg, paddingBottom: spacing.lg }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, gap: spacing.md, paddingBottom: spacing.lg }}>
         <View>
           <AppText tone="textDim">{dateLine(now, i18n.language)}</AppText>
           <AppText variant="display" accessibilityRole="header">
             {greetings[dayPeriod(now.getHours())]}
           </AppText>
         </View>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ alignItems: 'center' }}>
           <MeasureButton
             label={t('home.measure')}
             modeLabel={modeLabel}
+            size={compact ? MEASURE_SIZE_COMPACT : MEASURE_SIZE}
             onPress={() => router.push('/measure/mode')}
           />
           <NavButton label={t('home.changeMode')} href="/measure/mode" variant="link" />
         </View>
-        <LatestResultCard reading={latestReading(readings)} now={now} />
-        {promoDismissed ? null : <WidgetPromo onDismiss={() => setPromoDismissed(true)} />}
+        <ChecksSection readings={readings} now={now} compact={compact} />
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <MetricTile
             label={t('home.restingHr')}
@@ -83,6 +90,7 @@ function Home() {
             points={tileSeries(readings, 'resp')}
           />
         </View>
+        {promoDismissed ? null : <WidgetPromo onDismiss={() => setPromoDismissed(true)} />}
         <NavButton label={t('home.followUp')} href="/follow-up" variant="link" />
       </ScrollView>
     </Screen>

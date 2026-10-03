@@ -161,6 +161,7 @@ function frameQualitySpans(
   const unscored: RejectedSpan[] = [];
   const flatRuns = new FlatRuns();
   let nextTickS = DSP_CONFIG.live.sqiEveryS;
+  let formedEndS: number | null = null;
   timebase.tS.forEach((tS, i) => {
     flatRuns.add(tS, timebase.r[i]!, covered[i] === 1);
     if (tS < nextTickS) return;
@@ -168,8 +169,9 @@ function frameQualitySpans(
     const window = modelWindowAt(timebase.tS, timebase.r, covered, i + 1);
     if (window && !window.input)
       spans.push({ startS: window.endS - windowS, endS: window.endS, reason: 'quality' });
-    const missing = window ? null : unscoredSpan(timebase.tS, i + 1);
+    const missing = window ? null : unscoredSpan(timebase.tS, i + 1, formedEndS);
     if (missing) unscored.push(missing);
+    if (window) formedEndS = window.endS;
   });
   // In LiveSession's order, so equal starts sort alike.
   return [...spans, ...(modelRan ? unscored : []), ...flatRuns.spans()];

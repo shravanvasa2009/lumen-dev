@@ -344,28 +344,33 @@ describe('analyzeReading acquisition spans', () => {
     );
   });
 
-  it('ADR 0057: with SQI-Net, a check with no window (bad frames past the gap limit) leaves 4 s not clean', () => {
+  // The check at 20 s still has a window, ending on the 64 Hz grid at or before the last covered frame
+  // (19.983 s at 60 fps), so the seconds before it were scored.
+  const lastWindowEndS = Math.floor((20 - 1 / 60) * 64) / 64;
+
+  it('ADR 0057: with SQI-Net, a check with no window leaves the seconds since the newest window not clean', () => {
     const reading = syntheticReading({ seconds: 30, fingerOff: (tS) => tS >= 20 && tS < 20.5 });
     const withModel = analyze(reading, { sqi: { threshold: 0.5, windows: [] } });
     const without = analyze(reading);
     const unscored = spansOf(withModel, 'quality');
     expect(spansOf(without, 'quality')).toEqual([]);
     expect(unscored.map((span) => span.endS)).toEqual([21, 22, 23, 24]);
-    for (const span of unscored) expect(span.endS - span.startS).toBe(4);
-    // [17, 24] unscored, less the 0.5 s already lost to coverage.
-    expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - 6.5, 9);
+    for (const span of unscored) expect(span.startS).toBe(lastWindowEndS);
+    // [lastWindowEndS, 24] unscored, less the 0.5 s already lost to coverage.
+    expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - (24 - lastWindowEndS - 0.5), 9);
   });
 
-  it('ADR 0057: after a camera stall only the frames since it are unscored, not the 4 s before', () => {
+  it('ADR 0057: after a camera stall only the seconds since the newest window are unscored', () => {
     const reading = syntheticReading({ seconds: 30, dropped: (tS) => tS > 20 && tS < 20.5 });
     const withModel = analyze(reading, { sqi: { threshold: 0.5, windows: [] } });
     const without = analyze(reading);
-    const [gap, ...unscored] = spansOf(withModel, 'quality').filter((span) => span.endS > 20);
-    const resumeS = gap!.endS;
-    expect(spansOf(without, 'quality')).toEqual([gap]);
+    const [gap] = spansOf(without, 'quality');
+    // The frame at 20 s is the last before the stall, and the check there has a window ending on it.
+    expect(gap!.startS).toBe(20);
+    const unscored = spansOf(withModel, 'quality').filter((span) => span.endS > gap!.endS);
     expect(unscored.map((span) => span.endS)).toEqual([21, 22, 23, 24]);
-    for (const span of unscored) expect(span.startS).toBe(resumeS);
-    expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - (24 - resumeS), 9);
+    for (const span of unscored) expect(span.startS).toBe(20);
+    expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - (24 - gap!.endS), 9);
   });
 
   it('splits at a dropped 300 ms stretch: no interval spans the gap', () => {

@@ -16,9 +16,8 @@ import { beatTimes, beatTrain, withRed, type Channels } from './attacks';
 // where the whole-ns clean count crosses the mode's target, whatever the frame rate and wherever the
 // DSP-2 gap sits; the live count and the saved analysis agree however the frames are batched; and a
 // capture accepted as a reading carries a heart rate within 5 bpm of the pulse it was built from
-// (ANSI/AAMI EC13's ±5 bpm, a criterion for the owner to confirm), or it is refused. The red team's six
-// sparse-frame cases below 10 fps (6.67–8 fps, a fast pulse aliased and accepted) are not here: they wait
-// on the owner's minimum-frame-rate ruling (ADR 0077).
+// (ANSI/AAMI EC13's ±5 bpm, a criterion for the owner to confirm), or it is refused. Captures under
+// live.minEffectiveFps (ADR 0077, owner's option C) are refused.
 
 const CONTEXT: ReadingContext = {
   captureFps: 30,
@@ -124,19 +123,55 @@ describe('red team: the mode target against one gap at dsp2.maxGapS, to the ns',
 });
 
 describe('red team: sparse frames with no DSP-2 gap (dropped frames, thermal throttling)', () => {
-  // Only intervals > dsp2.maxGapS are lost, so sparse frames count as clean. From 10 fps up a pulse up to
-  // 220 bpm (the top of the PSVT range) is still under Nyquist and must read within 5 bpm, or be refused.
+  // Failed on 808f37c: only intervals > dsp2.maxGapS were lost, so frames at most 150 ms apart counted as
+  // wholly clean and a fast pulse aliased (all { kind: 'reading' }, ≈ 99.9 clean s of 100 s): 220 bpm at
+  // 150 ms → 191.5 bpm; 210 bpm at 150 ms → 197.5; 120 bpm at 140 ms → 112.6; 210 bpm keeping 1 of 4 frames
+  // at 30 fps → 220.9; 190 bpm at 8 fps → 176.3; 190 bpm at 7 fps → 201.7. ADR 0077 (owner, option C): a
+  // model window under live.minEffectiveFps is rejected, so these are refused.
+  it.each([
+    ['every 150 ms', 220, 150e6],
+    ['every 150 ms', 210, 150e6],
+    ['every 140 ms', 120, 140e6],
+    ['keeping 1 frame in 4 at 30 fps', 210, 4e9 / 30],
+    ['at 8 fps', 190, 125e6],
+    ['at 7 fps', 190, 1e9 / 7],
+  ])('a 100 s Full Scan with frames %s and a %i bpm pulse is refused', (_, bpm, stepNs) => {
+    const analysis = judge(captureAt(toSeconds(framesNs(0, 100e9, stepNs)), regularPulse(bpm)));
+    expect(readingOutcome(analysis).kind).toBe('inconclusive');
+    expect(analysis.cleanSeconds).toBeLessThan(1);
+  });
+
+  // These read within 5 bpm on 808f37c; under ADR 0077 (owner, option C) they are below Lumen's 24 fps
+  // floor (§5.1) and refused by design.
   it.each([60, 100, 130, 160, 190, 220])(
-    'at 10, 12, and 15 fps (regular and jittered) %i bpm reads within 5 bpm',
+    'at 10, 12, and 15 fps (regular and jittered) %i bpm is refused',
     (bpm) => {
       for (const fps of [10, 12, 15])
         for (const offsets of [
           framesNs(0, 100e9, 1e9 / fps).map((ns) => ns / 1e9),
           jitteredOffsets(fps, 100, 0.3 / fps),
         ])
-          expectAccurateOrRefused(judge(captureAt(offsets, regularPulse(bpm))), bpm);
+          expect(readingOutcome(judge(captureAt(offsets, regularPulse(bpm)))).kind).toBe('inconclusive');
     },
   );
+
+  // The floor's edges: 24 fps and a jittered 30 fps still read; 30 fps dropping every 3rd frame (20 fps) is
+  // refused.
+  it.each([
+    ['24 fps', framesNs(0, 100e9, 1e9 / 24).map((ns) => ns / 1e9), 'reading'],
+    ['jittered 30 fps', jitteredOffsets(30, 100, 0.3 / 30), 'reading'],
+    [
+      '30 fps dropping every 3rd frame',
+      framesNs(0, 100e9, 1e9 / 30)
+        .filter((_, k) => k % 3 !== 2)
+        .map((ns) => ns / 1e9),
+      'inconclusive',
+    ],
+  ])('%s at 160 bpm: %s', (_, offsets, kind) => {
+    const analysis = judge(captureAt(offsets, regularPulse(160)));
+    expect(readingOutcome(analysis).kind).toBe(kind);
+    expectAccurateOrRefused(analysis, 160);
+  });
 });
 
 describe('red team: §16 waveform attacks with frame gaps', () => {
@@ -291,7 +326,7 @@ describe('red team: live and saved agree however frames are batched around gaps'
   // at 30.00 s, the camera stalls 500 ms at 30.45 s (stopping), and frames run 0.5 s past completion.
   // Observed: saved 27.000 clean s, inconclusive (shortfall 3.433 s). A 2 s stall at 30.00–30.45 s:
   // saved 28.07–28.50, inconclusive. Expected: a Quick reading, as 30 s were clean before any gap. Fixed:
-  // an unscored span starts no earlier than the frame that ends the latest gap (model-window unscoredSpan).
+  // an unscored span starts at the end of the newest window that formed (model-window unscoredSpan).
   it.each([
     [500e6, 30.45],
     [2e9, 30.0],
@@ -337,38 +372,50 @@ describe('red team: live and saved agree however frames are batched around gaps'
 });
 
 describe('red team: the model window tests a 150 ms interval without the half-ns allowance', () => {
-  // Failed on 808f37c. model-window.ts usableFrom and windowFrames still test tS[i] − tS[i − 1] >
-  // dsp2.maxGapS directly; 808f37c moved only FlatRuns onto isFrameGap. Frames exactly 150 000 000 ns
-  // apart (some intervals compute as 0.15000000000000002 s) are not a DSP-2 gap, yet no SQI-Net window
-  // forms over them: one frame per batch for 60 s gives sqiWindow null throughout, so SQI-Net never runs
-  // and the capture is accepted unscored (sqi null, 59.85 clean s, reading). At 149 999 999 ns, 56 windows
-  // are scored. After SQI-Net has run, the same intervals instead make every window unscored and lost.
+  // Failed on 808f37c. model-window.ts usableFrom and windowFrames still tested tS[i] − tS[i − 1] >
+  // dsp2.maxGapS directly; 808f37c moved only FlatRuns onto isFrameGap. An interval of exactly
+  // 150 000 000 ns (some compute as 0.15000000000000002 s) is not a DSP-2 gap, yet no SQI-Net window
+  // formed over it. Observed with frames every 150 ms; since ADR 0077 those windows are under
+  // live.minEffectiveFps, so here 30 fps frames have one interval of stepNs after every 26.
   // Expected: 150 000 000 ns behaves as 149 999 999 ns.
-  it.each([149_999_999, 150_000_000])('frames every %i ns: SQI-Net gets windows', (stepNs) => {
-    const capture = captureAt(toSeconds(framesNs(0, 60e9, stepNs)), regularPulse(75));
-    const session = createLiveSession({
+  const withLongIntervals = (stepNs: number) => {
+    const offsetsNs = [0];
+    for (let k = 1; offsetsNs[offsetsNs.length - 1]! < 60e9; k++)
+      offsetsNs.push(offsetsNs[offsetsNs.length - 1]! + (k % 27 === 0 ? stepNs : Math.round(1e9 / 30)));
+    return toSeconds(offsetsNs);
+  };
+  const newSession = () =>
+    createLiveSession({
       captureFps: 30,
       sqiThreshold: 0.5,
       perfusionFloorPct: DSP_CONFIG.live.defaultPerfusionFloorPct,
     });
-    let windows = 0;
-    capture.samples.forEach((sample, i) => {
-      session.pushSamples({ samples: [sample], stats: [capture.stats[i]!] });
-      if (session.sqiWindow) windows++;
-    });
-    expect(windows).toBeGreaterThan(0);
+
+  it('an interval of 150 000 000 ns can compute as more than dsp2.maxGapS', () => {
+    const offsets = withLongIntervals(150e6);
+    expect(offsets.some((tS, i) => i > 0 && tS - offsets[i - 1]! > DSP_CONFIG.dsp2.maxGapS)).toBe(true);
   });
+
+  it.each([149_999_999, 150_000_000])(
+    'an interval of %i ns every 27 frames: SQI-Net gets windows',
+    (stepNs) => {
+      const capture = captureAt(withLongIntervals(stepNs), regularPulse(75));
+      const session = newSession();
+      let windows = 0;
+      capture.samples.forEach((sample, i) => {
+        session.pushSamples({ samples: [sample], stats: [capture.stats[i]!] });
+        if (session.sqiWindow) windows++;
+      });
+      expect(windows).toBeGreaterThan(0);
+    },
+  );
 
   // windowFrames: once SQI-Net has scored every window clean, no 4 s is left unscored, live or saved.
   it.each([149_999_999, 150_000_000])(
-    'frames every %i ns, every window scored clean: all clean',
+    'an interval of %i ns every 27 frames, every window scored clean: all clean',
     (stepNs) => {
-      const capture = captureAt(toSeconds(framesNs(0, 60e9, stepNs)), regularPulse(75));
-      const session = createLiveSession({
-        captureFps: 30,
-        sqiThreshold: 0.5,
-        perfusionFloorPct: DSP_CONFIG.live.defaultPerfusionFloorPct,
-      });
+      const capture = captureAt(withLongIntervals(stepNs), regularPulse(75));
+      const session = newSession();
       let scoredEndS: number | null = null;
       capture.samples.forEach((sample, i) => {
         session.pushSamples({ samples: [sample], stats: [capture.stats[i]!] });
@@ -387,7 +434,8 @@ describe('red team: the model window tests a 150 ms interval without the half-ns
     },
   );
 
-  // usableFrom: the cold-hands check needs 4 s of covered, gap-free frames; 150 ms apart is gap-free.
+  // usableFrom: the cold-hands check needs 4 s of covered, gap-free frames; 150 ms apart is gap-free, and
+  // cold hands does not depend on the frame-rate floor.
   it.each([149_999_999, 150_000_000])(
     'frames every %i ns with a 0.05%% pulse: cold hands is found',
     (stepNs) => {
@@ -395,15 +443,33 @@ describe('red team: the model window tests a 150 ms interval without the half-ns
         toSeconds(framesNs(0, 60e9, stepNs)),
         beatTrain(beatTimes([1.2], 60), 0.3, 0.0003),
       );
-      const session = createLiveSession({
-        captureFps: 30,
-        sqiThreshold: 0.5,
-        perfusionFloorPct: DSP_CONFIG.live.defaultPerfusionFloorPct,
-      });
+      const session = newSession();
       capture.samples.forEach((sample, i) =>
         session.pushSamples({ samples: [sample], stats: [capture.stats[i]!] }),
       );
       expect(session.readingInput().coldHandsSpans.length).toBeGreaterThan(0);
+    },
+  );
+
+  // ADR 0077 (owner, option C): frames every 150 ms (6.67 fps) never reach SQI-Net, and live and saved
+  // reject the same windows, so the capture is refused whether or not SQI-Net ran.
+  it.each([149_999_999, 150_000_000])(
+    'frames every %i ns: no window for SQI-Net, live and saved refuse alike',
+    (stepNs) => {
+      const capture = captureAt(toSeconds(framesNs(0, 60e9, stepNs)), regularPulse(75));
+      const session = newSession();
+      let windows = 0;
+      capture.samples.forEach((sample, i) => {
+        session.pushSamples({ samples: [sample], stats: [capture.stats[i]!] });
+        if (session.sqiWindow) windows++;
+      });
+      expect(windows).toBe(0);
+      const { capture: frames, ...spans } = session.readingInput();
+      const saved = analyzeReading(frames, { ...CONTEXT, mode: 'quick', ...spans });
+      expect(saved.rejectedSpans).toEqual(session.rejectedSpans);
+      expect(cleanSeconds(0, saved.durationS, session.rejectedSpans)).toBe(saved.cleanSeconds);
+      expect(saved.cleanSeconds).toBeLessThan(1);
+      expect(readingOutcome(saved).kind).toBe('inconclusive');
     },
   );
 });

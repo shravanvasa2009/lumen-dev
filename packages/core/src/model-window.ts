@@ -53,9 +53,18 @@ function windowFrames(
   return null;
 }
 
+// Frames delivered in [endS − dsp3.modelWindowS, endS] of frames [0, count), covered or not.
+function framesInWindow(tS: ArrayLike<number>, count: number, endS: number): number {
+  const startS = endS - DSP_CONFIG.dsp3.modelWindowS;
+  let frames = 0;
+  for (let i = count - 1; i >= 0 && tS[i]! >= startS; i--) if (tS[i]! <= endS) frames++;
+  return frames;
+}
+
 // The SQI-Net window ending at or before frame count − 1 (ADR 0023): 256 points of −R on the 64 Hz grid,
-// splined across uncovered frames within DSP-2's gap limit. input is null when the window is flat or not
-// finite: it never reaches the model and counts as rejected. Null when no such window exists.
+// splined across uncovered frames within DSP-2's gap limit. input is null when the window is flat, not
+// finite, or holds fewer frames than live.minEffectiveFps (ADR 0077): it never reaches the model and
+// counts as rejected. Null when no such window exists.
 export function modelWindowAt(
   tS: Float64Array,
   red: Float64Array,
@@ -82,25 +91,25 @@ export function modelWindowAt(
   // Flatness is judged on the frames: a spline through equal values can round to tiny wiggles that
   // z-scoring would blow up into noise.
   const flat = window.every((value) => value === window[0]);
-  const input = !flat && values.every(Number.isFinite) ? sqiModelInput(values) : null;
+  const sparse =
+    framesInWindow(tS, count, endS) < DSP_CONFIG.live.minEffectiveFps * DSP_CONFIG.dsp3.modelWindowS;
+  const input = !flat && !sparse && values.every(Number.isFinite) ? sqiModelInput(values) : null;
   return { endS, input };
 }
 
 // ADR 0057: a check with 4 s of reading behind it but no window (bad frames past DSP-2's gap limit)
-// leaves those 4 s unscored. Once SQI-Net runs, they count as not clean. After a camera stall (a DSP-2
-// frame gap) only the frames since it are unscored: the gap is its own span, and the seconds before it
-// were in earlier windows, so a stall after the countdown completes cannot take back counted seconds.
-export function unscoredSpan(tS: ArrayLike<number>, count: number): RejectedSpan | null {
+// leaves unscored everything since the end of the newest window that formed (sinceS), or since the first
+// frame if none has: those seconds are in no window. Seconds inside a formed window stay outside it, so a
+// stall after the countdown completes cannot take back counted seconds. Once SQI-Net runs, the span is
+// not clean.
+export function unscoredSpan(
+  tS: ArrayLike<number>,
+  count: number,
+  sinceS: number | null,
+): RejectedSpan | null {
   const tickS = tS[count - 1]!;
-  const windowS = DSP_CONFIG.dsp3.modelWindowS;
-  if (tickS - tS[0]! < windowS) return null;
-  let startS = tickS - windowS;
-  for (let i = count - 1; i > 0 && tS[i]! > startS; i--) {
-    if (isFrameGap(tS[i - 1]!, tS[i]!)) {
-      startS = tS[i]!;
-      break;
-    }
-  }
+  if (tickS - tS[0]! < DSP_CONFIG.dsp3.modelWindowS) return null;
+  const startS = sinceS ?? tS[0]!;
   return startS < tickS ? { startS, endS: tickS, reason: 'quality' } : null;
 }
 

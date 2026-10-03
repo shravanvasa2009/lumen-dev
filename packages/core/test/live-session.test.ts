@@ -846,7 +846,13 @@ describe('LiveSession frame gaps and motion status (ADR 0072)', () => {
   });
 
   it('frames exactly maxGapS apart are not a gap; just over it they are', () => {
-    const offsets = (stepS: number) => Array.from({ length: 40 }, (_, k) => k * stepS);
+    // 30 fps with every 4th interval stepS, 3 s at most: no 4 s model window, so no ADR 0077 sparse one.
+    const offsets = (stepS: number) => {
+      const offsetsNs = [0];
+      for (let k = 1; k <= 40; k++)
+        offsetsNs.push(offsetsNs[k - 1]! + Math.round((k % 4 === 0 ? stepS : 1 / 30) * 1e9));
+      return offsetsNs.map((offsetNs) => offsetNs / 1e9);
+    };
     // Red changes every frame, so no ADR 0057 flat run is rejected.
     const red = (tS: number) => ({ r: 0.62 - 0.004 * Math.sin(7 * tS), g: 0.11, b: 0.04 });
     const gapsAt = (stepS: number) => {
@@ -855,7 +861,7 @@ describe('LiveSession frame gaps and motion status (ADR 0072)', () => {
       return session.rejectedSpans.length;
     };
     expect(gapsAt(DSP_CONFIG.dsp2.maxGapS)).toBe(0);
-    expect(gapsAt(0.2)).toBe(39);
+    expect(gapsAt(0.2)).toBe(10);
   });
 
   it.each([NaN, Infinity, -Infinity])('a motionRms of %p counts as moving', (motionRms) => {

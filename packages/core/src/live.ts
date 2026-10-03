@@ -94,12 +94,13 @@ class Session implements LiveSession {
   private readonly flatRuns = new FlatRuns();
   // Checks with no window (ADR 0057); rejected only once SQI-Net has run, as analyzeReading does with sqi.
   private readonly unscored: RejectedSpan[] = [];
+  private formedEndS: number | null = null; // end of the newest window, sent to SQI-Net or rejected
   private readonly gaps: RejectedSpan[] = []; // DSP-2 frame gaps: not clean (ADR 0072)
   private openContact: OpenSpan | null = null;
   private openMotionNs: number | null = null;
   private openColdHandsNs: number | null = null;
-  // Every setSqi score; endS on the 64 Hz grid. Flat windows are not here: analyzeReading finds them in the
-  // frames, as tick does.
+  // Every setSqi score; endS on the 64 Hz grid. Flat and sparse windows are not here: analyzeReading finds
+  // them in the frames, as tick does.
   private readonly scores: { endS: number; pClean: number }[] = [];
   private modelRan = false;
 
@@ -238,8 +239,9 @@ class Session implements LiveSession {
     const window = modelWindowAt(this.tS, this.red, this.covered, this.count);
     this.latestWindow = window?.input ? { endS: window.endS, input: window.input } : null;
     if (window && !window.input) this.rejectWindow(window.endS);
-    const unscored = window ? null : unscoredSpan(this.tS, this.count);
+    const unscored = window ? null : unscoredSpan(this.tS, this.count, this.formedEndS);
     if (unscored) this.unscored.push(unscored);
+    if (window) this.formedEndS = window.endS;
 
     const { coldHandsAfterS, perfusionWindowS } = DSP_CONFIG.live;
     const from =

@@ -280,8 +280,13 @@ describe('red team: flat runs at exactly dsp2.maxGapS (model-window FlatRuns)', 
     expect(readingOutcome(analysis)).toMatchObject({ kind: 'inconclusive', reasons: ['tooFewCleanSeconds'] });
   });
 
-  it('the split does not reject real signal: a pulse at exactly 150 ms per frame has no flat span', () => {
-    const capture = captureAt(fromNs(framesNs(0, 400, MAX_GAP_NS)), pulse);
+  // At 30 fps with an interval of exactly 150 ms after every 26: frames every 150 ms throughout are under
+  // live.minEffectiveFps, and their windows are rejected for that (ADR 0077).
+  it('the split does not reject real signal: a pulse with 150 ms intervals has no flat span', () => {
+    const offsetsNs = [0];
+    for (let k = 1; offsetsNs[offsetsNs.length - 1]! < 60e9; k++)
+      offsetsNs.push(offsetsNs[offsetsNs.length - 1]! + (k % 27 === 0 ? MAX_GAP_NS : Math.round(1e9 / 30)));
+    const capture = captureAt(fromNs(offsetsNs), pulse);
     const analysis = analyzeReading(capture, CONTEXT);
     expect(analysis.rejectedSpans.filter((span) => span.reason === 'quality')).toEqual([]);
     expect(analysis.cleanSeconds).toBe(analysis.durationS);

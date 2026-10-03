@@ -203,6 +203,9 @@ export const DSP_CONFIG = {
     // edge of the HR band, so it holds no beat. A pulse of at least half an 8-bit step changes red at least
     // twice a period, so its longest equal stretch is under half a period (1 s at 30 bpm).
     minFlatS: 2,
+    // ADR 0077 (owner, option C): a model window (dsp3.modelWindowS) holding fewer frames than this many
+    // per second is rejected as quality. §5.1's hard-fail floor: a rear camera that can't reach 24 fps.
+    minEffectiveFps: 24,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.

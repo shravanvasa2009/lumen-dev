@@ -1,11 +1,4 @@
-import {
-  analyzeReading,
-  detectBeats,
-  DSP_CONFIG,
-  elgendiPeaks,
-  rhythmWindows,
-  type ReadingContext,
-} from '../../src';
+import { analyzeReading, detectBeats, DSP_CONFIG, elgendiPeaks, type ReadingContext } from '../../src';
 import { captureAt, morphologySegment, regularOffsets } from '../synthetic';
 import { beatTimes } from './attacks';
 
@@ -82,22 +75,5 @@ describe('red team: DSP-7 never reports peaks out of time order', () => {
     expect(analysis.segments.length).toBeGreaterThan(0);
     for (const segment of analysis.segments) expectIncreasing(segment.map((beat) => beat.peakS));
     for (const interval of analysis.intervals) expect(interval.ibiMs).toBeGreaterThan(0);
-  });
-});
-
-describe('red team: DSP-15 takes a non-positive interval as one it excludes', () => {
-  it.each([
-    ['0 s', 0],
-    ['−0.29 s (the camera repro before the fix)', -0.29],
-  ])('ends the run at an interval of %s instead of throwing', (_label, bad) => {
-    const intervalsS = new Array<number>(80).fill(0.8);
-    intervalsS[40] = bad;
-    const windows = rhythmWindows(
-      intervalsS,
-      new Array<boolean>(80).fill(false),
-      new Array<boolean>(81).fill(false),
-    );
-    expect(windows.map((window) => window.startInterval)).toEqual([0, 41]);
-    for (const window of windows) expect(window.intervalsS).not.toContain(bad);
   });
 });

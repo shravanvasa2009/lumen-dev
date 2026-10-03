@@ -1,11 +1,9 @@
 import math
 
-import pytest
 
 from lumen_dsp.beats import detect_beats, elgendi_peaks, js_round
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.golden import morphology_segment
-from lumen_dsp.rhythm import rhythm_windows
 
 # Red team (§16) for order D.C_TASK-rhythm-windows-negative-interval, mirroring
 # packages/core/test/redteam/beat-order.test.ts on the inputs both sides can build without the camera path.
@@ -64,12 +62,3 @@ def test_refines_every_candidate_of_the_slow_pulse_within_its_window_in_time_ord
     for peak_s, centre in zip(peaks_s, centres, strict=True):
         assert abs(peak_s * SHAPE_HZ - centre) <= REFINE_HALF + 0.5
     assert all(later > earlier for earlier, later in zip(peaks_s[:-1], peaks_s[1:], strict=True))
-
-
-@pytest.mark.parametrize("bad", [0.0, -0.29])
-def test_rhythm_windows_end_the_run_at_a_non_positive_interval_instead_of_raising(bad):
-    intervals_s = [0.8] * 80
-    intervals_s[40] = bad
-    windows = rhythm_windows(intervals_s, [False] * 80, [False] * 81)
-    assert [window.start_interval for window in windows] == [0, 41]
-    assert all(bad not in window.intervals_s for window in windows)

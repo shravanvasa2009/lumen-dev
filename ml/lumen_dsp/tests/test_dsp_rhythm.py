@@ -159,25 +159,14 @@ def test_feature_vector_keeps_a_defined_sample_entropy():
     assert rhythm_feature_vector(window)[6] == window.sample_entropy
 
 
-# ADR 0024: the feature vector is always finite, so an interval must be a finite number of seconds,
-# whether or not it spans an artifact (red team).
-@pytest.mark.parametrize("bad_interval", [math.nan, math.inf, -math.inf])
+# ADR 0024: the feature vector is always finite, so an interval must be a finite positive number of
+# seconds, whether or not it spans an artifact (red team).
+@pytest.mark.parametrize("bad_interval", [math.nan, math.inf, -math.inf, 0.0, -0.8])
 @pytest.mark.parametrize("spans_artifact", [False, True])
-def test_rejects_an_interval_that_is_not_finite(bad_interval, spans_artifact):
+def test_rejects_an_interval_that_is_not_finite_and_positive(bad_interval, spans_artifact):
     intervals_s = [0.8] * 32
     intervals_s[5] = bad_interval
     spans = clean(32)
     spans[5] = spans_artifact
     with pytest.raises(ValueError, match="finite"):
         rhythm_windows(intervals_s, spans, clean(33))
-
-
-# Two beats at the same or reversed times are one beat found twice, not a cardiac cycle (as DSP-11's heart
-# rate): the interval is excluded like one spanning an artifact, so it never reaches a window.
-@pytest.mark.parametrize("bad_interval", [0.0, -0.0, -0.8])
-def test_excludes_an_interval_that_is_not_positive(bad_interval):
-    intervals_s = [0.9] * 100
-    intervals_s[40] = bad_interval
-    windows = rhythm_windows(intervals_s, clean(100), clean(101))
-    assert [w.start_interval for w in windows] == [0, 41, 57]
-    assert all(bad_interval not in w.intervals_s for w in windows)

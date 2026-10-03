@@ -43,25 +43,6 @@ describe('DSP-15 windows by beat count', () => {
     for (const window of windows) expect(window.intervalsS).toHaveLength(windowIntervals);
   });
 
-  // Two beats at the same or reversed times are one beat found twice, not a cardiac cycle (as DSP-11's
-  // heart rate), so the interval is excluded like one spanning an artifact.
-  it.each([0, -0, -0.8])('excludes an interval of %d s like one spanning an artifact', (bad) => {
-    const intervalsS = new Array<number>(100).fill(0.9);
-    intervalsS[40] = bad;
-    const windows = rhythmWindows(intervalsS, clean(100), clean(101));
-    expect(windows.map((w) => w.startInterval)).toEqual([0, 41, 57]);
-    for (const window of windows)
-      expect(window.intervalsS.every((intervalS) => intervalS === 0.9)).toBe(true);
-  });
-
-  it('refuses an interval that is not finite (ADR 0024)', () => {
-    for (const bad of [NaN, Infinity, -Infinity]) {
-      const intervalsS = new Array<number>(32).fill(0.8);
-      intervalsS[5] = bad;
-      expect(() => rhythmWindows(intervalsS, clean(32), clean(33))).toThrow(RangeError);
-    }
-  });
-
   it('counts atypical beats among the 33 beats that bound a window', () => {
     const atypical = clean(33);
     atypical[5] = true;

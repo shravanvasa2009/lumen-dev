@@ -247,15 +247,26 @@ function rhythmInputs(segments: MeasuredBeat[][]) {
   const beats: MeasuredBeat[] = [];
   const spansArtifact: boolean[] = [];
   const intervalsS: number[] = [];
+  // Two beats at the same or reversed times are one beat found twice, not a cardiac cycle (as heartRate).
+  // The later-listed one is left out, and the interval that bridges it spans an artifact, so DSP-15 never
+  // sees a non-positive interval or counts one as usable (ADR 0068).
+  let bridgesDuplicate = false;
   for (const segment of segments) {
     segment
       .filter((beat) => beat.beatClass !== 'not-a-beat')
       .forEach((beat, i) => {
         const previous = beats[beats.length - 1];
+        if (previous && !(beat.peakS > previous.peakS)) {
+          bridgesDuplicate = true;
+          return;
+        }
         if (previous) {
           intervalsS.push(beat.peakS - previous.peakS);
-          spansArtifact.push(i === 0 || previous.beatClass === 'artifact' || beat.beatClass === 'artifact');
+          spansArtifact.push(
+            i === 0 || bridgesDuplicate || previous.beatClass === 'artifact' || beat.beatClass === 'artifact',
+          );
         }
+        bridgesDuplicate = false;
         beats.push(beat);
       });
   }

@@ -186,6 +186,7 @@ describe('DSP-13 breathing rate', () => {
     const beats = [breathingBeats(120, 72, allAt(15))];
     expect(DSP_CONFIG.dsp13.minCleanS).toBe(60);
     expect(breathingRate(beats, 59.9)).toBeNull();
+    expect(breathingRate(beats, NaN)).toBeNull();
     expect(breathingRate(beats, 60)).not.toBeNull();
   });
 

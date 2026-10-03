@@ -10,6 +10,7 @@ from lumen_dsp.signals import dc_level
 
 # Mirrors packages/core/src/reading-metrics.ts with the same loops in the same order on plain Python
 # floats (§10.2 parity). A reading is one beat list per DSP-2 segment; no interval spans two segments.
+# Every clean-seconds and fps gate is written as `not value >= floor` so that NaN fails it.
 
 
 @dataclass(frozen=True)
@@ -80,7 +81,7 @@ def measure_beats(
 
 # DSP-10: perfusion index in percent, the median over normal beats of amplitude / |DC|; 30 clean s (§6.2).
 def perfusion_index(segments: Sequence[Sequence[MeasuredBeat]], clean_s: float) -> float | None:
-    if clean_s < DSP_CONFIG["dsp10"]["minCleanS"]:
+    if not clean_s >= DSP_CONFIG["dsp10"]["minCleanS"]:
         return None
     ratios = [
         100 * beat.amplitude / abs(beat.dc)
@@ -99,13 +100,16 @@ def beat_pairs(segment: Sequence[MeasuredBeat]) -> list[tuple[MeasuredBeat, Meas
 
 # DSP-11: heart rate in bpm, 60 / the median interval between consecutive non-artifact beats; 15 clean s.
 def heart_rate(segments: Sequence[Sequence[MeasuredBeat]], clean_s: float) -> float | None:
-    if clean_s < DSP_CONFIG["dsp11"]["minCleanS"]:
+    if not clean_s >= DSP_CONFIG["dsp11"]["minCleanS"]:
         return None
+    # Two beats at the same or reversed times are one beat found twice, not a cardiac cycle.
     intervals_s = [
         later.peak_s - earlier.peak_s
         for segment in segments
         for earlier, later in beat_pairs(segment)
-        if earlier.beat_class != "artifact" and later.beat_class != "artifact"
+        if earlier.beat_class != "artifact"
+        and later.beat_class != "artifact"
+        and later.peak_s - earlier.peak_s > 0
     ]
     return 60 / median(intervals_s) if intervals_s else None
 
@@ -161,7 +165,7 @@ def hrv(
     segments: Sequence[Sequence[MeasuredBeat]], rhythm: str, capture_fps: float, clean_s: float
 ) -> Hrv | None:
     dsp12 = DSP_CONFIG["dsp12"]
-    if rhythm != "sinus" or capture_fps < dsp12["minFps"]:
+    if rhythm != "sinus" or not capture_fps >= dsp12["minFps"]:
         return None
     runs = _filtered_runs(_nn_runs(segments))
     intervals_s = [interval_s for run in runs for interval_s in run]
@@ -188,3 +192,14 @@ def hrv(
         # Sample SD (n − 1) (ADR 0040).
         sdnn_ms = 1000 * math.sqrt(deviations / (len(intervals_s) - 1))
     return Hrv(rmssd_ms=rmssd_ms, sdnn_ms=sdnn_ms, pnn50=pnn50, nn_intervals=len(intervals_s))
+
+
+# ML-6: diabetes-net's [1, 4] HR/HRV summary [HR bpm, RMSSD ms, SDNN ms, pNN50] by DSP-11 and DSP-12, as
+# packages/core hrSummary. None values get the model's training median, not a fill here.
+def hr_summary(
+    segments: Sequence[Sequence[MeasuredBeat]], rhythm: str, capture_fps: float, clean_s: float
+) -> list[float | None]:
+    variability = hrv(segments, rhythm, capture_fps, clean_s)
+    if variability is None:
+        return [heart_rate(segments, clean_s), None, None, None]
+    return [heart_rate(segments, clean_s), variability.rmssd_ms, variability.sdnn_ms, variability.pnn50]

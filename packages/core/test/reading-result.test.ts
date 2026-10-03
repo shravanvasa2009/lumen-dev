@@ -2,6 +2,7 @@ import {
   analyzeReading,
   buildReadingResult,
   DSP_CONFIG,
+  isProbabilityRow,
   logisticRhythmOutputs,
   type EvidenceFile,
   type FrameStat,
@@ -267,6 +268,34 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
       diabetes: null,
     };
     expect(() => build(BASE, oneExtra)).toThrow(RangeError);
+  });
+
+  // A NaN row once became a card with no class and P(AF) NaN under an "irregular, retake" headline.
+  it.each([
+    ['a NaN', [Number.NaN, 0.5, 0.5]],
+    ['an infinite', [Infinity, 0, 0]],
+    ['a negative', [1.1, -0.1, 0]],
+    ['a non-normalised', [0.5, 0.2, 0.2]],
+  ] as [string, [number, number, number]][])('refuses %s window probability row', (_, bad) => {
+    const rows = [...SINUS.rhythm!.windowProbs];
+    rows[rows.length - 1] = bad;
+    const outputs: ModelOutputs = { rhythm: { windowProbs: rows, tauAf: 0.5 }, diabetes: null };
+    expect(() => build(BASE, outputs)).toThrow(/probabilit/);
+    expect(() => build(BASE, outputs, seedEvidence, { ...PROFILE, pacemaker: true })).toThrow(RangeError);
+  });
+
+  // The app drops just the rhythm card on a row this rejects, so it must agree with buildReadingResult.
+  it('exports the same row check that buildReadingResult applies', () => {
+    const float32Row = Array.from(Float32Array.from([0.9, 0.05, 0.05]));
+    expect(isProbabilityRow(float32Row)).toBe(true);
+    expect(isProbabilityRow([0.5, 0.2, 0.2])).toBe(false);
+    expect(isProbabilityRow([Number.NaN, 0.5, 0.5])).toBe(false);
+    expect(isProbabilityRow([0.5, 0.5])).toBe(false);
+  });
+
+  it('accepts a row that sums to 1 only within float32 rounding, as ONNX Runtime returns it', () => {
+    const float32Row = Array.from(Float32Array.from([0.9, 0.05, 0.05])) as [number, number, number];
+    expect(build(BASE, rhythmOf(float32Row)).metrics.rhythm!.class).toBe('sinus');
   });
 
   it('turns rhythm screening off with a pacemaker, and rhythm flags off with known AFib', () => {

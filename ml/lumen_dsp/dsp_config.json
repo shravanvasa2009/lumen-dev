@@ -85,6 +85,9 @@
     "maxSpreadBrpm": 4,
     "minCleanS": 60
   },
+  "diabetesFeatures": {
+    "widthLevels": [0.5, 0.25]
+  },
   "dsp15": {
     "windowIntervals": 32,
     "windowStep": 16,
@@ -103,6 +106,7 @@
     "fastRegularMaxNormalizedRmssd": 0.03,
     "rhythmMinCleanS": 60,
     "uncertainBelowTopProb": 0.6,
+    "rhythmRowSumTolerance": 1e-5,
     "possibleAfPositives": 2,
     "possibleAfReadings": 3,
     "possibleAfWindowHours": 24,

@@ -43,6 +43,8 @@ const TORCH_LEVELS = [0, 0.25, 0.5, 1];
 const TORCH_ON_OFF = [0, 1];
 // ADR 0027: core's live estimate is meant to run about once a second, timed here by the frames' own clock.
 const LIVE_HR_EVERY_NS = 1e9;
+// Paced-breathing metronomes run well inside this range; anything else is a typo.
+const MAX_PACED_BRPM = 60;
 
 type Subscription = { remove(): void };
 type Recorded = {
@@ -50,6 +52,7 @@ type Recorded = {
   summary: CaptureSummary;
   lab?: LabDiagnostics;
   polarRr?: PolarRr;
+  recordedAt?: Date;
 };
 type SendState =
   | { kind: 'idle' }
@@ -195,6 +198,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const liveWindow = useRef<Sample[]>([]);
   const lastEstimateNs = useRef<number | null>(null);
   const lastLab = useRef<LabDiagnostics | undefined>(undefined);
+  const startedAt = useRef<Date | undefined>(undefined);
   const phone = useRef<Capabilities | null>(null);
   const capturing = useRef(false);
   const mounted = useRef(true);
@@ -212,6 +216,8 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const [failure, setFailure] = useState<string | null>(null);
   const [address, setAddress] = useState('');
   const [token, setToken] = useState('');
+  const [rested, setRested] = useState(false);
+  const [pacedText, setPacedText] = useState('');
   const [sendState, setSendState] = useState<SendState>({ kind: 'idle' });
   const [phoneShown, setPhoneShown] = useState<Capabilities | null>(null);
   const [lensId, setLensId] = useState<string | undefined>(undefined);
@@ -385,6 +391,8 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           setLab(diagnostics);
         }),
       ];
+      // A replay was recorded earlier, so "now" would invent history for the §10.1 day rules; leave it out.
+      startedAt.current = capture instanceof ReplayCapture ? undefined : new Date();
       const config: CaptureConfig = { torchLevel };
       if (lensId !== undefined) config.lensId = lensId;
       if (targetFps !== undefined) config.targetFps = targetFps;
@@ -426,6 +434,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           summary,
           lab: lastLab.current,
           polarRr: stampStrapRr(strapNotifications.current, strapOffsetNs.current),
+          recordedAt: startedAt.current,
         });
     } catch (error) {
       capturing.current = true;
@@ -486,6 +495,11 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           ? t('lab.thermalSerious')
           : t('lab.thermalCritical');
 
+  const pacedTyped = pacedText.trim().replace(',', '.');
+  // Plain decimals only: Number() would also take forms like 0x10 or 1e1.
+  const pacedBrpm = /^\d+(\.\d+)?$/.test(pacedTyped) ? Number(pacedTyped) : undefined;
+  const pacedValid = pacedTyped === '' || (pacedBrpm !== undefined && pacedBrpm > 0 && pacedBrpm <= MAX_PACED_BRPM);
+
   const sendToPc = async () => {
     if (!recorded) return;
     setSendState({ kind: 'sending' });
@@ -493,8 +507,13 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       const body = captureRequestBody(batches.current, {
         appVersion: Constants.expoConfig?.version,
         ...recorded,
+        restTimerDone: rested,
+        pacedBrpm,
       });
       setSendState({ kind: 'sent', folder: await sendCapture(address.trim(), token.trim(), body) });
+      // The answers describe the capture just sent; carried over, they would label the next one.
+      setRested(false);
+      setPacedText('');
     } catch (error) {
       setSendState({ kind: 'failed', reason: reasonOf(error) });
     }
@@ -549,7 +568,13 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
     disabled: level !== 0 && !torchUsable,
   }));
 
-  const canSend = !running && recorded !== null && frames > 0 && address.trim() !== '' && token.trim() !== '';
+  const canSend =
+    !running &&
+    recorded !== null &&
+    frames > 0 &&
+    address.trim() !== '' &&
+    token.trim() !== '' &&
+    pacedValid;
 
   return (
     <View style={{ gap: spacing.md }}>
@@ -653,6 +678,24 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
 
       <AppText variant="headline">{t('lab.diagnostics')}</AppText>
       {lab ? <Diagnostics lab={lab} /> : <AppText tone="textDim">{t('lab.noDiagnostics')}</AppText>}
+
+      <AppText variant="headline">{t('lab.captureLabels')}</AppText>
+      <Button
+        variant="secondary"
+        label={rested ? t('lab.restedOn') : t('lab.restedOff')}
+        onPress={() => setRested((done) => !done)}
+      />
+      <AppText variant="caption" tone="textDim">
+        {t('lab.paced')}
+      </AppText>
+      <TextInput
+        accessibilityLabel={t('lab.paced')}
+        value={pacedText}
+        onChangeText={setPacedText}
+        keyboardType="decimal-pad"
+        style={inputStyle}
+      />
+      {pacedValid ? null : <AppText>{t('lab.pacedInvalid', { max: MAX_PACED_BRPM })}</AppText>}
 
       <AppText variant="headline">{t('lab.send')}</AppText>
       <AppText variant="caption" tone="textDim">

@@ -121,6 +121,21 @@ describe('DSP-14 ensemble beat', () => {
     expect(ensembleBeat(wave, onsets, allNormal(30), 60)).not.toBeNull();
     expect(ensembleBeat(wave, onsets, allNormal(30), 30)).toBeNull();
     expect(ensembleBeat(wave, onsets, allNormal(30), minFps - 1)).toBeNull();
+    expect(ensembleBeat(wave, onsets, allNormal(30), NaN)).toBeNull();
+  });
+
+  it.each([NaN, Infinity, -Infinity])('skips the one beat whose window holds a %d sample', (bad) => {
+    // 50 samples after onset 10 lies only in beat 10's window (onset − 0.1 to + 0.9 periods of 212.5).
+    const corrupt = Float64Array.from(wave);
+    corrupt[Math.round(onsets[10]!) + 50] = bad;
+    const shape = ensembleBeat(corrupt, onsets, allNormal(30), 60)!;
+    expect(shape.beatsUsed).toBe(28);
+    expect(Array.from(shape.beat).every(Number.isFinite)).toBe(true);
+  });
+
+  it('gives no beat when non-finite samples leave fewer than 20 usable beats', () => {
+    const corrupt = Float64Array.from(wave, (value, k) => (k % 100 === 0 ? NaN : value));
+    expect(ensembleBeat(corrupt, onsets, allNormal(30), 60)).toBeNull();
   });
 
   it('drops a beat longer than 1.5 × the median period (a missed onset)', () => {

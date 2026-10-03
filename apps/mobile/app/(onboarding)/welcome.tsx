@@ -12,12 +12,16 @@ import { useTheme } from '@/theme';
 
 // Mockup 01 v2 draws the lockup at 73% of the screen width and the tagline at 20 pt.
 const LOCKUP_SCREEN_SHARE = 0.73;
+// Below this window height (a 360 x 640 phone) the lockup and tagline shrink and the check tiles go compact.
+const COMPACT_HEIGHT = 700;
+const COMPACT_LOCKUP_SHARE = 0.5;
 const TAGLINE_MAX_WIDTH = 300;
 
 export default function WelcomeScreen() {
   const { t } = useTranslation();
   const { spacing } = useTheme();
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const compact = screenHeight < COMPACT_HEIGHT;
   return (
     <Screen
       headerless
@@ -32,17 +36,24 @@ export default function WelcomeScreen() {
         </>
       }
     >
-      <ScrollView contentContainerStyle={[styles.body, { gap: spacing.xl }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.body, { gap: compact ? spacing.lg : spacing.xl }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.group, { gap: spacing.md }]}>
-          <LumenLockup width={screenWidth * LOCKUP_SCREEN_SHARE} />
+          <LumenLockup width={screenWidth * (compact ? COMPACT_LOCKUP_SHARE : LOCKUP_SCREEN_SHARE)} />
           <AppText accessibilityRole="header" style={styles.screenReaderOnly}>
             {t('app.name')}
           </AppText>
-          <AppText variant="headline" tone="textDim" style={[styles.centeredText, styles.tagline]}>
+          <AppText
+            variant="headline"
+            tone="textDim"
+            style={[styles.centeredText, styles.tagline, compact ? styles.compactTagline : null]}
+          >
             {t('app.tagline')}
           </AppText>
         </View>
-        <FourChecks />
+        <FourChecks compact={compact} />
       </ScrollView>
     </Screen>
   );
@@ -54,5 +65,6 @@ const styles = StyleSheet.create({
   body: { flexGrow: 1, justifyContent: 'center' },
   group: { alignItems: 'center' },
   centeredText: { textAlign: 'center' },
+  compactTagline: { fontSize: 16, lineHeight: 22 },
   tagline: { fontWeight: '400', fontSize: 20, lineHeight: 28, maxWidth: TAGLINE_MAX_WIDTH },
 });

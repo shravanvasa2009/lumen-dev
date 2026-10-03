@@ -7,4 +7,8 @@
     <string name="lumen_widget_sample_bpm">64</string>
     <string name="lumen_widget_sample_bpm_unit">lpm</string>
     <string name="lumen_widget_sample_status_streak">Al día · racha de 5 días</string>
+    <string name="lumen_widget_check_afib">FA</string>
+    <string name="lumen_widget_check_pots">POTS</string>
+    <string name="lumen_widget_check_hrv">VFC</string>
+    <string name="lumen_widget_check_diabetes">Diabetes</string>
 </resources>

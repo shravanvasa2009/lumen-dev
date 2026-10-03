@@ -84,6 +84,10 @@ describe('Android widget picker', () => {
       'lumen_widget_sample_bpm',
       'lumen_widget_sample_bpm_unit',
       'lumen_widget_sample_status_streak',
+      'lumen_widget_check_afib',
+      'lumen_widget_check_pots',
+      'lumen_widget_check_hrv',
+      'lumen_widget_check_diabetes',
     ]);
   });
 
@@ -102,6 +106,10 @@ describe('Android widget picker', () => {
       lumen_widget_sample_bpm: String(SAMPLE_BPM),
       lumen_widget_sample_bpm_unit: appCopy['widgets.bpm'],
       lumen_widget_sample_status_streak: `${status} · ${streak}`,
+      lumen_widget_check_afib: appCopy['widgets.checkAfib'],
+      lumen_widget_check_pots: appCopy['widgets.checkPots'],
+      lumen_widget_check_hrv: appCopy['widgets.checkHrv'],
+      lumen_widget_check_diabetes: appCopy['widgets.checkDiabetes'],
     });
   });
 });

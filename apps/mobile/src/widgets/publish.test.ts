@@ -12,6 +12,7 @@ import { saveReading } from '@/store/readings';
 import { setPreference } from '@/theme/preferences';
 
 import { LumenWidgets } from '../../modules/lumen-widgets/src';
+import { evidenceFor } from '@/evidence';
 import { publishWidgets } from './publish';
 import type { WidgetSnapshot } from './snapshot';
 
@@ -69,6 +70,25 @@ beforeEach(() => {
   emptyMockDatabases();
   memoryFiles.clear();
   publishSnapshot().mockClear();
+});
+
+function publishedDisplay(): { checks: string[]; diabetesTag: string | null } {
+  const calls = publishSnapshot().mock.calls;
+  return JSON.parse(calls[calls.length - 1]![1]);
+}
+
+describe('the four checks on the medium widget', () => {
+  it('names AFib, POTS, HRV and Diabetes in the app language', async () => {
+    await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
+    expect(publishedDisplay().checks).toEqual(['AFib', 'POTS', 'HRV', 'Diabetes']);
+  });
+
+  // EVID-1: the tag is the evidence label's word, never written into the widget.
+  it('tags Diabetes only while its evidence label is Experimental', async () => {
+    await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
+    const experimental = evidenceFor('diabetes').label === 'experimental';
+    expect(publishedDisplay().diabetesTag).toBe(experimental ? 'Experimental' : null);
+  });
 });
 
 describe('publishing the widgets', () => {

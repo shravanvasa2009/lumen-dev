@@ -46,6 +46,18 @@ import androidx.glance.unit.ColorProvider
 // for that design and is multiplied by the scale for the cell the launcher actually gives.
 private val SMALL_DESIGN = DpSize(140.dp, 140.dp)
 private val MEDIUM_DESIGN = DpSize(330.dp, 140.dp)
+// With the four-checks row (owner, 2026-10-03) the medium design is that much taller.
+private val MEDIUM_WITH_CHECKS_DESIGN = DpSize(330.dp, 168.dp)
+
+// The four checks in the order the app publishes their names (publish.ts): AFib, POTS, HRV, Diabetes.
+private val CHECK_ICONS =
+    listOf(
+        R.drawable.lumen_check_afib,
+        R.drawable.lumen_check_pots,
+        R.drawable.lumen_check_hrv,
+        R.drawable.lumen_check_diabetes,
+    )
+private const val DIABETES_CHECK = 3
 
 // Below 0.75 the text gets too small to read; above 1.3 a very large cell would get oversized text. The
 // layout's flexible spacers absorb what the clamp leaves.
@@ -197,6 +209,19 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
             Row(modifier = GlanceModifier.fillMaxWidth()) {
                 Mark(view, (26 * scale).dp, view.name)
+                // Four-checks proposal A: the small widget has room for the icons only.
+                if (view.checks.isNotEmpty()) {
+                    Row(modifier = GlanceModifier.padding(start = (8 * scale).dp, top = (7 * scale).dp)) {
+                        CHECK_ICONS.forEach { icon ->
+                            Image(
+                                ImageProvider(icon),
+                                contentDescription = null,
+                                modifier = GlanceModifier.size((11 * scale).dp).padding(end = (3 * scale).dp),
+                                colorFilter = ColorFilter.tint(view.color { it.textDim }),
+                            )
+                        }
+                    }
+                }
                 Spacer(GlanceModifier.defaultWeight())
                 view.statusColor()?.let { dot ->
                     val size = (10 * scale).dp
@@ -220,6 +245,49 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
     }
 }
 
+// Four-checks proposal A (owner, 2026-10-03): each check's icon and name, with the Diabetes evidence tag while it
+// is Experimental. Home screen only; the lock screen never names a condition (WID-2).
+// Each check is its own Row: a Glance Row holds at most 10 children (RemoteViews), and four checks with their spacers
+// and the tag are 17; "Row container cannot have more than 10 elements" on the API 37 emulator, 2026-10-03.
+@Composable
+private fun CheckRow(view: WidgetView, scale: Float) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        view.checks.zip(CHECK_ICONS).forEachIndexed { index, (name, icon) ->
+            if (index > 0) Spacer(GlanceModifier.width((8 * scale).dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(
+                    ImageProvider(icon),
+                    contentDescription = null,
+                    modifier = GlanceModifier.size((12 * scale).dp),
+                    colorFilter = ColorFilter.tint(view.color { it.accent }),
+                )
+                Spacer(GlanceModifier.width((3 * scale).dp))
+                Text(
+                    name,
+                    style = TextStyle(color = view.color { it.text }, fontSize = (12 * scale).sp, fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                )
+                if (index == DIABETES_CHECK && view.diabetesTag != null) {
+                    Spacer(GlanceModifier.width((4 * scale).dp))
+                    Box(
+                        modifier =
+                            GlanceModifier
+                                .background(view.color { it.badgeExperimentalBg })
+                                .cornerRadius((8 * scale).dp)
+                                .padding(horizontal = (5 * scale).dp, vertical = (1 * scale).dp),
+                    ) {
+                        Text(
+                            view.diabetesTag,
+                            style = TextStyle(color = view.color { it.badgeExperimentalFg }, fontSize = (9 * scale).sp),
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 // Mockup 32 medium: the mark and name at the top left, the heart rate with "bpm" and "status · streak" at the
 // bottom left, and "Check now" over "Full Scan" on the right. With values hidden or no heart rate, the status
 // takes the number's place; before the first reading, the empty-state title and body do.
@@ -228,53 +296,61 @@ private fun MediumBody(view: WidgetView, scale: Float, width: Dp, check: Action,
     val text = view.color { it.text }
     val dim = view.color { it.textDim }
     Card(view, scale) {
-        Row(modifier = GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = GlanceModifier.defaultWeight().fillMaxHeight()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Mark(view, (24 * scale).dp, null)
-                    Spacer(GlanceModifier.width((10 * scale).dp))
-                    Text(view.name, style = TextStyle(color = dim, fontSize = (16 * scale).sp), maxLines = 1)
+        Column(modifier = GlanceModifier.fillMaxSize()) {
+            Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = GlanceModifier.defaultWeight().fillMaxHeight()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Mark(view, (24 * scale).dp, null)
+                        Spacer(GlanceModifier.width((10 * scale).dp))
+                        Text(view.name, style = TextStyle(color = dim, fontSize = (16 * scale).sp), maxLines = 1)
+                    }
+                    Spacer(GlanceModifier.defaultWeight())
+                    if (view.statusKey != null && view.bpm != null) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                view.bpm,
+                                style = TextStyle(color = text, fontSize = (40 * scale).sp, fontWeight = FontWeight.Bold),
+                                maxLines = 1,
+                            )
+                            Spacer(GlanceModifier.width((6 * scale).dp))
+                            // Lifts "bpm" from the bottom of the number's line box toward its baseline; Glance has no
+                            // baseline alignment.
+                            Text(
+                                view.bpmUnit,
+                                modifier = GlanceModifier.padding(bottom = (7 * scale).dp),
+                                style = TextStyle(color = text, fontSize = (16 * scale).sp, fontWeight = FontWeight.Medium),
+                                maxLines = 1,
+                            )
+                        }
+                        joinLine(view.status, view.streak)?.let {
+                            Text(it, style = TextStyle(color = dim, fontSize = (14 * scale).sp), maxLines = 1)
+                        }
+                    } else {
+                        val title = view.status ?: view.emptyTitle
+                        val detail = if (view.statusKey == null) view.emptyBody else joinLine(view.lastCheck, view.streak)
+                        Text(
+                            title,
+                            style = TextStyle(color = text, fontSize = (22 * scale).sp, fontWeight = FontWeight.Bold),
+                            maxLines = 2,
+                        )
+                        detail?.let { Text(it, style = TextStyle(color = dim, fontSize = (14 * scale).sp), maxLines = 1) }
+                    }
                 }
-                Spacer(GlanceModifier.defaultWeight())
-                if (view.statusKey != null && view.bpm != null) {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            view.bpm,
-                            style = TextStyle(color = text, fontSize = (40 * scale).sp, fontWeight = FontWeight.Bold),
-                            maxLines = 1,
-                        )
-                        Spacer(GlanceModifier.width((6 * scale).dp))
-                        // Lifts "bpm" from the bottom of the number's line box toward its baseline; Glance has no
-                        // baseline alignment.
-                        Text(
-                            view.bpmUnit,
-                            modifier = GlanceModifier.padding(bottom = (7 * scale).dp),
-                            style = TextStyle(color = text, fontSize = (16 * scale).sp, fontWeight = FontWeight.Medium),
-                            maxLines = 1,
-                        )
-                    }
-                    joinLine(view.status, view.streak)?.let {
-                        Text(it, style = TextStyle(color = dim, fontSize = (14 * scale).sp), maxLines = 1)
-                    }
-                } else {
-                    val title = view.status ?: view.emptyTitle
-                    val detail = if (view.statusKey == null) view.emptyBody else joinLine(view.lastCheck, view.streak)
-                    Text(
-                        title,
-                        style = TextStyle(color = text, fontSize = (22 * scale).sp, fontWeight = FontWeight.Bold),
-                        maxLines = 2,
-                    )
-                    detail?.let { Text(it, style = TextStyle(color = dim, fontSize = (14 * scale).sp), maxLines = 1) }
+                Spacer(GlanceModifier.width((12 * scale).dp))
+                Column(
+                    modifier = GlanceModifier.width(width * BUTTON_COLUMN_SHARE).fillMaxHeight(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Pill(view, view.checkNow, check, true, scale, GlanceModifier.fillMaxWidth(), MEDIUM_PILL_HEIGHT)
+                    Spacer(GlanceModifier.height((10 * scale).dp))
+                    Pill(view, view.fullScan, fullScan, false, scale, GlanceModifier.fillMaxWidth(), MEDIUM_PILL_HEIGHT)
                 }
             }
-            Spacer(GlanceModifier.width((12 * scale).dp))
-            Column(
-                modifier = GlanceModifier.width(width * BUTTON_COLUMN_SHARE).fillMaxHeight(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Pill(view, view.checkNow, check, true, scale, GlanceModifier.fillMaxWidth(), MEDIUM_PILL_HEIGHT)
-                Spacer(GlanceModifier.height((10 * scale).dp))
-                Pill(view, view.fullScan, fullScan, false, scale, GlanceModifier.fillMaxWidth(), MEDIUM_PILL_HEIGHT)
+            if (view.checks.isNotEmpty()) {
+                Spacer(GlanceModifier.height((6 * scale).dp))
+                Box(modifier = GlanceModifier.fillMaxWidth().height(BORDER.dp).background(view.color { it.line })) {}
+                Spacer(GlanceModifier.height((6 * scale).dp))
+                CheckRow(view, scale)
             }
         }
     }
@@ -287,7 +363,8 @@ internal fun WidgetBody(view: WidgetView, medium: Boolean) {
     val check = actionStartActivity(linkIntent(context, CHECK_LINK))
     if (medium) {
         val fullScan = actionStartActivity(linkIntent(context, FULL_SCAN_LINK))
-        MediumBody(view, scaleFor(size, MEDIUM_DESIGN), size.width, check, fullScan)
+        val design = if (view.checks.isEmpty()) MEDIUM_DESIGN else MEDIUM_WITH_CHECKS_DESIGN
+        MediumBody(view, scaleFor(size, design), size.width, check, fullScan)
     } else {
         SmallBody(view, scaleFor(size, SMALL_DESIGN), check)
     }
@@ -311,6 +388,8 @@ internal fun fallbackView(context: Context): WidgetView {
             onAccentFill = context.argb(R.color.lumen_widget_light_on_accent_fill),
             flag = context.argb(R.color.lumen_widget_light_flag),
             criticalText = context.argb(R.color.lumen_widget_light_critical_text),
+            badgeExperimentalFg = context.argb(R.color.lumen_widget_light_badge_experimental_fg),
+            badgeExperimentalBg = context.argb(R.color.lumen_widget_light_badge_experimental_bg),
         )
     val dark =
         Palette(
@@ -324,6 +403,8 @@ internal fun fallbackView(context: Context): WidgetView {
             onAccentFill = context.argb(R.color.lumen_widget_dark_on_accent_fill),
             flag = context.argb(R.color.lumen_widget_dark_flag),
             criticalText = context.argb(R.color.lumen_widget_dark_critical_text),
+            badgeExperimentalFg = context.argb(R.color.lumen_widget_dark_badge_experimental_fg),
+            badgeExperimentalBg = context.argb(R.color.lumen_widget_dark_badge_experimental_bg),
         )
     return WidgetView(
         name = context.applicationInfo.loadLabel(context.packageManager).toString(),
@@ -335,6 +416,8 @@ internal fun fallbackView(context: Context): WidgetView {
         streak = null,
         checkNow = context.getString(R.string.lumen_widget_check_now),
         fullScan = context.getString(R.string.lumen_widget_full_scan),
+        checks = emptyList(),
+        diabetesTag = null,
         emptyTitle = context.getString(R.string.lumen_widget_empty_title),
         emptyBody = context.getString(R.string.lumen_widget_empty_body),
         theme = "system",

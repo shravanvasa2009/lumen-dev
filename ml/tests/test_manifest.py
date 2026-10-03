@@ -595,7 +595,14 @@ def _external_results(models_dir, runs_dir, status="done"):
         **rhythm_bias_report(windows, ["af0", "af1", "af2"], ["sinus0", "sinus1", "sinus2"]),
     }
     entry = {"name": "diabetes-net", "version": "1.0.0", "threshold": {"pattern": frozen("diabetes-net")}}
-    results["diabetes"] = diabetes_part(entry, _units(2), {"holdoutWithoutPleth": 3})
+    results["diabetes"] = diabetes_part(
+        entry,
+        _units(2),
+        {
+            "holdoutUnscored": 3,
+            "holdoutUnscoredReasons": {"noPlethTrack": 2, "noStableWindow": 1, "noScorableSegment": 0},
+        },
+    )
     return results
 
 

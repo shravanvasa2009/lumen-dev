@@ -13,6 +13,7 @@ from scipy.signal import find_peaks
 
 from datasets import download, registry
 from datasets.vitaldb_cases import holdout_case_path, load_split
+from eval.external_gate import ExternalTestRefusedError
 from export.provenance import sha256_of
 
 FS = 125.0
@@ -181,31 +182,38 @@ def write_models(models_dir: Path) -> dict:
     return manifest
 
 
-WITHOUT_PLETH = 3
+UNSCORED = 3
 
 
 def holdout_scores(holdout: list[int]) -> dict:
-    # Every holdout patient but the last WITHOUT_PLETH, as ADR 0014's amendment allows.
+    # Every holdout patient but the last UNSCORED, with reasons ADR 0069 allows.
     rng = np.random.default_rng(5)
-    scored = holdout[: len(holdout) - WITHOUT_PLETH]
+    scored = holdout[: len(holdout) - UNSCORED]
     rows = []
     for index, subject in enumerate(scored):
         diabetic = index % 3 == 0
         score = float(np.clip(rng.normal(0.6 if diabetic else 0.3, 0.1), 0, 1))
         rows.append({"subject": subject, "diabetic": diabetic, "score": score})
-    return {"subjects": rows, "holdoutWithoutPleth": WITHOUT_PLETH}
+    reasons = {"noPlethTrack": 2, "noStableWindow": 1, "noScorableSegment": 0}
+    return {"subjects": rows, "holdoutUnscored": UNSCORED, "holdoutUnscoredReasons": reasons}
 
 
-def install_fake_scorer(monkeypatch, edit=None) -> list[tuple]:
+def install_fake_scorer(monkeypatch, edit=None, release_problem: str | None = None) -> list[tuple]:
     # Stands in for track/ml-diabetes's holdout scorer; records each call so tests can see when it ran.
+    # With release_problem, its release check refuses the release with that message.
     calls: list[tuple] = []
     module = ModuleType("train.diabetes_holdout")
+
+    def check_release(entry, models_dir):
+        if release_problem:
+            raise ExternalTestRefusedError(release_problem)
 
     def score_holdout(entry, models_dir, holdout):
         calls.append((entry["name"], len(holdout)))
         scored = {**holdout_scores(holdout), "onnxSha256": entry["sha256"]}
         return edit(scored) if edit else scored
 
+    module.check_release = check_release
     module.score_holdout = score_holdout
     monkeypatch.setitem(sys.modules, "train.diabetes_holdout", module)
     return calls

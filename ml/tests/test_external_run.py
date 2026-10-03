@@ -10,7 +10,8 @@ from eval.external_gate import ExternalTestRefusedError
 from eval.external_mimic import DspNotMergedError
 from tests.external_fixtures import (
     THRESHOLDS,
-    WITHOUT_PLETH,
+    UNSCORED,
+    holdout_scores,
     install_fake_beats,
     install_fake_scorer,
     write_holdout_files,
@@ -111,6 +112,25 @@ def test_a_scorer_with_the_wrong_signature_is_refused_before_the_start(setup, mo
     assert not setup["results_path"].exists()
 
 
+def test_a_scorer_without_its_release_check_is_refused_before_the_start(setup, monkeypatch):
+    approve(setup)
+    module = type(sys)("train.diabetes_holdout")
+    module.score_holdout = lambda entry, models_dir, holdout: {}
+    monkeypatch.setitem(sys.modules, "train.diabetes_holdout", module)
+    with pytest.raises(ExternalTestRefusedError, match="check_release"):
+        run(setup, parts=("diabetes",))
+    assert not setup["results_path"].exists()
+
+
+def test_a_release_the_scorer_refuses_stops_before_the_ledger_records_a_start(setup, monkeypatch):
+    approve(setup)
+    calls = install_fake_scorer(monkeypatch, release_problem="diabetes-net@1.0.0 has no fillMedians")
+    with pytest.raises(ExternalTestRefusedError, match="no fillMedians"):
+        run(setup, parts=("diabetes",))
+    assert not setup["results_path"].exists()
+    assert calls == []
+
+
 def test_missing_holdout_case_files_are_refused_before_the_start(setup, monkeypatch):
     approve(setup)
     calls = install_fake_scorer(monkeypatch)
@@ -186,7 +206,12 @@ def test_full_run_writes_what_m3_reads_then_refuses_a_second_run(setup, monkeypa
     assert all(lag == pytest.approx(0.25, abs=0.02) for lag in sqi["lagSecondsBySubject"].values())
     diabetes = results["diabetes"]
     holdout = load_split()["holdout"]
-    assert (diabetes["subjects"], diabetes["holdoutWithoutPleth"]) == (len(holdout) - WITHOUT_PLETH, 3)
+    assert (diabetes["subjects"], diabetes["holdoutUnscored"]) == (len(holdout) - UNSCORED, 3)
+    assert diabetes["holdoutUnscoredReasons"] == {
+        "noPlethTrack": 2,
+        "noStableWindow": 1,
+        "noScorableSegment": 0,
+    }
     assert [row["prevalence"] for row in diabetes["ppvNpv"]] == [0.05, 0.116, 0.20]
     assert calls == [("diabetes-net", len(holdout))]
 
@@ -244,6 +269,30 @@ def test_scores_must_come_from_the_locked_holdout(setup, monkeypatch):
     approve(setup)
     with pytest.raises(ValueError, match="locked holdout"):
         run(setup, parts=("diabetes",))
+
+
+@pytest.mark.parametrize(
+    ("reasons", "problem"),
+    [
+        (None, "must count each of"),
+        ({"noPlethTrack": 2, "noStableWindow": 1}, "must count each of"),
+        (
+            {"noPlethTrack": 2, "noStableWindow": 1, "noScorableSegment": 0, "crashed": 0},
+            "must count each of",
+        ),
+        ({"noPlethTrack": 4, "noStableWindow": -1, "noScorableSegment": 0}, "must count each of"),
+        ({"noPlethTrack": 2.0, "noStableWindow": 1, "noScorableSegment": 0}, "must count each of"),
+        ({"noPlethTrack": True, "noStableWindow": 2, "noScorableSegment": 0}, "must count each of"),
+        ({"noPlethTrack": 1, "noStableWindow": 1, "noScorableSegment": 0}, "sum to 2, not holdoutUnscored 3"),
+    ],
+)
+def test_unscored_reasons_must_be_adr_0069s_and_add_up(reasons, problem):
+    holdout = list(range(1, 11))
+    scored = {**holdout_scores(holdout), "onnxSha256": "a" * 64, "holdoutUnscoredReasons": reasons}
+    with pytest.raises(ValueError, match=problem):
+        external.holdout_units(scored, holdout, "a" * 64)
+    valid = {**scored, "holdoutUnscoredReasons": holdout_scores(holdout)["holdoutUnscoredReasons"]}
+    assert len(external.holdout_units(valid, holdout, "a" * 64).scores) == len(holdout) - UNSCORED
 
 
 @pytest.mark.skipif(

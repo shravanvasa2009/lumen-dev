@@ -31,6 +31,18 @@ describe('fix my technique', () => {
     expect(screen.queryByText(en['fix.introGeneric'])).toBeNull();
   });
 
+  it.each(causes)('puts the %s cause in a card with its own icon and the why note', (cause) => {
+    renderRouter('./app', { initialUrl: `/measure/fix-technique?cause=${cause}` });
+    expect(screen.getByTestId(`fix-cause-icon-${cause}`)).toBeOnTheScreen();
+    expect(screen.getAllByText(/lost signal from|perdió señal por/)).toHaveLength(1);
+    expect(screen.getByText(en[`fix.why.${cause}`])).toBeOnTheScreen();
+  });
+
+  it('shows no cause card without a cause', () => {
+    renderRouter('./app', { initialUrl: '/measure/fix-technique' });
+    expect(screen.queryByTestId(/fix-cause-icon/)).toBeNull();
+  });
+
   it('gives a generic introduction when no cause is passed or the cause is unknown', () => {
     renderRouter('./app', { initialUrl: '/measure/fix-technique?cause=red' });
     expect(screen.getByText(en['fix.introGeneric'])).toBeOnTheScreen();

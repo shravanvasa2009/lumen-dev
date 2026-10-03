@@ -9,6 +9,7 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { type FollowUpAnswer, saveFollowUpAnswer } from '@/profile/followUp';
+import { resyncNotifications } from '@/settings/applyPrefs';
 import { useTheme } from '@/theme';
 
 // HRSA's health-center finder; opened only when the person taps the link (spec 8.4).
@@ -34,7 +35,10 @@ export default function FollowUpScreen() {
   // The sheet stays open when the answer cannot be saved, so a see-doctor status is not left standing silently.
   const answer = (choice: FollowUpAnswer) =>
     saveFollowUpAnswer(choice, Date.now()).then(
-      () => router.replace('/'),
+      () => {
+        resyncNotifications();
+        router.replace('/');
+      },
       () => setAnswerFailed(true),
     );
   // The sheet closes first so the Care map opens as a normal screen instead of stacking on the sheet.

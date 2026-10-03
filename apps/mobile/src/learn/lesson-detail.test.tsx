@@ -96,6 +96,21 @@ describe('lesson detail', () => {
     expect(screen.getByText(en['learn.quizCorrect'])).toBeOnTheScreen();
   });
 
+  it('exposes every diagram as one labelled image', () => {
+    renderRouter(appDirectory, { initialUrl: '/learn/how-lumen-reads-your-pulse' });
+    expect(screen.getAllByRole('image')).toHaveLength(2);
+    const steps = [en['learn.pulse.step1'], en['learn.pulse.step2'], en['learn.pulse.step3']];
+    expect(screen.getByRole('image', { name: steps.join('. ') })).toBeOnTheScreen();
+    const wave = [en['learn.pulse.beatMark'], en['learn.pulse.gapMark']];
+    expect(screen.getByRole('image', { name: new RegExp(wave.join('\. ')) })).toBeOnTheScreen();
+  });
+
+  it('labels the rhythm diagram with both row names', () => {
+    renderRouter(appDirectory, { initialUrl: '/learn/how-the-rhythm-check-works' });
+    const label = `${en['learn.rhythm.steady']}. ${en['learn.rhythm.irregular']}`;
+    expect(screen.getByRole('image', { name: label })).toBeOnTheScreen();
+  });
+
   it('keeps the other lessons on plain paragraphs without template parts', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/what-is-afib' });
     expect(screen.getByText(en['learn.afib.p1'])).toBeOnTheScreen();

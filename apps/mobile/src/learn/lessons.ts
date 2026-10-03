@@ -2,12 +2,12 @@ import type { TFunction } from 'i18next';
 
 type LessonTone = 'accent' | 'flag' | 'public';
 
-export type LessonDiagram = 'finger-on-lens' | 'pulse-wave' | 'rhythm-gaps';
+export type LessonDiagramId = 'finger-on-lens' | 'pulse-wave' | 'rhythm-gaps';
 
 export type LessonSection = {
   heading: (t: TFunction) => string;
   body: (t: TFunction) => string;
-  diagram?: LessonDiagram;
+  diagram?: LessonDiagramId;
   // Short causes shown as chips under the body, with a small label above them when one is given.
   chips?: { label?: (t: TFunction) => string; items: (t: TFunction) => readonly string[] };
 };
@@ -21,7 +21,7 @@ export type LessonQuestion = {
 // A lesson written as numbered cards, a takeaway and one optional question instead of plain paragraphs.
 export type LessonTemplate = {
   // Drawn above the first card.
-  heroDiagram?: LessonDiagram;
+  heroDiagram?: LessonDiagramId;
   sections: readonly LessonSection[];
   takeaway: (t: TFunction) => string;
   question: LessonQuestion;
@@ -60,14 +60,22 @@ export const lessons: readonly Lesson[] = [
           body: (t) => t('learn.pulse.p3'),
           chips: {
             label: (t) => t('learn.pulse.blurLabel'),
-            items: (t) => [t('learn.pulse.chipMoving'), t('learn.pulse.chipPressing'), t('learn.pulse.chipCold')],
+            items: (t) => [
+              t('learn.pulse.chipMoving'),
+              t('learn.pulse.chipPressing'),
+              t('learn.pulse.chipCold'),
+            ],
           },
         },
       ],
       takeaway: (t) => t('learn.pulse.takeaway'),
       question: {
         prompt: (t) => t('learn.pulse.question'),
-        options: (t) => [t('learn.pulse.answerGuess'), t('learn.pulse.answerRetake'), t('learn.pulse.answerDiagnosis')],
+        options: (t) => [
+          t('learn.pulse.answerGuess'),
+          t('learn.pulse.answerRetake'),
+          t('learn.pulse.answerDiagnosis'),
+        ],
         correctIndex: 1,
       },
     },
@@ -96,7 +104,11 @@ export const lessons: readonly Lesson[] = [
           heading: (t) => t('learn.rhythm.h2'),
           body: (t) => t('learn.rhythm.p2'),
           chips: {
-            items: (t) => [t('learn.rhythm.chipMovement'), t('learn.rhythm.chipLoose'), t('learn.rhythm.chipExtra')],
+            items: (t) => [
+              t('learn.rhythm.chipMovement'),
+              t('learn.rhythm.chipLoose'),
+              t('learn.rhythm.chipExtra'),
+            ],
           },
         },
         { heading: (t) => t('learn.rhythm.h3'), body: (t) => t('learn.rhythm.p3') },
@@ -104,7 +116,11 @@ export const lessons: readonly Lesson[] = [
       takeaway: (t) => t('learn.rhythm.takeaway'),
       question: {
         prompt: (t) => t('learn.rhythm.question'),
-        options: (t) => [t('learn.rhythm.answerIgnore'), t('learn.rhythm.answerDoctor'), t('learn.rhythm.answerDiagnosis')],
+        options: (t) => [
+          t('learn.rhythm.answerIgnore'),
+          t('learn.rhythm.answerDoctor'),
+          t('learn.rhythm.answerDiagnosis'),
+        ],
         correctIndex: 1,
       },
     },

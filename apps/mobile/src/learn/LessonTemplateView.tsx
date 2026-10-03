@@ -109,7 +109,7 @@ function MeasuredFigures() {
   return (
     <View style={{ gap: spacing.sm }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-        <AppText variant="headline" style={{ flex: 1 }}>
+        <AppText variant="headline" accessibilityRole="header" style={{ flex: 1 }}>
           {t('learn.rhythmTestingHeading')}
         </AppText>
         <EvidenceBadge metric="rhythm" />
@@ -158,7 +158,7 @@ function QuickCheck({ question }: { question: LessonQuestion }) {
           <Pressable
             key={option}
             accessibilityRole="radio"
-            accessibilityState={{ selected: picked === index }}
+            accessibilityState={{ checked: picked === index }}
             onPress={() => setPicked(index)}
             style={{
               flexDirection: 'row',

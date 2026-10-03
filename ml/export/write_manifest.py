@@ -291,9 +291,14 @@ def manifest_entry(
         "date": date,
         "card": f"{spec.file_stem}.md",
         **({"rule": rule} if rule else {}),
-        # ML-6: the app fills a missing input feature with the dev-train median the model was trained with,
-        # and must feed the features in this order; neither is inside the ONNX file.
-        **{key: metrics[key] for key in ("featureOrder", "fillMedians") if metrics and key in metrics},
+        # ML-6: the app fills a missing diabetes feature with the dev-train median the model was trained with,
+        # and must feed the features in this order; neither is inside the ONNX file. Diabetes only: rhythm and
+        # SQI metrics also record a featureOrder (a list, for training), which the app never reads.
+        **{
+            key: metrics[key]
+            for key in ("featureOrder", "fillMedians")
+            if spec.family == "diabetes" and metrics and key in metrics
+        },
     }
 
 

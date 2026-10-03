@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
+import { CareTabButton } from '@/components/CareTabButton';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
 
@@ -28,6 +29,24 @@ export default function TabsLayout() {
         options={{
           title: t('tabs.trends'),
           tabBarIcon: ({ color, size }) => <Icon name="trends" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="care"
+        options={{
+          lazy: true,
+          title: t('tabs.care'),
+          tabBarAccessibilityLabel: t('tabs.careLabel'),
+          tabBarButton: ({ onPress, onLongPress, testID, 'aria-selected': selected }) => (
+            <CareTabButton
+              label={t('tabs.care')}
+              accessibilityLabel={t('tabs.careLabel')}
+              selected={selected === true}
+              onPress={onPress}
+              onLongPress={onLongPress}
+              testID={testID}
+            />
+          ),
         }}
       />
       <Tabs.Screen

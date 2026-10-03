@@ -1,14 +1,7 @@
 import { requireOptionalNativeModule } from 'expo';
 import * as Location from 'expo-location';
-import {
-  act,
-  fireEvent,
-  render,
-  renderHook,
-  renderRouter,
-  screen,
-  within,
-} from 'expo-router/testing-library';
+import { render } from '@testing-library/react-native';
+import { act, fireEvent, renderHook, renderRouter, screen, within } from 'expo-router/testing-library';
 import { Dimensions, Keyboard, Linking, Platform, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';

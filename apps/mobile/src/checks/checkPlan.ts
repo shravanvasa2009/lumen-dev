@@ -2,12 +2,31 @@ import { DSP_CONFIG, type RatingMode, type RatingTier, tierUnlocks } from '@lume
 
 import type { IconName } from '@/components/Icon';
 import type { EvidenceMetric } from '@/evidence';
+import type { StoredRating } from '@/store/deviceRating';
 import type { MODES } from '@/measure/mode';
 
 export type PlanMode = keyof typeof MODES;
 export type CheckId = 'afib' | 'hrv' | 'diabetes' | 'pots';
-export type PlanTier = RatingTier | 'unrated';
-export type LockWhy = 'fps60' | 'basic' | 'unsupported';
+type PlanTier = RatingTier | 'unrated';
+// The text for each reason is in lockText.ts; the strings are the mode lock's (spec 05 5.3).
+export type LockWhy = 'fps60' | 'flash' | 'full' | 'basic' | 'unsupported';
+
+// What the checks table needs to know about a phone: its tier, whether the flash reaches the finger (ambient
+// mode means it does not, spec 05 5.2) and whether the rear camera films at 60 fps or more (DSP-12).
+export type PlanPhone = { tier: PlanTier; ambient: boolean; fps60: boolean };
+
+export const UNRATED_PHONE: PlanPhone = { tier: 'unrated', ambient: false, fps60: false };
+
+const FPS_FOR_HRV = 60;
+
+export function planPhone(rating: StoredRating | null | undefined): PlanPhone {
+  if (rating === null || rating === undefined) return UNRATED_PHONE;
+  return {
+    tier: rating.tier,
+    ambient: rating.ambient,
+    fps60: rating.fpsLevel !== null && rating.fpsLevel >= FPS_FOR_HRV,
+  };
+}
 export type CheckCell =
   { state: 'runs'; cleanSeconds: number | null } | { state: 'notInScan' } | { state: 'locked'; why: LockWhy };
 
@@ -70,22 +89,31 @@ function cleanSecondsFor(check: CheckId, mode: PlanMode): number | null {
   return null;
 }
 
-function lockFor(check: CheckId, mode: PlanMode, tier: PlanTier): LockWhy | null {
+// Spec 05 5.2: Limited is a score of 25 to 49, or a flash that does not reach the finger. HRV and the diabetes
+// pattern need 60 fps AND a Full rating, so a Limited or Basic phone is told what it actually lacks: the frame
+// rate first, then the flash, then the rating itself.
+function lockFor(check: CheckId, mode: PlanMode, phone: PlanPhone): LockWhy | null {
+  const { tier, ambient, fps60 } = phone;
   if (tier === 'unrated') return null;
   if (tier === 'unsupported') return 'unsupported';
   const unlocks = tierUnlocks(tier);
   const checkOpen =
     unlocks.includes(REQUIRED_RATING_MODE[check]) ||
     (check === 'afib' && tier === 'limited' && LIMITED_KEEPS_AFIB);
-  if (!checkOpen) return NEEDS_60_FPS.has(check) ? 'fps60' : 'basic';
-  return unlocks.includes(MODE_RATING_ROW[mode]) ? null : 'basic';
+  const notEnough: LockWhy = ambient ? 'flash' : 'basic';
+  if (!checkOpen) {
+    if (!NEEDS_60_FPS.has(check)) return notEnough;
+    if (!fps60) return 'fps60';
+    return ambient ? 'flash' : 'full';
+  }
+  return unlocks.includes(MODE_RATING_ROW[mode]) ? null : notEnough;
 }
 
 // One answer for every screen that lists checks: what the mode runs, minus what the phone's tier locks.
 // A phone with no rating yet keeps everything open, as the mode lock does.
-export function checkCell(mode: PlanMode, check: CheckId, tier: PlanTier): CheckCell {
+export function checkCell(mode: PlanMode, check: CheckId, phone: PlanPhone): CheckCell {
   if (!MODE_RUNS[mode].has(check)) return { state: 'notInScan' };
-  const why = lockFor(check, mode, tier);
+  const why = lockFor(check, mode, phone);
   return why === null
     ? { state: 'runs', cleanSeconds: cleanSecondsFor(check, mode) }
     : { state: 'locked', why };

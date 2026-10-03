@@ -13,7 +13,7 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 // The first render of the router compiles every route, which is slow on a busy machine.
 jest.setTimeout(30_000);
 
-let mockRating: { tier: string } | null = null;
+let mockRating: { tier: string; ambient: boolean; fpsLevel: number } | null = null;
 jest.mock('@/store/useStoredRating', () => ({ useStoredRating: () => mockRating }));
 
 preloadAppRoutes();
@@ -112,7 +112,7 @@ describe('pre-check for a Full Scan', () => {
   });
 
   it('shows HRV and Diabetes locked with the 60 fps reason on a Basic phone', () => {
-    mockRating = { tier: 'basic' };
+    mockRating = { tier: 'basic', ambient: false, fpsLevel: 30 };
     renderRouter('./app', { initialUrl: '/measure/precheck?mode=full' });
     expect(screen.getByText(`${en['checks.hrv.name']}: ${en['mode.locked60fps']}`)).toBeOnTheScreen();
     expect(screen.getByText(`${en['checks.diabetes.name']}: ${en['mode.locked60fps']}`)).toBeOnTheScreen();

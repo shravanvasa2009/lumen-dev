@@ -1,6 +1,6 @@
 // Builds assets/clinics-osm.json: US clinics and doctor offices from OpenStreetMap (ODbL; ADR 0078), the
-// "Clinic" pins next to HRSA's low-cost sites. Run `node scripts/build-regular-clinics.mjs` from
-// apps/mobile. It asks the public Overpass API one state at a time, 10 s apart, as its usage policy asks:
+// "Clinic" pins next to HRSA's low-cost sites. Run `npm run build:clinics-osm` from apps/mobile. It asks the
+// public Overpass API one state at a time, 10 s apart, as its usage policy asks:
 // https://dev.overpass-api.de/overpass-doc/en/preface/commons.html
 // Responses are cached in the OS temp folder, so a run that fails part-way picks up where it stopped.
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';

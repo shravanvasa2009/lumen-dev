@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { SHAPE_FEATURE_NAMES } from '@lumen/core';
+import { RHYTHM_FEATURE_NAMES, SHAPE_FEATURE_NAMES } from '@lumen/core';
 import type * as OrtNode from 'onnxruntime-node';
 
 import expectedRhythm from './__fixtures__/rhythm-lgbm-fixture.expected.json';
@@ -132,6 +132,7 @@ const fixtureFor: Record<string, string> = {
 };
 
 function rhythmEntry(changes: Record<string, unknown> = {}) {
+  const declared = (changes.inputs as { features?: number[] } | undefined)?.features?.[1] ?? 8;
   return {
     name: 'rhythm-lgbm',
     version: '1.0.0',
@@ -145,6 +146,7 @@ function rhythmEntry(changes: Record<string, unknown> = {}) {
     labels: ['sinus', 'af', 'other'],
     threshold: { af: 0.5 },
     abstainBelow: 0.6,
+    featureOrder: RHYTHM_FEATURE_NAMES.slice(0, declared),
     ...changes,
   };
 }
@@ -478,6 +480,32 @@ describe('rhythm feature width (ADR 0079)', () => {
     expect(mockSessionsCreated.count).toBe(0);
   });
 
+  const reordered: string[] = [...RHYTHM_FEATURE_NAMES.slice(0, 8)];
+  [reordered[0], reordered[1]] = [reordered[1] as string, reordered[0] as string];
+
+  it.each([
+    ['reordered names', reordered],
+    ['too few names', RHYTHM_FEATURE_NAMES.slice(0, 7)],
+    ['no names', undefined],
+  ])('refuses a v1 manifest with %s in featureOrder', async (_, featureOrder) => {
+    const runtime = await loadRuntime({ models: [rhythmEntry({ featureOrder })] });
+    const plan = runtime.modelPlan().rhythm;
+    expect(plan.source === 'basic' && plan.reason).toMatch(
+      /^refused the shipped rhythm model: rhythm-lgbm@1\.0\.0 cannot be fed its features: its featureOrder /,
+    );
+    expect(await runtime.classifyRhythm(features)).toMatchObject({ source: 'basic', value: null });
+    expect(mockSessionsCreated.count).toBe(0);
+  });
+
+  it('refuses a v2 manifest whose tail names are reordered', async () => {
+    const tailSwapped: string[] = [...RHYTHM_FEATURE_NAMES];
+    [tailSwapped[13], tailSwapped[14]] = [tailSwapped[14] as string, tailSwapped[13] as string];
+    const runtime = await loadRuntime({
+      models: [rhythmEntry({ inputs: { features: [1, 15] }, featureOrder: tailSwapped })],
+    });
+    expect(runtime.modelPlan().rhythm.source).toBe('basic');
+  });
+
   // No width-15 ONNX fixture exists, so this checks the tensors the runtime builds and hands to the session,
   // using a recording session in place of ONNX Runtime; it says nothing about how a v2 model scores.
   it('sends all 15 values of 15-wide windows to a v2 [1, 15] manifest', async () => {
@@ -516,7 +544,8 @@ describe('rhythm feature width (ADR 0079)', () => {
 
 describe('diabetes inputs with missing values', () => {
   const beat = new Float64Array(256).fill(0.25);
-  const shapeFeatures = (value: number | null) => shapeFeatureNames.map((_, index) => (index % 2 ? value : 0.3));
+  const shapeFeatures = (value: number | null) =>
+    shapeFeatureNames.map((_, index) => (index % 2 ? value : 0.3));
   const hrSummary = (value: number | null) => hrSummaryNames.map((_, index) => (index % 2 ? 0.2 : value));
   const scoreOf = async (input: Parameters<typeof Runtime.scoreDiabetesInput>[0]) => {
     const runtime = await loadRuntime({ models: [diabetesEntry()] });
@@ -572,7 +601,11 @@ describe('diabetes inputs with missing values', () => {
     const reason = `refused the shipped diabetes model: diabetes-net@1.0.0 cannot be fed a missing value: ${why}`;
     expect(runtime.modelPlan().diabetes).toEqual({ source: 'basic', reason });
     expect(
-      await runtime.scoreDiabetesInput({ beat, shapeFeatures: shapeFeatures(null), hrSummary: hrSummary(null) }),
+      await runtime.scoreDiabetesInput({
+        beat,
+        shapeFeatures: shapeFeatures(null),
+        hrSummary: hrSummary(null),
+      }),
     ).toEqual({ source: 'basic', value: null, reason });
   });
 });

@@ -1,6 +1,5 @@
 import math
 
-
 from lumen_dsp.beats import detect_beats, elgendi_peaks, js_round
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.golden import morphology_segment

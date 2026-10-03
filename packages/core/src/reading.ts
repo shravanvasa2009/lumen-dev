@@ -225,7 +225,7 @@ function beatSegments(timebase: Timebase, samples: Sample[], spans: RejectedSpan
 
 // One segment's beats that are not "not a beat". Two beats at the same or reversed times are one beat found
 // twice, not a cardiac cycle (as heartRate): the later-listed one is left out, and the interval that
-// bridges it (ending at the next kept beat) is not used, so no interval is ≤ 0 (ADR 0068).
+// bridges it (ending at the next kept beat) is not used, so no interval is ≤ 0 (DSP-7, DSP-15, ADR 0068).
 function distinctBeats(segment: MeasuredBeat[]): { beat: MeasuredBeat; bridgesDuplicate: boolean }[] {
   const kept: { beat: MeasuredBeat; bridgesDuplicate: boolean }[] = [];
   let bridgesDuplicate = false;

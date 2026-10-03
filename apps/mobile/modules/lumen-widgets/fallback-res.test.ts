@@ -60,7 +60,7 @@ describe('Android widget picker', () => {
   // https://developer.android.com/develop/ui/views/appwidgets/layouts
   it.each(['small', 'medium', 'mark'])('draws the %s preview only with RemoteViews classes', (name) => {
     const layout = fs.readFileSync(path.join(RES, 'layout', `lumen_widget_preview_${name}.xml`), 'utf8');
-    const tags = [...layout.matchAll(/<([A-Za-z]+)[\s>]/g)].map(([, tag]) => tag);
+    const tags = [...layout.matchAll(/<([A-Za-z]+)[\s/>]/g)].map(([, tag]) => tag);
     expect(tags.filter((tag) => !REMOTE_VIEWS_TAGS.has(tag!))).toEqual([]);
   });
 

@@ -35,7 +35,7 @@ export function standingRise(
   ageYears: number,
   stoppedFaint: boolean,
 ): StandingRise {
-  const { standingMinutes, consecutiveReadings, flagPairBeforeFaintStop } = DSP_CONFIG.dsp16;
+  const { standingMinutes, consecutiveReadings } = DSP_CONFIG.dsp16;
   if (!isPositiveRate(baselineBpm)) throw new RangeError(`baseline ${baselineBpm} bpm is not a valid rate`);
   const thresholdBpm = riseThresholdBpm(ageYears);
   // Readings must be a prefix of the protocol: a skipped (array hole), repeated, or reordered slot is a caller
@@ -70,9 +70,9 @@ export function standingRise(
     run = riseBpm !== null && riseBpm >= thresholdBpm ? run + 1 : 0;
     if (run >= consecutiveReadings) pairMet = true;
   }
-  // §10.1 flags only a completed protocol. stoppedFaint means the faint tap ended the test early, whatever the
-  // slot count. Whether that stop counts as completed is owner decision H-043 (ADR 0063 item 2); until then it
-  // does not. The UI routes stoppedFaint to the safety path whatever the flag.
-  const completed = stoppedFaint ? flagPairBeforeFaintStop : count === standingMinutes.length;
+  // §10.1 flags only a completed protocol. An "I feel faint" stop completes it, so a pair met before the stop
+  // flags: owner decision H-043 B (ADR 0063 item 2). The UI routes stoppedFaint to the safety path whatever
+  // the flag.
+  const completed = stoppedFaint || count === standingMinutes.length;
   return { thresholdBpm, rises, flag: completed && pairMet ? 'largeRise' : null, completed, stoppedFaint };
 }

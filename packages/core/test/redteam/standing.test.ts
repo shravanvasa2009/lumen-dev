@@ -9,17 +9,6 @@ const BASELINE = 70;
 const ADULT_AGE = 30;
 const TEEN_AGE = 15;
 
-// Runs the block with flagPairBeforeFaintStop set, then restores the shipped value (owner decision H-043).
-function withFaintRule(flagPairBeforeFaintStop: boolean, block: () => void) {
-  const shipped = DSP_CONFIG.dsp16.flagPairBeforeFaintStop;
-  DSP_CONFIG.dsp16.flagPairBeforeFaintStop = flagPairBeforeFaintStop;
-  try {
-    block();
-  } finally {
-    DSP_CONFIG.dsp16.flagPairBeforeFaintStop = shipped;
-  }
-}
-
 function slots(...bpms: (number | null)[]): StandingReading[] {
   return bpms.map((bpm, index) => ({ minute: MINUTES[index]!, bpm }));
 }
@@ -99,51 +88,23 @@ describe('DSP-16 red team: exhaustive pair oracle', () => {
     },
   );
 
-  it('strict faint rule: a faint stop after 0-3 slots never flags, every pattern', () => {
-    withFaintRule(false, () => {
-      for (const n of [0, 1, 2, 3]) {
-        for (const levels of patterns(n)) {
-          const outcome = standingRise(
-            BASELINE,
-            slots(...levels.map((level) => rateFor(level, 30))),
-            ADULT_AGE,
-            true,
-          );
-          expect({
-            levels,
-            flag: outcome.flag,
-            completed: outcome.completed,
-            faint: outcome.stoppedFaint,
-          }).toEqual({
-            levels,
-            flag: null,
-            completed: false,
-            faint: true,
-          });
-        }
+  // Owner decision H-043 B (ADR 0063 item 2).
+  it('faint rule: a faint stop after 0-4 slots keeps a pair met before it, every pattern', () => {
+    for (const n of [0, 1, 2, 3, 4]) {
+      for (const levels of patterns(n)) {
+        const outcome = standingRise(
+          BASELINE,
+          slots(...levels.map((level) => rateFor(level, 30))),
+          ADULT_AGE,
+          true,
+        );
+        expect({ levels, flag: outcome.flag, completed: outcome.completed }).toEqual({
+          levels,
+          flag: oracleFlag(levels, true) ? 'largeRise' : null,
+          completed: true,
+        });
       }
-    });
-  });
-
-  it('proposed faint rule: a faint stop after 0-4 slots keeps a pair met before it, every pattern', () => {
-    withFaintRule(true, () => {
-      for (const n of [0, 1, 2, 3, 4]) {
-        for (const levels of patterns(n)) {
-          const outcome = standingRise(
-            BASELINE,
-            slots(...levels.map((level) => rateFor(level, 30))),
-            ADULT_AGE,
-            true,
-          );
-          expect({ levels, flag: outcome.flag, completed: outcome.completed }).toEqual({
-            levels,
-            flag: oracleFlag(levels, true) ? 'largeRise' : null,
-            completed: true,
-          });
-        }
-      }
-    });
-    expect(DSP_CONFIG.dsp16.flagPairBeforeFaintStop).toBe(false);
+    }
   });
 });
 
@@ -334,35 +295,13 @@ describe('DSP-16 red team: array shapes', () => {
 });
 
 describe('DSP-16 red team: stoppedFaint', () => {
-  it.each([0, 1, 2, 3])(
-    'strict rule: faint after %p slots with every slot high is incomplete, no flag',
-    (n) => {
-      withFaintRule(false, () => {
-        const outcome = standingRise(BASELINE, slots(...Array<number>(n).fill(130)), ADULT_AGE, true);
-        expect(outcome).toMatchObject({ completed: false, flag: null, stoppedFaint: true });
-        expect(outcome.rises).toHaveLength(n);
-      });
-    },
-  );
-
-  it.each([0, 1, 2, 3, 4])('proposed rule: faint after %p slots, all high, flags iff a pair exists', (n) => {
-    withFaintRule(true, () => {
-      const outcome = standingRise(BASELINE, slots(...Array<number>(n).fill(130)), ADULT_AGE, true);
-      expect(outcome).toMatchObject({
-        completed: true,
-        flag: n >= 2 ? 'largeRise' : null,
-        stoppedFaint: true,
-      });
+  it.each([0, 1, 2, 3, 4])('faint after %p slots, all high, flags iff a pair exists', (n) => {
+    const outcome = standingRise(BASELINE, slots(...Array<number>(n).fill(130)), ADULT_AGE, true);
+    expect(outcome).toMatchObject({
+      completed: true,
+      flag: n >= 2 ? 'largeRise' : null,
+      stoppedFaint: true,
     });
-  });
-
-  it('withFaintRule restores the shipped strict value even when the block throws', () => {
-    expect(() =>
-      withFaintRule(true, () => {
-        throw new Error('block failed');
-      }),
-    ).toThrow('block failed');
-    expect(DSP_CONFIG.dsp16.flagPairBeforeFaintStop).toBe(false);
   });
 });
 

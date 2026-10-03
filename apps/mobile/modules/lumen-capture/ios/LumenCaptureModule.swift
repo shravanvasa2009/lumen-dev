@@ -130,7 +130,13 @@ public final class LumenCaptureModule: Module {
       "locks": [
         "exposure": main.map { $0.isExposureModeSupported(.custom) || $0.isExposureModeSupported(.locked) } ?? false,
         "whiteBalance": main?.isWhiteBalanceModeSupported(.locked) ?? false,
-        "focus": main?.isFocusModeSupported(.locked) ?? false,
+        "focus": main.map {
+          focusHolds(
+            lockedSupported: $0.isFocusModeSupported(.locked),
+            autoFocusSupported: $0.isFocusModeSupported(.autoFocus),
+            continuousAutoFocusSupported: $0.isFocusModeSupported(.continuousAutoFocus)
+          )
+        } ?? false,
       ],
     ]
   }

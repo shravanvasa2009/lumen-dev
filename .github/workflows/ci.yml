@@ -222,7 +222,7 @@ jobs:
           # Inputs: https://github.com/ReactiveCircus/android-emulator-runner/blob/v2.38.0/README.md
           disable-animations: true
           emulator-boot-timeout: 600
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           # A freshly booted CI emulator is still busy for a while (splash stuck in run 37077177757, ANR
           # dialog over Home in run 37079462854), so let it settle and dismiss system dialogs first.
           # On failure, keep the whole device log next to Maestro's output (its own log covers one flow).

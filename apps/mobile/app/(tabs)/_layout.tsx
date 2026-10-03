@@ -4,14 +4,17 @@ import { useTranslation } from 'react-i18next';
 import { CareTabButton } from '@/components/CareTabButton';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
+import { useReduceMotion } from '@/theme/motion';
 
 export default function TabsLayout() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        animation: reduceMotion ? 'none' : 'fade',
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textDim,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },

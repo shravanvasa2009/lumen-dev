@@ -1,14 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
+import Animated, { useAnimatedProps, useDerivedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
 import { useTheme } from '@/theme';
+import { motion, useReduceMotion } from '@/theme/motion';
 
 const PREVIEW_SIZE = 190;
 const METER_HEIGHT = 28;
 const RING_SIZE = 44;
 const RING_STROKE = 5;
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // The lit fingertip as the camera sees it. Dim while no finger is detected.
 export function FingerPreview({ detected }: { detected: boolean }) {
@@ -109,6 +112,13 @@ export function ProgressRing({
   const { colors } = useTheme();
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
+  const reduceMotion = useReduceMotion();
+  const target = Math.min(1, Math.max(0, fraction));
+  // The arc eases to each new value on the UI thread instead of jumping once a second.
+  const arc = useDerivedValue(() => withTiming(target, { duration: reduceMotion ? 0 : motion.progressMs }));
+  const arcProps = useAnimatedProps(() => ({
+    strokeDasharray: `${circumference * arc.value} ${circumference}`,
+  }));
   return (
     <Svg
       width={size}
@@ -124,7 +134,8 @@ export function ProgressRing({
         strokeWidth={strokeWidth}
         fill="none"
       />
-      <Circle
+      <AnimatedCircle
+        animatedProps={arcProps}
         cx={size / 2}
         cy={size / 2}
         r={radius}
@@ -132,7 +143,6 @@ export function ProgressRing({
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         fill="none"
-        strokeDasharray={`${circumference * Math.min(1, Math.max(0, fraction))} ${circumference}`}
         rotation={-90}
         origin={`${size / 2}, ${size / 2}`}
       />

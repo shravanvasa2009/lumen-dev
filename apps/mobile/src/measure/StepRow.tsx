@@ -1,15 +1,26 @@
 import { View } from 'react-native';
+import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
+import { motion } from '@/theme/motion';
 
 import type { StepState } from './analysisProgress';
 
 const MARK = 22;
 
+// A step's mark fades in when its state changes; the key remounts it so the new mark is what animates.
 function StepMark({ state }: { state: StepState }) {
+  return (
+    <Animated.View key={state} entering={FadeIn.duration(motion.fadeMs).reduceMotion(ReduceMotion.System)}>
+      <StepGlyph state={state} />
+    </Animated.View>
+  );
+}
+
+function StepGlyph({ state }: { state: StepState }) {
   const { colors } = useTheme();
   if (state === 'done') return <Icon name="check" size={MARK} color={colors.accent} />;
   const tint = state === 'active' ? colors.accent : colors.textDim;

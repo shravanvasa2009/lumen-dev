@@ -35,6 +35,7 @@ export { estimateLiveHeartRate } from './live-hr';
 export { butterBandpass, butterLowpass, CausalFilter, filterZeroPhase, type SosSection } from './filters';
 export {
   hasEnoughUsableIntervals,
+  RHYTHM_FEATURE_NAMES,
   rhythmFeatureVector,
   rhythmV2Features,
   rhythmWindows,
@@ -89,7 +90,7 @@ export {
 } from './reading-result';
 export { createLiveSession, type LiveSessionConfig } from './live';
 export { SHAPE_FEATURE_NAMES, shapeFeatures } from './shape-features';
-export { hrSummary } from './reading-metrics';
+export { HR_SUMMARY_NAMES, hrSummary } from './reading-metrics';
 export { diabetesModelInput, type DiabetesModelInput } from './diabetes-input';
 export {
   rateDevice,

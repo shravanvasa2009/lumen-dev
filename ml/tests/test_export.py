@@ -14,7 +14,14 @@ from export import to_onnx, verify_onnx
 from export.provenance import SEEDED_INPUTS, TOLERANCE, ProvenanceError, entry_problems, sha256_of
 from export.specs import MODELS_DIR, OPSET, SPECS
 from export.to_onnx import export_classifier, export_model, export_torch, source_model
-from export.verify_onnx import edge_cases, parity_entry, parity_report, seeded_inputs
+from export.verify_onnx import (
+    VECTOR_ROWS,
+    VECTORS_FILE,
+    edge_cases,
+    parity_entry,
+    parity_report,
+    seeded_inputs,
+)
 from tests.training_artifacts import fit_baseline, save_trained
 from train.rhythm import LOGISTIC_FEATURES
 from train.rhythm_windows import FEATURE_NAMES
@@ -222,6 +229,46 @@ def test_all_includes_trained_baselines(tmp_path):
     report = json.loads((tmp_path / "parity.json").read_text(encoding="utf-8"))
     assert set(report["models"]) == {*NETWORKS, "rhythm-lgbm"}
     assert report["maxAbsDiff"] <= TOLERANCE
+
+
+def _float32(tensor: dict) -> np.ndarray:
+    return np.asarray(tensor["data"], dtype=np.float32).reshape(tensor["dims"])
+
+
+def test_parity_vectors_replay_bit_for_bit_in_another_session(tmp_path):
+    spec = SPECS["rhythm-lgbm"]
+    save_trained(spec, tmp_path, fit_baseline(spec))
+    _export("--all", "--random-init", 1, "--runs-dir", tmp_path, "--out-dir", tmp_path)
+    _verify("--all", "--random-init", 1, "--runs-dir", tmp_path, "--models-dir", tmp_path)
+    path = tmp_path / VECTORS_FILE
+    # Read by a Node test from the app repo, so it must stay small.
+    assert path.stat().st_size < 300_000
+    vectors = json.loads(path.read_text(encoding="utf-8"))
+    assert vectors["tolerance"] == TOLERANCE
+    assert set(vectors["models"]) == {*NETWORKS, "rhythm-lgbm"}
+    for name, model in vectors["models"].items():
+        spec = SPECS[name]
+        onnx_path = tmp_path / model["file"]
+        assert model["file"] == f"{spec.file_stem}.onnx"
+        assert model["onnxSha256"] == sha256_of(onnx_path)
+        inputs = {key: _float32(tensor) for key, tensor in model["inputs"].items()}
+        assert list(inputs) == list(spec.inputs)
+        for key, values in seeded_inputs(spec).items():
+            np.testing.assert_array_equal(inputs[key], values[:VECTOR_ROWS])
+        session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+        assert list(model["outputs"]) == list(spec.outputs)
+        for (output, tensor), actual in zip(model["outputs"].items(), session.run(None, inputs), strict=True):
+            assert tensor["dims"] == [VECTOR_ROWS, *spec.outputs[output][1:]]
+            np.testing.assert_array_equal(actual, _float32(tensor))
+
+
+def test_failed_parity_leaves_no_vectors_behind(tmp_path):
+    _export("--name", "sqi-finger", "--random-init", 1, "--out-dir", tmp_path)
+    _verify("--name", "sqi-finger", "--random-init", 1, "--models-dir", tmp_path)
+    assert (tmp_path / VECTORS_FILE).exists()
+    with pytest.raises(SystemExit):
+        _verify("--name", "sqi-finger", "--random-init", 2, "--models-dir", tmp_path)
+    assert not (tmp_path / VECTORS_FILE).exists()
 
 
 def test_baseline_fitted_on_the_wrong_features_is_refused(tmp_path):

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fallback copy for a widget placed before the app first publishes, in the phone's language, copied from
+     src/i18n/lockscreen.json and the app's i18n files. modules/lumen-widgets/fallback-res.test.ts fails if
+     they differ. -->
+<resources>
+    <string name="lumen_widget_empty_title">Sin revisiones aún</string>
+    <string name="lumen_widget_empty_body">Toma 90 segundos</string>
+    <string name="lumen_widget_check_now">Revisar ahora</string>
+    <string name="lumen_widget_full_scan">Escaneo completo</string>
+</resources>

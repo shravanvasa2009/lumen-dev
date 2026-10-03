@@ -443,24 +443,37 @@ describe('red team ML-6: readingRhythm agrees with buildReadingResult', () => {
 
 describe('red team ML-6: the pulse-shape step stays cheap at 240 fps', () => {
   // captureFps is read in analyzeReading only by the DSP-14 gate, so 59 fps skips the pulse-shape step
-  // on the same frames. Runs alternate (with first, then without first) and the best of three counts, so
-  // JIT warm-up and a garbage collection do not decide the ratio. sinePulse, not beatTrain: beatTrain
-  // sums every beat at every frame, minutes of setup at this size.
+  // on the same frames. CPU time, not wall time: a shared CI runner's waits for other jobs inflated one
+  // side to a 1.695 ratio (run 37093524735). After a warm-up pair, each run times "with" and "without"
+  // back to back (order alternating) and the ratio of that pair counts; the median of five pairs is
+  // reported, so one slow phase or garbage collection can't decide it. Each call takes 0.1–1 s of CPU,
+  // far above Windows' ~15.6 ms CPU-time step. sinePulse, not beatTrain: beatTrain sums every beat at
+  // every frame, minutes of setup at this size.
+  const cpuMs = (run: () => void) => {
+    const start = process.cpuUsage();
+    run();
+    const spent = process.cpuUsage(start);
+    return (spent.user + spent.system) / 1000;
+  };
+  const median = (values: number[]) => [...values].sort((a, b) => a - b)[values.length >> 1]!;
   const analyzeMs = (seconds: number) => {
     const capture = captureAt(regularOffsets(240, seconds), sinePulse(72));
-    const times = { with: [] as number[], without: [] as number[] };
-    for (let run = 0; run < 3; run++) {
-      const order: [keyof typeof times, number][] = [
-        ['with', 240],
-        ['without', 59],
-      ];
-      for (const [key, captureFps] of run % 2 === 0 ? order : order.reverse()) {
-        const startedMs = performance.now();
-        analyzeReading(capture, { ...CONTEXT, captureFps });
-        times[key].push(performance.now() - startedMs);
+    const analyze = (captureFps: number) => () => analyzeReading(capture, { ...CONTEXT, captureFps });
+    analyze(240)();
+    analyze(59)();
+    const pairs = Array.from({ length: 5 }, (_, run) => {
+      if (run % 2 === 0) {
+        const withMs = cpuMs(analyze(240));
+        return { with: withMs, without: cpuMs(analyze(59)) };
       }
-    }
-    return { with: Math.min(...times.with), without: Math.min(...times.without) };
+      const withoutMs = cpuMs(analyze(59));
+      return { with: cpuMs(analyze(240)), without: withoutMs };
+    });
+    return {
+      with: median(pairs.map((pair) => pair.with)),
+      without: median(pairs.map((pair) => pair.without)),
+      ratio: median(pairs.map((pair) => pair.with / pair.without)),
+    };
   };
 
   // ensembleBeat alone on a 72 bpm 256 Hz band, as the longest segment of a 240 fps reading gives it.
@@ -492,7 +505,7 @@ describe('red team ML-6: the pulse-shape step stays cheap at 240 fps', () => {
         ` ms without; 360 s ${long.with.toFixed(0)} ms with, ${long.without.toFixed(0)} ms without.` +
         ` ensembleBeat alone: 90 s ${ensembleShort.toFixed(1)} ms, 360 s ${ensembleLong.toFixed(1)} ms`,
     );
-    expect(long.with / long.without).toBeLessThan(1.5);
+    expect(long.ratio).toBeLessThan(1.5);
     expect(long.with / short.with).toBeLessThan(10);
     // 4× the beats: linear is 4×; 8× would be worse than linear.
     expect(ensembleLong / ensembleShort).toBeLessThan(8);

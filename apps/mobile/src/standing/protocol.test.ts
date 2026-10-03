@@ -54,6 +54,18 @@ describe('standing test steps', () => {
     expect(view.nextReadingAtMs).toBe(5 * MINUTE);
   });
 
+  it('counts down to the next reading that opens, baseline first', () => {
+    expect(viewAt(newTest(), at(0)).nextReadingInMs).toBeNull();
+    expect(viewAt(started, at(1)).nextReadingInMs).toBe(3 * MINUTE);
+    expect(viewAt(started, at(4, 30)).nextReadingInMs).toBe(MINUTE + 30_000);
+    const withBaseline = recordReading(started, { minute: 0 }, 68, at(4, 10));
+    expect(viewAt(withBaseline, at(4, 20)).nextReadingInMs).toBe(MINUTE + 40_000);
+    const withMinuteOne = recordReading(withBaseline, { minute: 1 }, 80, at(6, 5));
+    expect(viewAt(withMinuteOne, at(6, 10)).nextReadingInMs).toBe(MINUTE + 50_000);
+    expect(viewAt(started, at(15, 10)).nextReadingInMs).toBeNull();
+    expect(viewAt(stop(started, at(2)), at(3)).nextReadingInMs).toBeNull();
+  });
+
   it('keeps each standing reading open until the next is due', () => {
     expect(viewAt(started, at(5, 59)).dueSlot).toBeNull();
     expect(viewAt(started, at(6)).dueSlot).toEqual({ minute: 1 });

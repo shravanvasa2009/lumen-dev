@@ -218,9 +218,13 @@ describe('the doctor status persists', () => {
   const flagged = readingWith(rhythm('possibleAf'), flaggedAt, 'quick');
 
   it('stays after a regular Quick Check, with the latest heart rate', () => {
-    const quick = readingWith((outcome) => {
-      if (outcome.metrics.hr) outcome.metrics.hr.value = 71;
-    }, NOW - HOUR, 'quick');
+    const quick = readingWith(
+      (outcome) => {
+        if (outcome.metrics.hr) outcome.metrics.hr.value = 71;
+      },
+      NOW - HOUR,
+      'quick',
+    );
     expect(snapshotOf([flagged, quick])).toMatchObject({
       status: 'see-doctor',
       rhythmFlag: true,

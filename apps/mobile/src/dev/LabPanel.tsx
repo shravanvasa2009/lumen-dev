@@ -391,7 +391,8 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           setLab(diagnostics);
         }),
       ];
-      startedAt.current = new Date();
+      // A replay was recorded earlier, so "now" would invent history for the §10.1 day rules; leave it out.
+      startedAt.current = capture instanceof ReplayCapture ? undefined : new Date();
       const config: CaptureConfig = { torchLevel };
       if (lensId !== undefined) config.lensId = lensId;
       if (targetFps !== undefined) config.targetFps = targetFps;
@@ -495,9 +496,9 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           : t('lab.thermalCritical');
 
   const pacedTyped = pacedText.trim().replace(',', '.');
-  const pacedBrpm = pacedTyped === '' ? undefined : Number(pacedTyped);
-  const pacedValid =
-    pacedBrpm === undefined || (Number.isFinite(pacedBrpm) && pacedBrpm > 0 && pacedBrpm <= MAX_PACED_BRPM);
+  // Plain decimals only: Number() would also take forms like 0x10 or 1e1.
+  const pacedBrpm = /^\d+(\.\d+)?$/.test(pacedTyped) ? Number(pacedTyped) : undefined;
+  const pacedValid = pacedTyped === '' || (pacedBrpm !== undefined && pacedBrpm > 0 && pacedBrpm <= MAX_PACED_BRPM);
 
   const sendToPc = async () => {
     if (!recorded) return;
@@ -510,6 +511,9 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
         pacedBrpm,
       });
       setSendState({ kind: 'sent', folder: await sendCapture(address.trim(), token.trim(), body) });
+      // The answers describe the capture just sent; carried over, they would label the next one.
+      setRested(false);
+      setPacedText('');
     } catch (error) {
       setSendState({ kind: 'failed', reason: reasonOf(error) });
     }

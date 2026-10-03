@@ -30,14 +30,20 @@ export function Button({ label, onPress, variant = 'primary', disabled = false }
         {
           minHeight: isQuiet ? control.minTarget : control.primaryButtonHeight,
           borderRadius: radius.pill,
-          paddingHorizontal: spacing.xxl,
+          paddingHorizontal: spacing.lg,
           backgroundColor: isQuiet ? 'transparent' : fill,
           borderColor: variant === 'secondary' ? colors.line2 : isQuiet ? 'transparent' : fill,
           opacity: disabled ? 0.5 : 1,
         },
       ]}
     >
-      <AppText variant="headline" style={{ color: labelColor ?? onFill }}>
+      <AppText
+        variant="headline"
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+        style={{ color: labelColor ?? onFill }}
+      >
         {label}
       </AppText>
     </PressableScale>

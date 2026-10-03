@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
@@ -10,8 +11,12 @@ type HeadlineCardProps = { fill: string; edge: string; children: ReactNode };
 // that the contrast check already covers.
 export function HeadlineCard({ fill, edge, children }: HeadlineCardProps) {
   const { colors, radius, spacing } = useTheme();
+  // Percent sizes left the gradient short of the right edge on Android, so it is drawn at the measured size.
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   return (
     <View
+      testID="headline-card"
+      onLayout={(event) => setSize(event.nativeEvent.layout)}
       style={{
         borderColor: edge,
         borderWidth: 1,
@@ -21,21 +26,23 @@ export function HeadlineCard({ fill, edge, children }: HeadlineCardProps) {
         gap: spacing.xs,
       }}
     >
-      <Svg
-        width="100%"
-        height="100%"
-        style={StyleSheet.absoluteFill}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      >
-        <Defs>
-          <LinearGradient id="headlineFill" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={fill} />
-            <Stop offset="1" stopColor={colors.surface} />
-          </LinearGradient>
-        </Defs>
-        <Rect width="100%" height="100%" fill="url(#headlineFill)" />
-      </Svg>
+      {size ? (
+        <Svg
+          width={size.width}
+          height={size.height}
+          style={StyleSheet.absoluteFill}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Defs>
+            <LinearGradient id="headlineFill" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={fill} />
+              <Stop offset="1" stopColor={colors.surface} />
+            </LinearGradient>
+          </Defs>
+          <Rect width={size.width} height={size.height} fill="url(#headlineFill)" />
+        </Svg>
+      ) : null}
       {children}
     </View>
   );

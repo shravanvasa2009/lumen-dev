@@ -10,7 +10,7 @@ type CheckHeadingProps = { icon: IconName; name?: string; label: string };
 export function CheckHeading({ icon, name, label }: CheckHeadingProps) {
   const { colors, spacing } = useTheme();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
       <Icon name={icon} size={20} color={colors.accent} />
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, flexShrink: 1 }}>
         {name ? (
@@ -19,7 +19,9 @@ export function CheckHeading({ icon, name, label }: CheckHeadingProps) {
             <AppText tone="textDim">·</AppText>
           </>
         ) : null}
-        <AppText tone="textDim">{label}</AppText>
+        <AppText tone="textDim" style={{ flexShrink: 1 }}>
+          {label}
+        </AppText>
       </View>
     </View>
   );

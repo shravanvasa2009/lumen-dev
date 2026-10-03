@@ -117,8 +117,12 @@ describe.each([
 
   it('draws the headline card with a gradient fill', () => {
     openResults('demo');
+    fireEvent(screen.getByTestId('headline-card'), 'layout', {
+      nativeEvent: { layout: { width: 320, height: 120 } },
+    });
     const drawn = JSON.stringify(screen.toJSON());
     expect(drawn.includes('RNSVGLinearGradient')).toBe(true);
+    expect(drawn.includes('"width":320')).toBe(true);
   });
 
   it('says POTS is not part of a Full Scan and links to the Standing test (ADR 0082)', () => {
@@ -148,6 +152,15 @@ describe.each([
     fireEvent.press(screen.getAllByText(`${en['results.accuracy']} ›`).at(-1) as ReactTestInstance);
     expect(screen.queryByText(en['evidence.experimental.explain'])).toBeNull();
     expect(screen.getByText(en['accuracy.heartRate'])).toBeOnTheScreen();
+  });
+
+  it('lets card headers shrink and keeps the badges and footer labels on one line', () => {
+    openResults('demo');
+    const heading = screen.getByText(en['results.heartRhythm']);
+    expect(StyleSheet.flatten(heading.props.style).flexShrink).toBe(1);
+    const label = screen.getByText(en['results.showWhy']);
+    expect(label.props.numberOfLines).toBe(1);
+    expect(label.props.adjustsFontSizeToFit).toBe(true);
   });
 
   it('names the AFib check on the rhythm card', () => {

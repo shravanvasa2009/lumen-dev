@@ -28,10 +28,10 @@ export function MetricCard({ title, checkName, icon, evidenceMetric, reading }: 
   const { colors, radius, spacing } = useTheme();
   return (
     <Card>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm }}>
         <CheckHeading icon={icon} name={checkName} label={title} />
         {reading ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 }}>
             {reading.flagged ? (
               <View
                 style={{

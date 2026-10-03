@@ -16,7 +16,7 @@ describe('practice', () => {
     expect(screen.getByText(en['coach.cover'])).toBeOnTheScreen();
     for (const key of ['signal.weak', 'signal.ok', 'signal.strong'] as const)
       expect(screen.getByText(en[key])).toBeOnTheScreen();
-    expect(screen.getByText('0 of 15 steady seconds')).toBeOnTheScreen();
+    expect(screen.getByText('0 of 30 steady seconds')).toBeOnTheScreen();
     expect(screen.getByText(en['practice.pending'])).toBeOnTheScreen();
   });
 

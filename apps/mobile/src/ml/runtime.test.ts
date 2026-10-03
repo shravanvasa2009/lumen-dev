@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { SHAPE_FEATURE_NAMES } from '@lumen/core';
+import { HR_SUMMARY_NAMES, SHAPE_FEATURE_NAMES } from '@lumen/core';
 import type * as OrtNode from 'onnxruntime-node';
 
 import expectedRhythm from './__fixtures__/rhythm-lgbm-fixture.expected.json';
@@ -168,7 +168,7 @@ function sqiEntry(changes: Record<string, unknown> = {}) {
 }
 
 const shapeFeatureNames: string[] = [...SHAPE_FEATURE_NAMES];
-const hrSummaryNames = ['hrBpm', 'rmssdMs', 'sdnnMs', 'pnn50'];
+const hrSummaryNames: string[] = [...HR_SUMMARY_NAMES];
 // Every median is different, so a null filled from the wrong slot gives a different score.
 const fillMedians = Object.fromEntries(
   [...shapeFeatureNames, ...hrSummaryNames].map((name, index) => [name, 0.1 * index - 0.7]),
@@ -453,7 +453,8 @@ describe('running', () => {
 
 describe('diabetes inputs with missing values', () => {
   const beat = new Float64Array(256).fill(0.25);
-  const shapeFeatures = (value: number | null) => shapeFeatureNames.map((_, index) => (index % 2 ? value : 0.3));
+  const shapeFeatures = (value: number | null) =>
+    shapeFeatureNames.map((_, index) => (index % 2 ? value : 0.3));
   const hrSummary = (value: number | null) => hrSummaryNames.map((_, index) => (index % 2 ? 0.2 : value));
   const scoreOf = async (input: Parameters<typeof Runtime.scoreDiabetesInput>[0]) => {
     const runtime = await loadRuntime({ models: [diabetesEntry()] });
@@ -500,6 +501,16 @@ describe('diabetes inputs with missing values', () => {
       `its featureOrder.shapeFeatures is not core's order: ${shapeFeatureNames.join(', ')}`,
     ],
     [
+      'a reordered hrSummary list',
+      {
+        featureOrder: {
+          shapeFeatures: shapeFeatureNames,
+          hrSummary: [...hrSummaryNames.slice(1), hrSummaryNames[0]],
+        },
+      },
+      `its featureOrder.hrSummary is not core's order: ${hrSummaryNames.join(', ')}`,
+    ],
+    [
       'a featureOrder of the wrong length',
       { featureOrder: { shapeFeatures: shapeFeatureNames.slice(1), hrSummary: hrSummaryNames } },
       'its featureOrder.shapeFeatures does not list the 12 features of that input',
@@ -509,7 +520,11 @@ describe('diabetes inputs with missing values', () => {
     const reason = `refused the shipped diabetes model: diabetes-net@1.0.0 cannot be fed a missing value: ${why}`;
     expect(runtime.modelPlan().diabetes).toEqual({ source: 'basic', reason });
     expect(
-      await runtime.scoreDiabetesInput({ beat, shapeFeatures: shapeFeatures(null), hrSummary: hrSummary(null) }),
+      await runtime.scoreDiabetesInput({
+        beat,
+        shapeFeatures: shapeFeatures(null),
+        hrSummary: hrSummary(null),
+      }),
     ).toEqual({ source: 'basic', value: null, reason });
   });
 });

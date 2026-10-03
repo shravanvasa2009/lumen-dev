@@ -1,7 +1,7 @@
 import { Asset } from 'expo-asset';
 import { CryptoDigestAlgorithm, digest } from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
-import { type DiabetesModelInput, SHAPE_FEATURE_NAMES } from '@lumen/core';
+import { type DiabetesModelInput, HR_SUMMARY_NAMES, SHAPE_FEATURE_NAMES } from '@lumen/core';
 import type { InferenceSession } from 'onnxruntime-react-native';
 
 import { isRecord } from '../evidence';
@@ -102,6 +102,7 @@ function shapeSize(shape: Shape): number {
 }
 
 const diabetesFilledInputs = ['shapeFeatures', 'hrSummary'] as const;
+const coreFillNames = { shapeFeatures: SHAPE_FEATURE_NAMES, hrSummary: HR_SUMMARY_NAMES };
 
 function readFills(entry: Record<string, unknown>, inputs: Readonly<Record<string, Shape>>) {
   const { featureOrder, fillMedians } = entry;
@@ -112,11 +113,11 @@ function readFills(entry: Record<string, unknown>, inputs: Readonly<Record<strin
     const width = inputs[input]?.[1];
     if (!Array.isArray(names) || names.length !== width)
       return `its featureOrder.${input} does not list the ${width} features of that input`;
-    // Core builds shapeFeatures in SHAPE_FEATURE_NAMES order; a manifest in another order would put each
-    // feature, and each null's median, in the wrong model slot. Core exports no name list for hrSummary
-    // yet, so that input is checked for width only.
-    if (input === 'shapeFeatures' && names.some((name, index) => name !== SHAPE_FEATURE_NAMES[index]))
-      return `its featureOrder.shapeFeatures is not core's order: ${SHAPE_FEATURE_NAMES.join(', ')}`;
+    // Core builds each input in its own name order; a manifest in another order would put each feature, and
+    // each null's median, in the wrong model slot.
+    const coreNames: readonly string[] = coreFillNames[input];
+    if (names.some((name, index) => name !== coreNames[index]))
+      return `its featureOrder.${input} is not core's order: ${coreNames.join(', ')}`;
     const medians = names.map((name) => (typeof name === 'string' ? fillMedians[name] : undefined));
     if (!medians.every((median): median is number => typeof median === 'number' && Number.isFinite(median)))
       return `its fillMedians has no finite median for every ${input} feature`;
@@ -368,7 +369,11 @@ export function scoreDiabetesPattern(feeds: ModelFeeds): Promise<ScoreOutcome> {
 }
 
 // §11.4: core leaves a feature it could not compute null; the model's training median stands in for it here.
-export function scoreDiabetesInput({ beat, shapeFeatures, hrSummary }: DiabetesModelInput): Promise<ScoreOutcome> {
+export function scoreDiabetesInput({
+  beat,
+  shapeFeatures,
+  hrSummary,
+}: DiabetesModelInput): Promise<ScoreOutcome> {
   const plan = plans.diabetes;
   if ('reason' in plan) return Promise.resolve(basic(plan.reason));
   const { inputs, fills } = plan.model;

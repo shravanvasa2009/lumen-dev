@@ -154,6 +154,9 @@ export const DSP_CONFIG = {
     fastRegularMaxNormalizedRmssd: 0.03, // strictly below
     rhythmMinCleanS: 60, // irregular rhythm; also needs dsp15.minUsableIntervals
     uncertainBelowTopProb: 0.6, // "Couldn't tell — retake"
+    // §11.1 Rhythm-Net output check (initial): each window's sinus, af, other must sum to 1 within this.
+    // ONNX Runtime returns float32 softmax rows, whose sums are off by a few 1e-7.
+    rhythmRowSumTolerance: 1e-5,
     possibleAfPositives: 2, // 2 of 3 readings within 24 h
     possibleAfReadings: 3,
     possibleAfWindowHours: 24,

@@ -1,9 +1,9 @@
 import type { CaptureStatus, FrameStat, Sample, SampleBatch } from './capture';
 import { DSP_CONFIG } from './config';
-import { frameProblem } from './contact';
+import { frameProblem, validChannels } from './contact';
 import { butterBandpass, CausalFilter, type SosSection } from './filters';
 import type { CoachingKey, LiveSession, RejectedSpan, SqiWindow } from './live-session';
-import { FlatRuns, modelWindowAt, nextModelTickS, usableFrom } from './model-window';
+import { FlatRuns, modelWindowAt, nextModelTickS, unscoredSpan, usableFrom } from './model-window';
 import type { NsSpan, SqiScores } from './reading';
 import { cleanSeconds as cleanTime } from './reading-metrics';
 
@@ -92,6 +92,8 @@ class Session implements LiveSession {
   private readonly coldHands: NsSpan[] = [];
   private readonly quality: RejectedSpan[] = [];
   private readonly flatRuns = new FlatRuns();
+  // Checks with no window (ADR 0057); rejected only once SQI-Net has run, as analyzeReading does with sqi.
+  private readonly unscored: RejectedSpan[] = [];
   private openContact: OpenSpan | null = null;
   private openMotionNs: number | null = null;
   private openColdHandsNs: number | null = null;
@@ -156,15 +158,15 @@ class Session implements LiveSession {
     const gap = this.count > 0 && tS - this.latestS > DSP_CONFIG.dsp2.maxGapS;
     // The causal filter assumes evenly spaced frames; after a DSP-2 gap it restarts in steady state.
     if (this.filter === null || gap) this.filter = new CausalFilter(this.sos);
-    // A non-finite red would leave the filter state NaN for the rest of the reading. The frame is a
+    // A broken frame (NaN, or a channel outside 0..1) would leave the filter state NaN or ringing. It is a
     // coverage frame (DSP-4), so the waveform holds its last value and the filter restarts after it.
-    const finite = Number.isFinite(sample.r);
-    const value = finite
+    const valid = validChannels(sample);
+    const value = valid
       ? this.filter.filter([-sample.r])[0]!
       : this.count > 0
         ? this.filtered[this.count - 1]!
         : 0;
-    if (!finite) this.filter = null;
+    if (!valid) this.filter = null;
 
     if (this.lastExposureNs !== null && stat.exposureNs !== this.lastExposureNs) {
       const holdS = DSP_CONFIG.dsp5.exposureChangeArtifactS;
@@ -210,9 +212,13 @@ class Session implements LiveSession {
   }
 
   setSqi(windowEndS: number, pClean: number): void {
+    // A window ends inside the reading; outside it, start + end can pass 2^53 ns and round.
+    if (!(this.count > 0 && windowEndS >= 0 && windowEndS <= this.latestS))
+      throw new RangeError(`window end ${windowEndS} s is outside the reading (0 to ${this.latestS} s)`);
     // readingInput hands the end on in whole ns; a finer end would come back as a different span.
     if (Math.round(windowEndS * 1e9) / 1e9 !== windowEndS)
       throw new RangeError(`window end ${windowEndS} s is not a whole ns; pass sqiWindow.endS unchanged`);
+    if (!(pClean >= 0 && pClean <= 1)) throw new RangeError(`P(clean) must be in [0, 1], got ${pClean}`);
     this.modelRan = true;
     this.scores.push({ endS: windowEndS, pClean });
     if (pClean < this.config.sqiThreshold) this.rejectWindow(windowEndS);
@@ -228,6 +234,8 @@ class Session implements LiveSession {
     const window = modelWindowAt(this.tS, this.red, this.covered, this.count);
     this.latestWindow = window?.input ? { endS: window.endS, input: window.input } : null;
     if (window && !window.input) this.rejectWindow(window.endS);
+    const unscored = window ? null : unscoredSpan(this.tS, this.count);
+    if (unscored) this.unscored.push(unscored);
 
     const { coldHandsAfterS, perfusionWindowS } = DSP_CONFIG.live;
     const from =
@@ -286,6 +294,7 @@ class Session implements LiveSession {
       ...seconds(this.nsSpans(this.motion, this.openMotionNs), 'motion'),
       ...seconds(this.nsSpans(this.coldHands, this.openColdHandsNs), 'coldHands'),
       ...this.quality,
+      ...(this.modelRan ? this.unscored : []),
       ...this.flatRuns.spans(),
     ].sort((x, y) => x.startS - y.startS);
   }

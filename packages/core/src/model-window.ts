@@ -31,9 +31,31 @@ export function usableFrom(
   return first;
 }
 
-// The SQI-Net window ending at or before frame count − 1 (ADR 0023): 256 points of −R on the 64 Hz grid.
-// input is null when the window is flat or not finite: it never reaches the model and counts as rejected.
-// Null when the last 4 s are not covered and gap-free, or the reading is not yet 256 grid points long.
+// Covered frames from the one before fromS to frame count − 1. Uncovered frames count as dropped (ADR 0057):
+// null when no covered frame reaches back to fromS, or when two neighbouring kept frames, or the newest
+// kept frame and frame count − 1, are more than DSP-2's gap limit apart.
+function windowFrames(
+  tS: ArrayLike<number>,
+  covered: ArrayLike<number>,
+  count: number,
+  fromS: number,
+): number[] | null {
+  const kept: number[] = [];
+  let laterS = tS[count - 1]!;
+  for (let i = count - 1; i >= 0; i--) {
+    if (!covered[i]) continue;
+    if (laterS - tS[i]! > DSP_CONFIG.dsp2.maxGapS) return null;
+    kept.push(i);
+    laterS = tS[i]!;
+    // One frame before fromS, so a spline covers fromS itself; the first frame when the window starts there.
+    if (tS[i]! < fromS || (i === 0 && tS[i]! <= fromS)) return kept.reverse();
+  }
+  return null;
+}
+
+// The SQI-Net window ending at or before frame count − 1 (ADR 0023): 256 points of −R on the 64 Hz grid,
+// splined across uncovered frames within DSP-2's gap limit. input is null when the window is flat or not
+// finite: it never reaches the model and counts as rejected. Null when no such window exists.
 export function modelWindowAt(
   tS: Float64Array,
   red: Float64Array,
@@ -46,12 +68,11 @@ export function modelWindowAt(
   // Clamped to the first frame, so the first window starts at the reading start (ADR 0057): otherwise
   // [0, 1 s) is in no window and could never be rejected.
   const fromS = Math.max(tS[0]!, tS[count - 1]! - (samples + 1) / modelRateHz);
-  const first = usableFrom(tS, covered, count, fromS);
-  if (first === null) return null;
-  const times = tS.slice(first, count);
-  const window = red.slice(first, count);
+  const kept = windowFrames(tS, covered, count, fromS);
+  if (kept === null) return null;
+  const window = Float64Array.from(kept, (i) => red[i]!);
   const [segment] = resampleCubic(
-    times,
+    Float64Array.from(kept, (i) => tS[i]!),
     window.map((value) => -value),
     modelRateHz,
   );
@@ -65,39 +86,66 @@ export function modelWindowAt(
   return { endS, input };
 }
 
-// ADR 0057: a covered, gap-free run of frames whose red never changes holds no pulse at any length, so
-// it is rejected as quality from its first to its last frame, even when it is too short for any window
-// (dropouts every few seconds would otherwise keep constant red out of every check). Fed one frame at a
-// time by both LiveSession and analyzeReading, so they find the same runs.
+// ADR 0057: a check with 4 s of reading behind it but no window (bad frames past DSP-2's gap limit)
+// leaves those 4 s unscored. Once SQI-Net runs, they count as not clean.
+export function unscoredSpan(tS: ArrayLike<number>, count: number): RejectedSpan | null {
+  const tickS = tS[count - 1]!;
+  const windowS = DSP_CONFIG.dsp3.modelWindowS;
+  if (tickS - tS[0]! < windowS) return null;
+  return { startS: tickS - windowS, endS: tickS, reason: 'quality' };
+}
+
+// ADR 0057: constant red holds no pulse. A covered, gap-free run of frames whose red never changes is
+// rejected as quality from its first to its last frame at any length, so dropouts every few seconds
+// cannot keep it out of every window. Inside a longer run, a stretch of exactly equal red at least
+// live.minFlatS long is rejected too. Fed one frame at a time by both LiveSession and analyzeReading, so
+// they find the same spans.
 export class FlatRuns {
   private readonly closed: RejectedSpan[] = [];
-  private startS: number | null = null;
+  private runStartS: number | null = null; // null outside a covered run
+  private runFlat = false;
+  private stretchStartS = 0; // first frame of the current equal-red stretch
   private lastS = 0;
   private red = 0;
-  private flat = false;
 
   add(tS: number, red: number, covered: boolean): void {
-    const continues = covered && this.startS !== null && tS - this.lastS <= DSP_CONFIG.dsp2.maxGapS;
-    if (continues) {
+    const continues = covered && this.runStartS !== null && tS - this.lastS <= DSP_CONFIG.dsp2.maxGapS;
+    if (continues && red === this.red) {
       this.lastS = tS;
-      this.flat &&= red === this.red;
       return;
     }
-    this.closed.push(...this.openSpan());
-    this.startS = covered ? tS : null;
+    if (continues) {
+      this.closed.push(...this.stretchSpan());
+      this.runFlat = false;
+    } else {
+      this.closed.push(...this.openSpan());
+      this.runStartS = covered ? tS : null;
+      this.runFlat = true;
+    }
+    this.stretchStartS = tS;
     this.lastS = tS;
     this.red = red;
-    this.flat = true;
   }
 
-  // Closed runs, then the current one if it is flat so far.
+  // Closed spans, then the current run if it is flat so far or its current stretch is long enough.
   spans(): RejectedSpan[] {
     return [...this.closed.map((span) => ({ ...span })), ...this.openSpan()];
   }
 
-  // A one-frame run spans no time and is left out.
   private openSpan(): RejectedSpan[] {
-    if (this.startS === null || !this.flat || this.lastS === this.startS) return [];
-    return [{ startS: this.startS, endS: this.lastS, reason: 'quality' }];
+    if (this.runStartS === null) return [];
+    // A one-frame run spans no time and is left out.
+    if (this.runFlat) return this.lastS > this.runStartS ? [this.spanFrom(this.runStartS)] : [];
+    return this.stretchSpan();
+  }
+
+  private stretchSpan(): RejectedSpan[] {
+    return this.lastS - this.stretchStartS >= DSP_CONFIG.live.minFlatS
+      ? [this.spanFrom(this.stretchStartS)]
+      : [];
+  }
+
+  private spanFrom(startS: number): RejectedSpan {
+    return { startS, endS: this.lastS, reason: 'quality' };
   }
 }

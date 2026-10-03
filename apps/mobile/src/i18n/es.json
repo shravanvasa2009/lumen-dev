@@ -731,5 +731,11 @@
   "rating.demoOffer": "Aun así puedes probar el modo Demo para ver cómo funciona Lumen.",
   "mode.lockedFlash": "Requiere un teléfono cuyo flash llegue a tu dedo.",
   "mode.lockedUnsupported": "Lumen no puede medir el pulso en este teléfono.",
-  "mode.ratingFooter": "Calificación {{tier}} ({{score}})"
+  "mode.ratingFooter": "Calificación {{tier}} ({{score}})",
+  "settings.deleteConfirmTitle": "¿Borrar todo en este teléfono?",
+  "settings.deleteConfirmBody": "Esto borra de este teléfono todas las mediciones, tu perfil y medicamentos, tus valores base, la calificación del teléfono, los recordatorios y los ajustes. No se puede deshacer.",
+  "settings.deleteConfirm": "Sí, borrar todo",
+  "settings.deleteCancel": "Conservar mis datos",
+  "settings.deleting": "Borrando…",
+  "settings.deleteFailed": "Lumen no pudo borrar todo, así que es posible que queden datos en este teléfono. Inténtalo de nuevo."
 }

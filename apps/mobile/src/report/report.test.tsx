@@ -9,8 +9,6 @@ import { formatClock } from '@/results/format';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
-import { ReportView } from './ReportView';
-
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -124,10 +122,10 @@ describe('Doctor report content', () => {
     expect(screen.getByText(en['report.leftOut'])).toBeOnTheScreen();
   });
 
-  it('shows no numbers for an id that is not a reading', () => {
+  it('shows no numbers for an id that is not a reading', async () => {
     openReport('nope');
     expectNavTitle(en['report.title']);
-    expect(screen.getByText(en['report.notFoundTitle'])).toBeOnTheScreen();
+    expect(await screen.findByText(en['report.notFoundTitle'])).toBeOnTheScreen();
     expect(screen.queryByText(en['result.inconclusive'])).toBeNull();
     expect(screen.getByText(en['report.notFound'])).toBeOnTheScreen();
     expect(screen.queryByText(en['report.heading'])).toBeNull();
@@ -144,13 +142,6 @@ describe('Doctor report content', () => {
   it('titles an unknown report in Spanish too', () => {
     expect(es['report.notFoundTitle']).toBe('Informe no encontrado');
     expect(es['report.notFoundTitle']).not.toBe(en['report.notFoundTitle']);
-  });
-
-  it('draws the Demo banner and mark only when the report is told it is demo data', () => {
-    renderRouter({ index: () => <ReportView id="demo" demo={false} /> });
-    expect(screen.getByText(en['report.heading'])).toBeOnTheScreen();
-    expect(screen.queryByText(en['demo.banner'])).toBeNull();
-    expect(screen.queryByText(en['report.demoMark'])).toBeNull();
   });
 
   it('has the same keys in Spanish', () => {

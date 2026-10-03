@@ -265,8 +265,35 @@ describe('Doctor follow-up', () => {
     expect(sheetScreenProps()).toMatchObject({
       stackPresentation: 'formSheet',
       sheetGrabberVisible: true,
-      sheetAllowedDetents: [0.9],
+      // react-native-screens turns 'fitToContents' into the single detent -1 before the native view.
+      sheetAllowedDetents: [-1],
     });
+  });
+
+  it('draws its own grabber on Android only, where sheetGrabberVisible does nothing', () => {
+    const platform = Platform.OS;
+    try {
+      Platform.OS = 'android';
+      renderRouter(appDirectory, { initialUrl: '/follow-up' });
+      const drawn = (node: ReturnType<typeof screen.toJSON>) =>
+        JSON.stringify(node).includes('"width":40,"height":4');
+      expect(drawn(screen.toJSON())).toBe(true);
+      screen.unmount();
+      Platform.OS = 'ios';
+      renderRouter(appDirectory, { initialUrl: '/follow-up' });
+      expect(drawn(screen.toJSON())).toBe(false);
+    } finally {
+      Platform.OS = platform;
+    }
+  });
+
+  it('closes the sheet before the Care map opens, so Back returns to Home', async () => {
+    renderRouter(appDirectory, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: en['home.followUp'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
+    expectNavTitle(en['careMap.title']);
+    expect(screen.queryByRole('header', { name: en['followUp.title'] })).toBeNull();
+    await screen.findByText(en['careMap.denied']);
   });
 
   it('opens the Care map from Find a doctor nearby', async () => {

@@ -1,7 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Linking, Pressable, View } from 'react-native';
+import { Linking, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
@@ -28,22 +28,29 @@ export default function EmergencyScreen() {
       style={{ flex: 1, backgroundColor: colors.emergencyBg, padding: spacing.screen }}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={{ flex: 1 }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.lg }}>
-          <Icon name="warning" size={72} color={colors.criticalText} mark={colors.emergencyBg} />
-          <AppText
-            variant="display"
-            tone="criticalText"
-            accessibilityRole="header"
-            style={{ textAlign: 'center' }}
-          >
-            {t('emergency.title')}
-          </AppText>
-          <AppText tone="criticalText" style={{ textAlign: 'center' }}>
-            {t('emergency.body')}
-          </AppText>
-        </View>
-      </View>
+      {/* Only this block scrolls: Spanish text or a large font on a 360x640 phone must never push Call 911 off screen. */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: spacing.lg,
+        }}
+      >
+        <Icon name="warning" size={72} color={colors.criticalText} mark={colors.emergencyBg} />
+        <AppText
+          variant="display"
+          tone="criticalText"
+          accessibilityRole="header"
+          style={{ textAlign: 'center' }}
+        >
+          {t('emergency.title')}
+        </AppText>
+        <AppText tone="criticalText" style={{ textAlign: 'center' }}>
+          {t('emergency.body')}
+        </AppText>
+      </ScrollView>
       <View style={{ paddingTop: spacing.lg, gap: spacing.md }}>
         <Button label={t('emergency.call')} variant="critical" onPress={callEmergency} />
         {callFailed ? (

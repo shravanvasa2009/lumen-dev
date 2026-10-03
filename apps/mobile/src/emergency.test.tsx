@@ -1,9 +1,9 @@
 import { act, renderHook, within } from '@testing-library/react-native';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
-import { Linking } from 'react-native';
+import { Dimensions, Linking, ScrollView } from 'react-native';
 
-import { useDoctorPhone } from '@/profile/doctorPhone';
 import en from '@/i18n/en.json';
+import { useDoctorPhone } from '@/profile/doctorPhone';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
@@ -16,10 +16,13 @@ function savePhone(phone: string | null) {
   act(() => store.result.current.setPhone(phone));
 }
 
+const originalWindow = Dimensions.get('window');
+
 describe('emergency screen', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     savePhone(null);
+    act(() => Dimensions.set({ window: originalWindow }));
   });
 
   it('has no Care map entry; it is only for calling emergency services', () => {
@@ -80,5 +83,19 @@ describe('emergency screen', () => {
     fireEvent.press(screen.getByRole('button', { name: en['careMap.callMyDoctor'] }));
     const number = await screen.findByText('(713) 555-0100');
     expect(number.props.selectable).toBe(true);
+  });
+
+  it('keeps every action out of the scrolling block on a 360x640 phone', async () => {
+    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
+    savePhone('(713) 555-0100');
+    jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('no dialer'));
+    renderRouter('./app', { initialUrl: '/emergency' });
+    fireEvent.press(screen.getByRole('button', { name: en['emergency.call'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.callMyDoctor'] }));
+    await screen.findByText(en['emergency.callFailed']);
+    const scrolling = within(screen.UNSAFE_getByType(ScrollView));
+    expect(scrolling.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
+    expect(scrolling.queryByRole('button')).toBeNull();
+    expect(scrolling.queryByText(en['emergency.callFailed'])).toBeNull();
   });
 });

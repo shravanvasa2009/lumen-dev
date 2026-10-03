@@ -21,7 +21,13 @@ const MAX_LOCKS = 15;
 const MAX_TIMING = 20;
 
 // Frame timing has no glyph that fits yet, so its row keeps an empty tile.
-type ComponentLine = { icon: IconName | null; name: string; max: number; points: number | null; detail: string | null };
+type ComponentLine = {
+  icon: IconName;
+  name: string;
+  max: number;
+  points: number | null;
+  detail: string | null;
+};
 
 function componentLines(rating: StoredRating | null, t: TFunction): ComponentLine[] {
   const { components, fpsLevel, practice } = rating ?? {};
@@ -29,7 +35,7 @@ function componentLines(rating: StoredRating | null, t: TFunction): ComponentLin
   const jitter = practice?.frameIntervalSdMs;
   return [
     {
-      icon: 'pulse',
+      icon: 'lens',
       name: t('phoneRating.frameRate'),
       max: MAX_FRAME_RATE,
       points: components?.frameRate ?? null,
@@ -48,9 +54,15 @@ function componentLines(rating: StoredRating | null, t: TFunction): ComponentLin
             ? t('phoneRating.notMeasured')
             : t('phoneRating.couplingDetail', { pi: pi.toFixed(1) }),
     },
-    { icon: 'lock', name: t('phoneRating.lock'), max: MAX_LOCKS, points: components?.locks ?? null, detail: null },
     {
-      icon: null,
+      icon: 'lock',
+      name: t('phoneRating.lock'),
+      max: MAX_LOCKS,
+      points: components?.locks ?? null,
+      detail: null,
+    },
+    {
+      icon: 'clock',
       name: t('phoneRating.timing'),
       max: MAX_TIMING,
       points: components?.timing ?? null,
@@ -124,8 +136,10 @@ export default function PhoneRatingScreen() {
             }}
           >
             <View style={[styles.line, { gap: spacing.md }]}>
-              <View style={[styles.tile, { backgroundColor: colors.surface2, borderRadius: radius.card / 2 }]}>
-                {icon === null ? null : <Icon name={icon} size={20} color={colors.textDim} />}
+              <View
+                style={[styles.tile, { backgroundColor: colors.surface2, borderRadius: radius.card / 2 }]}
+              >
+                <Icon name={icon} size={20} color={colors.textDim} />
               </View>
               <AppText style={styles.name}>{name}</AppText>
               <AppText variant="headline" tone="textDim">
@@ -162,7 +176,12 @@ export default function PhoneRatingScreen() {
           style={[
             styles.line,
             styles.callout,
-            { backgroundColor: colors.surface2, borderRadius: radius.card, padding: spacing.lg, gap: spacing.md },
+            {
+              backgroundColor: colors.surface2,
+              borderRadius: radius.card,
+              padding: spacing.lg,
+              gap: spacing.md,
+            },
           ]}
         >
           <Icon name="hint" size={20} color={colors.accent} />
@@ -180,6 +199,7 @@ const styles = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   callout: { justifyContent: 'flex-start' },
   name: { flex: 1 },
+  cardTile: { alignSelf: 'center' },
   tile: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   track: { height: 6 },
 });

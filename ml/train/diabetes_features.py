@@ -6,10 +6,9 @@ from collections import Counter
 from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Protocol
 
 import numpy as np
-import onnxruntime as ort
 import pandas as pd
 
 from datasets import paths
@@ -17,7 +16,7 @@ from datasets.vitaldb_cases import ensure_dev_only, load_dev_split, load_split
 from eval.external_mimic import rhythm_inputs
 from export.provenance import load_metrics, sha256_of
 from export.specs import RUNS_DIR, SPECS
-from export.to_onnx import Classifier, source_model
+from export.to_onnx import source_model
 import lumen_dsp
 from eval import external_mimic
 from lumen_dsp.beat_classes import classify_beats
@@ -54,21 +53,14 @@ CLEAN_S = float(SEGMENT_S)
 log = logging.getLogger("train.diabetes_features")
 
 
-class OnnxRhythm:
-    # The release's rhythm ONNX file, run as the app runs it, with the pickle's predict_proba interface.
-    def __init__(self, path: Path, input_name: str, labels: Sequence[str]):
-        self.session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
-        self.input_name = input_name
-        self.columns = [list(labels).index(label) for label in LABELS]
-
-    def predict_proba(self, features: np.ndarray) -> np.ndarray:
-        (probs,) = self.session.run(None, {self.input_name: features})
-        return np.asarray(probs)[:, self.columns]
+class RhythmClassifier(Protocol):
+    # The trained pickle, or train.diabetes_holdout's runner for the release's ONNX file.
+    def predict_proba(self, features: np.ndarray) -> np.ndarray: ...
 
 
 class ShippedRhythm(NamedTuple):
-    # predict_proba gives columns in nets.rhythm_net LABELS order for both kinds of classifier.
-    classifier: Classifier | OnnxRhythm
+    # predict_proba gives columns in nets.rhythm_net LABELS order.
+    classifier: RhythmClassifier
     source_sha256: str  # of the model file it runs (for the pickle, from its metrics file)
     abstain_below: float  # the manifest entry's abstainBelow
 

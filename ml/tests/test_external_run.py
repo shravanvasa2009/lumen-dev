@@ -10,7 +10,8 @@ from eval.external_gate import ExternalTestRefusedError
 from eval.external_mimic import DspNotMergedError
 from tests.external_fixtures import (
     THRESHOLDS,
-    WITHOUT_PLETH,
+    UNSCORED,
+    holdout_scores,
     install_fake_beats,
     install_fake_scorer,
     write_holdout_files,
@@ -205,7 +206,12 @@ def test_full_run_writes_what_m3_reads_then_refuses_a_second_run(setup, monkeypa
     assert all(lag == pytest.approx(0.25, abs=0.02) for lag in sqi["lagSecondsBySubject"].values())
     diabetes = results["diabetes"]
     holdout = load_split()["holdout"]
-    assert (diabetes["subjects"], diabetes["holdoutWithoutPleth"]) == (len(holdout) - WITHOUT_PLETH, 3)
+    assert (diabetes["subjects"], diabetes["holdoutUnscored"]) == (len(holdout) - UNSCORED, 3)
+    assert diabetes["holdoutUnscoredReasons"] == {
+        "noPlethTrack": 2,
+        "noStableWindow": 1,
+        "noScorableSegment": 0,
+    }
     assert [row["prevalence"] for row in diabetes["ppvNpv"]] == [0.05, 0.116, 0.20]
     assert calls == [("diabetes-net", len(holdout))]
 
@@ -263,6 +269,30 @@ def test_scores_must_come_from_the_locked_holdout(setup, monkeypatch):
     approve(setup)
     with pytest.raises(ValueError, match="locked holdout"):
         run(setup, parts=("diabetes",))
+
+
+@pytest.mark.parametrize(
+    ("reasons", "problem"),
+    [
+        (None, "must count each of"),
+        ({"noPlethTrack": 2, "noStableWindow": 1}, "must count each of"),
+        (
+            {"noPlethTrack": 2, "noStableWindow": 1, "noScorableSegment": 0, "crashed": 0},
+            "must count each of",
+        ),
+        ({"noPlethTrack": 4, "noStableWindow": -1, "noScorableSegment": 0}, "must count each of"),
+        ({"noPlethTrack": 2.0, "noStableWindow": 1, "noScorableSegment": 0}, "must count each of"),
+        ({"noPlethTrack": True, "noStableWindow": 2, "noScorableSegment": 0}, "must count each of"),
+        ({"noPlethTrack": 1, "noStableWindow": 1, "noScorableSegment": 0}, "sum to 2, not holdoutUnscored 3"),
+    ],
+)
+def test_unscored_reasons_must_be_adr_0069s_and_add_up(reasons, problem):
+    holdout = list(range(1, 11))
+    scored = {**holdout_scores(holdout), "onnxSha256": "a" * 64, "holdoutUnscoredReasons": reasons}
+    with pytest.raises(ValueError, match=problem):
+        external.holdout_units(scored, holdout, "a" * 64)
+    valid = {**scored, "holdoutUnscoredReasons": holdout_scores(holdout)["holdoutUnscoredReasons"]}
+    assert len(external.holdout_units(valid, holdout, "a" * 64).scores) == len(holdout) - UNSCORED
 
 
 @pytest.mark.skipif(

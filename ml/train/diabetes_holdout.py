@@ -3,21 +3,23 @@ import math
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+from collections.abc import Sequence
 from typing import NamedTuple
 
 import numpy as np
+import onnxruntime as ort
 import pandas as pd
 
 from datasets import registry
 from datasets.vitaldb_cases import eligible_cases, holdout_case_path, holdout_caseids
-from eval.external import family_entries, model_id, onnx_output
+from eval.external import UNSCORED_REASONS, family_entries, model_id, onnx_output
 from eval.external_gate import ExternalTestRefusedError
 from export.provenance import sha256_of
 from nets.diabetes_net import BEAT
 from nets.rhythm_net import LABELS
 from train import diabetes_features, vitaldb_pleth
 from train.diabetes import TABULAR
-from train.diabetes_features import RHYTHM_MODEL, OnnxRhythm, ShippedRhythm, shipped_abstain_below
+from train.diabetes_features import RHYTHM_MODEL, ShippedRhythm, shipped_abstain_below
 
 # export/specs.py: diabetes-net's averaged-beat input; every other input is a featureOrder column list.
 BEAT_INPUT = "beat"
@@ -25,13 +27,23 @@ RHYTHM_INPUT = "features"
 # The dev cache's PLETH extraction used 6 workers; 4 keeps the owner's laptop responsive. About 1,500
 # holdout cases at ~9 CPU seconds each.
 WORKERS = 4
-# Why a holdout patient has no score (ADR 0014 amendment, see score_holdout).
-NO_PLETH_TRACK = "noPlethTrack"
-NO_STABLE_WINDOW = "noStableWindow"
-NO_SCORABLE_SEGMENT = "noScorableSegment"
+# ADR 0069: why a holdout patient is unscored, in eval.external's UNSCORED_REASONS order.
+NO_PLETH_TRACK, NO_STABLE_WINDOW, NO_SCORABLE_SEGMENT = UNSCORED_REASONS
 VITALDB = next(dataset for dataset in registry.DATASETS if dataset.key == "vitaldb")
 
 log = logging.getLogger("train.diabetes_holdout")
+
+
+class OnnxRhythm:
+    # The release's rhythm ONNX file, run as the app runs it, with the pickle's predict_proba interface.
+    def __init__(self, path: Path, input_name: str, labels: Sequence[str]):
+        self.session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        self.input_name = input_name
+        self.columns = [list(labels).index(label) for label in LABELS]
+
+    def predict_proba(self, features: np.ndarray) -> np.ndarray:
+        (probs,) = self.session.run(None, {self.input_name: features})
+        return np.asarray(probs)[:, self.columns]
 
 
 class CaseSegments(NamedTuple):
@@ -75,14 +87,14 @@ def shipped_rhythm_entry(models_dir: Path) -> dict:
     return entry
 
 
-def check_release(entry: dict, models_dir: Path) -> None:
+def check_release(entry: dict, models_dir: Path) -> dict:
     # eval.external's preflight calls this before the ledger records a start, so a release that cannot be
     # scored is refused without using the owner's approval (ADR 0045). It reads no holdout file or label.
     check_inputs(entry)
     path = models_dir / entry["file"]
     if sha256_of(path) != entry["sha256"]:
         raise ExternalTestRefusedError(f"{path} does not match the manifest's sha256")
-    shipped_rhythm_entry(models_dir)
+    return shipped_rhythm_entry(models_dir)
 
 
 def release_rhythm_model(rhythm_entry: dict, models_dir: Path) -> ShippedRhythm:
@@ -133,10 +145,8 @@ def model_inputs(entry: dict, segments: pd.DataFrame) -> dict[str, np.ndarray]:
 def score_holdout(entry: dict, models_dir: Path, holdout: list[int]) -> dict:
     # Only eval.external calls this, inside its approved run. Every check that needs no holdout file
     # comes first.
-    check_release(entry, models_dir)
+    rhythm_entry = check_release(entry, models_dir)
     path = models_dir / entry["file"]
-    onnx_sha256 = entry["sha256"]
-    rhythm_entry = shipped_rhythm_entry(models_dir)
     clinical = pd.read_csv(VITALDB.local_dir / "clinical_data.csv")
     caseids = holdout_caseids(clinical, holdout)
 
@@ -147,13 +157,15 @@ def score_holdout(entry: dict, models_dir: Path, holdout: list[int]) -> dict:
             for subject in holdout
         }
         for done, future in enumerate(as_completed(futures), start=1):
+            # ADR 0069: an error in any case ends the run, which the ledger has already started, so a retry
+            # needs a new approval. That risk is accepted: an unexpected error must never become a fourth
+            # reason to leave a patient unscored, which would shrink the denominator without a decision.
             cases[futures[future]] = future.result()
             if done % 100 == 0 or done == len(futures):
                 log.info("%d / %d holdout cases", done, len(futures))
-    # ADR 0014 makes a usable SNUADC/PLETH track part of eligibility, and its amendment drops at M3 the
-    # holdout patients without one. Usable means what development trained on: a stable 90 s window
-    # (vitaldb_pleth) with a segment diabetes_features.scorable keeps. A development patient without one
-    # never reached training either, so these patients count in holdoutWithoutPleth, by reason.
+    # ADR 0069: a usable PLETH track means what development trained on, a stable 90 s window
+    # (vitaldb_pleth) with a segment diabetes_features.scorable keeps. A patient without one is unscored,
+    # counted by reason; a development patient without one never reached training either.
     scored = [subject for subject in holdout if cases[subject].dropped is None]
     if not scored:
         raise ValueError("no holdout patient has a scorable PLETH segment")
@@ -166,8 +178,9 @@ def score_holdout(entry: dict, models_dir: Path, holdout: list[int]) -> dict:
     )
     # ADR 0045: holdout labels are read here and nowhere else, after every score exists.
     preop_dm = eligible_cases(clinical).set_index("subjectid")["preop_dm"]
-    reasons = Counter(cases[subject].dropped for subject in holdout if cases[subject].dropped is not None)
-    log.info("%d holdout patients scored; without a usable PLETH segment: %s", len(scored), dict(reasons))
+    dropped = Counter(cases[subject].dropped for subject in holdout)
+    reasons = {reason: dropped[reason] for reason in UNSCORED_REASONS}
+    log.info("%d holdout patients scored; unscored by reason: %s", len(scored), reasons)
     return {
         "subjects": [
             {
@@ -177,7 +190,7 @@ def score_holdout(entry: dict, models_dir: Path, holdout: list[int]) -> dict:
             }
             for subject in scored
         ],
-        "holdoutWithoutPleth": len(holdout) - len(scored),
-        "withoutPlethReasons": dict(reasons),
-        "onnxSha256": onnx_sha256,
+        "holdoutUnscored": len(holdout) - len(scored),
+        "holdoutUnscoredReasons": reasons,
+        "onnxSha256": entry["sha256"],
     }

@@ -182,19 +182,20 @@ def write_models(models_dir: Path) -> dict:
     return manifest
 
 
-WITHOUT_PLETH = 3
+UNSCORED = 3
 
 
 def holdout_scores(holdout: list[int]) -> dict:
-    # Every holdout patient but the last WITHOUT_PLETH, as ADR 0014's amendment allows.
+    # Every holdout patient but the last UNSCORED, with reasons ADR 0069 allows.
     rng = np.random.default_rng(5)
-    scored = holdout[: len(holdout) - WITHOUT_PLETH]
+    scored = holdout[: len(holdout) - UNSCORED]
     rows = []
     for index, subject in enumerate(scored):
         diabetic = index % 3 == 0
         score = float(np.clip(rng.normal(0.6 if diabetic else 0.3, 0.1), 0, 1))
         rows.append({"subject": subject, "diabetic": diabetic, "score": score})
-    return {"subjects": rows, "holdoutWithoutPleth": WITHOUT_PLETH}
+    reasons = {"noPlethTrack": 2, "noStableWindow": 1, "noScorableSegment": 0}
+    return {"subjects": rows, "holdoutUnscored": UNSCORED, "holdoutUnscoredReasons": reasons}
 
 
 def install_fake_scorer(monkeypatch, edit=None, release_problem: str | None = None) -> list[tuple]:

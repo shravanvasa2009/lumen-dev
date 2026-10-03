@@ -25,6 +25,7 @@ from train.diabetes_holdout import (
     NO_SCORABLE_SEGMENT,
     NO_STABLE_WINDOW,
     case_segments,
+    check_release,
     model_inputs,
     release_rhythm_model,
     score_holdout,
@@ -162,6 +163,8 @@ def test_a_model_without_its_fill_values_or_feature_order_is_refused(models_dir,
 def test_the_rhythm_label_comes_from_the_shipped_rhythm_lgbm_in_the_release(models_dir):
     entry = shipped_rhythm_entry(models_dir)
     assert (entry["name"], entry["file"]) == ("rhythm-lgbm", "rhythm-lgbm@1.0.0.onnx")
+    # score_holdout takes the rhythm entry from the release check, so no file is hashed twice.
+    assert check_release(diabetes_entry(models_dir), models_dir) == entry
     (models_dir / entry["file"]).write_bytes(b"another model")
     with pytest.raises(ExternalTestRefusedError, match="sha256"):
         shipped_rhythm_entry(models_dir)
@@ -245,11 +248,15 @@ def test_preflight_refuses_a_release_the_real_scorer_cannot_score(models_dir, ho
 
 
 def test_an_approved_run_scores_the_holdout_with_the_real_scorer(models_dir, holdout_files, monkeypatch):
-    # Four patients scored, two without a usable PLETH segment.
+    # Four patients scored; two unscored, each for an ADR 0069 reason.
     results = approved_run(models_dir, holdout_files, monkeypatch)
     diabetes = results["diabetes"]
-    assert (diabetes["subjects"], diabetes["diabeticSubjects"], diabetes["holdoutWithoutPleth"]) == (4, 2, 2)
-    assert diabetes["holdoutWithoutPlethReasons"] == {NO_PLETH_TRACK: 1, NO_STABLE_WINDOW: 1}
+    assert (diabetes["subjects"], diabetes["diabeticSubjects"], diabetes["holdoutUnscored"]) == (4, 2, 2)
+    assert diabetes["holdoutUnscoredReasons"] == {
+        NO_PLETH_TRACK: 1,
+        NO_STABLE_WINDOW: 1,
+        NO_SCORABLE_SEGMENT: 0,
+    }
     assert diabetes["threshold"] == THRESHOLDS["diabetes-net"]
     # Faster pulses score higher, and the diabetic patients have them.
     assert diabetes["auroc"] == 1.0

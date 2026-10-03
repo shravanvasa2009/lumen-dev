@@ -67,11 +67,14 @@ NOT_AF = LABELS.index("other")
 # Reading id = subject index × this + 90 s block, so ids sort by subject, then time, and decode back.
 BLOCKS_PER_SUBJECT = 1000
 # ADR 0045: the diabetes pipeline's holdout scorer, called only from run() after the ledger records a
-# start: score_holdout(entry, models_dir, holdout_ids) -> {"onnxSha256", "holdoutWithoutPleth",
-# "withoutPlethReasons", "subjects": [{"subject", "diabetic", "score"}]}, scoring
+# start: score_holdout(entry, models_dir, holdout_ids) -> {"onnxSha256", "holdoutUnscored",
+# "holdoutUnscoredReasons", "subjects": [{"subject", "diabetic", "score"}]}, scoring
 # models_dir / entry["file"] with onnxruntime. Its check_release(entry, models_dir) runs in preflight.
 DIABETES_SCORER = "train.diabetes_holdout"
 HOLDOUT_DATASET = "vitaldb-holdout"
+# ADR 0069: the only reasons a locked-holdout patient may go unscored. No PLETH track; PLETH but no stable
+# 90 s window; or windows, but no segment with an averaged beat that the app would read.
+UNSCORED_REASONS = ("noPlethTrack", "noStableWindow", "noScorableSegment")
 MIMIC = next(dataset for dataset in registry.DATASETS if dataset.key == "mimic-perform-af")
 
 log = logging.getLogger("eval.external")
@@ -301,8 +304,8 @@ def diabetes_scorer() -> ModuleType:
 
 
 def holdout_units(scored: dict, holdout: list[int], onnx_sha256: str) -> Units:
-    # One P(pattern) per locked-holdout patient. ADR 0014's amendment lets only patients without PLETH
-    # drop out, so the scored patients plus those must be the whole holdout.
+    # One P(pattern) per locked-holdout patient. ADR 0069 lets a patient go unscored only for one of
+    # UNSCORED_REASONS, so the scored patients plus the unscored ones must be the whole holdout.
     rows = scored.get("subjects")
     wrong = []
     if scored.get("onnxSha256") != onnx_sha256:
@@ -322,14 +325,27 @@ def holdout_units(scored: dict, holdout: list[int], onnx_sha256: str) -> Units:
         wrong.append("diabetic must be true or false for every subject")
     if not all(isinstance(row.get("score"), float | int) and 0 <= row["score"] <= 1 for row in rows):
         wrong.append("score must be a probability for every subject")
-    without_pleth = scored.get("holdoutWithoutPleth")
-    if not (isinstance(without_pleth, int) and without_pleth >= 0):
-        wrong.append("holdoutWithoutPleth must be a count")
-    elif len(ids) + without_pleth != len(holdout):
+    unscored = scored.get("holdoutUnscored")
+    reasons = scored.get("holdoutUnscoredReasons")
+    if not (isinstance(unscored, int) and unscored >= 0):
+        wrong.append("holdoutUnscored must be a count")
+    elif len(ids) + unscored != len(holdout):
         wrong.append(
-            f"{len(ids)} scored + {without_pleth} without PLETH is not the {len(holdout)} holdout "
-            "patients (ADR 0014)"
+            f"{len(ids)} scored + {unscored} unscored is not the {len(holdout)} holdout patients (ADR 0069)"
         )
+    if not (
+        isinstance(reasons, dict)
+        and set(reasons) == set(UNSCORED_REASONS)
+        and all(
+            isinstance(count, int) and not isinstance(count, bool) and count >= 0
+            for count in reasons.values()
+        )
+    ):
+        wrong.append(
+            f"holdoutUnscoredReasons must count each of {', '.join(UNSCORED_REASONS)} and nothing else"
+        )
+    elif sum(reasons.values()) != unscored:
+        wrong.append(f"holdoutUnscoredReasons sum to {sum(reasons.values())}, not holdoutUnscored {unscored}")
     if wrong:
         raise ValueError("holdout scores: " + "; ".join(wrong))
     return Units(
@@ -349,9 +365,8 @@ def diabetes_part(entry: dict, units: Units, scored: dict) -> dict:
         "subjects": report["units"],
         "diabeticSubjects": report["positives"],
         "nonDiabeticSubjects": report["negatives"],
-        "holdoutWithoutPleth": scored["holdoutWithoutPleth"],
-        # Counts by reason: no PLETH track, no stable window, or no segment the app would read.
-        "holdoutWithoutPlethReasons": scored.get("withoutPlethReasons"),
+        "holdoutUnscored": scored["holdoutUnscored"],
+        "holdoutUnscoredReasons": scored["holdoutUnscoredReasons"],
         **{
             key: report[key] for key in ("threshold", "auroc", "sensitivity", "specificity", "ci95", "ppvNpv")
         },

@@ -9,7 +9,7 @@ import { Screen } from '@/components/Screen';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { useTheme } from '@/theme';
 
-import { CareMapView, Pin } from './CareMapView';
+import { CareMapView } from './CareMapView';
 import { ClinicCard } from './ClinicCard';
 import { type Coordinates, findPlace, type NearbyClinic, nearestClinics } from './clinics';
 import { callNumber, directionsUrl, doctorSearchUrl, opensOk } from './contact';
@@ -22,18 +22,6 @@ import {
 import { useCareLocation } from './useCareLocation';
 
 type DoctorNotice = 'searchBusy' | 'searchFailed' | 'mapsFailed';
-
-function LegendItem({ shape, label }: { shape: 'clinic' | 'doctor' | 'you'; label: string }) {
-  const { spacing } = useTheme();
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-      <Pin shape={shape} />
-      <AppText variant="caption" tone="textDim">
-        {label}
-      </AppText>
-    </View>
-  );
-}
 
 export function CareMapScreen() {
   const { t } = useTranslation();
@@ -179,11 +167,6 @@ export function CareMapScreen() {
 
           {centre ? (
             <>
-              <View style={{ gap: spacing.sm }}>
-                <LegendItem shape="clinic" label={t('careMap.legendClinic')} />
-                {doctors.length > 0 ? <LegendItem shape="doctor" label={t('careMap.legendDoctor')} /> : null}
-                {searchedPlace ? null : <LegendItem shape="you" label={t('careMap.legendYou')} />}
-              </View>
               <Button
                 label={canSearchNearbyDoctors() ? t('careMap.showDoctors') : t('careMap.searchDoctors')}
                 variant="secondary"

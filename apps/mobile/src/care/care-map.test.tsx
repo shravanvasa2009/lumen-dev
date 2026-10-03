@@ -129,7 +129,7 @@ describe('Care map with location allowed', () => {
     expect(screen.getAllByRole('button', { name: en['careMap.call'] }).length).toBeGreaterThan(5);
   });
 
-  it('uses the liberty style in light and the dark style in dark, chosen at mount', async () => {
+  it('uses the liberty style in light', async () => {
     mockScheme = 'light';
     await openCareMap();
     expect(screen.getByTestId('care-map-view').props.accessibilityLabel).toBe(
@@ -137,11 +137,50 @@ describe('Care map with location allowed', () => {
     );
   });
 
-  it('uses the dark style in the dark theme', async () => {
+  it('uses the same liberty style in the dark theme, where the dark style was unreadable', async () => {
     await openCareMap();
     expect(screen.getByTestId('care-map-view').props.accessibilityLabel).toBe(
-      'https://tiles.openfreemap.org/styles/dark',
+      'https://tiles.openfreemap.org/styles/liberty',
     );
+  });
+
+  it('shows a loading placeholder until the map has rendered', async () => {
+    await openCareMap();
+    expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
+    expect(screen.getByText(en['careMap.loadingMap'])).toBeOnTheScreen();
+    expect(screen.getByTestId('care-map-legend')).toBeOnTheScreen();
+    fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMap');
+    expect(screen.queryByTestId('care-map-loading')).toBeNull();
+  });
+
+  it('shows a failure message with Retry, and Retry remounts the map', async () => {
+    await openCareMap();
+    const firstMap = screen.getByTestId('care-map-view');
+    fireEvent(firstMap, 'didFailLoadingMap');
+    expect(screen.getByText(en['careMap.mapFailed'])).toBeOnTheScreen();
+    expect(screen.queryByTestId('care-map-loading')).toBeNull();
+    expect(screen.getAllByRole('button', { name: en['careMap.call'] }).length).toBeGreaterThan(5);
+
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.retry'] }));
+    expect(screen.queryByText(en['careMap.mapFailed'])).toBeNull();
+    expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
+    expect(screen.getByTestId('care-map-view')).not.toBe(firstMap);
+  });
+
+  it('lists clinic and you in the legend, and the doctor once doctors are shown', async () => {
+    Platform.OS = 'ios';
+    jest.mocked(requireOptionalNativeModule).mockReturnValue({
+      searchNearbyCare: jest.fn(async () => [
+        { name: 'Dr. Rivera', phone: '713-555-0111', lat: 29.77, lon: -95.36, address: '1 Main St' },
+      ]),
+    });
+    await openCareMap();
+    const legend = within(screen.getByTestId('care-map-legend'));
+    expect(legend.getByText(en['careMap.legendClinic'])).toBeOnTheScreen();
+    expect(legend.getByText(en['careMap.legendYou'])).toBeOnTheScreen();
+    expect(legend.queryByText(en['careMap.legendDoctor'])).toBeNull();
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: en['careMap.showDoctors'] })));
+    expect(legend.getByText(en['careMap.legendDoctor'])).toBeOnTheScreen();
   });
 
   it('turns the map attribution on', async () => {
@@ -327,6 +366,9 @@ describe('Care map with location denied', () => {
     expect(screen.getByTestId('care-map-view')).toBeOnTheScreen();
     expect(screen.getAllByRole('button', { name: en['careMap.call'] }).length).toBeGreaterThan(5);
     expect(screen.queryByText(en['careMap.legendYou'])).toBeNull();
+    expect(
+      within(screen.getByTestId('care-map-legend')).getByText(en['careMap.legendClinic']),
+    ).toBeOnTheScreen();
   });
 
   it('says so when the place is not in the list', async () => {

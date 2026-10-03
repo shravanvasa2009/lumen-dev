@@ -652,3 +652,34 @@ test('a capture without a strap sends no polarRr', async () => {
   await press(en['lab.send']);
   expect(JSON.parse(fetchMock.mock.calls[0]?.[1].body ?? '{}')).not.toHaveProperty('polarRr');
 });
+
+test('sends when the capture started, the rest answer, and the paced breathing rate', async () => {
+  const fetchMock = jest.fn(
+    async (_url: string, _init: { body: string }) =>
+      ({ status: 201, text: async () => JSON.stringify({ folder: 'f' }) }) as Response,
+  );
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  const before = Date.now();
+  await recordWholeReplay();
+  await press(en['lab.restedOff']);
+  fireEvent.changeText(screen.getByLabelText(en['lab.paced']), '6');
+  typeReceiver('10.0.2.2:8787', 'abc123');
+  await press(en['lab.send']);
+
+  const { meta } = JSON.parse(fetchMock.mock.calls[0]?.[1].body ?? '{}');
+  expect(meta.restTimerDone).toBe(true);
+  expect(meta.labels).toStrictEqual({ pacedBrpm: 6 });
+  // Whole seconds, so compare at that resolution.
+  expect(new Date(meta.recordedAt).getTime()).toBeGreaterThanOrEqual(Math.floor(before / 1000) * 1000);
+});
+
+test('will not send a paced breathing rate that cannot be one', async () => {
+  await recordWholeReplay();
+  typeReceiver('10.0.2.2:8787', 'abc123');
+  fireEvent.changeText(screen.getByLabelText(en['lab.paced']), 'six');
+  expect(screen.getByText(fill(en['lab.pacedInvalid'], { max: 60 }))).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: en['lab.send'] })).toBeDisabled();
+
+  fireEvent.changeText(screen.getByLabelText(en['lab.paced']), '');
+  expect(screen.getByRole('button', { name: en['lab.send'] })).toBeEnabled();
+});

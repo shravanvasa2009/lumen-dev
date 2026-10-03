@@ -164,12 +164,12 @@ export function CareMapView({
   ];
   useEffect(() => {
     const timer = setTimeout(
-      () => setLoadState((state) => (state === 'loading' ? 'ready' : state)),
+      () => setLoadState((state) => (state === 'loading' ? 'failed' : state)),
       LOADING_TIMEOUT_MS,
     );
     return () => clearTimeout(timer);
   }, [attempt]);
-  const showMap = () => setLoadState((state) => (state === 'failed' ? state : 'ready'));
+  const showMap = () => setLoadState('ready');
   const retry = () => {
     setLoadState('loading');
     setAttempt((count) => count + 1);
@@ -193,7 +193,8 @@ export function CareMapView({
         accessibilityLabel={t('careMap.mapLabel')}
         onPress={onClearSelection}
         // 11.4.1 sends onDidFinishRenderingMap for a partial render and ...Fully for a complete one, never
-        // both, so either clears the spinner. Style-only loading would still show a blank base. A failure
+        // both, so either clears the spinner, even after the timeout gave up. Offline on the API 37 emulator
+        // no failure event arrived at all, so the timeout shows Retry instead of a blank base. A failure
         // after the map is showing must not replace it. Props: lib/typescript/commonjs/components/map/Map.d.ts.
         onDidFinishRenderingMap={showMap}
         onDidFinishRenderingMapFully={showMap}

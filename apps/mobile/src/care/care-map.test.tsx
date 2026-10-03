@@ -459,7 +459,7 @@ describe('Care map with location denied', () => {
 describe('Care map loading timeout', () => {
   beforeEach(allowLocation);
 
-  it('hides the spinner after 20 seconds without a render or a failure event', async () => {
+  it('offers Retry after 20 seconds without a render or a failure event, and a late render still shows the map', async () => {
     await openCareMap();
     // Fake timers stall the router's own setup, so the clock is faked only for the timer a Retry starts.
     fireEvent(screen.getByTestId('care-map-view'), 'didFailLoadingMap');
@@ -471,7 +471,10 @@ describe('Care map loading timeout', () => {
       expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
       act(() => jest.advanceTimersByTime(1_500));
       expect(screen.queryByTestId('care-map-loading')).toBeNull();
-      expect(screen.queryByText(en['careMap.mapFailed'])).toBeNull();
+      expect(screen.getByText(en['careMap.mapFailed'])).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: en['careMap.retry'] })).toBeOnTheScreen();
+      fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMap');
+      expect(screen.queryByTestId('care-map-failed')).toBeNull();
     } finally {
       jest.useRealTimers();
     }

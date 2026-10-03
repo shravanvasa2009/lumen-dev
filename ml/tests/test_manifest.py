@@ -27,7 +27,7 @@ from eval.external_stats import (
 from export.write_manifest import EXTERNAL_NOT_RUN, NOT_MEASURED, logistic_rule
 from nets.rhythm_net import LABELS
 from tests.training_artifacts import fit_baseline, save_trained
-from train.rhythm import LOGISTIC_FEATURES, Units
+from train.rhythm import LOGISTIC_FEATURES, Units, sensitivity_at, specificity_at, with_ci
 from train.rhythm_windows import FEATURE_NAMES
 
 # scripts/proof/m3.mjs checks the first four; §11.9 and the track kickoff add the rest.
@@ -558,6 +558,21 @@ def _external_results(models_dir, runs_dir, status="done"):
             "model": f"{name}@1.0.0",
             "role": "shipped" if seed == 0 else "ablation",
             "subject": binary_report(_units(seed), frozen(name), RHYTHM_PREVALENCES),
+            "reading": binary_report(_units(seed + 10), frozen(name), ()),
+            "window": binary_report(_units(seed + 20), frozen(name), ()),
+            "appReadings": {
+                "readings": 48,
+                "readingsWithRhythmCard": 40,
+                "abstainRate": with_ci(
+                    _units(seed + 30), lambda _is_af, scores: float(np.mean(scores < 0.6))
+                ),
+                "answered": binary_report(_units(seed + 40), frozen(name), ()),
+                "possibleAfSubjects": {
+                    "subjects": 40,
+                    "sensitivity": with_ci(_units(seed + 50), sensitivity_at(0.5)),
+                    "specificity": with_ci(_units(seed + 50), specificity_at(0.5)),
+                },
+            },
             "floorMet": True,
         }
         for seed, name in enumerate(("rhythm-lgbm", "rhythm-net"))
@@ -620,6 +635,23 @@ def test_a_finished_external_run_fills_the_entry_and_the_card(trained, monkeypat
     assert "- floorMet: True" in rhythm_card and "PPV and NPV" in rhythm_card
     assert "- outcome: shipped-meets-floor" in rhythm_card
     assert "- role: ablation" in _external_card(models_dir, entries["rhythm-net"])
+    reading = results["rhythm"]["models"]["rhythm-lgbm"]["reading"]
+    low, high = reading["ci95"]["sensitivity"]
+    levels = rhythm_card.split("Reading level", 1)[1]
+    assert (
+        f"| sensitivity | {reading['sensitivity']} | {low} | {high} |" in levels.split("Window level", 1)[0]
+    )
+    assert "(40 pseudo-readings; intervals resample subjects)" in levels
+    assert "(40 windows; intervals resample subjects)" in levels
+    assert "Not applied: the 60 clean-second floor and card confidence" in rhythm_card
+    app = results["rhythm"]["models"]["rhythm-lgbm"]["appReadings"]
+    abstain = app["abstainRate"]
+    assert "48 readings, 40 with a rhythm card" in rhythm_card
+    assert (
+        f"| abstain rate (readings with a rhythm card) | {abstain['estimate']} | {abstain['low']} | "
+        f"{abstain['high']} |" in rhythm_card
+    )
+    assert "Reading level" not in _external_card(models_dir, entries["diabetes-net"])
     sqi_low, sqi_high = results["sqi"]["ci95"]
     assert f"| {sqi_low} | {sqi_high} |" in _external_card(models_dir, entries["sqi-finger"])
     assert "- passed: " in _external_card(models_dir, entries["sqi-finger"])
@@ -686,6 +718,17 @@ def test_refuses_external_numbers_at_another_threshold(trained, monkeypatch):
     _assert_refused(models_dir, runs_dir, ProvenanceError, "tested at pattern threshold 0.31")
 
 
+def test_refuses_rhythm_numbers_at_another_threshold(trained, monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    results["rhythm"]["models"]["rhythm-net"]["subject"]["threshold"] = 0.77
+    _write_external(models_dir, results)
+    _assert_refused(
+        models_dir, runs_dir, ProvenanceError, "rhythm-net@1.0.0 was externally tested at af threshold 0.77"
+    )
+
+
 def test_refuses_two_finished_runs_of_one_version(trained, monkeypatch):
     monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
     models_dir, runs_dir = trained
@@ -701,3 +744,25 @@ def test_refuses_a_started_run_of_a_different_onnx_file(trained):
     results["runs"][2]["onnxSha256"] = "f" * 64
     _write_external(models_dir, results)
     _assert_refused(models_dir, runs_dir, ProvenanceError, "sqi-finger@1.0.0 was externally tested as ONNX")
+
+
+def test_refuses_reading_level_numbers_at_another_threshold(trained, monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    results["rhythm"]["models"]["rhythm-lgbm"]["reading"]["threshold"] = 0.66
+    _write_external(models_dir, results)
+    _assert_refused(
+        models_dir, runs_dir, ProvenanceError, "rhythm-lgbm@1.0.0 was externally tested at af threshold 0.66"
+    )
+
+
+def test_refuses_app_scored_readings_at_another_threshold(trained, monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    results["rhythm"]["models"]["rhythm-lgbm"]["appReadings"]["answered"]["threshold"] = 0.42
+    _write_external(models_dir, results)
+    _assert_refused(
+        models_dir, runs_dir, ProvenanceError, "rhythm-lgbm@1.0.0 was externally tested at af threshold 0.42"
+    )

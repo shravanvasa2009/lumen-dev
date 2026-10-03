@@ -1,6 +1,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { cancelAllScheduledNotificationsAsync } from 'expo-notifications';
 
+import { removeExportFile } from '@/export/exportFile';
 import { clearDemoReadings } from '@/demo/demoReadings';
 import { exitDemo } from '@/demo/demoSession';
 import { keepCapture } from '@/measure/keptCapture';
@@ -71,6 +72,7 @@ export async function deleteAllData(languageTag: string): Promise<void> {
   }
   const printed = new Directory(Paths.cache, PRINT_FOLDER);
   if (printed.exists) printed.delete();
+  removeExportFile();
   keepCapture(null);
   clearDemoReadings();
   resetPreferences();

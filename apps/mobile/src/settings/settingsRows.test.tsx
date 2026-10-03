@@ -5,6 +5,7 @@ import i18next from 'i18next';
 import { exitDemo, isDemoActive } from '@/demo/demoSession';
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
+import { syncNotifications } from '@/notifications/scheduler';
 import { lumenDatabase } from '@/store/database';
 import { profileValue, setProfileValue } from '@/store/profile';
 import { saveReading } from '@/store/readings';
@@ -16,7 +17,9 @@ import { makeReading } from '@/testing/reading';
 
 jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').mockFileSystem);
 jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn(), shareAsync: jest.fn() }));
+jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
 jest.mock('expo-notifications', () => ({
+  getPermissionsAsync: jest.fn(async () => ({ status: 'granted', granted: true })),
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
   useLastNotificationResponse: () => null,
   setNotificationHandler: jest.fn(),
@@ -26,6 +29,7 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => 'dark',
 }));
 
+const sync = jest.mocked(syncNotifications);
 const isAvailable = jest.mocked(Sharing.isAvailableAsync);
 const share = jest.mocked(Sharing.shareAsync);
 
@@ -69,6 +73,22 @@ describe('Language row', () => {
     expect(await screen.findByRole('header', { name: es['settings.title'] })).toBeOnTheScreen();
     expect(screen.getByRole('radio', { name: es['language.es'] })).toBeChecked();
     await waitFor(async () => expect(await profileValue('language')).toBe('es'));
+  });
+
+  it('plans the scheduled reminders again in the new language', async () => {
+    renderRouter('./app', { initialUrl: '/settings' });
+    fireEvent.press(await row(en['settings.language']));
+    fireEvent.press(screen.getByRole('radio', { name: es['language.es'] }));
+    await waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+    expect(sync.mock.calls[0]?.[1]).toBe('es');
+  });
+
+  it('says so when the reminders could not be updated', async () => {
+    sync.mockRejectedValueOnce(new Error('scheduler down'));
+    renderRouter('./app', { initialUrl: '/settings' });
+    fireEvent.press(await row(en['settings.language']));
+    fireEvent.press(screen.getByRole('radio', { name: es['language.es'] }));
+    expect(await screen.findByText(es['settings.languageRemindersFailed'])).toBeOnTheScreen();
   });
 
   it('opens in the saved language on the next launch', async () => {

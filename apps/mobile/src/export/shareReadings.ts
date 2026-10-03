@@ -1,13 +1,11 @@
-import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import { listReadings } from '@/store/readings';
 
+import { exportFile, removeExportFile } from './exportFile';
 import { readingsToCsv } from './readingsCsv';
 
 export type ExportOutcome = 'shared' | 'empty' | 'unavailable';
-
-const FILE_NAME = 'lumen-readings.csv';
 
 // Only readings saved on this phone are exported: Demo readings are never written to the readings table.
 // PRIV-1: the file holds health values, so it is deleted from the cache once the share sheet closes. The
@@ -18,13 +16,13 @@ export async function shareReadingsCsv(): Promise<ExportOutcome> {
   const readings = await listReadings();
   if (readings.length === 0) return 'empty';
   if (!(await Sharing.isAvailableAsync())) return 'unavailable';
-  const file = new File(Paths.cache, FILE_NAME);
+  const file = exportFile();
   try {
     file.create({ overwrite: true });
     file.write(readingsToCsv(readings));
     await Sharing.shareAsync(file.uri, { mimeType: 'text/csv', UTI: 'public.comma-separated-values-text' });
   } finally {
-    if (file.exists) file.delete();
+    removeExportFile();
   }
   return 'shared';
 }

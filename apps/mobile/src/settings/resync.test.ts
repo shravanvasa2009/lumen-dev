@@ -91,14 +91,10 @@ async function storeRating(testedAt: number) {
   );
 }
 
-// The background sync has no promise to wait for, so the test waits for the timers-free queue to drain.
-const settle = () => new Promise((resolve) => setImmediate(resolve));
-
 // What the system was asked to schedule by one sync, as route and fire time.
 async function scheduledByResync(): Promise<{ route: string; at: number }[]> {
   jest.mocked(scheduleNotificationAsync).mockClear();
-  resyncNotifications();
-  for (let turn = 0; turn < 20; turn += 1) await settle();
+  await resyncNotifications();
   return jest.mocked(scheduleNotificationAsync).mock.calls.map(([request]) => ({
     route: (request.content.data as { url: string }).url,
     at: (request.trigger as { date: number }).date,
@@ -211,11 +207,10 @@ describe('reminders that follow a stored result', () => {
     expect(await scheduledByResync()).toEqual([]);
   });
 
-  it('warns and returns when the sync fails, so the app stays usable', async () => {
+  it('warns and resolves false when the sync fails, so the app stays usable', async () => {
     const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     jest.mocked(getPermissionsAsync).mockRejectedValue(new Error('no permission service'));
-    resyncNotifications();
-    await settle();
+    expect(await resyncNotifications()).toBe(false);
     expect(warning).toHaveBeenCalledWith('Reminders could not be updated: no permission service');
     warning.mockRestore();
   });

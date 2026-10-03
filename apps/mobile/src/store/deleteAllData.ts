@@ -3,6 +3,7 @@ import { cancelAllScheduledNotificationsAsync } from 'expo-notifications';
 
 import { clearDemoReadings } from '@/demo/demoReadings';
 import { exitDemo } from '@/demo/demoSession';
+import { removeExportFile } from '@/export/exportFile';
 import { keepCapture } from '@/measure/keptCapture';
 import type { NotificationPrefs, NotificationTriggers } from '@/notifications/plan';
 import { syncNotifications } from '@/notifications/scheduler';
@@ -71,6 +72,7 @@ export async function deleteAllData(languageTag: string): Promise<void> {
   }
   const printed = new Directory(Paths.cache, PRINT_FOLDER);
   if (printed.exists) printed.delete();
+  removeExportFile();
   keepCapture(null);
   clearDemoReadings();
   resetPreferences();

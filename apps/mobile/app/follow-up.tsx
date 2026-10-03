@@ -36,7 +36,7 @@ export default function FollowUpScreen() {
   const answer = (choice: FollowUpAnswer) =>
     saveFollowUpAnswer(choice, Date.now()).then(
       () => {
-        resyncNotifications();
+        void resyncNotifications();
         router.replace('/');
       },
       () => setAnswerFailed(true),

@@ -245,7 +245,10 @@ function toSite(element, state) {
     name,
     street,
     city: (tags['addr:city'] ?? '').trim(),
-    state: (tags['addr:state'] ?? state).trim().toUpperCase().slice(0, 2),
+    // addr:state is sometimes a full name ("Iowa"); the queried state is used unless it is a two-letter code.
+    state: /^[A-Za-z]{2}$/.test((tags['addr:state'] ?? '').trim())
+      ? tags['addr:state'].trim().toUpperCase()
+      : state,
     zip: (tags['addr:postcode'] ?? '').trim().slice(0, 5),
     phone,
     lat: Number(lat.toFixed(5)),

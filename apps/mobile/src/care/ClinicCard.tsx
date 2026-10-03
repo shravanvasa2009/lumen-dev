@@ -30,6 +30,10 @@ export function ClinicCard({
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   const miles = t('careMap.miles', { miles: clinic.miles.toFixed(1) });
+  // OpenStreetMap sites often lack a street, city or ZIP; only the parts present are shown.
+  const address = [clinic.street, clinic.city, [clinic.state, clinic.zip].filter(Boolean).join(' ')]
+    .filter(Boolean)
+    .join(', ');
   return (
     <View
       testID={`clinic-card-${clinic.id}`}
@@ -40,9 +44,7 @@ export function ClinicCard({
           {clinic.kind === 'regular' ? t('careMap.legendRegular') : t('careMap.legendClinic')}
         </AppText>
         <AppText variant="headline">{clinic.name}</AppText>
-        <AppText tone="textDim">
-          {clinic.street}, {clinic.city}, {clinic.state} {clinic.zip} · {miles}
-        </AppText>
+        <AppText tone="textDim">{[address, miles].filter(Boolean).join(' · ')}</AppText>
         {clinic.phone ? (
           <AppText selectable>{clinic.phone}</AppText>
         ) : (

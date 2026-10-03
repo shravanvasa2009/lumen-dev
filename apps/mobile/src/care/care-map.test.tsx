@@ -1,6 +1,14 @@
 import { requireOptionalNativeModule } from 'expo';
 import * as Location from 'expo-location';
-import { act, fireEvent, renderHook, renderRouter, screen, within } from 'expo-router/testing-library';
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  renderRouter,
+  screen,
+  within,
+} from 'expo-router/testing-library';
 import { Dimensions, Keyboard, Linking, Platform, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
@@ -8,6 +16,7 @@ import es from '@/i18n/es.json';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import tokens from '@/theme/tokens.json';
 
+import { ClinicCard } from './ClinicCard';
 import { distanceMiles, findPlace, nearestClinics } from './clinics';
 import { SEARCH_THROTTLED_CODE } from './nearbyDoctors';
 
@@ -557,6 +566,31 @@ describe('Care map loading timeout', () => {
     expect(screen.getByRole('button', { name: en['careMap.retry'] })).toBeOnTheScreen();
     fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMap');
     expect(screen.queryByTestId('care-map-failed')).toBeNull();
+  });
+});
+
+describe('clinic card', () => {
+  // OpenStreetMap sites often lack a street, city or ZIP.
+  it('shows only the address parts a clinic has', () => {
+    const clinic = {
+      ...nearestClinics(HOUSTON)[10]!,
+      street: '',
+      city: '',
+      state: 'TX',
+      zip: '77002',
+      miles: 1.25,
+    };
+    render(
+      <ClinicCard
+        clinic={clinic}
+        selected={false}
+        callFailed={false}
+        directionsFailed={false}
+        onCall={jest.fn()}
+        onDirections={jest.fn()}
+      />,
+    );
+    expect(screen.getByText('TX 77002 · 1.3 mi')).toBeOnTheScreen();
   });
 });
 

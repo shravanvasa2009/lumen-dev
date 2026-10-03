@@ -5,7 +5,7 @@ export type Coordinates = { lat: number; lon: number };
 
 // Low-cost: HRSA health centers, which charge on a sliding scale. Regular: other clinics and doctor offices
 // from OpenStreetMap (ADR 0078).
-export type ClinicKind = 'lowCost' | 'regular';
+type ClinicKind = 'lowCost' | 'regular';
 
 type Clinic = Coordinates & {
   id: string;

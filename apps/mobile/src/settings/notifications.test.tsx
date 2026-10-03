@@ -46,6 +46,10 @@ beforeEach(() => {
 const open = async () => {
   renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
   await screen.findByRole('switch', { name: en['notifications.daily'] });
+  // The app-start sync is not the one under test.
+  await act(async () => undefined);
+  sync.mockClear();
+  permissionNow.mockClear();
 };
 const switchNamed = (key: keyof typeof en) => screen.getByRole('switch', { name: en[key] });
 

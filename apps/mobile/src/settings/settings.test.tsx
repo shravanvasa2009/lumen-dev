@@ -14,6 +14,8 @@ import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 // The jest safe-area context reports no insets, so both are pinned to prove the cap subtracts them.
 const STATUS_BAR_INSET = 24;
 const HOME_INDICATOR_INSET = 34;
+// The app-start reminder sync has nothing to schedule here.
+jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
 jest.mock('react-native-safe-area-context', () => ({
   ...jest.requireActual('react-native-safe-area-context'),
   useSafeAreaInsets: () => ({ top: STATUS_BAR_INSET, bottom: HOME_INDICATOR_INSET, left: 0, right: 0 }),

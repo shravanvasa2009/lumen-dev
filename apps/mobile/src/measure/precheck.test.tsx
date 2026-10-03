@@ -59,6 +59,13 @@ describe('pre-check', () => {
     expect(caffeine).not.toBeChecked();
   });
 
+  it('says Quick Check reads rhythm only and names the checks it leaves out', () => {
+    expect(screen.getByText(`${en['checks.thisScanMode'].split('{{')[0]}${en['mode.quick']}`)).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.afib.name'])).toBeOnTheScreen();
+    expect(screen.queryByTestId('evidence-badge')).toBeNull();
+    expect(screen.getByText('Not in this scan: HRV, Diabetes, POTS')).toBeOnTheScreen();
+  });
+
   it('starts the reading in the chosen mode from the pinned button', () => {
     fireEvent.press(screen.getByRole('button', { name: en['precheck.start'] }));
     expect(screen.getByRole('header', { name: en['mode.quick'] })).toBeOnTheScreen();
@@ -81,5 +88,18 @@ describe('pre-check', () => {
     for (let second = 0; second < 120; second++) act(() => jest.advanceTimersByTime(1000));
     fireEvent.press(screen.getByRole('button', { name: en['precheck.start'] }));
     expect(view.getSearchParams()).toEqual({ mode: 'quick', restDone: 'true', context: '' });
+  });
+});
+
+describe('pre-check for a Full Scan', () => {
+  it('lists AFib, HRV and Diabetes with its Experimental pill, and leaves POTS to the Standing test', () => {
+    jest.useFakeTimers();
+    renderRouter('./app', { initialUrl: '/measure/precheck?mode=full' });
+    expect(screen.getByText(en['checks.hrv.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.diabetes.name'])).toBeOnTheScreen();
+    expect(screen.getAllByTestId('evidence-badge')).toHaveLength(1);
+    expect(screen.getByText('Not in this scan: POTS')).toBeOnTheScreen();
+    screen.unmount();
+    jest.useRealTimers();
   });
 });

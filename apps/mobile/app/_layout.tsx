@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import '@/i18n';
 import { StorageErrorScreen } from '@/components/StorageErrorScreen';
+import { DemoStrip } from '@/demo/DemoStrip';
 import { showNotificationsInForeground } from '@/notifications/foreground';
 import { useOpenTappedNotification } from '@/notifications/openTapped';
 import { useTheme } from '@/theme';
@@ -21,7 +22,7 @@ export default function RootLayout() {
   const { colors, isDark, type } = useTheme();
   useOpenTappedNotification();
   return (
-    <>
+    <DemoStrip>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
@@ -52,6 +53,6 @@ export default function RootLayout() {
           }}
         />
       </Stack>
-    </>
+    </DemoStrip>
   );
 }

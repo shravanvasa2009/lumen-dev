@@ -11,6 +11,8 @@ export interface KeptCapture {
   motionSpans: NsSpan[];
   coldHandsSpans: NsSpan[];
   sqi: SqiScores | null;
+  // Set when the frames came from Demo mode's synthetic recording; such a reading is never saved (§8.5).
+  demo?: true;
 }
 
 // In memory only: a persistent store is a separate task, so a capture does not outlive the app process.

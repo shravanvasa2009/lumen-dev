@@ -1,3 +1,4 @@
+import { demoReadingById } from '@/demo/demoReadings';
 import type { StoredReading } from '@/home/readings';
 import { useStoredReading } from '@/store/useStoredReadings';
 
@@ -22,7 +23,7 @@ function fromStored(stored: StoredReading): FixtureReading {
 // The sample readings (Demo and Replay) by their fixed ids, otherwise the reading saved on this phone.
 // undefined while a saved reading loads, null when there is none with that id.
 export function useResultsReading(id: string | undefined): FixtureReading | null | undefined {
-  const sample = readingById(id);
+  const sample = readingById(id) ?? demoReadingById(id);
   const stored = useStoredReading(sample ? undefined : id);
   if (sample) return sample;
   return stored ? fromStored(stored) : stored;

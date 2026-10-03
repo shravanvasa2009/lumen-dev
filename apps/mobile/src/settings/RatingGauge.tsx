@@ -38,7 +38,7 @@ export function RatingGauge({ label, caption, score }: RatingGaugeProps) {
   const filledDegrees =
     score === null ? 0 : (Math.min(Math.max(score, 0), MAX_SCORE) / MAX_SCORE) * SWEEP_DEGREES;
   return (
-    <View style={styles.gauge}>
+    <View accessible accessibilityLabel={`${label}, ${caption}`} style={styles.gauge}>
       <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} accessibilityElementsHidden>
         <Path d={ringPath} stroke={colors.surface3} strokeWidth={STROKE} strokeLinecap="round" fill="none" />
         {filledDegrees > 0 ? (

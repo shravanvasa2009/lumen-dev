@@ -11,7 +11,7 @@ export function tierLabel(t: TFunction, tier: RatingTier): string {
   return labels[tier];
 }
 
-// The diabetes pattern check is named by what it looks at, never by the condition (spec §11.4).
+// The diabetes pattern check is named by what it looks at, never by the condition.
 export function ratingModeLabel(t: TFunction, mode: RatingMode): string {
   const labels: Record<RatingMode, string> = {
     quickCheck: t('ratingMode.quickCheck'),

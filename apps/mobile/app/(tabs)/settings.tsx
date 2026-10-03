@@ -48,9 +48,11 @@ export default function SettingsScreen() {
     {
       title: t('settings.phone'),
       value:
-        rating === null || rating === undefined
-          ? t('settings.phoneNotTested')
-          : t('settings.phoneRated', { tier: tierLabel(t, rating.tier), score: rating.score }),
+        rating === undefined
+          ? undefined
+          : rating === null
+            ? t('settings.phoneNotTested')
+            : t('settings.phoneRated', { tier: tierLabel(t, rating.tier), score: rating.score }),
       href: '/settings/phone',
     },
     { title: t('settings.widgets'), href: '/settings/widgets' },

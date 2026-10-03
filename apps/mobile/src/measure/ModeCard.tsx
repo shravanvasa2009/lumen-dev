@@ -45,6 +45,7 @@ export function ModeCard({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
+      accessibilityHint={unavailable}
       accessibilityState={{ disabled: Boolean(unavailable) }}
       disabled={Boolean(unavailable)}
       onPress={onPress}

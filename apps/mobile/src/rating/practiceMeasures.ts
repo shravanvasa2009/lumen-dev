@@ -6,16 +6,17 @@ import type { PracticeSummary } from '@/store/deviceRating';
 const NS_PER_S = 1e9;
 const NS_PER_MS = 1e6;
 
-// Only the frames and the clock matter here: the rating reads perfusion, never a verdict about the rhythm.
-const practiceContext = (captureFps: number): ReadingContext => ({
-  captureFps,
+// The capture's own spans and SQI scores go in as analyzeKeptCapture passes them, so "clean" means here what it
+// means in a real reading. The rating reads perfusion, never a verdict about the rhythm.
+const practiceContext = (capture: KeptCapture): ReadingContext => ({
+  captureFps: capture.captureFps,
   tier: null,
   mode: 'quick',
   restTimerDone: true,
   recordedAt: null,
-  motionSpans: [],
-  coldHandsSpans: [],
-  sqi: null,
+  motionSpans: capture.motionSpans,
+  coldHandsSpans: capture.coldHandsSpans,
+  sqi: capture.sqi,
   validationRhythmLabel: null,
 });
 
@@ -26,7 +27,7 @@ function intervalsNs(capture: KeptCapture): number[] {
 // Spec ยง5.1: achieved fps and the SD of frame intervals come from the frames' own clock; the pulse's
 // perfusion index (DSP-10) and spectral SNR (the live estimator's) come from the same frames. A pulse the
 // estimator cannot find leaves coupling null, so the rating stays open instead of scoring a guess. DSP-10
-// gives a perfusion index only from 30 clean seconds (ง6.2), so a shorter practice leaves it open too.
+// gives a perfusion index only from 30 clean seconds (section 6.2), so a shorter practice leaves it open too.
 export function practiceMeasures(capture: KeptCapture): {
   measures: RatingMeasures;
   summary: PracticeSummary;
@@ -42,10 +43,8 @@ export function practiceMeasures(capture: KeptCapture): {
   }
   const perfusionIndexPct =
     capture.samples.length > 1
-      ? analyzeReading(
-          { samples: [...capture.samples], stats: [...capture.stats] },
-          practiceContext(capture.captureFps),
-        ).perfusionIndexPct
+      ? analyzeReading({ samples: [...capture.samples], stats: [...capture.stats] }, practiceContext(capture))
+          .perfusionIndexPct
       : null;
   const snrDb = estimateLiveHeartRate([...capture.samples])?.snrDb ?? null;
   const coupling = perfusionIndexPct !== null && snrDb !== null ? { perfusionIndexPct, snrDb } : null;

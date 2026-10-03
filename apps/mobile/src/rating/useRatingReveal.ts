@@ -23,18 +23,22 @@ export function useRatingReveal(): RatingReveal {
   useEffect(() => {
     if (probe.kind === 'checking') return;
     let current = true;
+    // A run that fails is reported, and the rating stored before it stays on show.
     const rated =
       probe.kind === 'ready'
-        ? ratePhone(probe.capabilities, keptCapture(), Constants.expoConfig?.version ?? null).then(
-            (fresh) => fresh ?? loadDeviceRating(),
-          )
+        ? ratePhone(probe.capabilities, keptCapture(), Constants.expoConfig?.version ?? null)
+            .catch((error: unknown) => {
+              console.warn(`Rating the phone failed: ${reasonOf(error)}`);
+              return null;
+            })
+            .then((fresh) => fresh ?? loadDeviceRating())
         : loadDeviceRating();
     rated.then(
       (rating) => {
         if (current) setReveal(rating === null ? { kind: 'unrated' } : { kind: 'rated', rating });
       },
       (error: unknown) => {
-        console.warn(`Rating the phone failed: ${reasonOf(error)}`);
+        console.warn(`Reading the stored rating failed: ${reasonOf(error)}`);
         if (current) setReveal({ kind: 'unrated' });
       },
     );

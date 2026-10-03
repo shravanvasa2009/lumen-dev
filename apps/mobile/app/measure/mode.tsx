@@ -22,6 +22,7 @@ export default function ModeScreen() {
       unsupported: t('mode.lockedUnsupported'),
       flash: t('mode.lockedFlash'),
       fps60: t('mode.locked60fps'),
+      full: t('mode.lockedFull'),
       basic: t('mode.lockedBasic'),
     };
     return { unavailable: reasons[reason], locked: true };

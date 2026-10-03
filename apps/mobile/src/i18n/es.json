@@ -720,6 +720,9 @@
   "settings.phoneRated": "{{tier}} ({{score}})",
   "mode.lockedBasic": "Requiere un teléfono con calificación Básica o Completa.",
   "mode.locked60fps": "Requiere un teléfono que grabe a 60 cuadros por segundo.",
+  "mode.lockedFull": "Requiere un teléfono con calificación Completa.",
+  "rating.failScore": "La señal del pulso en este teléfono es demasiado débil para que Lumen mida con fiabilidad.",
+  "rating.demoOffer": "El modo Demo, que pronto estará en Ajustes, mostrará cómo funciona Lumen.",
   "mode.lockedFlash": "Requiere un teléfono cuyo flash llegue a tu dedo.",
   "mode.lockedUnsupported": "Lumen no puede medir el pulso en este teléfono.",
   "mode.ratingFooter": "Calificación {{tier}} ({{score}})"

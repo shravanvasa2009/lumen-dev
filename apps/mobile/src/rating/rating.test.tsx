@@ -59,10 +59,16 @@ const noFlashPhone: Capabilities = {
   torch: { available: false, levels: false },
 };
 
+const lowScorePhone: Capabilities = {
+  ...sixtyFpsPhone,
+  rearLenses: [{ id: 'main', kind: 'wide', maxFps: 25, torchUsable: true }],
+  locks: { exposure: false, whiteBalance: false, focus: false },
+};
+
 const noCameraPhone: Capabilities = { ...sixtyFpsPhone, rearLenses: [] };
 
 const FPS = 60;
-// DSP-10 reports perfusion only from 30 clean seconds (spec §6.2), so a practice shorter than that has none.
+// DSP-10 reports perfusion only from 30 clean seconds (spec section 6.2), so a practice shorter than that has none.
 const SECONDS = 40;
 
 // SYNTHETIC: a steady 72 beats/min pulse of about 3% perfusion on a covered lens, frames exactly 1/60 s apart.
@@ -145,6 +151,7 @@ describe('the rating from the probe and practice', () => {
     expect(screen.getByText('15/15')).toBeOnTheScreen();
     expect(screen.getByText('20/20')).toBeOnTheScreen();
     expect(screen.queryByText(en['phoneRating.notTested'])).toBeNull();
+    expect(screen.getByLabelText('94, Full')).toBeOnTheScreen();
   });
 
   it('says the phone is not rated yet when neither the probe nor a stored rating gives one', async () => {
@@ -161,6 +168,44 @@ describe('the rating from the probe and practice', () => {
     renderRouter('./app', { initialUrl: '/rating' });
     expect(await screen.findByText(en['rating.pending'])).toBeOnTheScreen();
     expect(await loadDeviceRating()).toBeNull();
+  });
+
+  it('leaves the rating open when motion covers most of the practice', async () => {
+    mockGetCapabilities.mockResolvedValue(sixtyFpsPhone);
+    const shaken = steadyPulse('main');
+    const startNs = shaken.samples[0]!.tNs;
+    keepCapture({ ...shaken, motionSpans: [{ startNs, endNs: startNs + 35e9 }] });
+    renderRouter('./app', { initialUrl: '/rating' });
+    expect(await screen.findByText(en['rating.pending'])).toBeOnTheScreen();
+    expect(await loadDeviceRating()).toBeNull();
+  });
+
+  it('keeps showing the stored rating when this run fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await storeRating(thirtyFpsPhone, practiceOf(30));
+    mockGetCapabilities.mockResolvedValue(thirtyFpsPhone);
+    keepCapture(steadyPulse('lens-that-is-not-in-the-probe'));
+    renderRouter('./app', { initialUrl: '/rating' });
+    expect(await screen.findByText('84')).toBeOnTheScreen();
+    expect(screen.getByText(en['tier.basic'])).toBeOnTheScreen();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('not in the probe'));
+    warn.mockRestore();
+  });
+
+  it('explains a low score on a phone with a working flash and offers Demo mode, with no unlocked list', async () => {
+    await storeRating(lowScorePhone, {
+      ...practiceOf(25),
+      frameIntervalSdMs: 9,
+      coupling: { perfusionIndexPct: 1, snrDb: 4 },
+    });
+    const stored = await loadDeviceRating();
+    expect(stored).toMatchObject({ tier: 'unsupported', hardFail: null, ambient: false });
+    expect(stored?.score).toBeLessThan(25);
+    mockModuleLinked = false;
+    renderRouter('./app', { initialUrl: '/rating' });
+    expect(await screen.findByText(en['rating.failScore'])).toBeOnTheScreen();
+    expect(screen.getByText(en['rating.demoOffer'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['rating.unlocked'])).toBeNull();
   });
 
   it('leaves the rating open and stores nothing when the practice found no pulse', async () => {
@@ -215,6 +260,27 @@ describe('mode picker gating', () => {
     expect(screen.getByRole('button', { name: en['mode.standing'] })).toBeEnabled();
     // 30 fps level 14 + coupling 35 + locks 15 + timing 20.
     expect(screen.getByText('Basic rating (84)')).toBeOnTheScreen();
+    // Screen readers hear why the card is locked.
+    expect(screen.getByRole('button', { name: en['mode.deep'] }).props.accessibilityHint).toBe(
+      en['mode.locked60fps'],
+    );
+  });
+
+  it('gives a Basic phone that films at 60 fps the tier reason for Deep HRV, not the frame rate', async () => {
+    await storeRating(
+      { ...sixtyFpsPhone, locks: { exposure: false, whiteBalance: false, focus: false } },
+      { ...practiceOf(60), frameIntervalSdMs: 4, coupling: { perfusionIndexPct: 0.8, snrDb: 9 } },
+    );
+    expect((await loadDeviceRating())?.tier).toBe('basic');
+    renderRouter('./app', { initialUrl: '/measure/mode' });
+    expect(await screen.findByText(en['mode.lockedFull'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['mode.locked60fps'])).toBeNull();
+  });
+
+  it('gives a flash-less Limited phone the flash reason on every locked mode', async () => {
+    await storeRating(noFlashPhone, { ...practiceOf(60), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
+    renderRouter('./app', { initialUrl: '/measure/mode' });
+    expect(await screen.findAllByText(en['mode.lockedFlash'])).toHaveLength(3);
   });
 
   it('leaves a flash-less Limited phone with Quick Check only, and still lists the other modes', async () => {
@@ -242,5 +308,11 @@ describe('Settings row', () => {
     await storeRating(sixtyFpsPhone, practiceOf(60));
     renderRouter('./app', { initialUrl: '/settings' });
     expect(await screen.findByText('Full (94)')).toBeOnTheScreen();
+  });
+
+  it('shows no tested state until the stored rating has loaded', async () => {
+    renderRouter('./app', { initialUrl: '/settings' });
+    expect(screen.queryByText(en['settings.phoneNotTested'])).toBeNull();
+    expect(await screen.findByText(en['settings.phoneNotTested'])).toBeOnTheScreen();
   });
 });

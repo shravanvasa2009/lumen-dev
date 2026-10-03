@@ -52,7 +52,8 @@ function ratingNote(rating: StoredRating, t: TFunction): string | null {
   if (rating.hardFail === 'no-rear-camera') return t('rating.failNoCamera');
   if (rating.hardFail === 'below-24-fps') return t('rating.failFps');
   if (rating.hardFail === 'no-pulse') return t('rating.failNoPulse');
-  return rating.ambient ? t('rating.ambient') : null;
+  if (rating.ambient) return t('rating.ambient');
+  return rating.tier === 'unsupported' ? t('rating.failScore') : null;
 }
 
 export default function RatingScreen() {
@@ -92,7 +93,13 @@ export default function RatingScreen() {
               {note}
             </AppText>
           )}
-          <UnlockedModes rating={rating} />
+          {rating.tier === 'unsupported' ? (
+            <AppText tone="textDim" style={{ textAlign: 'center' }}>
+              {t('rating.demoOffer')}
+            </AppText>
+          ) : (
+            <UnlockedModes rating={rating} />
+          )}
         </>
       )}
     </OnboardingStep>

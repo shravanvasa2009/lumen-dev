@@ -13,7 +13,9 @@ const REQUIRED_MODE: Record<ListedMode, RatingMode> = {
   standing: 'standingTest',
 };
 
-export type LockReason = 'unsupported' | 'flash' | 'fps60' | 'basic';
+const DEEP_HRV_MIN_FPS = 60;
+
+export type LockReason = 'unsupported' | 'flash' | 'fps60' | 'full' | 'basic';
 
 // Why the phone's rating keeps a mode locked, or null when the mode is open. A phone with no rating yet
 // keeps every mode open: the rating gates features, and before it exists nothing has been measured to gate on.
@@ -22,5 +24,7 @@ export function lockReason(rating: StoredRating | null | undefined, mode: Listed
   if (rating.unlocks.includes(REQUIRED_MODE[mode])) return null;
   if (rating.tier === 'unsupported') return 'unsupported';
   if (rating.ambient) return 'flash';
-  return mode === 'deep' ? 'fps60' : 'basic';
+  if (mode !== 'deep') return 'basic';
+  // Deep HRV needs 60 fps (DSP-12) and a Full rating; the frame rate is the reason only when it is the cause.
+  return rating.fpsLevel === null || rating.fpsLevel < DEEP_HRV_MIN_FPS ? 'fps60' : 'full';
 }

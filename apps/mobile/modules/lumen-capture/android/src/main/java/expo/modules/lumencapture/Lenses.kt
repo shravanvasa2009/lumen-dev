@@ -61,6 +61,15 @@ fun pickFpsRange(ranges: List<FpsRange>, wantFps: Int): FpsRange? {
     return allowed.maxWithOrNull(compareBy<FpsRange> { it.upper }.thenBy { it.lower })
 }
 
+// Camera2 docs: a minimum focus distance of 0 means a fixed-focus lens. The key may be null on LEGACY devices,
+// so null alone is not taken as fixed; a lens whose only AF mode is OFF has no autofocus to move it either.
+fun isFixedFocus(afModes: IntArray, minimumFocusDistance: Float?): Boolean =
+    minimumFocusDistance == 0f || (afModes.isNotEmpty() && afModes.all { it == CameraMetadata.CONTROL_AF_MODE_OFF })
+
+// Spec §5.1 awards the focus points for a focus lock or a fixed-focus lens, and Appendix A has only `locks.focus`.
+// AF mode OFF lets lockExposure() hold the current focus distance by hand.
+fun focusHolds(afModes: IntArray, fixedFocus: Boolean): Boolean = fixedFocus || CameraMetadata.CONTROL_AF_MODE_OFF in afModes
+
 // Lens ids: "<cameraId>" for a camera the OS lists directly, "<cameraId>:<physicalId>" for a physical lens
 // behind a logical rear camera (spec §4.2 step 1). Logical multi-cameras themselves are never listed
 // (ADR 0029: physical rear lenses only).
@@ -115,8 +124,7 @@ private fun describe(
     val focal = lens.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull()
     val sensor = lens.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
     val afModes = logical.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES) ?: IntArray(0)
-    // A minimum focus distance of 0 means a fixed-focus lens, which never moves (Camera2 docs).
-    val fixedFocus = (logical.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f) == 0f
+    val fixedFocus = isFixedFocus(afModes, logical.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE))
     val strengthLevels =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             logical.get(CameraCharacteristics.FLASH_INFO_STRENGTH_MAXIMUM_LEVEL) ?: 1
@@ -145,7 +153,7 @@ private fun describe(
         torchLevels = strengthLevels > 1,
         exposureLock = logical.get(CameraCharacteristics.CONTROL_AE_LOCK_AVAILABLE) == true,
         whiteBalanceLock = logical.get(CameraCharacteristics.CONTROL_AWB_LOCK_AVAILABLE) == true,
-        focusLock = fixedFocus || CameraMetadata.CONTROL_AF_MODE_OFF in afModes,
+        focusLock = focusHolds(afModes, fixedFocus),
         fixedFocus = fixedFocus,
         manualExposure = manual,
         realtimeTimestamps =

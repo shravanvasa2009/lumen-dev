@@ -7,7 +7,8 @@ import { keepCapture } from '@/measure/keptCapture';
 import type { NotificationPrefs, NotificationTriggers } from '@/notifications/plan';
 import { syncNotifications } from '@/notifications/scheduler';
 import { resetDoctorPhone } from '@/profile/doctorPhone';
-import { resetPreferences } from '@/theme/preferences';
+import { currentPreferences, resetPreferences } from '@/theme/preferences';
+import { publishWidgets } from '@/widgets/publish';
 
 import { lumenDatabase } from './database';
 
@@ -76,4 +77,7 @@ export async function deleteAllData(languageTag: string): Promise<void> {
   resetPreferences();
   resetDoctorPhone();
   exitDemo();
+  // The widget snapshot is a copy of the latest reading outside SQLite; with the tables empty this writes the
+  // no-reading snapshot, so the home-screen widget shows its empty state.
+  await publishWidgets(currentPreferences());
 }

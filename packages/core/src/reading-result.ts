@@ -111,7 +111,8 @@ interface RhythmCall {
   positive: boolean; // the irregular rule fired (before the 2-of-3 rule)
 }
 
-function isProbabilityRow(row: readonly number[]): boolean {
+/** A rhythm row buildReadingResult accepts: one finite probability per class, summing to 1. */
+export function isProbabilityRow(row: readonly number[]): boolean {
   if (row.length !== RHYTHM_CLASSES.length) return false;
   let total = 0;
   for (let c = 0; c < row.length; c++) {

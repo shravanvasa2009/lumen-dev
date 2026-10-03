@@ -112,6 +112,8 @@ name: Every route opens
 - assertVisible: 'ZIP code or city'
 # A whole ZIP code moves the map there at once; the map must stay on screen while the field is in use.
 - tapOn: 'ZIP code or city'
+# Typing while the keyboard still slid in doubled the first digit on the API 37 emulator (2026-10-03).
+- waitForAnimationToEnd
 - inputText: '77002'
 - assertVisible:
     id: 'care-map-frame'

@@ -68,6 +68,7 @@ beforeEach(() => {
   memoryFiles.clear();
   cancelAll.mockReset();
   cancelAll.mockResolvedValue(undefined);
+  jest.mocked(LumenWidgets!.publishSnapshot).mockClear();
   sync.mockReset();
   sync.mockResolvedValue(undefined);
 });
@@ -77,7 +78,8 @@ describe('deleteAllData', () => {
     await saveTestReading(Date.UTC(2026, 9, 1), 70);
     await deleteAllData('en');
     const calls = jest.mocked(LumenWidgets!.publishSnapshot).mock.calls;
-    const snapshot = JSON.parse(calls[calls.length - 1]![0]) as WidgetSnapshot;
+    expect(calls).toHaveLength(1);
+    const snapshot = JSON.parse(calls[0]![0]) as WidgetSnapshot;
     expect(snapshot.status).toBeNull();
     expect(snapshot.hrBpm).toBeNull();
     expect(snapshot.lastReadingAt).toBeNull();

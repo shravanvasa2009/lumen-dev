@@ -68,8 +68,15 @@ def test_heart_rate_skips_not_a_beat_and_never_bridges_segments():
 def test_heart_rate_needs_15_clean_seconds_and_an_interval():
     beats = beats_from([0.8] * 20)
     assert heart_rate([beats], 14.999) is None
+    assert heart_rate([beats], math.nan) is None
     assert heart_rate([beats], 15) == pytest.approx(75, abs=1e-9)
     assert heart_rate([beats_from([])], 60) is None
+
+
+def test_heart_rate_leaves_out_zero_and_negative_intervals():
+    # A beat detected twice, or out of order; the median of 0.8 and 0.9 is 0.85 (0.4 with the other two).
+    assert heart_rate([beats_from([0.0])], 60) is None
+    assert heart_rate([beats_from([0.8, 0.0, -0.1, 0.9])], 60) == pytest.approx(60 / 0.85, abs=1e-9)
 
 
 def test_perfusion_index_known_ac_dc_and_median_over_normal_beats():
@@ -88,6 +95,7 @@ def test_perfusion_index_known_ac_dc_and_median_over_normal_beats():
 def test_perfusion_index_needs_30_clean_seconds_and_a_normal_beat():
     beats = beats_from([1.0] * 40)
     assert perfusion_index([beats], 29.9) is None
+    assert perfusion_index([beats], math.nan) is None
     assert perfusion_index([[replace(beat, beat_class="atypical") for beat in beats]], 40) is None
 
 
@@ -146,6 +154,7 @@ def test_hrv_gates():
     assert hrv(beats, "af", 60, 70) is None
     assert hrv(beats, "other", 60, 70) is None
     assert hrv(beats, "sinus", 59.9, 70) is None
+    assert hrv(beats, "sinus", math.nan, 70) is None
     fifty = [beats_from(alternating(50, 0.8, 0.84))]
     assert hrv(fifty, "sinus", 60, 60).rmssd_ms == pytest.approx(40, abs=1e-9)
     assert hrv(fifty, "sinus", 60, 59.9).rmssd_ms is None

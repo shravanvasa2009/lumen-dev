@@ -134,6 +134,12 @@ export const DSP_CONFIG = {
     maxSpreadBrpm: 4, // report the mean only when max − min of the three estimates is ≤ this
     minCleanS: 60, // §6.2 "Breathing rate"
   },
+  // diabetes-net's 12 waveform-shape features from the DSP-14 beat (§11.4, ML-6).
+  diabetesFeatures: {
+    // Systolic peak widths are measured at these fractions of the peak's height above the onset level
+    // (features 2 and 3 in the order §11.4 lists them). Initial values.
+    widthLevels: [0.5, 0.25],
+  },
   dsp15: {
     // Windows are counted in intervals, not seconds, so slow heart rates still fill them (§10).
     windowIntervals: 32,

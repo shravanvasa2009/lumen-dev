@@ -94,4 +94,6 @@ export {
   type RatingMode,
   type RatingTier,
 } from './rating';
+export { shapeFeatures } from './shape-features';
+export { hrSummary } from './reading-metrics';
 export { logisticRhythmOutputs } from './rhythm-rule';

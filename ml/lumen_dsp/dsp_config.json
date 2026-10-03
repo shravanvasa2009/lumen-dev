@@ -85,6 +85,9 @@
     "maxSpreadBrpm": 4,
     "minCleanS": 60
   },
+  "diabetesFeatures": {
+    "widthLevels": [0.5, 0.25]
+  },
   "dsp15": {
     "windowIntervals": 32,
     "windowStep": 16,

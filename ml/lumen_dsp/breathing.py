@@ -137,7 +137,7 @@ def _peak_brpm(runs: list[ResampledSegment]) -> float | None:
 # DSP-13: breathing rate in br/min from three modulations, fused only when they agree; None < 60 clean s.
 def breathing_rate(segments: Sequence[Sequence[MeasuredBeat]], clean_s: float) -> BreathingRate | None:
     dsp13 = DSP_CONFIG["dsp13"]
-    if clean_s < dsp13["minCleanS"]:
+    if not clean_s >= dsp13["minCleanS"]:  # NaN fails
         return None
     series = breathing_series(segments)
     intensity, amplitude, interval = (_peak_brpm(series[kind]) for kind in KINDS)

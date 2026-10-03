@@ -1,6 +1,6 @@
 // DSP-16 protocol timings. Minute 0 names the lying baseline reading in a ReadingSlot.
 const MINUTE_MS = 60_000;
-const LYING_MS = 5 * MINUTE_MS;
+export const LYING_MS = 5 * MINUTE_MS;
 const BASELINE_STARTS_MS = 4 * MINUTE_MS;
 const LAST_STANDING_MINUTE = 10;
 const LAST_READING_WINDOW_MS = 45_000;

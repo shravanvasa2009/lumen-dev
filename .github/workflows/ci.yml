@@ -45,8 +45,6 @@ jobs:
       - name: Commit format (commitlint)
         if: github.event_name == 'pull_request' && hashFiles('package-lock.json') != ''
         run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
-      # test:notifications and test:widgets join this list when their tracks implement them;
-      # until then they exit 1 on purpose.
       - name: Lint, types, tests, dead code
         if: hashFiles('package-lock.json') != ''
         run: |
@@ -94,6 +92,10 @@ jobs:
       - name: Evidence labels (EVID-1)
         if: hashFiles('package-lock.json') != ''
         run: npm run test:evidence
+      # npm test already runs these; separate steps make NOTIF-1 and WID-1 visible in the CI summary.
+      - name: Notification schedule (NOTIF-1)
+        if: hashFiles('package-lock.json') != ''
+        run: npm run test:notifications
       - name: Widget snapshot and deep links (WID-1)
         if: hashFiles('package-lock.json') != ''
         run: npm run test:widgets

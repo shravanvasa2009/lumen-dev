@@ -2,11 +2,16 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import '@/i18n';
+import { showNotificationsInForeground } from '@/notifications/foreground';
+import { useOpenTappedNotification } from '@/notifications/openTapped';
 import { useTheme } from '@/theme';
+
+showNotificationsInForeground();
 
 // Pushed screens show a centred nav-bar title and a teal back chevron, as the mockups do; RouteShell sets the title.
 export default function RootLayout() {
   const { colors, isDark, type } = useTheme();
+  useOpenTappedNotification();
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />

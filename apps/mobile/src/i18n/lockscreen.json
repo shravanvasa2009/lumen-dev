@@ -11,7 +11,9 @@
     "widget.status.doctor": "Doctor visit suggested",
     "live.standing.title": "Standing test",
     "live.standing.next": "Next reading in {{countdown}}",
-    "live.standing.tap": "Tap to measure"
+    "live.standing.tap": "Tap to measure",
+    "channel.reminders": "Reminders",
+    "channel.standing": "Standing test"
   },
   "es": {
     "notif.daily": "Es hora de tu revisión de Lumen de 90 segundos.",
@@ -25,6 +27,8 @@
     "widget.status.doctor": "Se sugiere ver a un médico",
     "live.standing.title": "Prueba de pie",
     "live.standing.next": "Próxima medición en {{countdown}}",
-    "live.standing.tap": "Toca para medir"
+    "live.standing.tap": "Toca para medir",
+    "channel.reminders": "Recordatorios",
+    "channel.standing": "Prueba de pie"
   }
 }

@@ -247,37 +247,41 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
 
 // Four-checks proposal A (owner, 2026-10-03): each check's icon and name, with the Diabetes evidence tag while it
 // is Experimental. Home screen only; the lock screen never names a condition (WID-2).
+// Each check is its own Row: a Glance Row holds at most 10 children (RemoteViews), and four checks with their spacers
+// and the tag are 17; "Row container cannot have more than 10 elements" on the API 37 emulator, 2026-10-03.
 @Composable
 private fun CheckRow(view: WidgetView, scale: Float) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         view.checks.zip(CHECK_ICONS).forEachIndexed { index, (name, icon) ->
             if (index > 0) Spacer(GlanceModifier.width((8 * scale).dp))
-            Image(
-                ImageProvider(icon),
-                contentDescription = null,
-                modifier = GlanceModifier.size((12 * scale).dp),
-                colorFilter = ColorFilter.tint(view.color { it.accent }),
-            )
-            Spacer(GlanceModifier.width((3 * scale).dp))
-            Text(
-                name,
-                style = TextStyle(color = view.color { it.text }, fontSize = (12 * scale).sp, fontWeight = FontWeight.Medium),
-                maxLines = 1,
-            )
-            if (index == DIABETES_CHECK && view.diabetesTag != null) {
-                Spacer(GlanceModifier.width((4 * scale).dp))
-                Box(
-                    modifier =
-                        GlanceModifier
-                            .background(view.color { it.badgeExperimentalBg })
-                            .cornerRadius((8 * scale).dp)
-                            .padding(horizontal = (5 * scale).dp, vertical = (1 * scale).dp),
-                ) {
-                    Text(
-                        view.diabetesTag,
-                        style = TextStyle(color = view.color { it.badgeExperimentalFg }, fontSize = (9 * scale).sp),
-                        maxLines = 1,
-                    )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(
+                    ImageProvider(icon),
+                    contentDescription = null,
+                    modifier = GlanceModifier.size((12 * scale).dp),
+                    colorFilter = ColorFilter.tint(view.color { it.accent }),
+                )
+                Spacer(GlanceModifier.width((3 * scale).dp))
+                Text(
+                    name,
+                    style = TextStyle(color = view.color { it.text }, fontSize = (12 * scale).sp, fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                )
+                if (index == DIABETES_CHECK && view.diabetesTag != null) {
+                    Spacer(GlanceModifier.width((4 * scale).dp))
+                    Box(
+                        modifier =
+                            GlanceModifier
+                                .background(view.color { it.badgeExperimentalBg })
+                                .cornerRadius((8 * scale).dp)
+                                .padding(horizontal = (5 * scale).dp, vertical = (1 * scale).dp),
+                    ) {
+                        Text(
+                            view.diabetesTag,
+                            style = TextStyle(color = view.color { it.badgeExperimentalFg }, fontSize = (9 * scale).sp),
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }

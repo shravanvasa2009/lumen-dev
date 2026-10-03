@@ -728,5 +728,11 @@
   "rating.demoOffer": "You can still try Demo mode to see how Lumen works.",
   "mode.lockedFlash": "Needs a phone whose flash reaches your finger.",
   "mode.lockedUnsupported": "Lumen can't measure a pulse on this phone.",
-  "mode.ratingFooter": "{{tier}} rating ({{score}})"
+  "mode.ratingFooter": "{{tier}} rating ({{score}})",
+  "settings.deleteConfirmTitle": "Delete everything on this phone?",
+  "settings.deleteConfirmBody": "This removes every reading, your profile and medications, baselines, phone rating, reminders, and settings from this phone. It cannot be undone.",
+  "settings.deleteConfirm": "Yes, delete everything",
+  "settings.deleteCancel": "Keep my data",
+  "settings.deleting": "Deleting…",
+  "settings.deleteFailed": "Lumen could not delete everything, so some data may still be on this phone. Try again."
 }

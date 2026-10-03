@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
+import { enterDemo, exitDemo } from '@/demo/demoSession';
 import { readingById } from '@/results/fixtures';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
@@ -23,6 +24,8 @@ function openView(readings: readonly HistoryReading[], demo = true, now = demoNo
 
 preloadAppRoutes();
 
+afterEach(exitDemo);
+
 describe.each([
   ['dark', tokens.dark],
   ['light', tokens.light],
@@ -32,6 +35,7 @@ describe.each([
   });
 
   it('draws the Display title, the demo banner and the 30D default', () => {
+    enterDemo();
     renderRouter('./app', { initialUrl: '/trends' });
     const heading = screen.getByRole('header', { name: en['trends.title'] });
     expect(StyleSheet.flatten(heading.props.style)).toMatchObject({ color: colors.text });
@@ -134,6 +138,7 @@ describe('Trends content', () => {
   });
 
   it('links a row to Results only when that reading exists', () => {
+    enterDemo();
     renderRouter('./app', { initialUrl: '/trends' });
     const rows = screen.getAllByRole('button', { name: /^Sep \d+, / });
     expect(rows).toHaveLength(2);

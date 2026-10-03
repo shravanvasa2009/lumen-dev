@@ -19,6 +19,9 @@ class File {
     if (text === undefined) throw new Error(`${this.name} does not exist`);
     return text;
   }
+  delete() {
+    if (!memoryFiles.delete(this.name)) throw new Error(`${this.name} does not exist`);
+  }
   write(text: string) {
     if (!memoryFiles.has(this.name)) throw new Error(`${this.name} does not exist`);
     memoryFiles.set(this.name, text);

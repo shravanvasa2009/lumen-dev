@@ -49,8 +49,8 @@ describe('Settings tab', () => {
     ] as const) {
       expect(screen.getByRole('button', { name: new RegExp(en[key]) })).toBeOnTheScreen();
     }
-    expect(screen.queryByRole('button', { name: new RegExp(en['settings.delete']) })).toBeNull();
-    expect(screen.getAllByText(en['settings.comingSoon'])).toHaveLength(5);
+    expect(screen.getByRole('button', { name: new RegExp(en['settings.delete']) })).toBeOnTheScreen();
+    expect(screen.getAllByText(en['settings.comingSoon'])).toHaveLength(4);
     expect(screen.queryByRole('button', { name: new RegExp(en['settings.demoMode']) })).toBeNull();
     expect(screen.queryByText(/8:00/)).toBeNull();
     const reminders = screen.getByRole('button', { name: new RegExp(en['notifications.title']) });

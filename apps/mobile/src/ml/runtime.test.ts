@@ -440,6 +440,76 @@ describe('running', () => {
   });
 });
 
+describe('rhythm feature width (ADR 0079)', () => {
+  const wide = Float32Array.from([
+    ...expectedRhythm.features,
+    ...Array.from({ length: 7 }, (_, i) => 100 + i),
+  ]);
+  const wideFeed = { features: { values: wide, dims: [1, 15] } };
+
+  it('gives a v1 [1, 8] manifest the 8 values it declares', async () => {
+    const runtime = await loadRuntime({ models: [rhythmEntry()] });
+    const outcome = await runtime.classifyRhythm(features);
+    if (outcome.source !== 'model') throw new Error(outcome.reason);
+    expect(outcome.scores.af).toBeCloseTo(expectedRhythm.probabilities[1] as number, 5);
+  });
+
+  it('sends only the first 8 of 15-wide windows to a v1 manifest', async () => {
+    const runtime = await loadRuntime({ models: [rhythmEntry()] });
+    const outcome = await runtime.classifyRhythm(wideFeed);
+    if (outcome.source !== 'model') throw new Error(outcome.reason);
+    const [sinus, af, other] = expectedRhythm.probabilities as [number, number, number];
+    expect(outcome.scores.sinus).toBeCloseTo(sinus, 5);
+    expect(outcome.scores.af).toBeCloseTo(af, 5);
+    expect(outcome.scores.other).toBeCloseTo(other, 5);
+  });
+
+  it('refuses 8-wide windows for a v2 [1, 15] manifest, with the reason', async () => {
+    const runtime = await loadRuntime({ models: [rhythmEntry({ inputs: { features: [1, 15] } })] });
+    expect(await runtime.classifyRhythm(features)).toEqual({
+      source: 'basic',
+      value: null,
+      reason: 'rhythm-lgbm@1.0.0 input check failed: features is [1, 8], the manifest says [1, 15]',
+    });
+    expect(mockSessionsCreated.count).toBe(0);
+  });
+
+  // No width-15 ONNX fixture exists, so this checks the tensors the runtime builds and hands to the session,
+  // using a recording session in place of ONNX Runtime; it says nothing about how a v2 model scores.
+  it('sends all 15 values of 15-wide windows to a v2 [1, 15] manifest', async () => {
+    const tensorsRun: { dims: readonly number[]; values: number[] }[] = [];
+    jest.resetModules();
+    jest.doMock('onnxruntime-react-native', () => ({
+      Tensor: function Tensor(_: 'float32', values: Float32Array, dims: number[]) {
+        return { values, dims };
+      },
+      InferenceSession: {
+        create: async () => ({
+          inputNames: ['features'],
+          outputNames: ['label', 'probabilities'],
+          run: async (feeds: Record<string, { values: Float32Array; dims: number[] }>) => {
+            const sent = feeds.features as { values: Float32Array; dims: number[] };
+            tensorsRun.push({ dims: sent.dims, values: Array.from(sent.values) });
+            // The runtime reads a tensor's numbers from its `data` field, which the style lint reserves.
+            return {
+              label: { type: 'int64', ['data']: BigInt64Array.from([0n]) },
+              probabilities: { type: 'float32', ['data']: Float32Array.from([0.2, 0.3, 0.5]) },
+            };
+          },
+        }),
+      },
+    }));
+    const runtime = await loadRuntime({ models: [rhythmEntry({ inputs: { features: [1, 15] } })] });
+    const outcome = await runtime.classifyRhythm(wideFeed);
+    jest.resetModules();
+    jest.doMock('onnxruntime-react-native', () => mockOnnxRuntime());
+    if (outcome.source !== 'model') throw new Error(outcome.reason);
+    const lastRun = tensorsRun[tensorsRun.length - 1];
+    expect(lastRun?.dims).toEqual([1, 15]);
+    expect(lastRun?.values).toEqual(Array.from(wide));
+  });
+});
+
 describe('SQI guard', () => {
   it('only ever vetoes: a low P(clean) rejects, a high one adds nothing', async () => {
     const runtime = await loadRuntime({ models: [sqiEntry()] });

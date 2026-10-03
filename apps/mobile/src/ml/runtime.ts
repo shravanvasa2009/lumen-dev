@@ -326,9 +326,21 @@ async function scoreFamily(family: ModelFamily, feeds: ModelFeeds): Promise<Scor
   };
 }
 
+// ADR 0079: the core vector is the v1 features followed by the v2 ones, so a model declaring a narrower width
+// gets the leading values it was trained on. A window with fewer values than declared is left as it is, and
+// the input check refuses it with its reason.
+function rhythmFeedAtManifestWidth(feeds: ModelFeeds): ModelFeeds {
+  const plan = plans.rhythm;
+  const feed = feeds.features;
+  const width = 'model' in plan ? plan.model.inputs.features?.[1] : undefined;
+  if (feed === undefined || width === undefined || feed.values.length <= width) return feeds;
+  if (!sameShape(feed.dims, [1, feed.values.length])) return feeds;
+  return { ...feeds, features: { values: feed.values.slice(0, width), dims: [1, width] } };
+}
+
 // §11.3; the logistic-rule fallback is not in @lumen/core yet, so basic analysis has no value.
 export function classifyRhythm(feeds: ModelFeeds): Promise<ScoreOutcome> {
-  return scoreFamily('rhythm', feeds);
+  return scoreFamily('rhythm', rhythmFeedAtManifestWidth(feeds));
 }
 
 // §11.4; the logistic-regression fallback is not in @lumen/core yet, so basic analysis has no value.

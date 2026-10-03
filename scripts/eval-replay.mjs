@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { readCaptures } from './eval-replay/captures.mjs';
-import { buildEvidence } from './eval-replay/evidence.mjs';
+import { buildEvidence, withRhythmDevelopment } from './eval-replay/evidence.mjs';
 import { computeMetrics } from './eval-replay/metrics.mjs';
 import { compareMetrics } from './eval-replay/recompute.mjs';
 import { renderReport } from './eval-replay/report.mjs';
@@ -16,6 +16,9 @@ import { renderReport } from './eval-replay/report.mjs';
 // npm run eval:replay -- --evidence [--metrics docs/validation/metrics.json] [--out docs/validation/evidence.json]
 //   [--app apps/mobile/assets/evidence.json]
 //   Writes evidence.json labels from a recomputed metrics.json (ADR 0044) and copies it into the app.
+// npm run eval:replay -- --rhythm-dev [--manifest models/manifest.json] [--out docs/validation/evidence.json]
+//   [--app apps/mobile/assets/evidence.json]
+//   Copies the shipped rhythm model's development-validation false-AF and abstain rates into evidence.json.
 function argument(name, fallback) {
   const index = process.argv.indexOf(name);
   return index === -1 ? fallback : process.argv[index + 1];
@@ -99,7 +102,31 @@ function writeEvidence() {
   console.log(`eval:replay: ${labels} → ${out} and ${appCopy}`);
 }
 
+function writeRhythmDevelopment() {
+  const manifestFile = argument('--manifest', 'models/manifest.json');
+  const out = argument('--out', 'docs/validation/evidence.json');
+  const appCopy = argument('--app', 'apps/mobile/assets/evidence.json');
+  if (!fs.existsSync(manifestFile)) fail(`${manifestFile} not found`);
+  if (!fs.existsSync(out)) fail(`${out} not found`);
+  let evidence;
+  try {
+    evidence = withRhythmDevelopment(
+      JSON.parse(fs.readFileSync(out, 'utf8')),
+      JSON.parse(fs.readFileSync(manifestFile, 'utf8')),
+    );
+  } catch (error) {
+    fail(error.message);
+  }
+  const text = `${JSON.stringify(evidence, null, 2)}
+`;
+  fs.writeFileSync(out, text);
+  fs.mkdirSync(path.dirname(appCopy), { recursive: true });
+  fs.writeFileSync(appCopy, text);
+  console.log(`eval:replay: rhythm development rates -> ${out} and ${appCopy}`);
+}
+
 // --recompute with no file after it must not fall through to replay mode.
 if (process.argv.includes('--recompute')) recordRecompute(argument('--recompute'));
 else if (process.argv.includes('--evidence')) writeEvidence();
+else if (process.argv.includes('--rhythm-dev')) writeRhythmDevelopment();
 else replayCaptures(argument('--captures', ''));

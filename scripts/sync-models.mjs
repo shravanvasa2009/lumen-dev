@@ -26,6 +26,10 @@ function shippedEntries(manifest, errors) {
   return entries;
 }
 
+// §11.10 basic analysis reads its coefficients from a non-shipped entry's rule block; no .onnx is needed.
+const ruleEntries = (manifest, shipped) =>
+  (manifest.models ?? []).filter((model) => model.rule != null && !shipped.includes(model));
+
 // Returns the problems found; in sync mode it also writes the app copy when there are none.
 export function syncModels({ root, check = false }) {
   const source = path.join(root, 'models');
@@ -33,7 +37,9 @@ export function syncModels({ root, check = false }) {
   const manifestFile = path.join(source, 'manifest.json');
   if (!fs.existsSync(manifestFile)) return { errors: ['models/manifest.json not found'], copied: [] };
   const errors = [];
-  const entries = shippedEntries(JSON.parse(fs.readFileSync(manifestFile, 'utf8')), errors);
+  const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+  const entries = shippedEntries(manifest, errors);
+  const rules = ruleEntries(manifest, entries);
   for (const entry of entries) {
     if (path.basename(String(entry.file)) !== entry.file || !entry.file.endsWith('.onnx')) {
       errors.push(`${entry.name} file ${JSON.stringify(entry.file)} must be a bare .onnx file name`);
@@ -45,7 +51,7 @@ export function syncModels({ root, check = false }) {
   }
   if (errors.length > 0) return { errors, copied: [] };
 
-  const subset = `${JSON.stringify({ models: entries }, null, 2)}\n`;
+  const subset = `${JSON.stringify({ models: [...entries, ...rules] }, null, 2)}\n`;
   const wanted = new Set(entries.map((entry) => entry.file));
   const present = fs.existsSync(target)
     ? fs.readdirSync(target).filter((name) => name.endsWith('.onnx'))

@@ -4,6 +4,7 @@ import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-librar
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { useDoctorPhone } from '@/profile/doctorPhone';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -14,6 +15,8 @@ const continueButton = () => screen.getByRole('button', { name: en['common.conti
 const ageField = () => screen.getByLabelText(en['profile.age']);
 
 const phoneField = () => screen.getByLabelText(en['profile.doctorPhone']);
+
+preloadAppRoutes();
 
 describe('profile', () => {
   afterEach(() => {

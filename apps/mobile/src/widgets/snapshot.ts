@@ -27,6 +27,8 @@ type SnapshotInput = {
   theme: Appearance;
   // Owned by the notification plan, which decides when a confirmation reading is due.
   nextConfirmationAt: number | null;
+  // When the doctor follow-up sheet was last answered; null until it has been.
+  followUpAnsweredAt: number | null;
   now: number;
 };
 
@@ -80,19 +82,42 @@ function streakDays(readings: readonly StoredReading[], now: number): number {
   return streak;
 }
 
-// The latest reading decides status, heart rate, and both flags, so the widget never mixes results from
-// different readings.
+function newestSeeDoctor(readings: readonly StoredReading[]): StoredReading | null {
+  return latestReading(readings.filter((reading) => statusOf(reading.outcome) === 'see-doctor'));
+}
+
+// Owner decision 2026-10-02 (ADR 0005): a see-doctor reading holds the widget at see-doctor until the
+// doctor follow-up is answered after it or a later Full Check comes back regular. A regular Quick Check or
+// a later inconclusive or check-again reading does not clear it.
+function heldSeeDoctor(input: SnapshotInput): StoredReading | null {
+  const flagged = newestSeeDoctor(input.readings);
+  if (flagged === null) return null;
+  const answeredSince = input.followUpAnsweredAt !== null && input.followUpAnsweredAt > flagged.takenAt;
+  const regularFullSince = input.readings.some(
+    (reading) =>
+      reading.takenAt > flagged.takenAt &&
+      reading.mode === 'full' &&
+      statusOf(reading.outcome) === 'regular',
+  );
+  return answeredSince || regularFullSince ? null : flagged;
+}
+
+// The latest reading decides status, heart rate, and both flags. A held see-doctor reading overrides the
+// status and adds its own flags, so the widget still shows why it asks for a doctor; heart rate always
+// comes from the latest reading.
 export function widgetSnapshot(input: SnapshotInput): WidgetSnapshot {
   const latest = latestReading(input.readings);
+  const held = heldSeeDoctor(input);
+  const flagSources = [latest, held].flatMap((reading) => (reading === null ? [] : [reading.outcome]));
   const hr = latest?.outcome.metrics.hr ?? null;
   return {
     v: 1,
     updatedAt: isoSeconds(input.now),
     lastReadingAt: latest ? isoSeconds(latest.takenAt) : null,
-    status: latest ? statusOf(latest.outcome) : null,
+    status: held ? 'see-doctor' : latest ? statusOf(latest.outcome) : null,
     hrBpm: input.hideValues || hr === null ? null : Math.round(hr.value),
-    rhythmFlag: latest?.outcome.metrics.rhythm?.flag != null,
-    diabetesFlag: latest ? showsDiabetesFlag(latest.outcome) : false,
+    rhythmFlag: flagSources.some((outcome) => outcome.metrics.rhythm?.flag != null),
+    diabetesFlag: flagSources.some(showsDiabetesFlag),
     nextConfirmationAt: input.nextConfirmationAt === null ? null : isoSeconds(input.nextConfirmationAt),
     streakDays: streakDays(input.readings, input.now),
     hideValues: input.hideValues,

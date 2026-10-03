@@ -51,7 +51,7 @@ export interface PastReading {
   diabetes: { day: string; probability: number; confidence: Confidence } | null;
 }
 
-const RHYTHM_CLASSES: RhythmClass[] = ['sinus', 'af', 'other'];
+export const RHYTHM_CLASSES: readonly RhythmClass[] = ['sinus', 'af', 'other'];
 const LEVELS: Confidence[] = ['low', 'moderate', 'high'];
 const lowest = (...levels: Confidence[]): Confidence =>
   LEVELS[Math.min(...levels.map((level) => LEVELS.indexOf(level)))]!;

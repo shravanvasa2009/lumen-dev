@@ -1,11 +1,14 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'dark',
 }));
+
+preloadAppRoutes();
 
 describe('consent', () => {
   it('lists what Lumen can and cannot do and the 911 note', () => {

@@ -4,6 +4,7 @@ import type {
   CameraPermission,
   Capabilities,
   CaptureConfig,
+  CaptureStarted,
   CaptureSummary,
   LumenCaptureEvents,
   LumenCaptureModule,
@@ -13,7 +14,7 @@ declare class LumenCaptureNative extends NativeModule<LumenCaptureEvents> {
   getCapabilities(): Promise<Capabilities>;
   getPermission(): Promise<CameraPermission>;
   requestPermission(): Promise<CameraPermission>;
-  start(config: CaptureConfig): Promise<void>;
+  start(config: CaptureConfig): Promise<CaptureStarted>;
   stop(): Promise<CaptureSummary>;
   setTorch(level: number): Promise<void>;
   lockExposure(): Promise<void>;

@@ -24,7 +24,7 @@ from eval.external_stats import (
     binary_report,
     rhythm_bias_report,
 )
-from export.write_manifest import EXTERNAL_NOT_RUN, NOT_MEASURED, logistic_rule
+from export.write_manifest import EXTERNAL_NOT_RUN, NOT_CALIBRATED, NOT_MEASURED, logistic_rule
 from nets.rhythm_net import LABELS
 from tests.training_artifacts import fit_baseline, save_trained
 from train.rhythm import LOGISTIC_FEATURES, Units, sensitivity_at, specificity_at, with_ci
@@ -149,6 +149,8 @@ def test_cards_have_every_heading_and_no_external_numbers(untrained):
         assert EXTERNAL_NOT_RUN in external
         if not entry["trainedOn"]:
             assert NOT_MEASURED in card.split("## Development metrics", 1)[1].split("\n## ", 1)[0]
+            calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
+            assert NOT_MEASURED in calibration and NOT_CALIBRATED not in calibration
     sqi_card = (models_dir / "sqi-finger@1.0.0.md").read_text(encoding="utf-8")
     assert "inverted red channel" in sqi_card and "finger recordings" in sqi_card
 
@@ -809,3 +811,12 @@ def test_refuses_app_scored_readings_at_another_threshold(trained, monkeypatch):
     _assert_refused(
         models_dir, runs_dir, ProvenanceError, "rhythm-lgbm@1.0.0 was externally tested at af threshold 0.42"
     )
+
+
+def test_a_trained_model_without_calibration_says_so_not_that_it_is_untrained(trained):
+    models_dir, runs_dir = trained
+    entries = _manifest(models_dir, runs_dir)
+    card = (models_dir / entries["sqi-finger"]["card"]).read_text(encoding="utf-8")
+    calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
+    assert NOT_CALIBRATED in calibration and NOT_MEASURED not in calibration
+    assert "this version has none" in card and "team captures hand-labeled clean." not in card

@@ -45,8 +45,9 @@ export interface CaptureConfig {
   torchLevel?: number; // 0 = off (ambient mode), 0..1
   exposureTarget?: [number, number]; // red-mean window, default [0.55, 0.80]
 }
-// What start() resolves with (ADR 0067). activeFps is the frame rate the camera was set to and kept, read back
-// after it started: it can be lower than targetFps when the lens or platform caps the rate.
+// What start() resolves with (ADR 0067). activeFps can be lower than targetFps when the lens or platform caps
+// the rate. iOS reads it back from the device after start; Android reports the top of the frame-rate range it
+// requested (the camera can run below it when that range is variable); Replay reports the recording's rate.
 export interface CaptureStarted {
   activeFps: number;
 }

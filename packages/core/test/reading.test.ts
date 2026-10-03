@@ -289,7 +289,18 @@ describe('analyzeReading acquisition spans', () => {
     const flat = syntheticReading({ seconds: 15, dropped: (tS) => tS % 3 >= 2.7 });
     const samples = flat.samples.map((sample) => ({ ...sample, r: 0.62 }));
     const analysis = analyzeReading({ samples, stats: flat.stats }, CONTEXT);
-    const runs = spansOf(analysis, 'quality');
+    // Each 300 ms dropout is also a quality span (ADR 0072 frame gap); the flat runs are the others.
+    const seconds = (sample: Sample) => (sample.tNs - CLOCK_START_NS) / 1e9;
+    const gaps = samples.slice(1).flatMap((sample, i) =>
+      seconds(sample) - seconds(samples[i]!) > DSP_CONFIG.dsp2.maxGapS
+        ? [{ startS: seconds(samples[i]!), endS: seconds(sample), reason: 'quality' }]
+        : [],
+    );
+    expect(gaps).toHaveLength(4);
+    expect(spansOf(analysis, 'quality')).toEqual(expect.arrayContaining(gaps));
+    const flatRuns = (of: ReadingAnalysis) =>
+      spansOf(of, 'quality').filter((span) => !gaps.some((gap) => gap.startS === span.startS));
+    const runs = flatRuns(analysis);
     expect(runs).toHaveLength(5);
     expect(runs[0]).toEqual({
       startS: 0,
@@ -298,7 +309,7 @@ describe('analyzeReading acquisition spans', () => {
     });
     // One changed frame makes a run not flat.
     samples[100]!.r = 0.621;
-    expect(spansOf(analyzeReading({ samples, stats: flat.stats }, CONTEXT), 'quality')).toHaveLength(4);
+    expect(flatRuns(analyzeReading({ samples, stats: flat.stats }, CONTEXT))).toHaveLength(4);
   });
 
   it('ADR 0057: equal red for live.minFlatS inside a longer pulse run is rejected; shorter is not', () => {

@@ -809,3 +809,64 @@ describe('LiveSession performance (§9.3: < 5 ms of JS per 100 ms batch)', () =>
     expect(times[times.length >> 1]!).toBeLessThan(5);
   });
 });
+
+describe('LiveSession frame gaps and motion status (ADR 0072)', () => {
+  const sliceOf = (all: Frames, keep: (tS: number) => boolean): Frames => ({
+    samples: all.samples.filter((sample) => keep((sample.tNs - CLOCK_START_NS) / 1e9)),
+    stats: all.stats.filter((stat) => keep((stat.tNs - CLOCK_START_NS) / 1e9)),
+  });
+  const contextOf = (input: ReturnType<LiveSession['readingInput']>): ReadingContext => ({
+    captureFps: 60,
+    tier: 'full',
+    mode: 'full',
+    restTimerDone: true,
+    recordedAt: null,
+    motionSpans: input.motionSpans,
+    coldHandsSpans: input.coldHandsSpans,
+    sqi: input.sqi,
+    validationRhythmLabel: null,
+  });
+
+  it('5 s with no frames is a quality span, live and saved alike, and the ring does not count it', () => {
+    const capture = sliceOf(frames({ seconds: 30 }), (tS) => tS < 10 || tS >= 15);
+    const session = createLiveSession(CONFIG);
+    session.pushSamples(capture);
+    const seconds = (sample: Sample) => (sample.tNs - CLOCK_START_NS) / 1e9;
+    const before = capture.samples.filter((sample) => seconds(sample) < 10).at(-1)!;
+    const gap = { startS: seconds(before), endS: 15, reason: 'quality' };
+    expect(session.rejectedSpans).toContainEqual(gap);
+
+    const input = session.readingInput();
+    const analysis = analyzeReading(input.capture, contextOf(input));
+    expect(analysis.rejectedSpans).toEqual(session.rejectedSpans);
+    const lastS = seconds(capture.samples.at(-1)!);
+    expect(analysis.cleanSeconds).toBe(cleanSeconds(0, lastS, session.rejectedSpans));
+    expect(session.cleanSeconds).toBe(analysis.cleanSeconds);
+    expect(analysis.cleanSeconds).toBeLessThanOrEqual(lastS - (gap.endS - gap.startS) + 1e-9);
+  });
+
+  it('frames exactly maxGapS apart are not a gap; just over it they are', () => {
+    const offsets = (stepS: number) => Array.from({ length: 40 }, (_, k) => k * stepS);
+    // Red changes every frame, so no ADR 0057 flat run is rejected.
+    const red = (tS: number) => ({ r: 0.62 - 0.004 * Math.sin(7 * tS), g: 0.11, b: 0.04 });
+    const gapsAt = (stepS: number) => {
+      const session = createLiveSession(CONFIG);
+      session.pushSamples(captureAt(offsets(stepS), red));
+      return session.rejectedSpans.length;
+    };
+    expect(gapsAt(DSP_CONFIG.dsp2.maxGapS)).toBe(0);
+    expect(gapsAt(0.2)).toBe(39);
+  });
+
+  it.each([NaN, Infinity, -Infinity])('a motionRms of %p counts as moving', (motionRms) => {
+    const all = frames({ seconds: 8 });
+    const session = createLiveSession(CONFIG);
+    session.pushSamples(sliceOf(all, (tS) => tS < 5));
+    session.pushStatus({ ...calm, motionRms });
+    session.pushSamples(sliceOf(all, (tS) => tS >= 5 && tS < 6));
+    session.pushStatus(calm);
+    const motion = session.rejectedSpans.filter((span) => span.reason === 'motion');
+    expect(motion).toHaveLength(1);
+    expect(motion[0]!.endS - motion[0]!.startS).toBeCloseTo(1, 9);
+  });
+});

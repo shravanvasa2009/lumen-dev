@@ -9,7 +9,14 @@ import { fingerSignals } from './finger-signal';
 import { FlatRuns, modelWindowAt, nextModelTickS, unscoredSpan } from './model-window';
 import { ensembleBeat, type PulseShape } from './pulse-shape';
 import type { RejectedSpan, RejectionReason } from './live-session';
-import { cleanSeconds, heartRate, measureBeats, perfusionIndex, type MeasuredBeat } from './reading-metrics';
+import {
+  cleanSeconds,
+  frameGapSpan,
+  heartRate,
+  measureBeats,
+  perfusionIndex,
+  type MeasuredBeat,
+} from './reading-metrics';
 import { resampleCubic, type ResampledSegment } from './resample';
 import type { LostSeconds, RhythmClass } from './results';
 import {
@@ -350,9 +357,14 @@ export function analyzeReading(
     ...frameQualitySpans(timebase, capture.samples, capture.stats, context.sqi !== null),
   ];
   const byStart = (x: RejectedSpan, y: RejectedSpan) => x.startS - y.startS;
+  // Frame gaps count against clean seconds only, last in LiveSession's order (frameGapSpan).
+  const gapSpans = Array.from(timebase.tS.subarray(1), (tS, i) => frameGapSpan(timebase.tS[i]!, tS)).filter(
+    (span) => span !== null,
+  );
   const rejectedSpans = [
     ...contactSpans(timebase, capture.samples, capture.stats, false),
     ...otherSpans,
+    ...gapSpans,
   ].sort(byStart);
   const clean = cleanSeconds(0, durationS, rejectedSpans);
   // A broken frame keeps its coverage span for clean seconds, but beats are classified as if it were

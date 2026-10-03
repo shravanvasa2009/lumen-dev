@@ -3,7 +3,7 @@ import { DSP_CONFIG } from './config';
 import { dcLevel } from './finger-signal';
 import type { ClassifiedBeat, RejectedSpan } from './live-session';
 import { median } from './median';
-import type { ResampledSegment } from './resample';
+import { isFrameGap, type ResampledSegment } from './resample';
 import type { ReadingRhythm } from './results';
 
 // Readings arrive as one beat list per DSP-2 segment (classifyBeats output); no interval ever spans two
@@ -22,6 +22,13 @@ export interface Hrv {
   sdnnMs: number | null;
   pnn50: number | null; // fraction of successive differences over 50 ms
   nnIntervals: number; // NN intervals left after the 20% filter
+}
+
+// ADR 0072: time with no frames holds no signal, so a DSP-2 gap is not clean. It is a quality span: it has
+// no §7 coaching cause, so it names no tip. Only clean seconds see it; beats are classified without it, as a
+// dropped frame does not make a beat an artifact (ADR 0057).
+export function frameGapSpan(previousS: number, nextS: number): RejectedSpan | null {
+  return isFrameGap(previousS, nextS) ? { startS: previousS, endS: nextS, reason: 'quality' } : null;
 }
 
 /** Clean seconds: time in [startS, endS] not covered by any rejected span (overlaps counted once). */

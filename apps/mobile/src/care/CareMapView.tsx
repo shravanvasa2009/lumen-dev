@@ -1,5 +1,5 @@
 import { Camera, Map, Marker } from '@maplibre/maplibre-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, useWindowDimensions, View } from 'react-native';
 
@@ -19,6 +19,10 @@ const PIN_SIZE = 30;
 const MAP_MAX_HEIGHT = 280;
 // On a 360x640 dp phone this leaves the list, the ZIP field and the doctor button within reach.
 const MAP_WINDOW_SHARE = 0.3;
+// If the map neither finishes rendering nor fails in this time, the spinner goes: tiles may still fill in.
+const LOADING_TIMEOUT_MS = 20_000;
+const LEGEND_PIN_BOX = 16;
+const LEGEND_PIN_SCALE = 0.55;
 
 type PinProps = { shape: 'clinic' | 'doctor' | 'you' };
 
@@ -72,21 +76,27 @@ function Pin({ shape }: PinProps) {
   );
 }
 
-type LegendEntry = { shape: 'clinic' | 'doctor' | 'you'; label: string };
+type LegendEntry = { shape: PinProps['shape']; label: string };
 
-// Sits top-left so it never covers the attribution control at the bottom right.
+// Sits top-left so it never covers the attribution control at the bottom right. Compact so it stays a
+// small part of a 192 dp map on a 360x640 dp phone, and it never takes touches from the map.
 function MapLegend({ entries }: { entries: readonly LegendEntry[] }) {
   const { colors, radius, spacing } = useTheme();
   return (
     <View
       testID="care-map-legend"
+      pointerEvents="none"
       style={{
         position: 'absolute',
-        top: spacing.sm,
-        left: spacing.sm,
-        maxWidth: '70%',
-        gap: spacing.xs,
-        padding: spacing.sm,
+        top: spacing.xs,
+        left: spacing.xs,
+        maxWidth: '92%',
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        columnGap: spacing.md,
+        rowGap: spacing.xs,
+        paddingVertical: spacing.xs,
+        paddingHorizontal: spacing.sm,
         borderRadius: radius.card,
         borderWidth: 1,
         borderColor: colors.line2,
@@ -94,8 +104,19 @@ function MapLegend({ entries }: { entries: readonly LegendEntry[] }) {
       }}
     >
       {entries.map(({ shape, label }) => (
-        <View key={shape} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-          <Pin shape={shape} />
+        <View key={shape} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+          <View
+            style={{
+              width: LEGEND_PIN_BOX,
+              height: LEGEND_PIN_BOX,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <View style={{ transform: [{ scale: LEGEND_PIN_SCALE }] }}>
+              <Pin shape={shape} />
+            </View>
+          </View>
           <AppText variant="caption" style={{ flexShrink: 1 }}>
             {label}
           </AppText>
@@ -141,6 +162,14 @@ export function CareMapView({
     ...(doctors.length > 0 ? [{ shape: 'doctor' as const, label: t('careMap.legendDoctor') }] : []),
     ...(you ? [{ shape: 'you' as const, label: t('careMap.legendYou') }] : []),
   ];
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setLoadState((state) => (state === 'loading' ? 'ready' : state)),
+      LOADING_TIMEOUT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [attempt]);
+  const showMap = () => setLoadState((state) => (state === 'failed' ? state : 'ready'));
   const retry = () => {
     setLoadState('loading');
     setAttempt((count) => count + 1);
@@ -163,10 +192,12 @@ export function CareMapView({
         logo={false}
         accessibilityLabel={t('careMap.mapLabel')}
         onPress={onClearSelection}
-        // Rendering finished means tiles are on screen; style-only loading still shows a blank base.
-        // Prop names: @maplibre/maplibre-react-native 11.4.1, lib/typescript/commonjs/components/map/Map.d.ts.
-        onDidFinishRenderingMap={() => setLoadState((state) => (state === 'failed' ? state : 'ready'))}
-        onDidFailLoadingMap={() => setLoadState('failed')}
+        // 11.4.1 sends onDidFinishRenderingMap for a partial render and ...Fully for a complete one, never
+        // both, so either clears the spinner. Style-only loading would still show a blank base. A failure
+        // after the map is showing must not replace it. Props: lib/typescript/commonjs/components/map/Map.d.ts.
+        onDidFinishRenderingMap={showMap}
+        onDidFinishRenderingMapFully={showMap}
+        onDidFailLoadingMap={() => setLoadState((state) => (state === 'loading' ? 'failed' : state))}
       >
         <Camera initialViewState={{ center: [centre.lon, centre.lat], zoom: START_ZOOM }} />
         {you ? (
@@ -202,6 +233,7 @@ export function CareMapView({
           </Marker>
         ))}
       </Map>
+      <MapLegend entries={legend} />
       {loadState === 'loading' ? (
         <View
           testID="care-map-loading"
@@ -236,7 +268,6 @@ export function CareMapView({
           <Button label={t('careMap.retry')} variant="secondary" onPress={retry} />
         </View>
       ) : null}
-      <MapLegend entries={legend} />
     </View>
   );
 }

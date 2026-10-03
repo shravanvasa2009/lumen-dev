@@ -153,6 +153,30 @@ describe('Care map with location allowed', () => {
     expect(screen.queryByTestId('care-map-loading')).toBeNull();
   });
 
+  it('also clears the placeholder on a full render, which is sent instead of the partial one', async () => {
+    await openCareMap();
+    fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMapFully');
+    expect(screen.queryByTestId('care-map-loading')).toBeNull();
+  });
+
+  it('keeps a working map when a failure event arrives after it rendered', async () => {
+    await openCareMap();
+    fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMapFully');
+    fireEvent(screen.getByTestId('care-map-view'), 'didFailLoadingMap');
+    expect(screen.queryByText(en['careMap.mapFailed'])).toBeNull();
+  });
+
+  it('keeps the legend under the loading and failure overlays, and out of touch handling', async () => {
+    await openCareMap();
+    const frame = screen.getByTestId('care-map-frame');
+    const order = (testID: string) =>
+      frame.children.findIndex((child) => typeof child !== 'string' && child.props.testID === testID);
+    expect(screen.getByTestId('care-map-legend').props.pointerEvents).toBe('none');
+    expect(order('care-map-legend')).toBeLessThan(order('care-map-loading'));
+    fireEvent(screen.getByTestId('care-map-view'), 'didFailLoadingMap');
+    expect(order('care-map-legend')).toBeLessThan(order('care-map-failed'));
+  });
+
   it('shows a failure message with Retry, and Retry remounts the map', async () => {
     await openCareMap();
     const firstMap = screen.getByTestId('care-map-view');
@@ -385,6 +409,29 @@ describe('Care map with location denied', () => {
     await openCareMap();
     expect(screen.getByText(en['careMap.locationFailed'])).toBeOnTheScreen();
     expect(screen.queryByTestId('care-map-view')).toBeNull();
+  });
+});
+
+// Last on purpose: faking the clock leaves later async tests in this file hanging.
+describe('Care map loading timeout', () => {
+  beforeEach(allowLocation);
+
+  it('hides the spinner after 20 seconds without a render or a failure event', async () => {
+    await openCareMap();
+    // Fake timers stall the router's own setup, so the clock is faked only for the timer a Retry starts.
+    fireEvent(screen.getByTestId('care-map-view'), 'didFailLoadingMap');
+    jest.useFakeTimers();
+    try {
+      fireEvent.press(screen.getByRole('button', { name: en['careMap.retry'] }));
+      expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
+      act(() => jest.advanceTimersByTime(19_000));
+      expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
+      act(() => jest.advanceTimersByTime(1_500));
+      expect(screen.queryByTestId('care-map-loading')).toBeNull();
+      expect(screen.queryByText(en['careMap.mapFailed'])).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

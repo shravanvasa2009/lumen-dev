@@ -1,5 +1,7 @@
+import { rateDevice } from '@lumen/core';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
+import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import en from '@/i18n/en.json';
 import tokens from '@/theme/tokens.json';
 
@@ -12,6 +14,8 @@ import {
 
 import { LabPanel } from './LabPanel';
 import type { StrapEvents } from './polarStrap';
+
+import { saveDeviceRating } from '@/store/deviceRating';
 
 import '@/i18n';
 
@@ -78,7 +82,10 @@ beforeAll(async () => {
 }, COLD_RENDER_MS);
 
 const realFetch = globalThis.fetch;
-beforeEach(() => jest.useFakeTimers());
+beforeEach(() => {
+  jest.useFakeTimers();
+  emptyMockDatabases();
+});
 afterEach(() => {
   jest.useRealTimers();
   globalThis.fetch = realFetch;
@@ -730,4 +737,54 @@ test('will not send a paced breathing rate that cannot be one', async () => {
 
   fireEvent.changeText(screen.getByLabelText(en['lab.paced']), '');
   expect(screen.getByRole('button', { name: en['lab.send'] })).toBeEnabled();
+});
+
+// SYNTHETIC practice numbers, enough for rateDevice to give the synthetic phone a tier.
+async function rateSyntheticPhone() {
+  const rating = rateDevice(syntheticRecording().capabilities, {
+    lensId: 'synthetic-wide',
+    achievedFps: 50,
+    frameIntervalSdMs: 0.5,
+    coupling: { perfusionIndexPct: 1.2, snrDb: 14 },
+  });
+  await saveDeviceRating(rating, {
+    testedAt: 1_700_000_000_000,
+    osVersion: '0',
+    appVersion: '0.1.0',
+    lensId: 'synthetic-wide',
+    practice: null,
+  });
+  return rating;
+}
+
+async function sendCameraCapture() {
+  const fetchMock = mockReceiver();
+  await renderWithPhone(asCamera(new ReplayCapture(syntheticRecording())));
+  await press(en['lab.start']);
+  await act(async () => {
+    jest.advanceTimersByTime(2500);
+  });
+  await press(en['lab.stop']);
+  typeReceiver('10.0.2.2:8787', 'abc123');
+  await press(en['lab.send']);
+  return JSON.parse(fetchMock.mock.calls[0]?.[1].body ?? '{}').meta;
+}
+
+test('a camera capture on a rated phone sends its rating score and tier', async () => {
+  const rating = await rateSyntheticPhone();
+  expect(rating.tier).not.toBeNull();
+  expect((await sendCameraCapture()).rating).toStrictEqual({ score: rating.score, tier: rating.tier });
+});
+
+test('a camera capture on an unrated phone sends no rating', async () => {
+  expect(await sendCameraCapture()).not.toHaveProperty('rating');
+});
+
+test('a replay is sent without a rating, even on a rated phone', async () => {
+  await rateSyntheticPhone();
+  const fetchMock = mockReceiver();
+  await recordWholeReplay();
+  typeReceiver('10.0.2.2:8787', 'abc123');
+  await press(en['lab.send']);
+  expect(JSON.parse(fetchMock.mock.calls[0]?.[1].body ?? '{}').meta).not.toHaveProperty('rating');
 });

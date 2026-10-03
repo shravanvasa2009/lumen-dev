@@ -13,8 +13,8 @@ import type { FixCause } from './causes';
 const causeIcons: Record<FixCause, IconName> = {
   pressure: 'finger',
   motion: 'elbow',
-  coverage: 'warm',
-  coldHands: 'cup',
+  coverage: 'lens',
+  coldHands: 'warm',
 };
 
 // The line break keeps the cause on its own line while the lead stays one sentence for screen readers.

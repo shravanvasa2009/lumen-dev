@@ -38,8 +38,11 @@ from export.to_onnx import source_model
 from eval.external_gate import RESULTS_FILE, read_results
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
-# Pass or fail facts eval.external writes next to the numbers (§11.5, ML-1, ML-4, ML-6).
-EXTERNAL_VERDICTS = ("floorMet", "status", "passed")
+# Pass or fail facts eval.external writes next to the numbers (§11.5, ML-1, ML-4, ML-6). The role and the
+# family outcome are shown with them, so an ablation model's own floorMet is never read as a pass (ADR 0045).
+EXTERNAL_VERDICTS = ("role", "floorMet", "status", "passed", "outcome")
+# Where the spec states each family's "ship the network only if it beats the baselines" rule.
+SHIP_RULE_SECTION = {"sqi": "§11.1", "rhythm": "§11.3", "diabetes": "§11.4"}
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
 # §11.10: when the rhythm model fails to load, the app runs this rule in code (@lumen/core) as "basic
 # analysis", so its manifest entry carries every number the rule needs, read from the trained pickle.
@@ -183,22 +186,28 @@ class ExternalRun(NamedTuple):
     report: dict | None
 
 
-def external_run(spec: ModelSpec, results: dict, onnx_sha256: str) -> ExternalRun | None:
+def external_run(
+    spec: ModelSpec, results: dict, onnx_sha256: str, metrics: dict | None
+) -> ExternalRun | None:
     # ADR 0045: the ledger in models/external-test.json records each model version's one run; the family
     # block holds the numbers of the version that ran last.
     runs = [run for run in results.get("runs", []) if run["model"] == spec.file_stem]
     if not runs:
         return None
+    # Started runs too: their data was seen, so new weights under the same version would hide that look.
+    for run in runs:
+        if run["onnxSha256"] != onnx_sha256:
+            raise ProvenanceError(
+                f"{spec.file_stem} was externally tested as ONNX {run['onnxSha256']}, but this release's "
+                f"file is {onnx_sha256}"
+            )
     done = [run for run in runs if run["status"] == "done"]
     if not done:
         # A run that started and crashed has read the external data, so the card says so (ADR 0045).
         return ExternalRun(runs[-1], None)
+    if len(done) > 1:
+        raise ProvenanceError(f"the ledger records {len(done)} finished external runs of {spec.file_stem}")
     (run,) = done
-    if run["onnxSha256"] != onnx_sha256:
-        raise ProvenanceError(
-            f"{spec.file_stem} was externally tested as ONNX {run['onnxSha256']}, but this release's file "
-            f"is {onnx_sha256}"
-        )
     block = results.get(spec.family) or {}
     report = (block.get("models") or {}).get(spec.name) if spec.family == "rhythm" else block
     if not report or report.get("model") != spec.file_stem:
@@ -208,7 +217,22 @@ def external_run(spec: ModelSpec, results: dict, onnx_sha256: str) -> ExternalRu
         )
     if spec.family == "rhythm":
         # eval.external scores every rhythm model on the same subjects; the rest are each model's own.
-        report = {"subjects": block["subjects"], **report["subject"], "floorMet": report["floorMet"]}
+        report = {
+            "subjects": block["subjects"],
+            **report["subject"],
+            "role": report["role"],
+            "floorMet": report["floorMet"],
+            "outcome": block["outcome"],
+        }
+    # §11.5: the numbers hold only at the threshold the run used; one chosen again after it would sit next
+    # to results it was never tested at.
+    (key,) = spec.threshold_keys
+    frozen = (metrics or {}).get("threshold", {}).get(key)
+    if report.get("threshold") != frozen:
+        raise ProvenanceError(
+            f"{spec.file_stem} was externally tested at {key} threshold {report.get('threshold')}, but its "
+            f"training metrics now say {frozen}"
+        )
     missing = [field for field in spec.external_fields if field not in report]
     if missing:
         raise ProvenanceError(f"{spec.file_stem}'s external results lack {missing}")
@@ -257,6 +281,9 @@ def manifest_entry(
         "date": date,
         "card": f"{spec.file_stem}.md",
         **({"rule": rule} if rule else {}),
+        # ML-6: the app fills a missing input feature with the dev-train median the model was trained with,
+        # and must feed the features in this order; neither is inside the ONNX file.
+        **{key: metrics[key] for key in ("featureOrder", "fillMedians") if metrics and key in metrics},
     }
 
 
@@ -403,7 +430,7 @@ def _ship_note(spec: ModelSpec, metrics: dict | None) -> str:
                 f" The development ablation picked it ({decision['criterion']}; network minus "
                 f"{decision['bestBaseline']}: {difference['estimate']:.4f}, "
                 f"95% CI {difference['low']:.4f} to {difference['high']:.4f}), "
-                "so it ships per §11.3 (ADR 0031)."
+                f"so it ships per {SHIP_RULE_SECTION[spec.family]} (ADR 0031)."
             )
         return f"\n\nThis is the shipped {spec.family} model: the app loads it.{why}"
     decision = (metrics or {}).get("shipDecision")
@@ -672,7 +699,9 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
     }
     results = read_results(models_dir / RESULTS_FILE.name)
     externals = {
-        spec.name: external_run(spec, results, sha256_of(models_dir / f"{spec.file_stem}.onnx"))
+        spec.name: external_run(
+            spec, results, sha256_of(models_dir / f"{spec.file_stem}.onnx"), metrics_by_name[spec.name]
+        )
         for spec in specs
     }
     entries = [

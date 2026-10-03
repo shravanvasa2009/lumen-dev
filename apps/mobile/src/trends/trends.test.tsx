@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { readingById } from '@/results/fixtures';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
 import { demoHistory, demoNow } from './demoHistory';
@@ -19,6 +20,8 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 function openView(readings: readonly HistoryReading[], demo = true, now = demoNow) {
   renderRouter({ index: () => <TrendsView readings={readings} now={now} demo={demo} /> });
 }
+
+preloadAppRoutes();
 
 describe.each([
   ['dark', tokens.dark],

@@ -1,6 +1,7 @@
 import { renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import type { Capabilities } from '../../modules/lumen-capture/src';
 
@@ -34,6 +35,8 @@ const probedPhone: Capabilities = {
 
 // The first render of the router compiles every route, which is slow on a busy machine.
 jest.setTimeout(30_000);
+
+preloadAppRoutes();
 
 describe('phone check', () => {
   beforeEach(() => {

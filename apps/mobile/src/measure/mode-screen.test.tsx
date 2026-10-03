@@ -2,11 +2,14 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { expectNavTitle } from '@/testing/navHeader';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'light',
 }));
+
+preloadAppRoutes();
 
 describe('choose a mode', () => {
   beforeEach(() => {

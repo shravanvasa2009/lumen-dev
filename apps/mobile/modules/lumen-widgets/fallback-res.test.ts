@@ -76,8 +76,15 @@ describe('Android widget picker', () => {
     const english = resourceValues('values/lumen_widget_picker_strings.xml', 'string');
     const spanish = resourceValues('values-es/lumen_widget_picker_strings.xml', 'string');
     expect(Object.keys(spanish)).toEqual(Object.keys(english));
-    expect(english.lumen_widget_small_description).toBeDefined();
-    expect(english.lumen_widget_medium_description).toBeDefined();
+    expect(Object.keys(english)).toEqual([
+      'lumen_widget_small_description',
+      'lumen_widget_medium_description',
+      'lumen_widget_sample_status',
+      'lumen_widget_sample_last_check',
+      'lumen_widget_sample_bpm',
+      'lumen_widget_sample_bpm_unit',
+      'lumen_widget_sample_status_streak',
+    ]);
   });
 
   // The same sample reading as the in-app gallery (app/settings/widgets/index.tsx), so the picker, the gallery and

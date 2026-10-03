@@ -44,6 +44,6 @@ describe('consent', () => {
 
   it('shows the 911 line as an alert', () => {
     renderRouter('./app', { initialUrl: '/consent' });
-    expect(screen.getByRole('alert')).toHaveTextContent(en['consent.callWarning']);
+    expect(screen.getByRole('alert', { name: en['consent.callWarning'] })).toBeOnTheScreen();
   });
 });

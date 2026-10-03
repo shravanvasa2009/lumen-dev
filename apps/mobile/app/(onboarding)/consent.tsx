@@ -1,17 +1,15 @@
-import { type ComponentProps, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { Checkbox } from '@/components/Checkbox';
-import { Icon } from '@/components/Icon';
+import { Icon, type IconName } from '@/components/Icon';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
-
-type IconName = ComponentProps<typeof Icon>['name'];
 
 const TILE_SIZE = 36;
 
@@ -57,7 +55,7 @@ export default function ConsentScreen() {
           <ConsentRow icon="finger" allowed>
             {t('consent.canPulse')}
           </ConsentRow>
-          <ConsentRow icon="care" allowed>
+          <ConsentRow icon="pulse" allowed>
             {t('consent.canRhythm')}
           </ConsentRow>
           <ConsentRow icon="trends" allowed>
@@ -71,7 +69,7 @@ export default function ConsentScreen() {
           <ConsentRow icon="close" allowed={false}>
             {t('consent.cannotDiagnose')}
           </ConsentRow>
-          <ConsentRow icon="care" allowed={false}>
+          <ConsentRow icon="close" allowed={false}>
             {t('consent.cannotReplace')}
           </ConsentRow>
           <ConsentRow icon="warning" allowed={false}>

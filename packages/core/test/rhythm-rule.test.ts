@@ -121,6 +121,9 @@ describe('logistic rhythm rule validation', () => {
     ['too few intercepts', { intercepts: [0, 0] }, /length/],
     ['a zero scale', { scale: [1, 0] }, /scale/],
     ['a negative scale', { scale: [1, -1] }, /scale/],
+    // StandardScaler's scale_ is sqrt(var_), or 1 for a constant feature: never below about 2.2e-162.
+    ['a subnormal scale', { scale: [1, 5e-324] }, /scale/],
+    ['a class name that is not a string', { classes: [1, 'af', 'other'] }, /classes/],
     ['a NaN mean', { mean: [0, Number.NaN] }, /finite/],
     [
       'an infinite coefficient',
@@ -167,5 +170,20 @@ describe('logistic rhythm rule validation', () => {
   it('refuses a feature vector of the wrong length or with a non-finite value', () => {
     for (const window of [[], [0, 0, 0], [0, 0, 0, 0, 0], [0, Number.NaN, 0, 0], [0, 0, Infinity, 0]])
       expect(() => logisticRhythmOutputs(toyEntry(), [HAND_WINDOW, window])).toThrow(/feature vector/);
+  });
+
+  it('refuses a window whose logits overflow a double, rather than returning NaN', () => {
+    expect(() => logisticRhythmOutputs(toyEntry(), [[1.7e308, 0, 1.7e308, 0]])).not.toThrow();
+    const rule = toyRule({ intercepts: [0, 1.7e308, 0] });
+    expect(() => logisticRhythmOutputs(toyEntry({ rule }), [[1.7e308, 0, 0, 0]])).toThrow(/overflow/);
+    const sunk = toyRule({
+      coefficients: [
+        [1, 0],
+        [1, 0],
+        [1, 0],
+      ],
+      intercepts: [-1.7e308, -1.7e308, -1.7e308],
+    });
+    expect(() => logisticRhythmOutputs(toyEntry({ rule: sunk }), [[-1.7e308, 0, 0, 0]])).toThrow(/overflow/);
   });
 });

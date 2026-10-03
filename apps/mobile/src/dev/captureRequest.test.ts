@@ -80,3 +80,20 @@ test('passes strap RR through as polarRr when a strap was recorded', () => {
   const body = captureRequestBody(batches, { capabilities, summary, polarRr });
   expect(body.polarRr).toStrictEqual(polarRr);
 });
+
+test('writes recordedAt as local time with its UTC offset, naming the same instant', () => {
+  // Whole seconds: the field has no fraction.
+  const when = new Date(Date.UTC(2026, 9, 4, 12, 41, 58));
+  const { recordedAt } = captureRequestBody(batches, { capabilities, summary, recordedAt: when }).meta;
+  expect(recordedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
+  expect(new Date(recordedAt ?? '').getTime()).toBe(when.getTime());
+});
+
+test('sends the rest-timer answer and the paced breathing rate when Lab has them', () => {
+  const { meta } = captureRequestBody(batches, { capabilities, summary, restTimerDone: true, pacedBrpm: 6 });
+  expect(meta.restTimerDone).toBe(true);
+  expect(meta.labels).toStrictEqual({ pacedBrpm: 6 });
+  const unrested = captureRequestBody(batches, { capabilities, summary, restTimerDone: false }).meta;
+  expect(unrested.restTimerDone).toBe(false);
+  expect(unrested).not.toHaveProperty('labels');
+});

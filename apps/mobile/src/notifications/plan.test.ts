@@ -368,6 +368,63 @@ describe('3 per day', () => {
     expect(Math.max(...perDay.values())).toBeLessThanOrEqual(3);
   });
 
+  it('moves a re-test a full day would drop to the same time the next day', () => {
+    const { planned } = syncInTurn(
+      { now: '2026-10-12T07:00:00-05:00', on: ['daily'] },
+      { now: '2026-10-12T09:00:00-05:00', on: ALL_CAPPED, triggers: crowdedDay },
+    );
+    expect(typesOn('2026-10-12', planned)).toEqual(['confirmation', 'doctor-followup']);
+    const retests = planned.filter(({ type }) => type === 'retest');
+    expect(retests.map(({ fireAt }) => fireAt)).toEqual(['2026-10-13T17:00:00-05:00']);
+    expect(typesOn('2026-10-13', planned)).toEqual(['confirmation', 'daily', 'retest']);
+  });
+
+  it('keeps a carried re-test once its first time has passed', () => {
+    const { planned } = syncInTurn(
+      { now: '2026-10-12T07:00:00-05:00', on: ['daily'] },
+      { now: '2026-10-12T09:00:00-05:00', on: ALL_CAPPED, triggers: crowdedDay },
+      { now: '2026-10-12T18:00:00-05:00', on: ALL_CAPPED, triggers: crowdedDay },
+    );
+    expect(planned.filter(({ type }) => type === 'retest').map(({ fireAt }) => fireAt)).toEqual([
+      '2026-10-13T17:00:00-05:00',
+    ]);
+  });
+
+  it('does not send a re-test again once it has fired', () => {
+    const triggers = { lastPhoneCheckAt: at('2026-09-12T17:00:00-05:00') };
+    const { planned } = syncInTurn(
+      { now: '2026-10-12T09:00:00-05:00', on: ['retest'], triggers },
+      { now: '2026-10-12T18:00:00-05:00', on: ['retest'], triggers },
+    );
+    expect(planned).toEqual([]);
+  });
+
+  it('carries a re-test past the night to the end of the next quiet hours', () => {
+    // A daily check fired at 12:30 am before quiet hours were set; the doctor follow-up and the morning
+    // confirmation fill the rest of the day. The re-test falls due at 10:30 pm, inside quiet hours.
+    const { planned } = syncInTurn(
+      {
+        now: '2026-10-12T00:00:00-05:00',
+        on: ['daily'],
+        dailyTime: { hour: 0, minute: 30 },
+        quietHours: NO_QUIET_HOURS,
+      },
+      {
+        now: '2026-10-12T06:00:00-05:00',
+        on: ['confirmation', 'doctor-followup', 'retest'],
+        triggers: {
+          confirmationFor: { readingId: 'reading-c', takenAt: at('2026-10-11T20:00:00-05:00') },
+          doctorFollowupFor: { readingId: 'reading-d', takenAt: at('2026-10-05T07:00:00-05:00') },
+          lastPhoneCheckAt: at('2026-09-11T22:30:00-05:00'),
+        },
+      },
+    );
+    expect(typesOn('2026-10-12', planned)).toEqual(['doctor-followup', 'confirmation']);
+    expect(planned.filter(({ type }) => type === 'retest').map(({ fireAt }) => fireAt)).toEqual([
+      '2026-10-13T07:00:00-05:00',
+    ]);
+  });
+
   it('does not count standing-test alerts, by owner decision', () => {
     const entries = plan({
       now: '2026-10-12T06:31:00-05:00',

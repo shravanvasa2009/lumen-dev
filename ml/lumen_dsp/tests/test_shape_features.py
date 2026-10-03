@@ -6,7 +6,7 @@ import pytest
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import butter_bandpass, filter_zero_phase
 from lumen_dsp.shape import PulseShape, WaveLabels, ensemble_beat
-from lumen_dsp.shape_features import shape_features
+from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES, shape_features
 
 # Mirrors packages/core/test/shape-features.test.ts: the same analytic corners and hand-computed answers,
 # and the same pinned values on the same synthetic PPG (ML-6 parity).
@@ -49,6 +49,41 @@ def test_analytic_beat_hand_computed():
     assert features[10] == pytest.approx((-1 - 0.5 + 0.4 - 0.3) / 2, abs=1e-14)
     # Systolic 51 × 1/2 + 53 × 0.7 = 62.6; diastolic 20 × 0.45 + 80 × 0.25 = 29 (sample units).
     assert features[11] == pytest.approx(29 / 62.6, abs=1e-12)
+
+
+def test_feature_names_in_order():
+    assert len(SHAPE_FEATURE_NAMES) == len(shape_features(_analytic_shape()))
+    assert SHAPE_FEATURE_NAMES == (
+        "riseTime",
+        "width50",
+        "width25",
+        "notchTime",
+        "notchHeight",
+        "diastolicPeakHeight",
+        "bOverA",
+        "cOverA",
+        "dOverA",
+        "eOverA",
+        "agingIndex",
+        "areaRatio",
+    )
+
+
+def test_gain_and_offset_change_no_feature_on_a_beat_whose_tail_is_below_the_onset():
+    # Beat minimum −0.1 differs from the onset level 0; the second derivative scales with the gain.
+    shape = _analytic_shape(beat=_piecewise_beat([*CORNERS[:4], (230, -0.1)]))
+    before = shape_features(shape)
+    after = shape_features(
+        PulseShape(
+            beat=3 + 0.5 * shape.beat,
+            smoothed=3 + 0.5 * shape.smoothed,
+            second_derivative=0.5 * shape.second_derivative,
+            waves=shape.waves,
+            beats_used=shape.beats_used,
+        )
+    )
+    assert all(value is not None for value in before)
+    assert after == pytest.approx(before, abs=1e-12)
 
 
 def test_gain_and_offset_do_not_change_amplitude_features():

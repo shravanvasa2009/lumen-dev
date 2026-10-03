@@ -45,7 +45,7 @@ export function LatestResultCard({ reading, now }: LatestResultCardProps) {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${t('home.latestResult')}: ${whenLine}. ${headline}`}
-      onPress={() => router.push(reading ? `/results/${reading.takenAt}` : '/results/demo')}
+      onPress={() => router.push(reading ? `/results/${reading.id}` : '/results/demo')}
     >
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>

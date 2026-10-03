@@ -57,6 +57,11 @@ BAD_RULES = [
     ("intercepts", [0.0, 0.0], "length"),
     ("scale", [1.0, 0.0], "scale"),
     ("scale", [1.0, -1.0], "scale"),
+    # StandardScaler's scale_ is sqrt(var_), or 1 for a constant feature: never below about 2.2e-162.
+    ("scale", [1.0, 5e-324], "scale"),
+    ("classes", [1, "af", "other"], "classes"),
+    ("classes", [None, "af", "other"], "classes"),
+    ("mean", [10**400, 0.0], "finite"),
     ("mean", [0.0, float("nan")], "finite"),
     ("coefficients", [[0.0, 0.0], [float("inf"), 0.0], [0.0, 1.0]], "finite"),
     ("intercepts", [0.0, "1", 0.0], "finite"),
@@ -120,3 +125,29 @@ def test_the_committed_fixture_is_the_reference_output():
 
 def test_a_reading_without_windows_has_no_rows():
     assert rule_probs(toy_rule(), [], 4) == []
+
+
+def test_integral_float_indices_are_read_as_integers():
+    # JSON gives JavaScript no way to tell 2.0 from 2, so both languages accept it.
+    hand = [[math.log(2), 99.0, math.log(3), -99.0]]
+    assert rule_probs(toy_rule(featureIndices=[0.0, 2.0]), hand, 4) == rule_probs(toy_rule(), hand, 4)
+
+
+def test_integers_are_rounded_to_doubles_before_arithmetic():
+    # 2^53 + 1 is not a double; JavaScript reads it as 2^53, so z is 0 in both languages, not 1.
+    rule = toy_rule(mean=[2**53, 0.0], coefficients=[[0.0, 0.0], [1.0, 0.0], [0.0, 0.0]])
+    (probs,) = rule_probs(rule, [[2**53 + 1, 0.0, 0.0, 0.0]], 4)
+    assert probs == pytest.approx([1 / 3] * 3, abs=1e-15)
+
+
+def test_a_window_whose_logits_overflow_is_refused():
+    with pytest.raises(RuleError, match="overflow"):
+        rule_probs(toy_rule(intercepts=[0.0, 1.7e308, 0.0]), [[1.7e308, 0.0, 0.0, 0.0]], 4)
+    sunk = toy_rule(coefficients=[[1.0, 0.0]] * 3, intercepts=[-1.7e308] * 3)
+    with pytest.raises(RuleError, match="overflow"):
+        rule_probs(sunk, [[-1.7e308, 0.0, 0.0, 0.0]], 4)
+
+
+def test_an_integer_feature_beyond_a_double_is_refused():
+    with pytest.raises(RuleError, match="finite"):
+        rule_probs(toy_rule(), [[10**400, 0.0, 0.0, 0.0]], 4)

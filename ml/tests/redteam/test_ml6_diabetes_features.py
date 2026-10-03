@@ -7,7 +7,7 @@ from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import butter_bandpass, filter_zero_phase
 from lumen_dsp.metrics import MeasuredBeat, hr_summary
 from lumen_dsp.shape import PulseShape, ensemble_beat
-from lumen_dsp.shape_features import shape_features, systolic_peak_index
+from lumen_dsp.shape_features import shape_features
 
 # Red team (§16) for ML-6, mirroring packages/core/test/redteam/ml6-diabetes-features.test.ts on the inputs
 # both sides can build without the camera path. Each test failed when it was written.
@@ -61,29 +61,49 @@ def _shape_of(band, onsets: list[int], capture_fps: float = 60) -> PulseShape | 
     return ensemble_beat(band, onsets, [True] * len(onsets), capture_fps)
 
 
-def _visible_notch(smoothed, systolic_peak: int) -> tuple[int, int] | None:
-    # The first local minimum after the systolic peak that a local maximum (the diastolic peak) follows.
-    for k in range(systolic_peak + 1, len(smoothed) - 1):
-        if not smoothed[k - 1] > smoothed[k] <= smoothed[k + 1]:
-            continue
-        for j in range(k + 1, len(smoothed) - 1):
-            if smoothed[j - 1] < smoothed[j] >= smoothed[j + 1]:
-                return k, j
+# A heuristic tolerance, not a derivation: a quarter cycle of the morphology band's 8 Hz upper edge (31 ms),
+# about the finest timing the band keeps (as the TS file).
+NOTCH_TOLERANCE_S = 1 / (4 * DSP_CONFIG["dsp6"]["morphologyBandHz"][1])
+
+
+def _constructed_notch_s(pulse, bpm: float) -> tuple[float, float] | None:
+    # The notch known from how the pulse is built, on the noiseless raw train before any filtering, as the
+    # TS constructedNotch: (notch, diastolic peak) in s after the systolic peak, for the first local minimum
+    # after the peak that a local maximum follows, both within 0.6 of the period. 0.1 ms steps.
+    period_s = 60 / bpm
+    step_s = 1e-4
+
+    def train(t_s: float) -> float:
+        return sum(pulse(t_s - n * period_s) for n in range(-2, 3))
+
+    peak_s = max((-0.1 + i * step_s for i in range(round(0.5 / step_s) + 1)), key=train)
+    after = [peak_s + i * step_s for i in range(1, round(0.6 * period_s / step_s) + 1)]
+    notch_s = next((t for t in after if train(t - step_s) > train(t) <= train(t + step_s)), None)
+    if notch_s is None:
         return None
-    return None
+    diastolic_s = next(
+        (t for t in after if t > notch_s and train(t - step_s) < train(t) >= train(t + step_s)), None
+    )
+    return None if diastolic_s is None else (notch_s - peak_s, diastolic_s - peak_s)
 
 
-def test_older_pulse_at_72_bpm_has_a_physiological_notch():
-    # Observed: e-wave 176 after the visible notch 119 and the diastolic peak 130; diastolic peak height 0.
+def test_older_pulse_at_72_bpm_has_its_notch_and_diastolic_peak_where_built():
+    # Observed with the e-wave notch: e-wave 176 after the band's minimum 119; diastolic peak height 0.
     shape = _shape_of(*_morphology_train(OLDER, 72))
     features = shape_features(shape)
     assert features[3] is not None
-    visible = _visible_notch(shape.smoothed, systolic_peak_index(shape.smoothed))
-    assert visible is not None
-    notch = round((features[3] + DSP_CONFIG["dsp14"]["leadFraction"]) * DSP_CONFIG["dsp14"]["beatSamples"])
+    constructed = _constructed_notch_s(OLDER, 72)
+    assert constructed is not None
+    notch_s, diastolic_s = constructed
+    samples, lead = DSP_CONFIG["dsp14"]["beatSamples"], DSP_CONFIG["dsp14"]["leadFraction"]
+    period_s = 60 / 72
+    notch = (features[3] + lead) * samples
+    peak = (features[0] + lead) * samples
     checks = {
-        "notch_before_diastolic_peak": notch < visible[1],
-        "notch_at_or_above_onset": features[4] >= 0,
+        "notch_on_constructed_notch": abs(notch - peak - notch_s / period_s * samples)
+        <= NOTCH_TOLERANCE_S / period_s * samples,
+        "notch_before_diastolic_peak": notch < peak + diastolic_s / period_s * samples,
+        "notch_height_in_unit_range": 0 <= features[4] <= 1,
         "diastolic_peak_found": features[5] > 0,
         "diastolic_peak_not_below_notch": features[5] >= features[4],
         "positive_area_ratio": features[11] > 0,

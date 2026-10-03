@@ -36,10 +36,11 @@ const STANDING_CHANNEL = 'standing';
 const isLumenRequest = (identifier: string) =>
   Object.values(ID_PREFIXES).some((prefix) => identifier.startsWith(`${prefix}-`));
 
-// The scheduler supplies the previous schedule itself, from the record it saves on every sync.
-type SyncRequest = Omit<PlanRequest, 'previousSchedule'>;
+// The scheduler supplies the previous schedule itself, from the record it saves on every sync, and reads
+// the time itself once the sync runs.
+type SyncRequest = Omit<PlanRequest, 'previousSchedule' | 'now'>;
 
-async function applyPlan(request: SyncRequest, languageTag: string): Promise<void> {
+async function applyPlan(request: SyncRequest, languageTag: string, clock: () => number): Promise<void> {
   const copy = lockscreenStrings(languageTag);
   // Android 8+ needs a channel per kind of alert; the standing test's is high importance because a reading
   // is due within seconds. iOS has no channels and these calls resolve to null there.
@@ -62,10 +63,13 @@ async function applyPlan(request: SyncRequest, languageTag: string): Promise<voi
       .map((identifier) => cancelScheduledNotificationAsync(identifier)),
   );
 
+  // Read after the cancels, not when the caller asked: a reminder that fired while this sync waited in
+  // the queue, or before its cancel landed, is then counted as fired.
+  const now = clock();
   const previousSchedule = loadScheduleRecord();
-  const planned = planNotifications({ ...request, previousSchedule });
+  const planned = planNotifications({ ...request, now, previousSchedule });
   // Saved before scheduling: if scheduling fails part way, the record over-counts, which keeps the cap.
-  saveScheduleRecord(scheduleRecord(previousSchedule, planned, request.now));
+  saveScheduleRecord(scheduleRecord(previousSchedule, planned, now));
   for (const entry of planned)
     await scheduleNotificationAsync({
       identifier: entry.id,
@@ -83,8 +87,12 @@ let lastSync: Promise<void> = Promise.resolve();
 
 // Runs one sync at a time, so two quick settings changes cannot interleave their cancels and schedules.
 // The caller still receives each sync's own failure; the queue only waits for it to settle.
-export function syncNotifications(request: SyncRequest, languageTag: string): Promise<void> {
-  const sync = lastSync.then(() => applyPlan(request, languageTag));
+export function syncNotifications(
+  request: SyncRequest,
+  languageTag: string,
+  clock: () => number = Date.now,
+): Promise<void> {
+  const sync = lastSync.then(() => applyPlan(request, languageTag, clock));
   lastSync = sync.catch(() => undefined);
   return sync;
 }

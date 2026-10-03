@@ -90,14 +90,16 @@ def test_refined_peaks_fall_between_256_hz_samples():
 
 
 # A window maximum on a slope is not a peak of the band: the parabola through it has its vertex far outside
-# the window (here about 500 samples before it), so only a local maximum is interpolated (as beats.test.ts).
-def test_keeps_a_window_maximum_on_a_slope_on_its_sample_instead_of_extrapolating():
+# the window (here about 500 samples before it), so only a local maximum is interpolated. The refinement
+# climbs the slope, but no further than half of W1 (14 samples at 256 Hz) from the candidate (as
+# beats.test.ts).
+def test_climbs_a_slope_at_most_half_of_w1_and_never_extrapolates():
     model_peak = 40
     model = np.array([max(0.0, 1 - abs(k - model_peak) / 5) for k in range(100)])
     centre = 4 * model_peak
     shape = np.array([-(k - centre) - 0.001 * (k - centre) ** 2 for k in range(400)])
     detected = detect_beats(ResampledSegment(0, model), ResampledSegment(0, shape))
-    assert [beat.peak_s * SHAPE_HZ for beat in detected] == [centre - 4]
+    assert [beat.peak_s * SHAPE_HZ for beat in detected] == [centre - 14]
 
 
 # Two Elgendi blocks one 64 Hz sample apart, each with its maximum on the side facing the other, put both

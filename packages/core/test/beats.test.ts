@@ -118,14 +118,15 @@ describe('DSP-7 refinement on the 256 Hz morphology band', () => {
   });
 
   // A window maximum on a slope is not a peak of the band: the parabola through it has its vertex far
-  // outside the window (here about 500 samples before it), so only a local maximum is interpolated.
-  it('keeps a window maximum on a slope on its sample instead of extrapolating', () => {
+  // outside the window (here about 500 samples before it), so only a local maximum is interpolated. The
+  // refinement climbs the slope, but no further than half of W1 (14 samples at 256 Hz) from the candidate.
+  it('climbs a slope at most half of W1 and never extrapolates from a sample that is not a peak', () => {
     const modelPeak = 40;
     const model = Float64Array.from({ length: 100 }, (_, k) => Math.max(0, 1 - Math.abs(k - modelPeak) / 5));
     const centre = 4 * modelPeak;
     const shape = Float64Array.from({ length: 400 }, (_, k) => -(k - centre) - 0.001 * (k - centre) ** 2);
     const detected = detectBeats({ firstIndex: 0, values: model }, { firstIndex: 0, values: shape });
-    expect(detected.map((beat) => beat.peakS * shapeRateHz)).toEqual([centre - 4]);
+    expect(detected.map((beat) => beat.peakS * shapeRateHz)).toEqual([centre - 14]);
   });
 
   // Two Elgendi blocks one 64 Hz sample apart, each with its maximum on the side facing the other, put

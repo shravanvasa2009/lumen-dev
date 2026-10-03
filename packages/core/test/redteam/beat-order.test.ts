@@ -1,4 +1,11 @@
-import { analyzeReading, detectBeats, DSP_CONFIG, elgendiPeaks, type ReadingContext } from '../../src';
+import {
+  analyzeReading,
+  detectBeats,
+  DSP_CONFIG,
+  elgendiPeaks,
+  elgendiWindows,
+  type ReadingContext,
+} from '../../src';
 import { captureAt, morphologySegment, regularOffsets } from '../synthetic';
 import { beatTimes } from './attacks';
 
@@ -9,7 +16,8 @@ import { beatTimes } from './attacks';
 // ml/tests/redteam/test_redteam_beat_order.py. Each test failed when it was written.
 
 const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
-const refineHalf = Math.round(DSP_CONFIG.dsp7.refineHalfWindowS * shapeRateHz);
+// DSP-7 refinement stays within half of W1 of its 64 Hz candidate (ADR 0068).
+const climbHalf = (elgendiWindows(shapeRateHz).peakSamples - 1) / 2;
 
 const gaussian = (x: number, centre: number, width: number) => Math.exp(-0.5 * ((x - centre) / width) ** 2);
 
@@ -40,11 +48,28 @@ const context: ReadingContext = {
   sqi: null,
 };
 
+// Copied from dsp7-refinement.test.ts isRefinedPeak, for one candidate, so the two red-team files stay
+// independent. A refined peak is a local maximum of the band moved at most half a sample by the parabola,
+// or exactly a sample the climb had to stop on: a segment end, or the climb limit with the band rising.
+function isRefinedPeak(values: Float64Array, index: number, centre: number): boolean {
+  const last = values.length - 1;
+  const isLocalMaximum = (k: number) =>
+    k > 0 && k < last && values[k]! >= values[k - 1]! && values[k]! >= values[k + 1]!;
+  return (
+    Math.abs(index - centre) <= climbHalf + 0.5 &&
+    [Math.floor(index), Math.ceil(index)].some(
+      (sample) =>
+        (Math.abs(index - sample) <= 0.5 && isLocalMaximum(sample)) ||
+        (index === sample && (sample === 0 || sample === last || Math.abs(sample - centre) === climbHalf)),
+    )
+  );
+}
+
 const expectIncreasing = (times: number[]) =>
   times.slice(1).forEach((time, i) => expect(time).toBeGreaterThan(times[i]!));
 
 describe('red team: DSP-7 never reports peaks out of time order', () => {
-  it('refines every candidate of the slow pulse within its window, in time order', () => {
+  it('refines every candidate of the slow pulse to a peak of the band near it, in time order', () => {
     const seconds = 20;
     const volume = slowPulseVolume(beatTimes([60 / BPM], seconds));
     const sampled = (rateHz: number) =>
@@ -53,11 +78,12 @@ describe('red team: DSP-7 never reports peaks out of time order', () => {
         rateHz,
       );
     const model = sampled(modelRateHz);
-    const peaksS = detectBeats(model, sampled(shapeRateHz)).map((beat) => beat.peakS);
+    const shape = sampled(shapeRateHz);
+    const peaksS = detectBeats(model, shape).map((beat) => beat.peakS);
     const centres = elgendiPeaks(model.values, modelRateHz).map((peak) => (peak / modelRateHz) * shapeRateHz);
     expect(peaksS).toHaveLength(centres.length);
     peaksS.forEach((peakS, i) =>
-      expect(Math.abs(peakS * shapeRateHz - centres[i]!)).toBeLessThanOrEqual(refineHalf + 0.5),
+      expect(isRefinedPeak(shape.values, peakS * shapeRateHz, centres[i]!)).toBe(true),
     );
     expectIncreasing(peaksS);
   });

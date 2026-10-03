@@ -98,6 +98,7 @@ function parabolicOffset(before: number, at: number, after: number): number {
 export function detectBeats(model: ResampledSegment, shape: ResampledSegment): DetectedBeat[] {
   const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
   const refineHalf = Math.round(DSP_CONFIG.dsp7.refineHalfWindowS * shapeRateHz);
+  const climbHalf = (elgendiWindows(shapeRateHz).peakSamples - 1) / 2;
   const minimumSearch = Math.round(DSP_CONFIG.dsp8.minimumSearchS * shapeRateHz);
   const wave = shape.values;
   const last = wave.length - 1;
@@ -113,10 +114,19 @@ export function detectBeats(model: ResampledSegment, shape: ResampledSegment): D
     if (from > to) continue;
     let peak = from;
     for (let k = from + 1; k <= to; k++) if (wave[k]! > wave[peak]!) peak = k;
+    // A window maximum on the window's edge with the band still rising beyond it is on a slope: climb to
+    // the local maximum it slopes up to (a block that opens just past a broad lobe's top, ADR 0068). At
+    // most half of W1 from the candidate: MA_peak averages over W1, so a block can open up to that far from
+    // the top of its wave.
+    const lowest = Math.max(0, centre - climbHalf);
+    const highest = Math.min(last, centre + climbHalf);
+    if (peak === from) while (peak > lowest && wave[peak - 1]! > wave[peak]!) peak--;
+    if (peak === to) while (peak < highest && wave[peak + 1]! > wave[peak]!) peak++;
     const offset =
       peak > 0 && peak < last ? parabolicOffset(wave[peak - 1]!, wave[peak]!, wave[peak + 1]!) : 0;
     const peakS = toSeconds(peak + offset);
-    // Candidates one 64 Hz sample apart can share their window maximum: one peak found twice.
+    // Candidates two 64 Hz samples apart can share their window maximum, and nearby ones can climb to the
+    // same local maximum: one peak found twice.
     if (beats.length > 0 && peakS <= beats[beats.length - 1]!.peakS) continue;
 
     const clippedAtStart = previousPeak === null && peak - minimumSearch < 0;

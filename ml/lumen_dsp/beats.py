@@ -119,6 +119,7 @@ def detect_beats(model: ResampledSegment, shape: ResampledSegment) -> list[Detec
     model_hz = DSP_CONFIG["dsp2"]["modelRateHz"]
     shape_hz = DSP_CONFIG["dsp2"]["shapeRateHz"]
     refine_half = js_round(DSP_CONFIG["dsp7"]["refineHalfWindowS"] * shape_hz)
+    climb_half = (elgendi_windows(shape_hz)[0] - 1) // 2
     minimum_search = js_round(DSP_CONFIG["dsp8"]["minimumSearchS"] * shape_hz)
     wave = [float(value) for value in shape.values]
     last = len(wave) - 1
@@ -138,9 +139,22 @@ def detect_beats(model: ResampledSegment, shape: ResampledSegment) -> list[Detec
         for k in range(start + 1, stop + 1):
             if wave[k] > wave[peak]:
                 peak = k
+        # A window maximum on the window's edge with the band still rising beyond it is on a slope: climb to
+        # the local maximum it slopes up to (a block that opens just past a broad lobe's top, ADR 0068). At
+        # most half of W1 from the candidate: MA_peak averages over W1, so a block can open up to that far
+        # from the top of its wave.
+        lowest = max(0, centre - climb_half)
+        highest = min(last, centre + climb_half)
+        if peak == start:
+            while peak > lowest and wave[peak - 1] > wave[peak]:
+                peak -= 1
+        if peak == stop:
+            while peak < highest and wave[peak + 1] > wave[peak]:
+                peak += 1
         offset = _parabolic_offset(wave[peak - 1], wave[peak], wave[peak + 1]) if 0 < peak < last else 0.0
         peak_s = to_seconds(peak + offset)
-        # Candidates one 64 Hz sample apart can share their window maximum: one peak found twice.
+        # Candidates two 64 Hz samples apart can share their window maximum, and nearby ones can climb to
+        # the same local maximum: one peak found twice.
         if beats and peak_s <= beats[-1].peak_s:
             continue
 

@@ -2,7 +2,7 @@ import { DSP_CONFIG } from './config';
 import { median } from './median';
 
 // Every sum runs in index order so ml/lumen_dsp/rhythm.py, which uses the same loops, gives the same
-// doubles (§10.2 parity).
+// doubles (§10.2 parity), up to 1 ulp where Python's ** 2 uses the platform pow().
 
 export interface RhythmWindow {
   startInterval: number; // index of the window's first interval in the reading
@@ -167,13 +167,17 @@ export function hasEnoughUsableIntervals(spansArtifact: boolean[]): boolean {
   return spansArtifact.filter((spans) => !spans).length >= DSP_CONFIG.dsp15.minUsableIntervals;
 }
 
+const NEAR_CONSTANT_SD = 1e-9;
+
 // Population form; 0 when either side is constant, so the vector stays finite (ADR 0024).
 function pearson(a: number[], b: number[]): number {
-  const sdA = populationSd(a);
-  const sdB = populationSd(b);
-  if (sdA === 0 || sdB === 0) return 0;
   const meanA = sum(a) / a.length;
   const meanB = sum(b) / b.length;
+  const sdA = populationSd(a);
+  const sdB = populationSd(b);
+  // Below 1e-9 of the mean the spread is rounding left over from subtracting the mean, not rhythm, and its
+  // correlation is noise (red-team on #192: one-ulp alternation read +0.94 for a true −1).
+  if (sdA <= NEAR_CONSTANT_SD * meanA || sdB <= NEAR_CONSTANT_SD * meanB) return 0;
   const covariance = sum(a.map((value, i) => (value - meanA) * (b[i]! - meanB))) / a.length;
   return covariance / (sdA * sdB);
 }

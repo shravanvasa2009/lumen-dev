@@ -258,3 +258,11 @@ describe('DSP-15 rhythm v2 features (ADR 0079), known answers', () => {
     expect(pairsRemoved).toBeCloseTo(Math.sqrt((2 * 0.01) / 28) / 0.8, 12);
   });
 });
+
+describe('DSP-15 rhythm v2 autocorrelation on near-constant windows', () => {
+  it('a one-ulp alternation is near-constant, so both autocorrelations are 0, not rounding noise', () => {
+    const ulp = 2 ** -52 * 0.8;
+    const features = rhythmV2Features(onlyWindow(Array.from({ length: 32 }, (_, k) => 0.8 + (k % 2) * ulp)));
+    expect(features.slice(5)).toEqual([0, 0]);
+  });
+});

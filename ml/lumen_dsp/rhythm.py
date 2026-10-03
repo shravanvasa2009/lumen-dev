@@ -6,7 +6,9 @@ from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.median import median
 
 # Mirrors packages/core/src/rhythm-features.ts with the same loops in the same order on plain Python
-# floats, so both sides produce the same doubles (§10.2 parity).
+# floats, so both sides produce the same doubles (§10.2 parity), except that Python's ** 2 goes through the
+# platform pow(), which is 1 ulp off for a few inputs on Windows (red-team on #192),
+# far inside the 1e-4 check.
 
 
 @dataclass(frozen=True)
@@ -160,12 +162,17 @@ def has_enough_usable_intervals(spans_artifact: Sequence[bool]) -> bool:
     return sum(1 for spans in spans_artifact if not spans) >= DSP_CONFIG["dsp15"]["minUsableIntervals"]
 
 
+_NEAR_CONSTANT_SD = 1e-9
+
+
 def _pearson(a: list[float], b: list[float]) -> float:
     # Population form; 0.0 when either side is constant, so the vector stays finite (ADR 0024).
-    sd_a, sd_b = _population_sd(a), _population_sd(b)
-    if sd_a == 0 or sd_b == 0:
-        return 0.0
     mean_a, mean_b = _sum(a) / len(a), _sum(b) / len(b)
+    sd_a, sd_b = _population_sd(a), _population_sd(b)
+    # Below 1e-9 of the mean the spread is rounding left over from subtracting the mean, not rhythm, and its
+    # correlation is noise (red-team on #192: one-ulp alternation read +0.94 for a true −1).
+    if sd_a <= _NEAR_CONSTANT_SD * mean_a or sd_b <= _NEAR_CONSTANT_SD * mean_b:
+        return 0.0
     covariance = _sum([(a[i] - mean_a) * (b[i] - mean_b) for i in range(len(a))]) / len(a)
     return covariance / (sd_a * sd_b)
 

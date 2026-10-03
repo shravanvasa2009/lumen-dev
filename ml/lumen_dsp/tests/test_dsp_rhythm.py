@@ -206,3 +206,9 @@ def test_v2_pair_at_the_window_edge_drops_only_intervals_inside_it():
     intervals[0], intervals[1], intervals[20] = 0.5, 1.1, 0.9
     expected = math.sqrt(2 * 0.01 / 28) / 0.8
     assert rhythm_v2_features(only_window(intervals))[2] == pytest.approx(expected, abs=1e-12)
+
+
+def test_v2_one_ulp_alternation_has_zero_autocorrelation():
+    ulp = math.ulp(0.8)
+    features = rhythm_v2_features(only_window([0.8 + (k % 2) * ulp for k in range(32)]))
+    assert features[5:] == [0.0, 0.0]

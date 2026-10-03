@@ -44,3 +44,22 @@ describe('Android widget fallback resources', () => {
     });
   });
 });
+
+describe('Android widget picker', () => {
+  it.each(['small', 'medium'])('gives the %s widget a description and a preview layout', (size) => {
+    const provider = fs.readFileSync(path.join(RES, 'xml', `lumen_widget_${size}.xml`), 'utf8');
+    expect(provider).toContain(`android:description="@string/lumen_widget_${size}_description"`);
+    expect(provider).toContain(`android:previewLayout="@layout/lumen_widget_preview_${size}"`);
+    expect(fs.existsSync(path.join(RES, 'layout', `lumen_widget_preview_${size}.xml`))).toBe(true);
+  });
+
+  it('describes both widgets in English and Spanish', () => {
+    const english = resourceValues('values/lumen_widget_picker_strings.xml', 'string');
+    const spanish = resourceValues('values-es/lumen_widget_picker_strings.xml', 'string');
+    expect(Object.keys(spanish)).toEqual(Object.keys(english));
+    expect(Object.keys(english)).toEqual([
+      'lumen_widget_small_description',
+      'lumen_widget_medium_description',
+    ]);
+  });
+});

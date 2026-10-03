@@ -49,8 +49,8 @@ describe('Settings tab', () => {
     ] as const) {
       expect(screen.getByRole('button', { name: new RegExp(en[key]) })).toBeOnTheScreen();
     }
-    expect(screen.queryByRole('button', { name: new RegExp(en['settings.delete']) })).toBeNull();
-    expect(screen.getAllByText(en['settings.comingSoon'])).toHaveLength(5);
+    expect(screen.getByRole('button', { name: new RegExp(en['settings.delete']) })).toBeOnTheScreen();
+    expect(screen.getAllByText(en['settings.comingSoon'])).toHaveLength(4);
     expect(screen.queryByRole('button', { name: new RegExp(en['settings.demoMode']) })).toBeNull();
     expect(screen.queryByText(/8:00/)).toBeNull();
     const reminders = screen.getByRole('button', { name: new RegExp(en['notifications.title']) });
@@ -292,7 +292,7 @@ describe('Doctor follow-up', () => {
     renderRouter(appDirectory, { initialUrl: '/' });
     fireEvent.press(await screen.findByRole('button', { name: en['home.followUp'] }));
     fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
-    expectNavTitle(en['careMap.title']);
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
     expect(screen.queryByRole('header', { name: en['followUp.title'] })).toBeNull();
     await screen.findByText(en['careMap.denied']);
   });
@@ -300,7 +300,7 @@ describe('Doctor follow-up', () => {
   it('opens the Care map from Find a doctor nearby', async () => {
     renderRouter(appDirectory, { initialUrl: '/follow-up' });
     fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
-    expectNavTitle(en['careMap.title']);
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
     await screen.findByText(en['careMap.denied']);
   });
 

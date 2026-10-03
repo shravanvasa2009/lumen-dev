@@ -6,6 +6,7 @@ import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
+import { TryDemoButton } from '@/demo/TryDemoButton';
 import { ratingModeLabel, tierLabel } from '@/rating/labels';
 import { useRatingReveal } from '@/rating/useRatingReveal';
 import { RatingGauge } from '@/settings/RatingGauge';
@@ -98,7 +99,7 @@ export default function RatingScreen() {
               <AppText tone="textDim" style={{ textAlign: 'center' }}>
                 {t('rating.demoOffer')}
               </AppText>
-              <NavButton label={t('welcome.tryDemo')} href="/?demo=1" variant="secondary" replace />
+              <TryDemoButton />
             </>
           ) : (
             <UnlockedModes rating={rating} />

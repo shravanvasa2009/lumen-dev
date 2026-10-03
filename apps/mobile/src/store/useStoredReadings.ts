@@ -27,12 +27,19 @@ export function useLoaded<Loaded>(initial: Loaded): [Loaded, (load: () => Promis
   return [loaded, start];
 }
 
-// Newest first; empty until the first read finishes. Tabs stay mounted, so it reads again each time the
+const NO_READINGS: readonly StoredReading[] = [];
+
+// Newest first; null until the first read finishes. Tabs stay mounted, so it reads again each time the
 // screen comes into focus.
-export function useStoredReadings(): readonly StoredReading[] {
-  const [readings, load] = useLoaded<readonly StoredReading[]>([]);
+export function useLoadedReadings(): readonly StoredReading[] | null {
+  const [readings, load] = useLoaded<readonly StoredReading[] | null>(null);
   useFocusEffect(useCallback(() => load(listReadings), [load]));
   return readings;
+}
+
+// Empty until the first read finishes.
+export function useStoredReadings(): readonly StoredReading[] {
+  return useLoadedReadings() ?? NO_READINGS;
 }
 
 // undefined while loading, null when no reading has that id.

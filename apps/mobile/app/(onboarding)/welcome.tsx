@@ -6,6 +6,7 @@ import { LanguageSwitch } from '@/components/LanguageSwitch';
 import { LumenLockup } from '@/components/LumenLockup';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
+import { TryDemoButton } from '@/demo/TryDemoButton';
 import { useTheme } from '@/theme';
 
 // Mockup 01 draws the lockup at 73% of the screen width and the tagline at 20 pt, wrapping inside 300.
@@ -25,7 +26,7 @@ export default function WelcomeScreen() {
       footer={
         <>
           <NavButton label={t('welcome.getStarted')} href="/consent" />
-          <NavButton label={t('welcome.tryDemo')} href="/?demo=1" variant="secondary" replace />
+          <TryDemoButton />
           <LanguageSwitch />
           <AppText variant="caption" tone="textFaint" style={styles.centeredText}>
             {t('welcome.footer')}

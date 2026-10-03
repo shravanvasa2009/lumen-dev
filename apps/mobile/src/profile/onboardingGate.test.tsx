@@ -2,6 +2,7 @@ import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-li
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { redirectSystemPath } from '@/deepLinks';
+import { exitDemo } from '@/demo/demoSession';
 import en from '@/i18n/en.json';
 import { lumenDatabase } from '@/store/database';
 import { startOnboarded } from '@/testing/onboarded';
@@ -50,6 +51,8 @@ describe('first-launch gate', () => {
     fireEvent.press(screen.getByRole('button', { name: en['welcome.tryDemo'] }));
     expect(await screen.findByRole('header', { name: HOME_GREETING })).toBeOnTheScreen();
     firstLaunch.unmount();
+    // The demo session is in memory, so closing the app ends it.
+    exitDemo();
 
     renderRouter('./app', { initialUrl: '/' });
     expect(await screen.findByText(WELCOME_TAGLINE)).toBeOnTheScreen();

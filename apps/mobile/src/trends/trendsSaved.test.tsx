@@ -1,0 +1,85 @@
+import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
+
+import { enterDemo, exitDemo } from '@/demo/demoSession';
+import en from '@/i18n/en.json';
+import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { startOnboarded } from '@/testing/onboarded';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import { makeReading } from '@/testing/reading';
+import { saveTestReading } from '@/testing/savedReading';
+
+import { historyFromStored } from './storedHistory';
+
+jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
+  __esModule: true,
+  default: () => 'dark',
+}));
+
+preloadAppRoutes();
+fixClockAtMorning();
+
+// The fixed clock is Thursday, Oct 1, 2026, 9:00.
+const lastMonth = (day: number) => new Date(2026, 8, day, 7, 0).getTime();
+const today = new Date(2026, 9, 1, 7, 0).getTime();
+
+beforeEach(startOnboarded);
+afterEach(exitDemo);
+
+describe('Trends from readings saved on this phone', () => {
+  it('shows the honest empty state, with no sample data and no Demo banner, when nothing is saved', async () => {
+    renderRouter('./app', { initialUrl: '/trends' });
+    expect(await screen.findByText(en['trends.emptyTitle'])).toBeOnTheScreen();
+    expect(screen.getByText(en['trends.emptyBody'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['demo.banner'])).toBeNull();
+    expect(screen.queryByText(en['trends.demoNote'])).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull();
+  });
+
+  it('plots saved readings with their median and count, without the Demo banner', async () => {
+    await saveTestReading(lastMonth(25), 60);
+    await saveTestReading(lastMonth(28), 64);
+    await saveTestReading(today, 70);
+    renderRouter('./app', { initialUrl: '/trends' });
+    expect(await screen.findByLabelText('Readings: 3')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Median: 64 bpm')).toBeOnTheScreen();
+    expect(screen.queryByText(en['demo.banner'])).toBeNull();
+    expect(screen.queryByText(en['trends.emptyTitle'])).toBeNull();
+    expect(screen.queryByText(en['trends.synthetic'])).toBeNull();
+  });
+
+  it('calls a reading from today "Today", counts the baseline from saved readings, and opens it', async () => {
+    await saveTestReading(today, 70);
+    renderRouter('./app', { initialUrl: '/trends' });
+    const row = await screen.findByRole('button', { name: /^Today / });
+    expect(screen.getByText('Learning your baseline: 1 of 7')).toBeOnTheScreen();
+    fireEvent.press(row);
+    await waitFor(() => expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen());
+    expect(screen.queryByText(en['demo.banner'])).toBeNull();
+  });
+
+  it('keeps the sample history inside a demo session and ignores saved readings there', async () => {
+    await saveTestReading(today, 99);
+    enterDemo();
+    renderRouter('./app', { initialUrl: '/trends' });
+    expect(await screen.findByText(en['demo.banner'])).toBeOnTheScreen();
+    expect(screen.getByLabelText('Readings: 25')).toBeOnTheScreen();
+    act(() => exitDemo());
+    await waitFor(() => expect(screen.queryByText(en['demo.banner'])).toBeNull());
+    expect(screen.getByLabelText('Readings: 1')).toBeOnTheScreen();
+  });
+});
+
+describe('historyFromStored', () => {
+  it('keeps the measured values, leaves missing ones null, and never invents a caffeine answer', () => {
+    const [mapped] = historyFromStored([makeReading(lastMonth(25), 61, null)]);
+    expect(mapped).toMatchObject({
+      hr: 61,
+      rmssd: null,
+      resp: null,
+      rhythm: null,
+      mode: 'quick',
+      caffeine: false,
+    });
+    expect(mapped?.createdAt.getTime()).toBe(lastMonth(25));
+  });
+});

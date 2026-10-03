@@ -43,6 +43,14 @@ function loadOnce() {
   );
 }
 
+// After the profile is wiped. A read still in flight may carry the old number, so it must not publish, and
+// the next mount reads the (empty) profile again.
+export function resetDoctorPhone() {
+  changedBeforeLoad = true;
+  loading = null;
+  publish({ phone: null, problem: null });
+}
+
 function setPhone(phone: string | null) {
   changedBeforeLoad = true;
   publish({ phone, problem: null });

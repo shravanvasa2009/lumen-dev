@@ -10,10 +10,9 @@ type Preferences = {
 };
 
 // Held in memory only: storage and scheduling arrive with the notification and storage tracks.
-let current: Preferences = {
-  appearance: 'system',
-  hideWidgetValues: false,
-};
+const defaults: Preferences = { appearance: 'system', hideWidgetValues: false };
+
+let current: Preferences = defaults;
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void) {
@@ -36,4 +35,9 @@ export function setPreference<Key extends keyof Preferences>(key: Key, value: Pr
   // The widget snapshot carries both (Appendix B). A failed write is not caught here: React Native reports
   // the unhandled rejection, and the widget keeps its previous snapshot.
   if (key === 'hideWidgetValues' || key === 'appearance') void publishWidgets(current);
+}
+
+export function resetPreferences() {
+  current = defaults;
+  listeners.forEach((listener) => listener());
 }

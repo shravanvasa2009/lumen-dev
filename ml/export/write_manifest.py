@@ -41,6 +41,11 @@ EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owne
 # Pass or fail facts eval.external writes next to the numbers (§11.5, ML-1, ML-4, ML-6). The role and the
 # family outcome are shown with them, so an ablation model's own floorMet is never read as a pass (ADR 0045).
 EXTERNAL_VERDICTS = ("role", "floorMet", "status", "passed", "outcome")
+# §11.5's other units of analysis, as eval.external's rhythm_part scores them: no abstain or rhythm-card rule.
+LEVEL_UNITS = {
+    "reading": "Reading level: each 90 s pseudo-reading's mean window P(AF) against τ",
+    "window": "Window level: each rhythm window's P(AF) against τ",
+}
 # Where the spec states each family's "ship the network only if it beats the baselines" rule.
 SHIP_RULE_SECTION = {"sqi": "§11.1", "rhythm": "§11.3", "diabetes": "§11.4"}
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
@@ -223,16 +228,20 @@ def external_run(
             "role": report["role"],
             "floorMet": report["floorMet"],
             "outcome": block["outcome"],
+            # §11.5 asks for window- and reading-level results next to the subject-level ones.
+            "levels": {"reading": report["reading"], "window": report["window"]},
+            "appReadings": report["appReadings"],
         }
     # §11.5: the numbers hold only at the threshold the run used; one chosen again after it would sit next
     # to results it was never tested at.
     (key,) = spec.threshold_keys
     frozen = (metrics or {}).get("threshold", {}).get(key)
-    if report.get("threshold") != frozen:
-        raise ProvenanceError(
-            f"{spec.file_stem} was externally tested at {key} threshold {report.get('threshold')}, but its "
-            f"training metrics now say {frozen}"
-        )
+    for scored in (report, *report.get("levels", {}).values()):
+        if scored.get("threshold") != frozen:
+            raise ProvenanceError(
+                f"{spec.file_stem} was externally tested at {key} threshold {scored.get('threshold')}, but "
+                f"its training metrics now say {frozen}"
+            )
     missing = [field for field in spec.external_fields if field not in report]
     if missing:
         raise ProvenanceError(f"{spec.file_stem}'s external results lack {missing}")
@@ -586,6 +595,20 @@ def reliability_svg(spec: ModelSpec, calibration: dict) -> str:
     )
 
 
+def _external_rows(report: dict, fields: list[str]) -> list[dict]:
+    intervals = report.get("ci95")
+    rows = []
+    for field in fields:
+        # Rhythm and diabetes give one interval per metric; ML-4's single interval is the gap's (ADR 0028).
+        if isinstance(intervals, dict):
+            interval = intervals.get(field)
+        else:
+            interval = intervals if field == "rhythmBiasGapPts" else None
+        low, high = interval or ("", "")
+        rows.append({"metric": field, "estimate": report[field], "95% CI low": low, "95% CI high": high})
+    return rows
+
+
 def _external_section(spec: ModelSpec, external: ExternalRun | None) -> str:
     header = f"Dataset: {spec.external_dataset}."
     if external is None:
@@ -597,30 +620,53 @@ def _external_section(spec: ModelSpec, external: ExternalRun | None) -> str:
             "finish, so no numbers were recorded. The data has been seen: a retry needs a new owner approval "
             "(ADR 0045)."
         )
-    intervals = report.get("ci95")
-    rows = []
-    for field in spec.external_fields:
-        if field in ("ci95", "ppvNpv", *EXTERNAL_VERDICTS):
-            continue
-        # Rhythm and diabetes give one interval per metric; ML-4's single interval is the gap's (ADR 0028).
-        if isinstance(intervals, dict):
-            interval = intervals.get(field)
-        else:
-            interval = intervals if field == "rhythmBiasGapPts" else None
-        low, high = interval or ("", "")
-        rows.append({"metric": field, "estimate": report[field], "95% CI low": low, "95% CI high": high})
+    fields = [field for field in spec.external_fields if field not in ("ci95", "ppvNpv", *EXTERNAL_VERDICTS)]
     parts = [
         f"{header} Run once, finished {run['finishedAt']}, under the owner's approval {run['approval']} at "
         f"commit {run['commit']}, at the threshold frozen in the manifest. Confidence intervals resample "
         "subjects.",
-        _table(rows),
+        _table(_external_rows(report, fields)),
     ]
     verdicts = [f"- {key}: {report[key]}" for key in EXTERNAL_VERDICTS if key in report]
     if verdicts:
         parts.append("\n".join(verdicts))
     if report.get("ppvNpv"):
         parts.append(f"PPV and NPV at the stated prevalences:\n\n{_table(report['ppvNpv'])}")
+    for level, unit in LEVEL_UNITS.items():
+        if level in report.get("levels", {}):
+            scored = report["levels"][level]
+            rows = _external_rows(scored, ["auroc", "sensitivity", "specificity"])
+            parts.append(f"{unit} ({scored['units']} units; intervals resample subjects):\n\n{_table(rows)}")
+    if "appReadings" in report:
+        parts.append(_app_readings_section(report["appReadings"]))
     return "\n\n".join(parts)
+
+
+def _app_readings_section(app: dict) -> str:
+    # ADR 0041: eval.external's app_readings applies the rhythm-card rule, abstainBelow and the 2-of-3 rule.
+    def interval_row(metric: str, value: dict | None) -> dict:
+        if value is None:
+            return {"metric": metric, "estimate": "undefined", "95% CI low": "", "95% CI high": ""}
+        return {
+            "metric": metric,
+            "estimate": value["estimate"],
+            "95% CI low": value["low"],
+            "95% CI high": value["high"],
+        }
+
+    subjects = app["possibleAfSubjects"]
+    rows = [
+        interval_row("abstain rate (readings with a rhythm card)", app["abstainRate"]),
+        *_external_rows(app["answered"], ["auroc", "sensitivity", "specificity"]),
+        interval_row("possible-AF subjects: sensitivity", subjects["sensitivity"]),
+        interval_row("possible-AF subjects: specificity", subjects["specificity"]),
+    ]
+    return (
+        f"Scored like the app scores a reading (ADR 0041): {app['readings']} readings, "
+        f"{app['readingsWithRhythmCard']} with a rhythm card. The answered readings' rows come from readings "
+        f"that did not abstain; the last two rows score {subjects['subjects']} subjects by the 2-of-3 "
+        f"possible-AF rule. Intervals resample subjects.\n\n{_table(rows)}"
+    )
 
 
 def model_card(spec: ModelSpec, metrics: dict | None, external: ExternalRun | None = None) -> str:

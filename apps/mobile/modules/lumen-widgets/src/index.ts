@@ -1,12 +1,17 @@
 import { NativeModule, requireOptionalNativeModule } from 'expo';
 
-// What the ongoing standing-test notification shows (LIVE-1). Every string comes from lockscreen.json, so
-// the notification never carries a value or a condition name (WID-2).
+// What the standing-test live timer shows (LIVE-1): the Android ongoing notification and the iOS Live Activity.
+// Every string comes from lockscreen.json, so neither carries a value or a condition name (WID-2).
 type StandingTimerContent = {
+  // Android only: the notification channel's name and the "Measure now" action button.
   channelName: string;
+  actionLabel: string;
   title: string;
   text: string;
-  actionLabel: string;
+  // iOS only: "Step n of 5" beside the title, and the "Tap to measure" line (a Live Activity has no buttons on
+  // iOS 16, so the whole card opens lumen://standing).
+  step: string;
+  tapHint: string;
   // Milliseconds until the next reading opens; null while a reading is due (no countdown shown).
   countdownMs: number | null;
 };

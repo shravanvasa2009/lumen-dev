@@ -11,6 +11,7 @@ type Stage = 'intro' | 'lying' | 'baseline' | 'standing' | 'final' | 'done';
 
 // The intro is the pre-test warning and is not numbered; steps 1 to 5 match mockup 21.
 const NUMBERED_STAGES: readonly Stage[] = ['lying', 'baseline', 'standing', 'final', 'done'];
+export const STEP_COUNT = NUMBERED_STAGES.length;
 
 export type ReadingSlot = { minute: 0 | (typeof STANDING_READING_MINUTES)[number] };
 

@@ -3,12 +3,20 @@ import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 fixClockAtMorning();
+
+preloadAppRoutes();
 
 describe('emergency screen', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('has no Care map entry; it is only for calling emergency services', () => {
+    renderRouter('./app', { initialUrl: '/emergency' });
+    expect(screen.queryByRole('button', { name: en['careMap.enter'] })).toBeNull();
   });
 
   it('opens the dialer for 911', async () => {

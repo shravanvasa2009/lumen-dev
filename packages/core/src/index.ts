@@ -86,3 +86,4 @@ export {
 export { createLiveSession, type LiveSessionConfig } from './live';
 export { shapeFeatures } from './shape-features';
 export { hrSummary } from './reading-metrics';
+export { logisticRhythmOutputs } from './rhythm-rule';

@@ -5,6 +5,7 @@ import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle } from '@/testing/navHeader';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import { makeReading } from '@/testing/reading';
 
 import { LatestResultCard } from './LatestResultCard';
@@ -16,6 +17,8 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 }));
 
 fixClockAtMorning();
+
+preloadAppRoutes();
 
 describe('Home', () => {
   beforeEach(() => {

@@ -2,6 +2,7 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { expectNavTitle } from '@/testing/navHeader';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 let mockScheme: 'light' | 'dark' = 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -10,6 +11,8 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 }));
 
 const causes = ['pressure', 'motion', 'coverage', 'coldHands'] as const;
+
+preloadAppRoutes();
 
 describe('fix my technique', () => {
   it.each(['light', 'dark'] as const)('renders in %s with the practice card and Done', (scheme) => {

@@ -6,6 +6,7 @@ import { DSP_CONFIG } from './config';
 import { frameProblem } from './contact';
 import { butterBandpass, filterZeroPhase } from './filters';
 import { fingerSignals } from './finger-signal';
+import { modelWindowAt, nextModelTickS } from './model-window';
 import type { RejectedSpan, RejectionReason } from './live-session';
 import { cleanSeconds, heartRate, measureBeats, perfusionIndex, type MeasuredBeat } from './reading-metrics';
 import { resampleCubic, type ResampledSegment } from './resample';
@@ -126,6 +127,25 @@ function callerSpans(context: ReadingContext, startNs: number): RejectedSpan[] {
       reason: 'quality',
     }));
   return [...motion, ...coldHands, ...quality];
+}
+
+// ADR 0023 flat windows, found from the frames at the live session's once-per-second checks, so they are
+// rejected whether or not SQI-Net ran and match the live screen (ADR 0057).
+function flatWindowSpans(timebase: Timebase, samples: Sample[], stats: FrameStat[]): RejectedSpan[] {
+  const covered = Uint8Array.from(samples, (sample, i) =>
+    frameProblem(sample, stats[i]!) === 'coverage' ? 0 : 1,
+  );
+  const windowS = DSP_CONFIG.dsp3.modelWindowS;
+  const spans: RejectedSpan[] = [];
+  let nextTickS = DSP_CONFIG.live.sqiEveryS;
+  timebase.tS.forEach((tS, i) => {
+    if (tS < nextTickS) return;
+    nextTickS = nextModelTickS(tS);
+    const window = modelWindowAt(timebase.tS, timebase.r, covered, i + 1);
+    if (window && !window.input)
+      spans.push({ startS: window.endS - windowS, endS: window.endS, reason: 'quality' });
+  });
+  return spans;
 }
 
 function lostSecondsOf(spans: RejectedSpan[], durationS: number): LostSeconds {
@@ -251,6 +271,7 @@ export function analyzeReading(
     ...contactSpans(timebase, capture.samples, capture.stats),
     ...exposureSpans(timebase),
     ...callerSpans(context, timebase.startNs),
+    ...flatWindowSpans(timebase, capture.samples, capture.stats),
   ].sort((x, y) => x.startS - y.startS);
   const clean = cleanSeconds(0, durationS, rejectedSpans);
 

@@ -2,6 +2,7 @@ import { renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import type { LiveCapture } from '@/measure/useLiveCapture';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -19,7 +20,11 @@ const running: LiveCapture = {
   elapsedS: 5,
   cleanSeconds: null,
   coachingKey: null,
+  recentWaveform: { tS: [], ppg: [] },
+  rejectedSpans: [],
 };
+
+preloadAppRoutes();
 
 describe('practice with a running capture', () => {
   it('draws the pulse, drops the cover coaching and waits for a clean signal', () => {

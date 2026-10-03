@@ -10,6 +10,8 @@ from sklearn.linear_model import LogisticRegression
 from export.provenance import sha256_of
 from export.specs import ModelSpec
 from export.to_onnx import SourceModel
+from train import rhythm
+from train.rhythm_windows import WindowSet
 
 
 def valid_metrics(spec: ModelSpec, source_sha: str) -> dict:
@@ -40,6 +42,11 @@ def fit_baseline(spec: ModelSpec, seed: int = 4) -> SourceModel:
     features = rng.normal(size=(400, shape[1])).astype(np.float32)
     edges = [-0.5, 0.5][: len(spec.labels) - 1] if len(spec.labels) > 1 else [0.0]
     labels = np.digitize(features[:, 0] + 0.5 * rng.normal(size=400), edges)
+    if spec.name == "rhythm-logistic":
+        # train.rhythm's own fit, so tests see the Pipeline it really saves.
+        empty = np.zeros((400, 64), np.float32)
+        subjects = np.asarray([f"afdb:{index % 20}" for index in range(400)])
+        return rhythm.fit_logistic(WindowSet(empty, empty, features, labels, subjects, np.arange(400)))
     if spec.name.endswith(("logistic", "rule")):
         return LogisticRegression(max_iter=500).fit(features, labels)
     return LGBMClassifier(n_estimators=30, verbose=-1).fit(features, labels)

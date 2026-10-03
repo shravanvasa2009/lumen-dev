@@ -26,7 +26,7 @@ export function usableFrom(
   if (first > 0) first--; // one frame before fromS, so a spline covers fromS itself
   for (let i = first; i < count; i++) {
     if (!covered[i]) return null;
-    if (i > first && tS[i]! - tS[i - 1]! > DSP_CONFIG.dsp2.maxGapS) return null;
+    if (i > first && isFrameGap(tS[i - 1]!, tS[i]!)) return null;
   }
   return first;
 }
@@ -44,7 +44,7 @@ function windowFrames(
   let laterS = tS[count - 1]!;
   for (let i = count - 1; i >= 0; i--) {
     if (!covered[i]) continue;
-    if (laterS - tS[i]! > DSP_CONFIG.dsp2.maxGapS) return null;
+    if (isFrameGap(tS[i]!, laterS)) return null;
     kept.push(i);
     laterS = tS[i]!;
     // One frame before fromS, so a spline covers fromS itself; the first frame when the window starts there.
@@ -87,12 +87,21 @@ export function modelWindowAt(
 }
 
 // ADR 0057: a check with 4 s of reading behind it but no window (bad frames past DSP-2's gap limit)
-// leaves those 4 s unscored. Once SQI-Net runs, they count as not clean.
+// leaves those 4 s unscored. Once SQI-Net runs, they count as not clean. After a camera stall (a DSP-2
+// frame gap) only the frames since it are unscored: the gap is its own span, and the seconds before it
+// were in earlier windows, so a stall after the countdown completes cannot take back counted seconds.
 export function unscoredSpan(tS: ArrayLike<number>, count: number): RejectedSpan | null {
   const tickS = tS[count - 1]!;
   const windowS = DSP_CONFIG.dsp3.modelWindowS;
   if (tickS - tS[0]! < windowS) return null;
-  return { startS: tickS - windowS, endS: tickS, reason: 'quality' };
+  let startS = tickS - windowS;
+  for (let i = count - 1; i > 0 && tS[i]! > startS; i--) {
+    if (isFrameGap(tS[i - 1]!, tS[i]!)) {
+      startS = tS[i]!;
+      break;
+    }
+  }
+  return startS < tickS ? { startS, endS: tickS, reason: 'quality' } : null;
 }
 
 // ADR 0057: constant red holds no pulse. A covered, gap-free run of frames whose red never changes is

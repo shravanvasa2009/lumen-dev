@@ -291,11 +291,13 @@ describe('analyzeReading acquisition spans', () => {
     const analysis = analyzeReading({ samples, stats: flat.stats }, CONTEXT);
     // Each 300 ms dropout is also a quality span (ADR 0072 frame gap); the flat runs are the others.
     const seconds = (sample: Sample) => (sample.tNs - CLOCK_START_NS) / 1e9;
-    const gaps = samples.slice(1).flatMap((sample, i) =>
-      seconds(sample) - seconds(samples[i]!) > DSP_CONFIG.dsp2.maxGapS
-        ? [{ startS: seconds(samples[i]!), endS: seconds(sample), reason: 'quality' }]
-        : [],
-    );
+    const gaps = samples
+      .slice(1)
+      .flatMap((sample, i) =>
+        seconds(sample) - seconds(samples[i]!) > DSP_CONFIG.dsp2.maxGapS
+          ? [{ startS: seconds(samples[i]!), endS: seconds(sample), reason: 'quality' }]
+          : [],
+      );
     expect(gaps).toHaveLength(4);
     expect(spansOf(analysis, 'quality')).toEqual(expect.arrayContaining(gaps));
     const flatRuns = (of: ReadingAnalysis) =>
@@ -352,6 +354,18 @@ describe('analyzeReading acquisition spans', () => {
     for (const span of unscored) expect(span.endS - span.startS).toBe(4);
     // [17, 24] unscored, less the 0.5 s already lost to coverage.
     expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - 6.5, 9);
+  });
+
+  it('ADR 0057: after a camera stall only the frames since it are unscored, not the 4 s before', () => {
+    const reading = syntheticReading({ seconds: 30, dropped: (tS) => tS > 20 && tS < 20.5 });
+    const withModel = analyze(reading, { sqi: { threshold: 0.5, windows: [] } });
+    const without = analyze(reading);
+    const [gap, ...unscored] = spansOf(withModel, 'quality').filter((span) => span.endS > 20);
+    const resumeS = gap!.endS;
+    expect(spansOf(without, 'quality')).toEqual([gap]);
+    expect(unscored.map((span) => span.endS)).toEqual([21, 22, 23, 24]);
+    for (const span of unscored) expect(span.startS).toBe(resumeS);
+    expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - (24 - resumeS), 9);
   });
 
   it('splits at a dropped 300 ms stretch: no interval spans the gap', () => {

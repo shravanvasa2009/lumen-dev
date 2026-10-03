@@ -301,7 +301,8 @@ describe('red team: the live ring completes, then a late rejection makes the cap
   // never steps back, so a rejection that arrives after it reached the target leaves the saved count
   // below it. These bound the shortfall: one SQI window (dsp3.modelWindowS) for a late score, and
   // live.minFlatS plus the capture screen's latency for a flat stretch. Frame gaps cannot cause it: a gap
-  // span arrives with the frame that ends it (the gap tests above).
+  // span arrives with the frame that ends it (the gap tests above), and the unscored spans after a gap
+  // start at that frame (reading-outcome-edges.test.ts).
   it('the last window scored unclean after the ring reached 30 s: shortfall ≤ one 4 s window', () => {
     const capture = captureAt(regularOffsets(30, 30.05), pulse);
     const session = replay(capture, { score: (endS) => (endS < 29 ? 0.9 : null) });

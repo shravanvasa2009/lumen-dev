@@ -7,6 +7,7 @@ import { frameProblem, validChannels } from './contact';
 import { butterBandpass, filterZeroPhase } from './filters';
 import { fingerSignals } from './finger-signal';
 import { FlatRuns, modelWindowAt, nextModelTickS, unscoredSpan } from './model-window';
+import { ensembleBeat, type PulseShape } from './pulse-shape';
 import type { RejectedSpan, RejectionReason } from './live-session';
 import { cleanSeconds, heartRate, measureBeats, perfusionIndex, type MeasuredBeat } from './reading-metrics';
 import { resampleCubic, type ResampledSegment } from './resample';
@@ -73,6 +74,7 @@ export interface ReadingAnalysis {
   rhythmWindows: RhythmWindow[];
   rhythmFeatures: number[][]; // rhythmFeatureVector per window: the Rhythm-Net / LightGBM input
   enoughRhythmIntervals: boolean;
+  pulseShape: PulseShape | null; // DSP-14 averaged beat (readingShape): diabetes-net's beat input
 }
 
 // A run of failing frames spans from its first frame to the next frame (the last frame ends the reading).
@@ -194,9 +196,14 @@ function morphologyBand(segment: ResampledSegment, rateHz: number): ResampledSeg
   };
 }
 
+interface BeatSegment {
+  beats: MeasuredBeat[];
+  shape: ResampledSegment; // DSP-6 morphology band at 256 Hz
+}
+
 // DSP-2 to DSP-9 per segment, then the DSP-10/13 per-beat values. Segments shorter than dsp7.minSegmentS
 // are not searched for beats.
-function beatSegments(timebase: Timebase, samples: Sample[], spans: RejectedSpan[]): MeasuredBeat[][] {
+function beatSegments(timebase: Timebase, samples: Sample[], spans: RejectedSpan[]): BeatSegment[] {
   const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
   const { primary } = fingerSignals(timebase);
   // A broken frame (already a coverage span) is left out as if dropped: DSP-2 splines across it when the
@@ -219,8 +226,36 @@ function beatSegments(timebase: Timebase, samples: Sample[], spans: RejectedSpan
     })!;
     const shape = morphologyBand(raw, shapeRateHz);
     const detected = detectBeats(morphologyBand(model, modelRateHz), shape);
-    return [measureBeats(detected, classifyBeats(detected, shape, spans), raw)];
+    return [{ beats: measureBeats(detected, classifyBeats(detected, shape, spans), raw), shape }];
   });
+}
+
+// DSP-14 called as ML-6 training calls it on a 90 s VitalDB segment (ml/train/diabetes_features.py):
+// onsets of every beat that is not "not a beat" and has an onset, in 256 Hz samples of the segment, and
+// normal = class "normal". The fps is the capture format's: DSP-14 gates on the configured rate, and
+// VitalDB's 500 Hz is exact.
+function segmentShape(segment: BeatSegment, captureFps: number): PulseShape | null {
+  const { shapeRateHz } = DSP_CONFIG.dsp2;
+  const onsets: number[] = [];
+  const normal: boolean[] = [];
+  for (const beat of segment.beats) {
+    if (beat.beatClass === 'not-a-beat' || beat.onsetS === null) continue;
+    onsets.push(beat.onsetS * shapeRateHz - segment.shape.firstIndex);
+    normal.push(beat.beatClass === 'normal');
+  }
+  return ensembleBeat(segment.shape.values, onsets, normal, captureFps);
+}
+
+// Training has one gap-free segment per scan, and ensembleBeat averages one signal. A reading split at a
+// gap tries its segments from longest to shortest (the first on a tie) and keeps the first that gives a
+// shape, so a long flat or moving stretch does not hide a shorter segment with a clean pulse.
+function readingShape(segments: BeatSegment[], captureFps: number): PulseShape | null {
+  const byLength = [...segments].sort((x, y) => y.shape.values.length - x.shape.values.length);
+  for (const segment of byLength) {
+    const shape = segmentShape(segment, captureFps);
+    if (shape) return shape;
+  }
+  return null;
 }
 
 // Intervals per segment, between consecutive beats that are not "not a beat"; none crosses a segment gap.
@@ -283,7 +318,7 @@ function normalizedRmssdOf(bySegment: BeatInterval[][]): number | null {
   return differences > 0 ? Math.sqrt(squares / differences) / (total / count) : null;
 }
 
-/** DSP-1 to DSP-13 and DSP-15 over one capture, with DSP-4/DSP-5, motion, and SQI rejected spans. */
+/** DSP-1 to DSP-15 over one capture, with DSP-4/DSP-5, motion, and SQI rejected spans. */
 export function analyzeReading(
   capture: { samples: Sample[]; stats: FrameStat[] },
   context: ReadingContext,
@@ -307,7 +342,8 @@ export function analyzeReading(
     byStart,
   );
 
-  const segments = beatSegments(timebase, capture.samples, signalSpans);
+  const bands = beatSegments(timebase, capture.samples, signalSpans);
+  const segments = bands.map((segment) => segment.beats);
   const bySegment = intervalsBySegment(segments, timebase.startNs);
   const { intervalsS, spansArtifact, atypicalBeats } = rhythmInputs(segments);
   // rhythmWindows takes one flag per beat; with no beat at all there is nothing to window.
@@ -330,5 +366,6 @@ export function analyzeReading(
     rhythmWindows: windows,
     rhythmFeatures: windows.map(rhythmFeatureVector),
     enoughRhythmIntervals: hasEnoughUsableIntervals(spansArtifact),
+    pulseShape: readingShape(bands, context.captureFps),
   };
 }

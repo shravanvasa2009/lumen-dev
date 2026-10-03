@@ -85,6 +85,7 @@ def test_requires_a_configured_capture_rate_of_60_fps():
     assert ensemble_beat(WAVE, ONSETS, [True] * 30, 30) is None
     assert ensemble_beat(WAVE, ONSETS, [True] * 30, DSP14["minFps"] - 1) is None
     assert ensemble_beat(WAVE, ONSETS, [True] * 30, math.nan) is None
+    assert ensemble_beat(WAVE, ONSETS, [True] * 30, math.inf) is None
 
 
 @pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf])

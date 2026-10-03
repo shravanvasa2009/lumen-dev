@@ -121,9 +121,7 @@
     "diabetesMinReadings": 2,
     "diabetesMinCleanS": 90,
     "personalBandMinReadings": 7,
-    "personalBandIqrs": 1.5,
-    "pulseShapeMinNormalBeats": 20,
-    "pulseShapeMinFps": 60
+    "personalBandIqrs": 1.5
   },
   "confidence": {
     "highCoverage": 0.9,

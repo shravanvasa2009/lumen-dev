@@ -39,7 +39,8 @@ class WidgetLayoutTest {
                 onNode(hasTextEqualTo("Up to date")).assertExists()
                 onNode(hasTextEqualTo("Last check 2 h ago")).assertExists()
                 onNode(hasTextEqualTo("Check now")).assertExists()
-                onNode(hasStartActivityClickAction(linkIntent(context, CHECK_LINK))).assertExists()
+                // The card and the button both open the check.
+                onAllNodes(hasStartActivityClickAction(linkIntent(context, CHECK_LINK))).assertCountEquals(2)
                 onNode(hasTextEqualTo("64")).assertDoesNotExist()
             }
         }

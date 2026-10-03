@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget picker's line under each preview (android:description, Android 12+). No brand name, so a rename
+     needs no change here (spec §2), and no health values (WID-2). -->
+<resources>
+    <string name="lumen_widget_small_description">Your last check and a one-tap Check now</string>
+    <string name="lumen_widget_medium_description">Heart rate, streak, Check now and Full Scan</string>
+</resources>

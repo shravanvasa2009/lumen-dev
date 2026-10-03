@@ -44,7 +44,8 @@ class EmptyWidgetTest {
             provideComposable { WidgetBody(fallbackView(context), medium) }
             onNode(hasTextEqualTo("No checks yet")).assertExists()
             onNode(hasTextEqualTo("Takes 90 seconds")).assertExists()
-            onNode(hasStartActivityClickAction(linkIntent(context, CHECK_LINK))).assertExists()
+            // Small: the card and the button both open the check; medium: only Check now.
+            onAllNodes(hasStartActivityClickAction(linkIntent(context, CHECK_LINK))).assertCountEquals(if (medium) 1 else 2)
             if (medium) {
                 onNode(hasTextEqualTo(appName)).assertExists()
                 onNode(hasStartActivityClickAction(linkIntent(context, FULL_SCAN_LINK))).assertExists()

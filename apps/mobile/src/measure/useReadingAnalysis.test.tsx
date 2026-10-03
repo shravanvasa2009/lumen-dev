@@ -44,6 +44,7 @@ function analysedReading(): AnalysedReading {
 
 const newCapture = (): KeptCapture => ({
   captureFps: 60,
+  lensId: null,
   samples: [],
   stats: [],
   motionSpans: [],

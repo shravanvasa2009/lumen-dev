@@ -17,7 +17,7 @@ import { beatTimes, beatTrain } from './attacks';
 // Red team for c6ccd6a (PR #171, 47b95bb): unscoredSpan from the newest formed window's end, and ADR 0077
 // option C (a 4 s model window with fewer than live.minEffectiveFps × 4 frames is rejected). The B and C
 // cases failed there; uncovered frames leaving the beat signal, DSP-11's 15 s of accepted intervals
-// (ADR 0080), and ADR 0077's live.minEffectiveFpsSpanS fix them. Invariants: no
+// (ADR 0080), and ADR 0077's 1 s sub-window floor (live.minSubWindowFps) fix them. Invariants: no
 // lifted, unscored, or never-scored second counts clean; live and saved agree; a capture accepted as a
 // reading carries a heart rate within 5 bpm of its pulse (ANSI/AAMI EC13, as reading-outcome-edges), or it
 // is refused. SQI is a fixed stand-in for the model; a still finger; batches of 3 frames.

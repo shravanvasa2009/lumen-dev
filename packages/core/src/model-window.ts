@@ -54,13 +54,12 @@ function windowFrames(
 }
 
 // ADR 0077: under live.minEffectiveFps when frames [0, count) delivered in [endS − dsp3.modelWindowS, endS],
-// covered or not, number fewer than minEffectiveFps × the window, or when any span of
-// live.minEffectiveFpsSpanS that starts on one of them and ends inside the window holds fewer than
-// minEffectiveFps × that span, ends included as in the window count. The second test stops a fast burst
-// paying for a sparse rest of the window; exact 24 fps passes it, since 24 consecutive frames then span
-// 23/24 s.
+// covered or not, number fewer than minEffectiveFps × the window, or when any span of live.subWindowS that
+// starts on one of them and ends inside the window holds fewer than live.minSubWindowFps × that span, ends
+// included as in the window count. The second test stops a fast burst paying for a sparse rest of the
+// window while letting random drops at a mean above 24 fps through.
 function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): boolean {
-  const { minEffectiveFps, minEffectiveFpsSpanS } = DSP_CONFIG.live;
+  const { minEffectiveFps, minSubWindowFps, subWindowS } = DSP_CONFIG.live;
   const startS = endS - DSP_CONFIG.dsp3.modelWindowS;
   let first = count;
   let frames = 0;
@@ -69,10 +68,10 @@ function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): 
     if (tS[i]! <= endS) frames++;
   }
   if (frames < minEffectiveFps * DSP_CONFIG.dsp3.modelWindowS) return true;
-  const spanFrames = Math.ceil(minEffectiveFps * minEffectiveFpsSpanS);
-  for (let i = first; i < count && tS[i]! + minEffectiveFpsSpanS <= endS; i++) {
+  const spanFrames = Math.ceil(minSubWindowFps * subWindowS);
+  for (let i = first; i < count && tS[i]! + subWindowS <= endS; i++) {
     const last = i + spanFrames - 1;
-    if (last >= count || !(tS[last]! <= tS[i]! + minEffectiveFpsSpanS)) return true;
+    if (last >= count || !(tS[last]! <= tS[i]! + subWindowS)) return true;
   }
   return false;
 }

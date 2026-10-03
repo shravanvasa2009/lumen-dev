@@ -393,7 +393,7 @@ describe('analyzeReading acquisition spans', () => {
   });
 
   // Red team PR #171 round 3: a 0.6 s burst at 120 fps carried 3.4 s at 8 fps past the 96 frames.
-  it('ADR 0077: a model window holding 96 frames is rejected when 24 frames in it span 1 s or more', () => {
+  it('ADR 0077: a model window holding 96 frames is rejected when 1 s of it holds under 16 frames', () => {
     // 60 fps except 10.5–11.5 s, where every 8th frame is kept (7.5 fps, frames 133 ms apart).
     const reading = syntheticReading({
       seconds: 30,
@@ -407,7 +407,8 @@ describe('analyzeReading acquisition spans', () => {
 
   it('ADR 0077: exactly 24 fps, and 30 fps dropping 1 frame in 5, pass the 1 s floor', () => {
     expect(DSP_CONFIG.live.minEffectiveFps).toBe(24);
-    expect(DSP_CONFIG.live.minEffectiveFpsSpanS).toBe(1);
+    expect(DSP_CONFIG.live.minSubWindowFps).toBe(16);
+    expect(DSP_CONFIG.live.subWindowS).toBe(1);
     for (const reading of [
       syntheticReading({ fps: 24, seconds: 40 }),
       syntheticReading({ fps: 30, seconds: 40, dropped: (tS) => Math.round(tS * 30) % 5 === 4 }),

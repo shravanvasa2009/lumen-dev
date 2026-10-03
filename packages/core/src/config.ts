@@ -144,6 +144,15 @@ export const DSP_CONFIG = {
     sampleEntropyR: 0.2, // × the window's population SD
     minUsableIntervals: 40, // a reading needs this many intervals that do not span an artifact
   },
+  // Standing heart-rate test (§10 DSP-16, §10.1 "Large rise on standing"; readings of the spec in ADR 0063).
+  dsp16: {
+    minAgeYears: 13, // §6.6: the profile blocks younger ages
+    adolescentMaxAgeYears: 19, // ages minAgeYears..this (inclusive, whole years) use adolescentRiseBpm
+    adolescentRiseBpm: 40, // HR − baseline at or above this, ages 13–19
+    adultRiseBpm: 30, // HR − baseline at or above this, ages 20 and over
+    standingMinutes: [1, 3, 5, 10], // minutes after standing, in protocol order
+    consecutiveReadings: 2, // the rise must hold in this many consecutive standing readings
+  },
   // §10.1 decision rules (spec initial values) and §6.2 floors that are not a DSP metric's own.
   rules: {
     slowRestingBpm: 50, // HR below this

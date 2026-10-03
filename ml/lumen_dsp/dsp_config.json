@@ -94,6 +94,14 @@
     "sampleEntropyR": 0.2,
     "minUsableIntervals": 40
   },
+  "dsp16": {
+    "minAgeYears": 13,
+    "adolescentMaxAgeYears": 19,
+    "adolescentRiseBpm": 40,
+    "adultRiseBpm": 30,
+    "standingMinutes": [1, 3, 5, 10],
+    "consecutiveReadings": 2
+  },
   "rules": {
     "slowRestingBpm": 50,
     "slowRestingAdjustedBpm": 40,

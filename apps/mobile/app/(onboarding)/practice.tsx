@@ -10,11 +10,8 @@ import { LiveWaveform } from '@/measure/LiveWaveform';
 import { phaseCaption } from '@/measure/phaseCaption';
 import { useLiveCapture } from '@/measure/useLiveCapture';
 import { FingerPreview, ProgressRing, SignalMeter, SignalScale } from '@/onboarding/practiceParts';
+import { practiceSteadySeconds, STEADY_SECONDS_NEEDED } from '@/onboarding/practiceProgress';
 import { useTheme } from '@/theme';
-
-// H-047 option A (ADR 0074): practice passes after 30 steady seconds, not spec §8.2's 15, so it holds the
-// 30 clean seconds DSP-10 needs for a perfusion index and the phone gets a real rating.
-const STEADY_SECONDS_NEEDED = 30;
 
 export default function PracticeScreen() {
   const { t } = useTranslation();
@@ -22,7 +19,7 @@ export default function PracticeScreen() {
   const live = useLiveCapture();
   const fingerOn = live.status?.fingerCovered === true;
   // Counted by the LiveSession once it feeds the hook; until then there are none to show.
-  const steadySeconds = Math.floor(live.cleanSeconds ?? 0);
+  const steadySeconds = practiceSteadySeconds(live.cleanSeconds);
   const caption =
     live.phase === 'unavailable'
       ? t('practice.pending')
@@ -45,6 +42,8 @@ export default function PracticeScreen() {
               {t('practice.progress', { done: steadySeconds, total: STEADY_SECONDS_NEEDED })}
             </AppText>
           </View>
+          {/* Continue stays enabled: spec 08 §8.6 counts tutorial completion as the share of installs that pass this
+              step, so some finish without passing, and a phone with no torch lens or camera permission cannot pass. */}
           <NavButton label={t('common.continue')} href="/how-to-sit" />
         </>
       }

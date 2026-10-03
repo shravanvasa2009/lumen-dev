@@ -183,17 +183,23 @@ export const DSP_CONFIG = {
     personalBandMinReadings: 7, // §7: the first 7 readings are "learning"
     personalBandIqrs: 1.5, // band = median ± 1.5 IQR
     // §10.1 Emergency screen: "HR > 150 bpm sustained 60 s at rest; or HR < 40 bpm with symptoms"
-    // (ADR 0076). fastBpm, sustainS, and slowBpm are the spec's; windowS and windowMinCleanS are not given by
-    // the spec (initial).
+    // (ADR 0076). fastBpm, sustainS, and slowBpm are the spec's; the rest are not given by the spec
+    // (initial).
     emergency: {
       fastBpm: 150, // rolling HR strictly above this
+      // Measured beat times carry µs of error (red team v1 F4), so a true 150 bpm can measure a
+      // few thousandths over 150; a rate must clear fastBpm by this much (27 µs on a 400 ms interval).
+      fastMarginBpm: 0.01,
       sustainS: 60, // clean seconds, bridged breaks not counted
-      // Rolling HR = 60 / the median clean interval of the last this-many seconds: DSP-11's reporting
-      // floor, the shortest stretch Lumen reports an HR from.
+      // Rolling HR = 120 / the median two-beat span (two adjacent intervals) over the last this-many clean
+      // seconds: DSP-11's reporting floor, the shortest stretch Lumen reports an HR from.
       windowS: 15,
-      // A window judges the HR only with this many clean seconds, so a break (a motion burst, one 4 s SQI
-      // window) is bridged but not counted, and one over windowS − this (5 s) restarts the count.
+      // A run's first window judges the HR only with this many clean seconds.
       windowMinCleanS: 10,
+      // The longest gap between two clean intervals that is bridged (not counted). A rejected span up to
+      // 5 s costs the beat touching it on each side (DSP-9), each under 0.4 s at > 150 bpm, plus the
+      // upstroke of the first beat after it (< 0.2 s).
+      maxBreakS: 6,
       slowBpm: 40, // the reading's DSP-11 HR strictly below this; the app adds symptoms
     },
   },

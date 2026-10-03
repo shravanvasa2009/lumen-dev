@@ -185,6 +185,7 @@ describe('red team: readingOutcome on captures analyzeReading made (spec 07)', (
     const quick = captureAt(regularOffsets(30, 45), shaken);
     expect(judge(quick, { mode: 'quick', motionSpans: bursts(quick, 45) }).outcome).toEqual({
       kind: 'reading',
+      urgent: null,
     });
     const full = captureAt(regularOffsets(30, 100), shaken);
     const outcome = inconclusive(judge(full, { mode: 'full', motionSpans: bursts(full, 100) }).outcome);

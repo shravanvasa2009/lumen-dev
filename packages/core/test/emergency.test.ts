@@ -70,6 +70,18 @@ function analysisOf(
   };
 }
 
+// Accepted intervals laid end to end from fromS, cycling through intervalsMs, for seconds.
+function cycling(intervalsMs: number[], seconds: number, fromS = 1): BeatInterval[] {
+  const intervals: BeatInterval[] = [];
+  let atNs = BASE.startNs + fromS * 1e9;
+  for (let k = 0; atNs < BASE.startNs + (fromS + seconds) * 1e9; k++) {
+    const ibiMs = intervalsMs[k % intervalsMs.length]!;
+    atNs += ibiMs * 1e6;
+    intervals.push({ tNs: atNs, ibiMs, accepted: true, nn: true });
+  }
+  return intervals;
+}
+
 const RULE = DSP_CONFIG.rules.emergency;
 
 describe('emergencyHeartRate (§10.1 Emergency screen: HR > 150 sustained 60 s at rest; HR < 40)', () => {
@@ -77,9 +89,10 @@ describe('emergencyHeartRate (§10.1 Emergency screen: HR > 150 sustained 60 s a
     expect(RULE.fastBpm).toBe(150);
     expect(RULE.sustainS).toBe(60);
     expect(RULE.slowBpm).toBe(40);
-    // DSP-11's reporting floor; a break over 5 s restarts the count.
+    // DSP-11's reporting floor.
     expect(RULE.windowS).toBe(DSP_CONFIG.dsp11.minCleanS);
-    expect(RULE.windowS - RULE.windowMinCleanS).toBe(5);
+    // A rejected span up to 5 s costs one interval under 0.4 s on each side and the upstroke (ADR 0076).
+    expect(RULE.maxBreakS).toBe(6);
   });
 
   it('160 bpm for exactly 60.000 s (160 intervals of 375 ms) is urgent; 159 intervals (59.625 s) is not', () => {
@@ -102,6 +115,47 @@ describe('emergencyHeartRate (§10.1 Emergency screen: HR > 150 sustained 60 s a
     expect(emergencyHeartRate(analysisOf(intervalsOf([{ bpm: 150, count: 300 }])))).toBeNull();
     // 399 ms is 150.4 bpm.
     expect(emergencyHeartRate(analysisOf(intervalsOf([{ bpm: 60000 / 399, count: 300 }])))).not.toBeNull();
+  });
+
+  it('150 bpm measured a few µs fast is still 150 (fastMarginBpm); 150.5 bpm is urgent', () => {
+    const near = (ms: number) => analysisOf(cycling([ms], 120));
+    expect(emergencyHeartRate(near(399.99))).toBeNull();
+    expect(emergencyHeartRate(near(60000 / 150.5))?.fastSustained).toBe(true);
+    expect(RULE.fastMarginBpm).toBeLessThan(0.5);
+  });
+
+  it('the rolling HR is per two-beat span: alternating 330/430 ms (157.9 bpm) for 300 s is urgent', () => {
+    // A median flips between 330 and 430 ms as an odd-count window gains or loses one interval.
+    expect(emergencyHeartRate(analysisOf(cycling([330, 430], 300)))?.fastSustained).toBe(true);
+    expect(emergencyHeartRate(analysisOf(cycling([360, 400], 120)))?.fastSustained).toBe(true);
+    // 300/520 ms is a mean of 410 ms, 146.3 bpm, though every other interval is 200 bpm.
+    expect(emergencyHeartRate(analysisOf(cycling([300, 520], 300)))).toBeNull();
+  });
+
+  it('a beat missed every 6th interval (one 706 ms interval) does not pull 170 bpm down to 146', () => {
+    // A mean rate over these intervals would be 145.6 bpm.
+    expect(emergencyHeartRate(analysisOf(cycling([353, 353, 353, 353, 353, 706], 120)))?.fastSustained).toBe(
+      true,
+    );
+  });
+
+  it('a break is the gap between clean intervals: 6.000 s is bridged, 6.375 s restarts the count', () => {
+    // 40 s and 25 s at 160 bpm (375 ms) around 16 or 17 artifact intervals.
+    const around = (artifacts: number) =>
+      intervalsOf([
+        { bpm: 160, count: 107 },
+        { bpm: 160, count: artifacts, accepted: false },
+        { bpm: 160, count: 67 },
+      ]);
+    expect(emergencyHeartRate(analysisOf(around(16)))?.fastSustained).toBe(true);
+    expect(emergencyHeartRate(analysisOf(around(17)))).toBeNull();
+  });
+
+  it('an accepted interval longer than windowS gives null, not an error', () => {
+    const long = [{ tNs: BASE.startNs + 20e9, ibiMs: 16_000, accepted: true, nn: true }];
+    expect(emergencyHeartRate(analysisOf(long, [], null))).toBeNull();
+    const after = [...long, ...cycling([375], 70, 20)];
+    expect(emergencyHeartRate(analysisOf(after))?.fastSustained).toBe(true);
   });
 
   it('not at rest (rest timer not done): HR > 150 is not an emergency by HR alone', () => {
@@ -147,7 +201,7 @@ describe('emergencyHeartRate (§10.1 Emergency screen: HR > 150 sustained 60 s a
     expect(emergencyHeartRate(analysisOf(intervals, [clipping]))).toBeNull();
   });
 
-  it('a slower stretch inside 70 s at 155 breaks it when the 15 s median falls to 150 or below', () => {
+  it('a slower stretch inside 70 s at 155 breaks it when the 15 s rate falls to 150 or below', () => {
     const intervals = intervalsOf([
       { bpm: 155, count: 90 }, // 34.8 s
       { bpm: 120, count: 20 }, // 10 s
@@ -156,7 +210,7 @@ describe('emergencyHeartRate (§10.1 Emergency screen: HR > 150 sustained 60 s a
     expect(emergencyHeartRate(analysisOf(intervals))).toBeNull();
   });
 
-  it('isolated premature beats (kept as atypical, DSP-9) do not break the rolling median', () => {
+  it('isolated premature beats (kept as atypical, DSP-9) and their pauses do not break the run', () => {
     const stretches: Stretch[] = [];
     for (let k = 0; k < 20; k++)
       stretches.push({ bpm: 155, count: 8 }, { bpm: 240, count: 1 }, { bpm: 110, count: 1 });
@@ -246,6 +300,38 @@ describe('emergencyHeartRate on captures analyzeReading made', () => {
     const split = analyzeReading(capture, { ...CONTEXT, motionSpans: [span(36, 43)] });
     expect(emergencyHeartRate(split)).toBeNull();
   });
+
+  it('155 bpm with a 5 s motion span at 40 s of 75 s, at any beat phase: bridged, urgent', () => {
+    const capture = fingertip(155, 75);
+    const firstNs = capture.samples[0]!.tNs;
+    for (const fromS of [40, 40.1, 40.2, 40.3]) {
+      const motionSpans = [{ startNs: firstNs + fromS * 1e9, endNs: firstNs + (fromS + 5) * 1e9 }];
+      expect(emergencyHeartRate(analyzeReading(capture, { ...CONTEXT, motionSpans }))?.fastSustained).toBe(
+        true,
+      );
+    }
+  });
+
+  it('SQI-Net neither raises nor suppresses it: the rule sees the beats and spans of an SQI-free analysis', () => {
+    // 170 bpm for 200 s; SQI-Net rejects three adjacent 1 s ticks (a 6 s span) every 25 s.
+    const capture = fingertip(170, 200);
+    const firstNs = capture.samples[0]!.tNs;
+    const windows = Array.from({ length: 7 }, (_, k) =>
+      [20, 21, 22].map((atS) => ({ endNs: firstNs + (25 * k + atS) * 1e9, pClean: 0.1 })),
+    ).flat();
+    const plain = analyzeReading(capture, CONTEXT);
+    const scored = analyzeReading(capture, { ...CONTEXT, sqi: { threshold: 0.5, windows } });
+    expect(plain.withoutSqiNet).toBeNull();
+    expect(scored.withoutSqiNet).toEqual({ intervals: plain.intervals, rejectedSpans: plain.rejectedSpans });
+    expect(scored.intervals).not.toEqual(plain.intervals);
+    expect(emergencyHeartRate(plain)?.fastSustained).toBe(true);
+    expect(emergencyHeartRate(scored)?.fastSustained).toBe(true);
+    // The same 6 s as accelerometer motion is rule-based evidence and restarts the count.
+    const motionSpans = windows
+      .filter((_, i) => i % 3 === 0)
+      .map((window) => ({ startNs: window.endNs - 4e9, endNs: window.endNs + 2e9 }));
+    expect(emergencyHeartRate(analyzeReading(capture, { ...CONTEXT, motionSpans }))).toBeNull();
+  }, 60_000);
 
   it('38 bpm for 60 s: slowBelow40', () => {
     const analysis = analyzeReading(fingertip(38, 60), CONTEXT);

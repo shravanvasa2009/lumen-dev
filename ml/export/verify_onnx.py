@@ -39,8 +39,15 @@ def _seeded_input(rng: np.random.Generator, name: str, shape: list[int], count: 
         )
     if name == "features":
         return rng.normal(0.0, 2.0, size=(count, *shape[1:])).astype(np.float32)
-    # Random per-row offset and scale: averaged beats and shape features are not z-scored, and the
-    # features span several orders of magnitude.
+    if name == "beat":
+        # DSP-14's averaged beat is a mean of min–max normalized beats, so it lies in [0, 1]. Beats far
+        # outside that range saturate a trained diabetes-net to exactly 1.0, which leaves nothing to
+        # compare. A min–max normalized random walk keeps the input in range with a pulse-like slow shape.
+        walk = rng.normal(size=(count, *shape[1:])).cumsum(axis=-1)
+        low, high = walk.min(axis=-1, keepdims=True), walk.max(axis=-1, keepdims=True)
+        return ((walk - low) / (high - low)).astype(np.float32)
+    # Random per-row offset and scale: shape features and the HR summary are not z-scored, and they span
+    # several orders of magnitude.
     row = (count,) + (1,) * (len(shape) - 1)
     values = rng.normal(size=(count, *shape[1:])) * rng.uniform(0.1, 50.0, size=row) + rng.normal(
         0.0, 10.0, size=row

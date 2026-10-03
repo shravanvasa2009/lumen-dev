@@ -111,21 +111,24 @@ def rhythm_windows(
         raise ValueError(
             f"{len(intervals)} intervals need {len(intervals) + 1} beat flags, got {len(atypical)}"
         )
-    # ADR 0024: the feature vector is always finite, which needs every interval finite and positive.
+    # ADR 0024: the feature vector is always finite, which needs every interval finite.
     for index, interval in enumerate(intervals):
-        if not (math.isfinite(interval) and interval > 0):
-            raise ValueError(f"interval {index} must be finite and positive seconds, got {interval}")
+        if not math.isfinite(interval):
+            raise ValueError(f"interval {index} must be finite seconds, got {interval}")
+    # Two beats at the same or reversed times are one beat found twice, not a cardiac cycle (as DSP-11's
+    # heart rate), so that interval is excluded like one spanning an artifact.
+    excluded = [flag or not interval > 0 for flag, interval in zip(spans, intervals, strict=True)]
     size, step = DSP_CONFIG["dsp15"]["windowIntervals"], DSP_CONFIG["dsp15"]["windowStep"]
     windows = []
     # An excluded interval ends the run: successive differences, turning points, Poincaré pairs, and
     # sample-entropy templates must only pair intervals that are really adjacent in time.
     run_start = 0
     while run_start < len(intervals):
-        if spans[run_start]:
+        if excluded[run_start]:
             run_start += 1
             continue
         run_end = run_start
-        while run_end < len(intervals) and not spans[run_end]:
+        while run_end < len(intervals) and not excluded[run_end]:
             run_end += 1
         for start in range(run_start, run_end - size + 1, step):
             windows.append(_window_features(start, intervals[start : start + size], atypical))

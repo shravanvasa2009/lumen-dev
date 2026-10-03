@@ -86,10 +86,12 @@ export function upstroke(wave: ArrayLike<number>, peakIndex: number, searchStart
   return { onsetIndex, footIndex, maxUpslope };
 }
 
-// Vertex of the parabola through (−1, before), (0, at), (1, after); 0 unless it opens downward.
+// Vertex of the parabola through (−1, before), (0, at), (1, after), taken only at a local maximum, where it
+// lies within half a sample. A window maximum on a slope is not a peak of the band: its parabola's vertex
+// can be hundreds of samples away (VitalDB, order D.C_TASK-rhythm-windows-negative-interval).
 function parabolicOffset(before: number, at: number, after: number): number {
   const curvature = before - 2 * at + after;
-  return curvature < 0 ? (0.5 * (before - after)) / curvature : 0;
+  return at >= before && at >= after && curvature < 0 ? (0.5 * (before - after)) / curvature : 0;
 }
 
 /** DSP-7/8: beats from one resampled segment's morphology band at 64 Hz (model) and 256 Hz (shape). */
@@ -99,6 +101,7 @@ export function detectBeats(model: ResampledSegment, shape: ResampledSegment): D
   const minimumSearch = Math.round(DSP_CONFIG.dsp8.minimumSearchS * shapeRateHz);
   const wave = shape.values;
   const last = wave.length - 1;
+  const toSeconds = (index: number) => (shape.firstIndex + index) / shapeRateHz;
 
   const beats: DetectedBeat[] = [];
   let previousPeak: number | null = null;
@@ -112,15 +115,17 @@ export function detectBeats(model: ResampledSegment, shape: ResampledSegment): D
     for (let k = from + 1; k <= to; k++) if (wave[k]! > wave[peak]!) peak = k;
     const offset =
       peak > 0 && peak < last ? parabolicOffset(wave[peak - 1]!, wave[peak]!, wave[peak + 1]!) : 0;
+    const peakS = toSeconds(peak + offset);
+    // Candidates one 64 Hz sample apart can share their window maximum: one peak found twice.
+    if (beats.length > 0 && peakS <= beats[beats.length - 1]!.peakS) continue;
 
     const clippedAtStart = previousPeak === null && peak - minimumSearch < 0;
     const found = upstroke(wave, peak, Math.max(previousPeak ?? 0, peak - minimumSearch));
     // A foot on the segment's first sample with the signal still rising there was not observed: the
     // upstroke began before the segment, so its tangent onset would be fabricated.
     const footUnseen = clippedAtStart && found !== null && found.footIndex === 0 && wave[1]! > wave[0]!;
-    const toSeconds = (index: number) => (shape.firstIndex + index) / shapeRateHz;
     beats.push({
-      peakS: toSeconds(peak + offset),
+      peakS,
       onsetS: found && !footUnseen ? toSeconds(found.onsetIndex) : null,
       maxUpslope: found ? found.maxUpslope * shapeRateHz : 0,
       amplitude: found ? wave[peak]! - wave[found.footIndex]! : 0,

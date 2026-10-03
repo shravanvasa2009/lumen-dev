@@ -1,4 +1,4 @@
-import { DSP_CONFIG, elgendiPeaks, elgendiWindows, upstroke, type DetectedBeat } from '../src';
+import { detectBeats, DSP_CONFIG, elgendiPeaks, elgendiWindows, upstroke, type DetectedBeat } from '../src';
 import {
   detect,
   parkMillerUniforms,
@@ -115,6 +115,36 @@ describe('DSP-7 refinement on the 256 Hz morphology band', () => {
     );
     expect(offGrid.length).toBeGreaterThan(detected.length / 2);
     expect(Math.max(...nearestErrors(detected, beats))).toBeLessThan(0.002);
+  });
+
+  // A window maximum on a slope is not a peak of the band: the parabola through it has its vertex far
+  // outside the window (here about 500 samples before it), so only a local maximum is interpolated.
+  it('keeps a window maximum on a slope on its sample instead of extrapolating', () => {
+    const modelPeak = 40;
+    const model = Float64Array.from({ length: 100 }, (_, k) => Math.max(0, 1 - Math.abs(k - modelPeak) / 5));
+    const centre = 4 * modelPeak;
+    const shape = Float64Array.from({ length: 400 }, (_, k) => -(k - centre) - 0.001 * (k - centre) ** 2);
+    const detected = detectBeats({ firstIndex: 0, values: model }, { firstIndex: 0, values: shape });
+    expect(detected.map((beat) => beat.peakS * shapeRateHz)).toEqual([centre - 4]);
+  });
+
+  // Two Elgendi blocks one 64 Hz sample apart, each with its maximum on the side facing the other, put
+  // both ±1-sample refinement windows on one shared 256 Hz sample. Spikes 20 and 22 samples away lift
+  // MA_beat over the one sample between the blocks.
+  it('reports a peak that two candidates refine to only once', () => {
+    const model = Float64Array.from({ length: 130 }, (_, k) =>
+      Math.abs(k - 61) <= 16 ? 0.7 * (1 - (0.3 * Math.abs(k - 61)) / 16) : 0,
+    );
+    model[40] = 2;
+    model[82] = 2;
+    expect(elgendiPeaks(model, 64)).toEqual([40, 60, 62, 82]);
+    const shared = 4 * 61;
+    const shape = Float64Array.from({ length: 520 }, (_, k) => Math.exp(-0.5 * ((k - shared) / 3) ** 2));
+    const peaks = detectBeats({ firstIndex: 0, values: model }, { firstIndex: 0, values: shape }).map(
+      (beat) => beat.peakS * shapeRateHz,
+    );
+    expect(peaks.filter((peak) => Math.abs(peak - shared) <= 1)).toEqual([shared]);
+    peaks.slice(1).forEach((peak, i) => expect(peak).toBeGreaterThan(peaks[i]!));
   });
 });
 

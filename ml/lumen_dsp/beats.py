@@ -107,9 +107,11 @@ def upstroke(wave: Sequence[float], peak_index: int, search_start: int) -> Upstr
 
 
 def _parabolic_offset(before: float, at: float, after: float) -> float:
-    # Vertex of the parabola through (−1, before), (0, at), (1, after); 0 unless it opens downward.
+    # Vertex of the parabola through (−1, before), (0, at), (1, after), taken only at a local maximum, where
+    # it lies within half a sample. A window maximum on a slope is not a peak of the band: its parabola's
+    # vertex can be hundreds of samples away (VitalDB, order D.C_TASK-rhythm-windows-negative-interval).
     curvature = before - 2 * at + after
-    return (0.5 * (before - after)) / curvature if curvature < 0 else 0.0
+    return (0.5 * (before - after)) / curvature if at >= before and at >= after and curvature < 0 else 0.0
 
 
 # DSP-7/8: beats from one resampled segment's morphology band at 64 Hz (model) and 256 Hz (shape).
@@ -137,6 +139,10 @@ def detect_beats(model: ResampledSegment, shape: ResampledSegment) -> list[Detec
             if wave[k] > wave[peak]:
                 peak = k
         offset = _parabolic_offset(wave[peak - 1], wave[peak], wave[peak + 1]) if 0 < peak < last else 0.0
+        peak_s = to_seconds(peak + offset)
+        # Candidates one 64 Hz sample apart can share their window maximum: one peak found twice.
+        if beats and peak_s <= beats[-1].peak_s:
+            continue
 
         clipped_at_start = previous_peak is None and peak - minimum_search < 0
         found = upstroke(wave, peak, max(previous_peak or 0, peak - minimum_search))
@@ -145,7 +151,7 @@ def detect_beats(model: ResampledSegment, shape: ResampledSegment) -> list[Detec
         foot_unseen = clipped_at_start and found is not None and found.foot_index == 0 and wave[1] > wave[0]
         beats.append(
             DetectedBeat(
-                peak_s=to_seconds(peak + offset),
+                peak_s=peak_s,
                 onset_s=to_seconds(found.onset_index) if found and not foot_unseen else None,
                 max_upslope=found.max_upslope * shape_hz if found else 0.0,
                 amplitude=wave[peak] - wave[found.foot_index] if found else 0.0,

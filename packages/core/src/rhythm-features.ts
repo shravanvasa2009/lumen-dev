@@ -116,22 +116,25 @@ export function rhythmWindows(
     throw new RangeError(
       `${intervalsS.length} intervals need ${intervalsS.length + 1} beat flags, got ${atypicalBeats.length}`,
     );
-  // ADR 0024: the feature vector is always finite, which needs every interval finite and positive.
+  // ADR 0024: the feature vector is always finite, which needs every interval finite.
   intervalsS.forEach((intervalS, i) => {
-    if (!(Number.isFinite(intervalS) && intervalS > 0))
-      throw new RangeError(`interval ${i} must be finite and positive seconds, got ${intervalS}`);
+    if (!Number.isFinite(intervalS))
+      throw new RangeError(`interval ${i} must be finite seconds, got ${intervalS}`);
   });
+  // Two beats at the same or reversed times are one beat found twice, not a cardiac cycle (as DSP-11's
+  // heart rate), so that interval is excluded like one spanning an artifact.
+  const excluded = (i: number) => spansArtifact[i]! || !(intervalsS[i]! > 0);
   const { windowIntervals, windowStep } = DSP_CONFIG.dsp15;
   const windows: RhythmWindow[] = [];
   // An excluded interval ends the run: successive differences, turning points, Poincaré pairs, and
   // sample-entropy templates must only pair intervals that are really adjacent in time.
   for (let runStart = 0; runStart < intervalsS.length;) {
-    if (spansArtifact[runStart]) {
+    if (excluded(runStart)) {
       runStart++;
       continue;
     }
     let runEnd = runStart;
-    while (runEnd < intervalsS.length && !spansArtifact[runEnd]) runEnd++;
+    while (runEnd < intervalsS.length && !excluded(runEnd)) runEnd++;
     for (let start = runStart; start + windowIntervals <= runEnd; start += windowStep) {
       windows.push(windowFeatures(start, intervalsS.slice(start, start + windowIntervals), atypicalBeats));
     }

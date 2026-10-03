@@ -1,8 +1,11 @@
 import math
 
+import numpy as np
+
 from lumen_dsp.beats import detect_beats, elgendi_peaks, elgendi_windows, js_round, upstroke
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.golden import morphology_segment, ppg_wave, regular_beats
+from lumen_dsp.resample import ResampledSegment
 from lumen_dsp.tests.synthetic import park_miller_uniforms
 
 MODEL_HZ = DSP_CONFIG["dsp2"]["modelRateHz"]
@@ -84,6 +87,35 @@ def test_refined_peaks_fall_between_256_hz_samples():
     detected = detect(beats, 0.4, 30)
     off_grid = [b for b in detected if abs(b.peak_s * SHAPE_HZ - round(b.peak_s * SHAPE_HZ)) > 1e-6]
     assert len(off_grid) > len(detected) / 2
+
+
+# A window maximum on a slope is not a peak of the band: the parabola through it has its vertex far outside
+# the window (here about 500 samples before it), so only a local maximum is interpolated (as beats.test.ts).
+def test_keeps_a_window_maximum_on_a_slope_on_its_sample_instead_of_extrapolating():
+    model_peak = 40
+    model = np.array([max(0.0, 1 - abs(k - model_peak) / 5) for k in range(100)])
+    centre = 4 * model_peak
+    shape = np.array([-(k - centre) - 0.001 * (k - centre) ** 2 for k in range(400)])
+    detected = detect_beats(ResampledSegment(0, model), ResampledSegment(0, shape))
+    assert [beat.peak_s * SHAPE_HZ for beat in detected] == [centre - 4]
+
+
+# Two Elgendi blocks one 64 Hz sample apart, each with its maximum on the side facing the other, put both
+# ±1-sample refinement windows on one shared 256 Hz sample. Spikes 20 and 22 samples away lift MA_beat over
+# the one sample between the blocks.
+def test_reports_a_peak_that_two_candidates_refine_to_only_once():
+    model = np.array([0.7 * (1 - 0.3 * abs(k - 61) / 16) if abs(k - 61) <= 16 else 0.0 for k in range(130)])
+    model[40] = 2.0
+    model[82] = 2.0
+    assert elgendi_peaks(model, MODEL_HZ) == [40, 60, 62, 82]
+    shared = 4 * 61
+    shape = np.array([math.exp(-0.5 * ((k - shared) / 3) ** 2) for k in range(520)])
+    peaks = [
+        beat.peak_s * SHAPE_HZ
+        for beat in detect_beats(ResampledSegment(0, model), ResampledSegment(0, shape))
+    ]
+    assert [peak for peak in peaks if abs(peak - shared) <= 1] == [shared]
+    assert all(later > earlier for earlier, later in zip(peaks[:-1], peaks[1:], strict=True))
 
 
 def test_onset_is_exact_for_a_flat_baseline_then_a_straight_upstroke():

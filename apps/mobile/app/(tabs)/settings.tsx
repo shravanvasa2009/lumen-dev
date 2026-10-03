@@ -8,7 +8,9 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
+import { tierLabel } from '@/rating/labels';
 import { Toggle } from '@/settings/Toggle';
+import { useStoredRating } from '@/store/useStoredRating';
 import { usePreferences } from '@/theme/preferences';
 
 // Seven quick taps open Lab mode; a pause longer than this starts the count over.
@@ -21,6 +23,7 @@ export default function SettingsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { appearance } = usePreferences();
+  const rating = useStoredRating();
   const versionTaps = useRef({ count: 0, at: 0 });
 
   const appearanceNames = {
@@ -42,7 +45,16 @@ export default function SettingsScreen() {
     { title: t('settings.accuracy'), href: '/settings/accuracy' },
   ];
   const phoneRows: readonly SettingsRow[] = [
-    { title: t('settings.phone'), value: t('settings.phoneNotTested'), href: '/settings/phone' },
+    {
+      title: t('settings.phone'),
+      value:
+        rating === undefined
+          ? undefined
+          : rating === null
+            ? t('settings.phoneNotTested')
+            : t('settings.phoneRated', { tier: tierLabel(t, rating.tier), score: rating.score }),
+      href: '/settings/phone',
+    },
     { title: t('settings.widgets'), href: '/settings/widgets' },
     { title: t('settings.replayTutorial'), href: '/welcome' },
     { title: t('settings.demoMode') },

@@ -168,6 +168,8 @@ def test_the_cache_key_covers_the_feature_code(tmp_path, monkeypatch):
     (package / "__init__.py").write_text("", encoding="utf-8")
     source = package / "shape_features.py"
     source.write_text("WIDTH = 0.5\n", encoding="utf-8")
+    config = package / "dsp_config.json"
+    config.write_text('{"liveHr": {"minBpm": 40}}', encoding="utf-8")
     monkeypatch.setattr(diabetes_features.lumen_dsp, "__file__", str(package / "__init__.py"))
     before = diabetes_features.code_sha256()
     assert "lumen_dsp/shape_features.py" in before
@@ -176,7 +178,11 @@ def test_the_cache_key_covers_the_feature_code(tmp_path, monkeypatch):
     source.write_text("WIDTH = 0.25\n", encoding="utf-8")
     after = diabetes_features.code_sha256()
     assert after["lumen_dsp/shape_features.py"] != before["lumen_dsp/shape_features.py"]
-    assert diabetes_features.cache_params(AF)["code"] == after
+    # vitaldb_pleth picks segments with dsp_config.json's liveHr range, which no other key holds.
+    config.write_text('{"liveHr": {"minBpm": 35}}', encoding="utf-8")
+    edited = diabetes_features.code_sha256()
+    assert edited["lumen_dsp/dsp_config.json"] != after["lumen_dsp/dsp_config.json"]
+    assert diabetes_features.cache_params(AF)["code"] == edited
 
 
 def test_case_without_segments_and_missing_pleth_status(tmp_path):

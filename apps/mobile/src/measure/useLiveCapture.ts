@@ -105,6 +105,7 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
     let firstNs: number | null = null;
     let session: LiveSession | null = null;
     let captureFps = 0;
+    let lensId: string | null = null;
     const samples: Sample[] = [];
     const stats: FrameStat[] = [];
     const sqiWindows: { endNs: number; pClean: number }[] = [];
@@ -172,6 +173,7 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
         const rejectedSpans = session.rejectedSpans;
         keepCapture({
           captureFps,
+          lensId,
           samples,
           stats,
           motionSpans: spansOf(rejectedSpans, 'motion', startNs),
@@ -211,6 +213,7 @@ export function useLiveCapture(capture: LumenCaptureModule | null = LumenCapture
         // without clean seconds rather than with a guessed rate.
         if (lens) {
           captureFps = captureFpsFor(capabilities.platform, lens);
+          lensId = lens.id;
           session = createLiveSession({
             captureFps,
             sqiThreshold: threshold ?? 0,

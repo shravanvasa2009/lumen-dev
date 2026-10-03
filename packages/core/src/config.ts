@@ -179,10 +179,6 @@ export const DSP_CONFIG = {
     diabetesMinCleanS: 90, // §6.2, per reading
     personalBandMinReadings: 7, // §7: the first 7 readings are "learning"
     personalBandIqrs: 1.5, // band = median ± 1.5 IQR
-    // DSP-14 preconditions for pulseShape.available. track/dsp-shape (ADR 0030) adds a dsp14 block with
-    // minNormalBeats; these two move there when both branches meet.
-    pulseShapeMinNormalBeats: 20,
-    pulseShapeMinFps: 60,
   },
   // §7 confidence (ADR 0041; initial values, not given by the spec): the lowest of clean coverage, the
   // SQI and tier caps, and for the rhythm card the calibrated top probability.

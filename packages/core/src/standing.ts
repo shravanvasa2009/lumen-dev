@@ -38,19 +38,28 @@ export function standingRise(
   const { standingMinutes, consecutiveReadings, flagPairBeforeFaintStop } = DSP_CONFIG.dsp16;
   if (!isPositiveRate(baselineBpm)) throw new RangeError(`baseline ${baselineBpm} bpm is not a valid rate`);
   const thresholdBpm = riseThresholdBpm(ageYears);
-  // Readings must be a prefix of the protocol: a skipped, repeated, or reordered slot is a caller bug.
-  if (standing.length > standingMinutes.length)
-    throw new RangeError(`${standing.length} standing readings; the protocol has ${standingMinutes.length}`);
-  standing.forEach((reading, index) => {
-    if (reading.minute !== standingMinutes[index])
+  // Readings must be a prefix of the protocol: a skipped (array hole), repeated, or reordered slot is a caller
+  // bug. Each field is read once into a plain copy, and only the validated copies are used, so a getter or
+  // Proxy cannot pass validation with one value and feed the rule another.
+  const count = standing.length;
+  if (count > standingMinutes.length)
+    throw new RangeError(`${count} standing readings; the protocol has ${standingMinutes.length}`);
+  const copies: StandingReading[] = [];
+  for (let index = 0; index < count; index++) {
+    const reading: StandingReading | undefined = standing[index];
+    if (reading === undefined || reading === null)
+      throw new RangeError(`standing reading ${index + 1} is missing`);
+    const { minute, bpm } = reading;
+    if (minute !== standingMinutes[index])
       throw new RangeError(
-        `standing reading ${index + 1} is at minute ${reading.minute}, not ${standingMinutes[index]}`,
+        `standing reading ${index + 1} is at minute ${minute}, not ${standingMinutes[index]}`,
       );
-    if (reading.bpm !== null && !isPositiveRate(reading.bpm))
-      throw new RangeError(`minute ${reading.minute} rate ${reading.bpm} bpm is not a valid rate`);
-  });
+    if (bpm !== null && !isPositiveRate(bpm))
+      throw new RangeError(`minute ${minute} rate ${bpm} bpm is not a valid rate`);
+    copies.push({ minute, bpm });
+  }
 
-  const rises = standing.map(({ minute, bpm }) => ({
+  const rises = copies.map(({ minute, bpm }) => ({
     minute,
     riseBpm: bpm === null ? null : bpm - baselineBpm,
   }));
@@ -61,9 +70,9 @@ export function standingRise(
     run = riseBpm !== null && riseBpm >= thresholdBpm ? run + 1 : 0;
     if (run >= consecutiveReadings) pairMet = true;
   }
-  // §10.1 flags only a completed protocol. Whether an "I feel faint" stop counts as completed is owner
-  // decision H-043 (ADR 0063 item 2); until then it does not. The UI routes stoppedFaint to the safety path
-  // whatever the flag.
-  const completed = standing.length === standingMinutes.length || (stoppedFaint && flagPairBeforeFaintStop);
+  // §10.1 flags only a completed protocol. stoppedFaint means the faint tap ended the test early, whatever the
+  // slot count. Whether that stop counts as completed is owner decision H-043 (ADR 0063 item 2); until then it
+  // does not. The UI routes stoppedFaint to the safety path whatever the flag.
+  const completed = stoppedFaint ? flagPairBeforeFaintStop : count === standingMinutes.length;
   return { thresholdBpm, rises, flag: completed && pairMet ? 'largeRise' : null, completed, stoppedFaint };
 }

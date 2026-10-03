@@ -146,13 +146,18 @@ describe('DSP-16 completed protocol', () => {
     expect(standingRise(BASELINE, readings(80), 30, false).stoppedFaint).toBe(false);
   });
 
-  it('a faint tap after all four slots does not change a completed protocol', () => {
-    for (const flagPairBeforeFaintStop of [false, true])
-      withFaintRule(flagPairBeforeFaintStop, () => {
-        const outcome = standingRise(BASELINE, readings(80, 80, 100, 100), 30, true);
-        expect(outcome.completed).toBe(true);
-        expect(outcome.flag).toBe('largeRise');
-      });
+  // stoppedFaint means the faint tap ended the test early, so the slot count does not override it.
+  it('a faint stop with four slots follows the faint rule', () => {
+    withFaintRule(false, () => {
+      const outcome = standingRise(BASELINE, readings(80, 80, 100, 100), 30, true);
+      expect(outcome.completed).toBe(false);
+      expect(outcome.flag).toBeNull();
+    });
+    withFaintRule(true, () => {
+      const outcome = standingRise(BASELINE, readings(80, 80, 100, 100), 30, true);
+      expect(outcome.completed).toBe(true);
+      expect(outcome.flag).toBe('largeRise');
+    });
   });
 });
 

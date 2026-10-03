@@ -18,6 +18,8 @@ const SAMPLE_PROGRESS = 0.6;
 
 // A lock screen looks the same in either app theme, so these cards use fixed token sets.
 const wallpaper = tokens.dark;
+// The lock widgets sit on surface2, so the panel behind them is one step darker to keep them visible.
+const widgetPanel = tokens.dark.surface;
 const notificationCard = tokens.light;
 
 export default function LockScreenPreviewScreen() {
@@ -34,7 +36,7 @@ export default function LockScreenPreviewScreen() {
       </AppText>
       <View
         style={{
-          backgroundColor: wallpaper.surface2,
+          backgroundColor: widgetPanel,
           borderRadius: radius.sheet,
           padding: spacing.lg,
           gap: spacing.lg,

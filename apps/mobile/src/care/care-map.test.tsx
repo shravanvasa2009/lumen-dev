@@ -455,29 +455,25 @@ describe('Care map with location denied', () => {
   });
 });
 
-// Last on purpose: faking the clock leaves later async tests in this file hanging.
 describe('Care map loading timeout', () => {
   beforeEach(allowLocation);
 
   it('offers Retry after 20 seconds without a render or a failure event, and a late render still shows the map', async () => {
     await openCareMap();
-    // Fake timers stall the router's own setup, so the clock is faked only for the timer a Retry starts.
     fireEvent(screen.getByTestId('care-map-view'), 'didFailLoadingMap');
-    jest.useFakeTimers();
-    try {
-      fireEvent.press(screen.getByRole('button', { name: en['careMap.retry'] }));
-      expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
-      act(() => jest.advanceTimersByTime(19_000));
-      expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
-      act(() => jest.advanceTimersByTime(1_500));
-      expect(screen.queryByTestId('care-map-loading')).toBeNull();
-      expect(screen.getByText(en['careMap.mapFailed'])).toBeOnTheScreen();
-      expect(screen.getByRole('button', { name: en['careMap.retry'] })).toBeOnTheScreen();
-      fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMap');
-      expect(screen.queryByTestId('care-map-failed')).toBeNull();
-    } finally {
-      jest.useRealTimers();
-    }
+    // A faked clock stalled the router and left Jest unable to exit on CI, so the timer that Retry
+    // starts is caught and fired by hand instead.
+    const timers = jest.spyOn(global, 'setTimeout');
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.retry'] }));
+    const loadingTimeout = timers.mock.calls.find(([, delay]) => delay === 20_000);
+    expect(loadingTimeout).toBeDefined();
+    expect(screen.getByTestId('care-map-loading')).toBeOnTheScreen();
+    act(() => (loadingTimeout![0] as () => void)());
+    expect(screen.queryByTestId('care-map-loading')).toBeNull();
+    expect(screen.getByText(en['careMap.mapFailed'])).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: en['careMap.retry'] })).toBeOnTheScreen();
+    fireEvent(screen.getByTestId('care-map-view'), 'didFinishRenderingMap');
+    expect(screen.queryByTestId('care-map-failed')).toBeNull();
   });
 });
 

@@ -14,17 +14,6 @@ function readings(...bpms: (number | null)[]): StandingReading[] {
   });
 }
 
-// Runs the block once per value of the pending owner decision H-043 (ADR 0063 item 2).
-function withFaintRule(flagPairBeforeFaintStop: boolean, block: () => void) {
-  const shipped = DSP_CONFIG.dsp16.flagPairBeforeFaintStop;
-  DSP_CONFIG.dsp16.flagPairBeforeFaintStop = flagPairBeforeFaintStop;
-  try {
-    block();
-  } finally {
-    DSP_CONFIG.dsp16.flagPairBeforeFaintStop = shipped;
-  }
-}
-
 describe('DSP-16 config', () => {
   it('holds the spec thresholds', () => {
     expect(DSP_CONFIG.dsp16).toEqual({
@@ -34,7 +23,6 @@ describe('DSP-16 config', () => {
       adultRiseBpm: 30,
       standingMinutes: [1, 3, 5, 10],
       consecutiveReadings: 2,
-      flagPairBeforeFaintStop: false,
     });
   });
 });
@@ -146,74 +134,51 @@ describe('DSP-16 completed protocol', () => {
     expect(standingRise(BASELINE, readings(80), 30, false).stoppedFaint).toBe(false);
   });
 
-  // stoppedFaint means the faint tap ended the test early, so the slot count does not override it.
-  it('a faint stop with four slots follows the faint rule', () => {
-    withFaintRule(false, () => {
-      const outcome = standingRise(BASELINE, readings(80, 80, 100, 100), 30, true);
-      expect(outcome.completed).toBe(false);
-      expect(outcome.flag).toBeNull();
-    });
-    withFaintRule(true, () => {
-      const outcome = standingRise(BASELINE, readings(80, 80, 100, 100), 30, true);
-      expect(outcome.completed).toBe(true);
-      expect(outcome.flag).toBe('largeRise');
-    });
+  it('a faint tap after all four slots keeps the result of the full protocol', () => {
+    const outcome = standingRise(BASELINE, readings(80, 80, 100, 100), 30, true);
+    expect(outcome.completed).toBe(true);
+    expect(outcome.flag).toBe('largeRise');
   });
 });
 
-describe('DSP-16 "I feel faint" stop, strict (shipped: flagPairBeforeFaintStop false)', () => {
-  it('ships the strict value', () => {
-    expect(DSP_CONFIG.dsp16.flagPairBeforeFaintStop).toBe(false);
-  });
-
-  it('gives no flag for a pair met before the stop, but still shows the rises', () => {
-    withFaintRule(false, () => {
-      const outcome = standingRise(BASELINE, readings(100, 100), 30, true);
-      expect(outcome.completed).toBe(false);
-      expect(outcome.flag).toBeNull();
-      expect(outcome.rises).toEqual([
-        { minute: 1, riseBpm: 30 },
-        { minute: 3, riseBpm: 30 },
-      ]);
-    });
-  });
-
-  it('a stop before any standing reading is incomplete with no rises', () => {
-    withFaintRule(false, () => {
-      expect(standingRise(BASELINE, [], 30, true)).toEqual({
-        thresholdBpm: 30,
-        rises: [],
-        flag: null,
-        completed: false,
-        stoppedFaint: true,
-      });
-    });
-  });
-});
-
-describe('DSP-16 "I feel faint" stop, if H-043 chooses flagPairBeforeFaintStop true', () => {
-  it('keeps a pair met before the stop', () => {
-    withFaintRule(true, () => {
-      const outcome = standingRise(BASELINE, readings(100, 100), 30, true);
-      expect(outcome.completed).toBe(true);
-      expect(outcome.flag).toBe('largeRise');
-    });
+// Owner decision H-043 B (ADR 0063 item 2): an "I feel faint" stop completes the protocol.
+describe('DSP-16 "I feel faint" stop', () => {
+  it('flags a pair met before the stop and still shows the rises', () => {
+    const outcome = standingRise(BASELINE, readings(100, 100), 30, true);
+    expect(outcome.completed).toBe(true);
+    expect(outcome.flag).toBe('largeRise');
+    expect(outcome.rises).toEqual([
+      { minute: 1, riseBpm: 30 },
+      { minute: 3, riseBpm: 30 },
+    ]);
   });
 
   it('does not flag when the stop comes before a pair is met', () => {
-    withFaintRule(true, () => {
-      const outcome = standingRise(BASELINE, readings(100), 30, true);
-      expect(outcome.completed).toBe(true);
-      expect(outcome.flag).toBeNull();
+    const outcome = standingRise(BASELINE, readings(100), 30, true);
+    expect(outcome.completed).toBe(true);
+    expect(outcome.flag).toBeNull();
+  });
+
+  it('does not flag rises at minutes 1 and 5 split by a null before the stop', () => {
+    const outcome = standingRise(BASELINE, readings(100, null, 100), 30, true);
+    expect(outcome.completed).toBe(true);
+    expect(outcome.flag).toBeNull();
+  });
+
+  it('a stop before any standing reading is complete with no rises and no flag', () => {
+    expect(standingRise(BASELINE, [], 30, true)).toEqual({
+      thresholdBpm: 30,
+      rises: [],
+      flag: null,
+      completed: true,
+      stoppedFaint: true,
     });
   });
 
   it('still gives no flag for a test left without a faint tap', () => {
-    withFaintRule(true, () => {
-      const outcome = standingRise(BASELINE, readings(100, 100), 30, false);
-      expect(outcome.completed).toBe(false);
-      expect(outcome.flag).toBeNull();
-    });
+    const outcome = standingRise(BASELINE, readings(100, 100), 30, false);
+    expect(outcome.completed).toBe(false);
+    expect(outcome.flag).toBeNull();
   });
 });
 

@@ -24,6 +24,34 @@ function snapshot(dir) {
     : null;
 }
 
+function ruleEntry() {
+  return {
+    name: 'rhythm-logistic',
+    family: 'rhythm',
+    ships: false,
+    role: 'basic-analysis fallback',
+    file: null,
+    sha256: null,
+    inputs: { features: [1, 3] },
+    threshold: { af: 0.5 },
+    abstainBelow: 0.5,
+    rule: {
+      method: 'probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale',
+      features: ['a', 'b'],
+      featureIndices: [0, 2],
+      mean: [0, 1],
+      scale: [1, 2],
+      classes: ['normal', 'af', 'other'],
+      coefficients: [
+        [0.1, 0.2],
+        [0.3, 0.4],
+        [0.5, 0.6],
+      ],
+      intercepts: [0, 0, 0],
+    },
+  };
+}
+
 function makeRepo(mutate = () => {}) {
   const root = tempRoot();
   fs.mkdirSync(path.join(root, 'models'));
@@ -37,6 +65,7 @@ function makeRepo(mutate = () => {}) {
     fs.writeFileSync(path.join(root, 'models', `${name}@1.0.0.onnx`), bytes);
     return { name, family, ships, file: `${name}@1.0.0.onnx`, sha256: digest(bytes) };
   });
+  models.push(ruleEntry());
   mutate(models, root);
   fs.writeFileSync(path.join(root, 'models', 'manifest.json'), JSON.stringify({ models }));
   return root;
@@ -55,7 +84,8 @@ test('copies only shipped models and writes the manifest subset', () => {
   ]);
   assert.ok(!fs.existsSync(path.join(root, APP, 'rhythm-net@1.0.0.onnx')));
   const subset = JSON.parse(fs.readFileSync(path.join(root, APP, 'manifest.json'), 'utf8'));
-  assert.equal(subset.models.length, 3);
+  assert.equal(subset.models.length, 4);
+  assert.deepEqual(subset.models[3], ruleEntry());
   assert.deepEqual(syncModels({ root, check: true }).errors, []);
 });
 
@@ -135,4 +165,32 @@ test('names a shipped entry whose family is unknown', () => {
     models[1].ships = true;
   });
   assert.match(syncModels({ root }).errors.join(', '), /rhythm-net ships but has unknown family "ecg"/);
+});
+
+test('copies a rule entry without a model file and keeps the one-shipped check on ships: true', () => {
+  const root = makeRepo();
+  syncModels({ root });
+  assert.deepEqual(fs.readdirSync(path.join(root, APP)).sort(), [
+    'diabetes-net@1.0.0.onnx',
+    'manifest.json',
+    'rhythm-lgbm@1.0.0.onnx',
+    'sqi-net@1.0.0.onnx',
+  ]);
+  const noRule = makeRepo((models) => models.pop());
+  syncModels({ root: noRule });
+  const copied = JSON.parse(fs.readFileSync(path.join(noRule, APP, 'manifest.json'), 'utf8'));
+  assert.equal(copied.models.length, 3);
+});
+
+test('--check fails when a rule entry is missing or differs from the source', () => {
+  const root = makeRepo();
+  syncModels({ root });
+  const appManifest = path.join(root, APP, 'manifest.json');
+  const synced = JSON.parse(fs.readFileSync(appManifest, 'utf8'));
+  synced.models.pop();
+  fs.writeFileSync(appManifest, `${JSON.stringify(synced, null, 2)}\n`);
+  assert.match(syncModels({ root, check: true }).errors.join('\n'), /manifest.json is missing or stale/);
+  synced.models.push({ ...ruleEntry(), threshold: { af: 0.9 } });
+  fs.writeFileSync(appManifest, `${JSON.stringify(synced, null, 2)}\n`);
+  assert.match(syncModels({ root, check: true }).errors.join('\n'), /manifest.json is missing or stale/);
 });

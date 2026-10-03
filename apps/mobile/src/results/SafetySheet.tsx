@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
+import { PressableScale } from '@/components/PressableScale';
 import { useTheme } from '@/theme';
 
 type SafetySheetProps = { visible: boolean; onDismiss: () => void };
@@ -39,7 +40,7 @@ export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
       </AppText>
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
         <View style={{ flex: 1 }}>
-          <Pressable
+          <PressableScale
             accessibilityRole="button"
             onPress={openEmergency}
             style={{
@@ -54,7 +55,7 @@ export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
             <AppText variant="headline" style={{ color: colors.flag }}>
               {t('safety.yes')}
             </AppText>
-          </Pressable>
+          </PressableScale>
         </View>
         <View style={{ flex: 1 }}>
           <Button label={t('safety.no')} variant="secondary" onPress={onDismiss} />

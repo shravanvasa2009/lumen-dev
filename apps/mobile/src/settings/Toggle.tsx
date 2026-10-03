@@ -2,7 +2,7 @@ import { Pressable, StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 import { useTheme } from '@/theme';
-import { motion, useReduceMotion } from '@/theme/motion';
+import { timingConfig, useReduceMotion } from '@/theme/motion';
 
 type ToggleProps = {
   label: string;
@@ -25,7 +25,7 @@ export function Toggle({ label, value, onValueChange, disabled = false }: Toggle
   // The pill is 28 pt tall; the touch area grows to the minimum target without changing the drawing.
   const touchSlop = (control.minTarget - TRACK_HEIGHT) / 2;
   const reduceMotion = useReduceMotion();
-  const timing = { duration: reduceMotion ? 0 : motion.fadeMs };
+  const timing = timingConfig(reduceMotion);
   const trackStyle = useAnimatedStyle(() => ({
     backgroundColor: withTiming(value ? colors.accent : colors.surface3, timing),
   }));

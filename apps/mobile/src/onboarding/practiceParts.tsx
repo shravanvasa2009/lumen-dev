@@ -5,7 +5,7 @@ import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop } from 'r
 
 import { AppText } from '@/components/AppText';
 import { useTheme } from '@/theme';
-import { motion, useReduceMotion } from '@/theme/motion';
+import { timingConfig, useReduceMotion } from '@/theme/motion';
 
 const PREVIEW_SIZE = 190;
 const METER_HEIGHT = 28;
@@ -115,7 +115,7 @@ export function ProgressRing({
   const reduceMotion = useReduceMotion();
   const target = Math.min(1, Math.max(0, fraction));
   // The arc eases to each new value on the UI thread instead of jumping once a second.
-  const arc = useDerivedValue(() => withTiming(target, { duration: reduceMotion ? 0 : motion.progressMs }));
+  const arc = useDerivedValue(() => withTiming(target, timingConfig(reduceMotion)));
   const arcProps = useAnimatedProps(() => ({
     strokeDasharray: `${circumference * arc.value} ${circumference}`,
   }));

@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { AccessibilityInfo, Text } from 'react-native';
+import { AccessibilityInfo, Modal, Text } from 'react-native';
 
-import { motion, useReduceMotion } from '@/theme/motion';
+import { motion, StillMotion, useReduceMotion } from '@/theme/motion';
 
+import { BottomSheet } from './BottomSheet';
 import { PressableScale } from './PressableScale';
 
 const reanimated = jest.requireMock('react-native-reanimated');
@@ -61,6 +62,42 @@ describe('PressableScale', () => {
     setSystemReduceMotion(true);
     fireEvent(button, 'pressIn');
     expect(spring).toHaveBeenLastCalledWith(1, motion.pressSpring);
+  });
+
+  it('does not shrink on the capture screen (ADR 0075)', () => {
+    const spring = jest.spyOn(reanimated, 'withSpring');
+    render(
+      <StillMotion.Provider value>
+        <PressableScale accessibilityRole="button">
+          <Text>hold me</Text>
+        </PressableScale>
+      </StillMotion.Provider>,
+    );
+    fireEvent(screen.getByRole('button'), 'pressIn');
+    expect(spring).toHaveBeenLastCalledWith(1, motion.pressSpring);
+  });
+});
+
+describe('BottomSheet motion', () => {
+  const sheet = (
+    <BottomSheet visible onDismiss={jest.fn()} dismissLabel="close">
+      <Text>sheet</Text>
+    </BottomSheet>
+  );
+  const animationType = () => screen.UNSAFE_getByType(Modal).props.animationType;
+
+  it('fades in, and stops animating when Reduce Motion is switched on while open', () => {
+    render(sheet);
+    expect(animationType()).toBe('fade');
+    setSystemReduceMotion(true);
+    expect(animationType()).toBe('none');
+    setSystemReduceMotion(false);
+    expect(animationType()).toBe('fade');
+  });
+
+  it('appears without animation on the capture screen', () => {
+    render(<StillMotion.Provider value>{sheet}</StillMotion.Provider>);
+    expect(animationType()).toBe('none');
   });
 });
 

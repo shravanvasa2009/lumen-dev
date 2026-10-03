@@ -35,7 +35,7 @@ from export.write_manifest import (
     logistic_rule,
     model_card,
 )
-from nets.rhythm_net import LABELS
+from nets.rhythm_net import FEATURES, LABELS
 from tests.training_artifacts import fit_baseline, save_trained, valid_metrics
 from train.rhythm import LOGISTIC_FEATURES, Units, sensitivity_at, specificity_at, with_ci
 from train.rhythm_windows import FEATURE_NAMES
@@ -54,6 +54,9 @@ CARD_HEADINGS = [
 ]
 
 NETWORKS = sorted(name for name, spec in SPECS.items() if spec.kind == "torch")
+
+# Each model's name@version as the release writes it (export.specs).
+ID = {name: spec.file_stem for name, spec in SPECS.items()}
 
 
 def ship_decision(ships):
@@ -144,7 +147,7 @@ def test_manifest_matches_the_files_and_appendix_b(untrained):
         assert all(value is None for value in external.values())
     assert entries["sqi-finger"]["inputs"] == {"window": [1, 1, 256]}
     rhythm = entries["rhythm-net"]
-    assert rhythm["inputs"] == {"intervals": [1, 64], "mask": [1, 64], "features": [1, 8]}
+    assert rhythm["inputs"] == {"intervals": [1, 64], "mask": [1, 64], "features": [1, FEATURES]}
     assert rhythm["outputs"] == {"probs": [1, 3]}
     assert rhythm["labels"] == ["sinus", "af", "other"]
     assert rhythm["abstainBelow"] == 0.6
@@ -162,7 +165,7 @@ def test_cards_have_every_heading_and_no_external_numbers(untrained):
             assert NOT_MEASURED in card.split("## Development metrics", 1)[1].split("\n## ", 1)[0]
             calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
             assert NOT_MEASURED in calibration and NOT_CALIBRATED not in calibration
-    sqi_card = (models_dir / "sqi-finger@1.0.0.md").read_text(encoding="utf-8")
+    sqi_card = (models_dir / f"{ID['sqi-finger']}.md").read_text(encoding="utf-8")
     assert "inverted red channel" in sqi_card and "finger recordings" in sqi_card
 
 
@@ -190,9 +193,9 @@ def test_trained_release_fills_metrics_and_lists_baselines(trained):
     assert "reported under Development metrics" not in card
     assert "(ablation model, not shipped)" in card and "the app loads rhythm-lgbm" in card
     shipped_card = (models_dir / entries["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
-    assert shipped_card.startswith("# rhythm-lgbm 1.0.0 (shipped rhythm model)")
+    assert shipped_card.startswith(f"# rhythm-lgbm {SPECS['rhythm-lgbm'].version} (shipped rhythm model)")
     assert "ships per §11.3 (ADR 0031)" in shipped_card
-    assert entries["rhythm-lgbm"]["inputs"] == {"features": [1, 8]}
+    assert entries["rhythm-lgbm"]["inputs"] == {"features": [1, FEATURES]}
 
 
 def test_entries_carry_the_development_metrics_verbatim(trained):
@@ -441,7 +444,7 @@ def test_refuses_parity_that_covers_only_one_model(untrained):
 def test_refuses_parity_run_on_a_different_onnx_file(untrained):
     models_dir, runs_dir = untrained
     _run(to_onnx, "--name", "diabetes-net", "--random-init", 4, "--out-dir", models_dir)
-    _assert_refused(models_dir, runs_dir, ProvenanceError, "different diabetes-net@1.0.0.onnx")
+    _assert_refused(models_dir, runs_dir, ProvenanceError, f"different {ID['diabetes-net']}.onnx")
 
 
 def test_refuses_parity_above_tolerance(untrained):
@@ -517,11 +520,11 @@ def test_reliability_tables_get_a_plot_next_to_the_card(trained):
     _with_calibration(runs_dir, lgbm, lambda sha: {"sourceSha256": sha, **RELIABILITY})
     card = (models_dir / _manifest(models_dir, runs_dir)["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
     calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
-    assert "![Reliability diagram, dev-val windows](rhythm-lgbm@1.0.0.calibration.svg)" in calibration
+    assert f"![Reliability diagram, dev-val windows]({ID['rhythm-lgbm']}.calibration.svg)" in calibration
     assert "| 0.3-0.4 | 10 | 0.350 | 0.610 | +0.260 |" in calibration
     assert "| 0.5-0.6 | 100 | 0.550 | 0.600 | +0.050 |" in calibration
     assert "- windowExpectedCalibrationErrorAf: 0.035" in calibration
-    svg = ElementTree.parse(models_dir / "rhythm-lgbm@1.0.0.calibration.svg").getroot()
+    svg = ElementTree.parse(models_dir / f"{ID['rhythm-lgbm']}.calibration.svg").getroot()
     namespace = "{http://www.w3.org/2000/svg}"
     assert len(svg.findall(f"{namespace}polyline")) == 2
     assert len(svg.findall(f"{namespace}circle")) == 3
@@ -536,7 +539,7 @@ def test_reliability_tables_get_a_plot_next_to_the_card(trained):
 
 def test_a_model_without_tables_gets_no_plot_and_loses_a_stale_one(trained):
     models_dir, runs_dir = trained
-    stale = models_dir / "rhythm-net@1.0.0.calibration.svg"
+    stale = models_dir / f"{ID['rhythm-net']}.calibration.svg"
     stale.write_text("<svg/>", encoding="utf-8")
     card = (models_dir / _manifest(models_dir, runs_dir)["rhythm-net"]["card"]).read_text(encoding="utf-8")
     assert "- temperature: 1.5" in card and ".calibration.svg" not in card
@@ -561,7 +564,7 @@ def test_a_calibration_not_keyed_to_the_model_file_is_refused(trained, calibrati
 def test_the_reliability_plot_is_byte_for_byte_reproducible(trained):
     models_dir, runs_dir = trained
     _with_calibration(runs_dir, SPECS["rhythm-lgbm"], lambda sha: {"sourceSha256": sha, **RELIABILITY})
-    plot = models_dir / "rhythm-lgbm@1.0.0.calibration.svg"
+    plot = models_dir / f"{ID['rhythm-lgbm']}.calibration.svg"
     _manifest(models_dir, runs_dir)
     first = plot.read_bytes()
     plot.unlink()
@@ -589,11 +592,11 @@ def _external_results(models_dir, runs_dir, status="done"):
 
     def ledger(name):
         return {
-            "model": f"{name}@1.0.0",
+            "model": ID[name],
             "family": SPECS[name].family,
             "approval": "H-050",
             "commit": "0" * 40,
-            "onnxSha256": sha256_of(models_dir / f"{name}@1.0.0.onnx"),
+            "onnxSha256": sha256_of(models_dir / f"{ID[name]}.onnx"),
             "status": status,
             "startedAt": "2026-10-20T10:00:00+00:00",
             "finishedAt": "2026-10-20T11:00:00+00:00" if status == "done" else None,
@@ -604,7 +607,7 @@ def _external_results(models_dir, runs_dir, status="done"):
         return results
     reports = {
         name: {
-            "model": f"{name}@1.0.0",
+            "model": ID[name],
             "role": "shipped" if seed == 0 else "ablation",
             "subject": binary_report(_units(seed), frozen(name), RHYTHM_PREVALENCES),
             "reading": binary_report(_units(seed + 10), frozen(name), ()),
@@ -631,19 +634,23 @@ def _external_results(models_dir, runs_dir, status="done"):
     subjects = np.where(is_af, "af", "sinus") + (np.arange(600) % 3).astype(str)
     windows = BiasWindows(subjects, is_af, rng.random(600) < 0.9, rng.uniform(50, 110, 600))
     results["rhythm"] = {
-        "model": "rhythm-lgbm@1.0.0",
+        "model": ID["rhythm-lgbm"],
         "subjects": 40,
         "outcome": "shipped-meets-floor",
         "models": reports,
     }
     results["sqi"] = {
-        "model": "sqi-finger@1.0.0",
+        "model": ID["sqi-finger"],
         "role": "guard",
         "threshold": frozen("sqi-finger"),
         "subjects": 6,
         **rhythm_bias_report(windows, ["af0", "af1", "af2"], ["sinus0", "sinus1", "sinus2"]),
     }
-    entry = {"name": "diabetes-net", "version": "1.0.0", "threshold": {"pattern": frozen("diabetes-net")}}
+    entry = {
+        "name": "diabetes-net",
+        "version": SPECS["diabetes-net"].version,
+        "threshold": {"pattern": frozen("diabetes-net")},
+    }
     results["diabetes"] = diabetes_part(
         entry,
         _units(2),
@@ -743,7 +750,9 @@ def test_refuses_an_external_run_of_a_different_onnx_file(trained, monkeypatch):
     results = _external_results(models_dir, runs_dir)
     results["runs"][1]["onnxSha256"] = "f" * 64
     _write_external(models_dir, results)
-    _assert_refused(models_dir, runs_dir, ProvenanceError, "rhythm-net@1.0.0 was externally tested as ONNX")
+    _assert_refused(
+        models_dir, runs_dir, ProvenanceError, f"{ID['rhythm-net']} was externally tested as ONNX"
+    )
 
 
 @pytest.mark.parametrize(
@@ -781,7 +790,10 @@ def test_refuses_rhythm_numbers_at_another_threshold(trained, monkeypatch):
     results["rhythm"]["models"]["rhythm-net"]["subject"]["threshold"] = 0.77
     _write_external(models_dir, results)
     _assert_refused(
-        models_dir, runs_dir, ProvenanceError, "rhythm-net@1.0.0 was externally tested at af threshold 0.77"
+        models_dir,
+        runs_dir,
+        ProvenanceError,
+        f"{ID['rhythm-net']} was externally tested at af threshold 0.77",
     )
 
 
@@ -799,7 +811,9 @@ def test_refuses_a_started_run_of_a_different_onnx_file(trained):
     results = _external_results(models_dir, runs_dir, status="started")
     results["runs"][2]["onnxSha256"] = "f" * 64
     _write_external(models_dir, results)
-    _assert_refused(models_dir, runs_dir, ProvenanceError, "sqi-finger@1.0.0 was externally tested as ONNX")
+    _assert_refused(
+        models_dir, runs_dir, ProvenanceError, f"{ID['sqi-finger']} was externally tested as ONNX"
+    )
 
 
 def test_refuses_reading_level_numbers_at_another_threshold(trained, monkeypatch):
@@ -809,7 +823,10 @@ def test_refuses_reading_level_numbers_at_another_threshold(trained, monkeypatch
     results["rhythm"]["models"]["rhythm-lgbm"]["reading"]["threshold"] = 0.66
     _write_external(models_dir, results)
     _assert_refused(
-        models_dir, runs_dir, ProvenanceError, "rhythm-lgbm@1.0.0 was externally tested at af threshold 0.66"
+        models_dir,
+        runs_dir,
+        ProvenanceError,
+        f"{ID['rhythm-lgbm']} was externally tested at af threshold 0.66",
     )
 
 
@@ -820,7 +837,10 @@ def test_refuses_app_scored_readings_at_another_threshold(trained, monkeypatch):
     results["rhythm"]["models"]["rhythm-lgbm"]["appReadings"]["answered"]["threshold"] = 0.42
     _write_external(models_dir, results)
     _assert_refused(
-        models_dir, runs_dir, ProvenanceError, "rhythm-lgbm@1.0.0 was externally tested at af threshold 0.42"
+        models_dir,
+        runs_dir,
+        ProvenanceError,
+        f"{ID['rhythm-lgbm']} was externally tested at af threshold 0.42",
     )
 
 

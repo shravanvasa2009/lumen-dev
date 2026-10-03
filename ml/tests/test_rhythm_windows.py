@@ -4,7 +4,7 @@ import pytest
 
 from datasets.build_intervals import MAX_INTERVAL_S, MIN_INTERVAL_S
 from lumen_dsp.config import DSP_CONFIG
-from lumen_dsp.rhythm import rhythm_feature_vector, rhythm_windows
+from lumen_dsp.rhythm import rhythm_feature_vector, rhythm_v2_features, rhythm_windows
 from nets.rhythm_net import FEATURES, INTERVALS, LABELS
 from train import rhythm_windows as windows_module
 from train.rhythm_windows import (
@@ -40,6 +40,11 @@ def irregular(count, seed):
     return np.random.default_rng(seed).uniform(400, 1100, count)
 
 
+def dsp_features(window):
+    # ADR 0079: the DSP-15 vector, then the 7 rhythm v2 features, both from lumen_dsp.
+    return rhythm_feature_vector(window) + rhythm_v2_features(window)
+
+
 def neutralized(features):
     # v1 replaces the atypical-beat fraction with a constant; every other feature is lumen_dsp's.
     features = np.array(features, dtype=float)
@@ -49,7 +54,20 @@ def neutralized(features):
 
 def test_feature_names_follow_the_dsp15_vector():
     assert len(FEATURE_NAMES) == FEATURES
-    assert FEATURE_NAMES[0] == "normalizedRmssd" and FEATURE_NAMES[-1] == "atypicalFraction"
+    # The v1 vector keeps its slots, so ATYPICAL_INDEX and the logistic rule's columns don't move.
+    assert (
+        FEATURE_NAMES[0] == "normalizedRmssd"
+        and FEATURE_NAMES[ATYPICAL_INDEX] == "atypicalFraction" == FEATURE_NAMES[7]
+    )
+    assert FEATURE_NAMES[8:] == (
+        "medianAbsDiffNorm",
+        "shortLongPairShare",
+        "rmssdPairsRemovedNorm",
+        "trimmedRmssdNorm",
+        "largeChangeShare",
+        "rrLag1Autocorr",
+        "rrLag2Autocorr",
+    )
 
 
 def test_readings_are_90_second_blocks_with_their_bounding_beat_flags():
@@ -73,7 +91,7 @@ def test_window_inputs_follow_adr_0020_layout():
     np.testing.assert_allclose(intervals[:SIZE], intervals_s[:SIZE], rtol=1e-6)
     assert (intervals[SIZE:] == 0).all()
     assert (mask[:SIZE] == 1).all() and (mask[SIZE:] == 0).all()
-    np.testing.assert_allclose(features, neutralized(rhythm_feature_vector(window)), rtol=1e-6)
+    np.testing.assert_allclose(features, neutralized(dsp_features(window)), rtol=1e-6)
 
 
 def test_dev_val_windows_match_lumen_dsp_on_the_raw_intervals():
@@ -85,7 +103,7 @@ def test_dev_val_windows_match_lumen_dsp_on_the_raw_intervals():
     expected = rhythm_windows(raw / 1000, [False] * 70, [False, *premature])
     assert len(windows.labels) == len(expected) == (70 - SIZE) // STEP + 1
     np.testing.assert_allclose(
-        windows.features, neutralized([rhythm_feature_vector(window) for window in expected]), rtol=1e-6
+        windows.features, neutralized([dsp_features(window) for window in expected]), rtol=1e-6
     )
     # The premature beat is in the first windows, so lumen_dsp's own value is not the constant.
     assert expected[0].atypical_fraction > 0

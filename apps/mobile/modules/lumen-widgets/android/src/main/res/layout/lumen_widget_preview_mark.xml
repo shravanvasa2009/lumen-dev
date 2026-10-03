@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The brand mark as the widget draws it: the body in the accent color, the pulse line in the surface color. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="13dp"
+    android:layout_height="26dp">
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:src="@drawable/lumen_brand_mark_body"
+        android:tint="@color/lumen_widget_preview_accent" />
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:src="@drawable/lumen_brand_mark_pulse"
+        android:tint="@color/lumen_widget_preview_surface" />
+</FrameLayout>

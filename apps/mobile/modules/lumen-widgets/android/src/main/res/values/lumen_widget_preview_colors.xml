@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The picker preview follows the phone's light or dark mode (values-night), like a widget placed before the app
+     first publishes. -->
+<resources>
+    <color name="lumen_widget_preview_surface">@color/lumen_widget_light_surface</color>
+    <color name="lumen_widget_preview_line">@color/lumen_widget_light_line</color>
+    <color name="lumen_widget_preview_line2">@color/lumen_widget_light_line2</color>
+    <color name="lumen_widget_preview_text">@color/lumen_widget_light_text</color>
+    <color name="lumen_widget_preview_text_dim">@color/lumen_widget_light_text_dim</color>
+    <color name="lumen_widget_preview_accent">@color/lumen_widget_light_accent</color>
+    <color name="lumen_widget_preview_accent_fill">@color/lumen_widget_light_accent_fill</color>
+    <color name="lumen_widget_preview_on_accent_fill">@color/lumen_widget_light_on_accent_fill</color>
+</resources>

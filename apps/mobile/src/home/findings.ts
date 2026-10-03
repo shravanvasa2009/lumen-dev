@@ -5,7 +5,7 @@ import type { StoredReading } from './readings';
 // Two Full Scans on different days are needed before the diabetes pattern can be flagged (spec 11.4).
 export const DIABETES_DAYS_NEEDED = 2;
 
-export type Found<Metric> = { reading: StoredReading; metric: Metric };
+type Found<Metric> = { reading: StoredReading; metric: Metric };
 
 function newestFirst(readings: readonly StoredReading[]): StoredReading[] {
   return [...readings].sort((first, second) => second.takenAt - first.takenAt);
@@ -30,7 +30,7 @@ export function latestRmssd(readings: readonly StoredReading[]): Found<RmssdMetr
   return newestWith(readings, (reading) => reading.outcome.metrics.rmssd);
 }
 
-export type DiabetesProgress = { days: number; latest: Found<DiabetesMetric> | null };
+type DiabetesProgress = { days: number; latest: Found<DiabetesMetric> | null };
 
 // Days are counted on the phone's calendar, from the readings that carried a diabetes result.
 export function diabetesProgress(readings: readonly StoredReading[]): DiabetesProgress {

@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
+import { evidenceFor } from '@/evidence';
 import { rhythmClassWords } from '@/results/rhythmWords';
 import { useTheme } from '@/theme';
 
@@ -33,7 +34,7 @@ export function ChecksSection({ readings, now, compact }: ChecksSectionProps) {
   const hrvValue = rmssd ? String(Math.round(rmssd.metric.value)) : '';
   const band = rmssd?.metric.band;
   const diabetesFinding =
-    diabetes?.metric.flag === 'pattern'
+    diabetes?.metric.flag === 'pattern' && evidenceFor('diabetes').measured
       ? t('dm.flag.title')
       : days === 0
         ? noReadings

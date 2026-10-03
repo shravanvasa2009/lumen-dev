@@ -33,10 +33,10 @@ export default function HomeScreen() {
   return <Home />;
 }
 
-// Below this window height (a 360 x 640 phone) the Measure button shrinks and the check cards drop their icons.
+// Below this window height (a 360 x 640 phone) the Measure disc shrinks to 160 dp (256 dp otherwise), the date line goes and the check cards drop their icons.
 const COMPACT_HEIGHT = 700;
-const MEASURE_SIZE = 240;
-const MEASURE_SIZE_COMPACT = 164;
+const MEASURE_SIZE = 320;
+const MEASURE_SIZE_COMPACT = 200;
 
 function Home() {
   const { t, i18n } = useTranslation();
@@ -62,7 +62,7 @@ function Home() {
     <Screen headerless>
       <ScrollView contentContainerStyle={{ flexGrow: 1, gap: spacing.md, paddingBottom: spacing.lg }}>
         <View>
-          <AppText tone="textDim">{dateLine(now, i18n.language)}</AppText>
+          {compact ? null : <AppText tone="textDim">{dateLine(now, i18n.language)}</AppText>}
           <AppText variant="display" accessibilityRole="header">
             {greetings[dayPeriod(now.getHours())]}
           </AppText>

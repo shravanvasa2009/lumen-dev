@@ -89,6 +89,7 @@ describe('Home', () => {
   ])('starts the right check from the %s Scan button', (name, path) => {
     fireEvent.press(screen.getByRole('button', { name: `Scan for ${name}` }));
     expect(route.getPathname()).toBe(path);
+    if (path === '/measure/precheck') expect(route.getSearchParams()).toEqual({ mode: 'full' });
   });
 
   it('reaches the mode list from Change mode', () => {

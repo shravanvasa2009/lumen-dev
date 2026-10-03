@@ -15,6 +15,18 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => 'light',
 }));
 
+const mockEvidence = { diabetesMeasured: false };
+jest.mock('@/evidence', () => {
+  const actual = jest.requireActual('@/evidence');
+  return {
+    ...actual,
+    evidenceFor: (metric: string) =>
+      metric === 'diabetes' && mockEvidence.diabetesMeasured
+        ? { label: 'public-data', measured: true }
+        : actual.evidenceFor(metric),
+  };
+});
+
 const NOW = new Date(2026, 10, 3, 12, 0);
 
 function reading(daysAgo: number, change: (metrics: ReadingResult['metrics']) => void): StoredReading {
@@ -85,9 +97,20 @@ describe('check cards with saved readings', () => {
     expect(screen.getByText('2 of 2 readings so far')).toBeOnTheScreen();
   });
 
-  it('uses the existing pattern wording when the newest diabetes result is flagged', () => {
+  it('never shows the pattern wording while diabetes evidence is Experimental', () => {
     show([reading(0, diabetes('pattern')), reading(1, diabetes(null))]);
-    expect(screen.getByText(en['dm.flag.title'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['dm.flag.title'])).toBeNull();
+    expect(screen.getByText('2 of 2 readings so far')).toBeOnTheScreen();
+  });
+
+  it('shows the existing pattern wording once diabetes evidence is measured', () => {
+    mockEvidence.diabetesMeasured = true;
+    try {
+      show([reading(0, diabetes('pattern')), reading(1, diabetes(null))]);
+      expect(screen.getByText(en['dm.flag.title'])).toBeOnTheScreen();
+    } finally {
+      mockEvidence.diabetesMeasured = false;
+    }
   });
 
   it('ignores readings that carry no diabetes result', () => {

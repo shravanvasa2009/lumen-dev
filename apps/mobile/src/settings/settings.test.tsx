@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
-import { Linking, Platform } from 'react-native';
+import { Dimensions, Linking, Platform, ScrollView, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { expectNavTitle, focusedNavHeader, sheetScreenProps } from '@/testing/navHeader';
@@ -9,6 +9,13 @@ import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { setPreference } from '@/theme/preferences';
 import tokens from '@/theme/tokens.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+
+// The jest safe-area context reports no insets, so the top inset is pinned to prove the cap subtracts it.
+const STATUS_BAR_INSET = 24;
+jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual('react-native-safe-area-context'),
+  useSafeAreaInsets: () => ({ top: STATUS_BAR_INSET, bottom: 0, left: 0, right: 0 }),
+}));
 
 fixClockAtMorning();
 
@@ -275,15 +282,25 @@ describe('Doctor follow-up', () => {
     try {
       Platform.OS = 'android';
       renderRouter(appDirectory, { initialUrl: '/follow-up' });
-      const drawn = (node: ReturnType<typeof screen.toJSON>) =>
-        JSON.stringify(node).includes('"width":40,"height":4');
-      expect(drawn(screen.toJSON())).toBe(true);
+      expect(screen.getByTestId('sheet-grabber')).toBeOnTheScreen();
       screen.unmount();
       Platform.OS = 'ios';
       renderRouter(appDirectory, { initialUrl: '/follow-up' });
-      expect(drawn(screen.toJSON())).toBe(false);
+      expect(screen.queryByTestId('sheet-grabber')).toBeNull();
     } finally {
       Platform.OS = platform;
+    }
+  });
+
+  it('caps the sheet content below the window height so tall text scrolls', () => {
+    const originalWindow = Dimensions.get('window');
+    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
+    try {
+      renderRouter(appDirectory, { initialUrl: '/follow-up' });
+      const { maxHeight } = StyleSheet.flatten(screen.UNSAFE_getByType(ScrollView).props.style);
+      expect(maxHeight).toBe(640 - STATUS_BAR_INSET);
+    } finally {
+      act(() => Dimensions.set({ window: originalWindow }));
     }
   });
 

@@ -133,6 +133,7 @@ describe.each([
     'lens',
     'phone',
     'pulse',
+    'clock',
   ])('Icon %s draws strokes in the colour it is given', (name) => {
     render(<Icon name={name} size={24} color={colors.accent} />);
     const drawn = JSON.stringify(screen.toJSON());

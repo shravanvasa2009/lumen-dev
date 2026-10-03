@@ -90,6 +90,26 @@ describe('Your phone', () => {
     fireEvent.press(screen.getByRole('button', { name: en['phoneRating.retest'] }));
     expect(screen.getByRole('header', { name: en['phoneCheck.title'] })).toBeOnTheScreen();
   });
+
+  it('holds the single re-test button in the not-tested card, above the measures', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/phone' });
+    expect(screen.getAllByRole('button', { name: en['phoneRating.retest'] })).toHaveLength(1);
+    expect(screen.getByText(en['phoneRating.notTestedBody'])).toBeOnTheScreen();
+    expect(screen.queryAllByTestId('rating-bar')).toHaveLength(0);
+    expect(screen.getByTestId('not-tested-tile')).toBeOnTheScreen();
+    expect(screen.getByText(en['phoneRating.tip'])).toBeOnTheScreen();
+  });
+
+  it('lists the four measures with a dash for each score and no bars until tested', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/phone' });
+    expect(screen.getByRole('header', { name: en['phoneRating.measures'] })).toBeOnTheScreen();
+    for (const key of ['frameRate', 'coupling', 'lock', 'timing'] as const) {
+      expect(screen.getByText(en[`phoneRating.${key}`])).toBeOnTheScreen();
+    }
+    for (const max of [30, 35, 15, 20]) {
+      expect(screen.getByText(`—/${max}`)).toBeOnTheScreen();
+    }
+  });
 });
 
 // __DEV__ is a constant to the compiler but a plain global at run time, so a test can switch it.

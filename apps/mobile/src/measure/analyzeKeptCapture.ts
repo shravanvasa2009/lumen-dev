@@ -10,6 +10,7 @@ import {
 
 import evidence from '../../assets/evidence.json';
 import { classifyRhythm } from '../ml/runtime';
+import { storedReadingTier } from '../store/deviceRating';
 import { loadProfile } from '../store/profile';
 import { type AnalysisProgress, pendingProgress } from './analysisProgress';
 import type { KeptCapture } from './keptCapture';
@@ -73,7 +74,7 @@ export async function analyzeKeptCapture(
   const recordedMs = Date.now();
   const context: ReadingContext = {
     captureFps: capture.captureFps,
-    tier: null,
+    tier: await storedReadingTier(),
     mode: request.mode,
     restTimerDone: request.restTimerDone,
     recordedAt: { ms: recordedMs, day: localDay(recordedMs) },

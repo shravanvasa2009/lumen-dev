@@ -19,6 +19,7 @@ const strokes = {
   warning: 'M12 4 2.5 20h19ZM12 10v5M12 17.6v.4',
   share: 'M12 15V4M8 8l4-4 4 4M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7',
   noSignal: 'M2 12h5l2-5 3 10 2-5h3M5 20 19 4',
+  lock: 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6Z',
   hint: 'M12 11v5.5M12 7.6v.4',
 } as const;
 

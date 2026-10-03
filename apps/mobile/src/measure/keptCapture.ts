@@ -4,6 +4,8 @@ import type { FrameStat, NsSpan, Sample, SqiScores } from '@lumen/core';
 // live session decided about them (ADR 0042's contract gap: the session does not expose these itself).
 export interface KeptCapture {
   captureFps: number;
+  // The lens the live capture ran on; null when the phone has no torch-capable lens.
+  lensId: string | null;
   samples: Sample[];
   stats: FrameStat[];
   motionSpans: NsSpan[];

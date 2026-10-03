@@ -6,7 +6,7 @@ import type { StoredReading } from '@/home/readings';
 import { listReadings, storedReadingById } from './readings';
 
 // A failed read is thrown during render and caught by the ErrorBoundary exported from app/_layout.tsx.
-function useLoaded<Loaded>(initial: Loaded): [Loaded, (load: () => Promise<Loaded>) => () => void] {
+export function useLoaded<Loaded>(initial: Loaded): [Loaded, (load: () => Promise<Loaded>) => () => void] {
   const [loaded, setLoaded] = useState(initial);
   const [failure, setFailure] = useState<unknown>(null);
   if (failure !== null) throw failure;

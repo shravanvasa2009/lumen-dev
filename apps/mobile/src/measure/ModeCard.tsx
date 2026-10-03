@@ -12,10 +12,20 @@ type ModeCardProps = {
   recommended?: string;
   // Present when the mode cannot start; the card then ignores presses and shows this reason.
   unavailable?: string;
+  // The reason is a rating lock, so the card shows a lock beside it.
+  locked?: boolean;
   onPress?: () => void;
 };
 
-export function ModeCard({ title, body, duration, recommended, unavailable, onPress }: ModeCardProps) {
+export function ModeCard({
+  title,
+  body,
+  duration,
+  recommended,
+  unavailable,
+  locked,
+  onPress,
+}: ModeCardProps) {
   const { colors, spacing, radius } = useTheme();
   const pill = (label: string, tone: 'accent' | 'textDim') => (
     <View
@@ -50,9 +60,12 @@ export function ModeCard({ title, body, duration, recommended, unavailable, onPr
         </View>
         <AppText tone="textDim">{body}</AppText>
         {unavailable ? (
-          <AppText variant="caption" tone="textFaint">
-            {unavailable}
-          </AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+            {locked ? <Icon name="lock" size={16} color={colors.textFaint} /> : null}
+            <AppText variant="caption" tone="textFaint" style={{ flex: 1 }}>
+              {unavailable}
+            </AppText>
+          </View>
         ) : (
           <Icon name="finger" size={24} color={colors.pulse} />
         )}

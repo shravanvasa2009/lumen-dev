@@ -380,6 +380,7 @@
   "lab.redTrace": "Red mean · live",
   "lab.frames": "Frames recorded: {{frames}}",
   "lab.status": "{{fps}} fps · {{dropped}}% dropped",
+  "lab.activeFps": "Camera set to {{fps}} fps",
   "lab.thermalNominal": "Thermal state: nominal",
   "lab.thermalFair": "Thermal state: fair",
   "lab.thermalSerious": "Thermal state: serious",

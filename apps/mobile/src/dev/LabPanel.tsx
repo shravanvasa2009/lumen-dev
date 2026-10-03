@@ -210,6 +210,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const [trace, setTrace] = useState<number[]>([]);
   const [frames, setFrames] = useState(0);
   const [status, setStatus] = useState<CaptureStatus | null>(null);
+  const [activeFps, setActiveFps] = useState<number | null>(null);
   const [lab, setLab] = useState<LabDiagnostics | null>(null);
   const [liveHr, setLiveHr] = useState<LiveHeartRate>({ kind: 'none' });
   const [recorded, setRecorded] = useState<Recorded | null>(null);
@@ -363,6 +364,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       setTrace([]);
       setFrames(0);
       setStatus(null);
+      setActiveFps(null);
       setLab(null);
       setRecorded(null);
       setLockDone(false);
@@ -396,7 +398,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       const config: CaptureConfig = { torchLevel };
       if (lensId !== undefined) config.lensId = lensId;
       if (targetFps !== undefined) config.targetFps = targetFps;
-      await capture.start(config);
+      const started = await capture.start(config);
       if (!mounted.current) {
         // The screen closed while the camera was starting, so its cleanup had nothing to stop yet.
         removeListeners();
@@ -404,6 +406,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
         return;
       }
       capturing.current = true;
+      setActiveFps(started.activeFps);
       setRunning(true);
       if (autoLock)
         autoLockTimer.current = setTimeout(() => {
@@ -498,7 +501,8 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const pacedTyped = pacedText.trim().replace(',', '.');
   // Plain decimals only: Number() would also take forms like 0x10 or 1e1.
   const pacedBrpm = /^\d+(\.\d+)?$/.test(pacedTyped) ? Number(pacedTyped) : undefined;
-  const pacedValid = pacedTyped === '' || (pacedBrpm !== undefined && pacedBrpm > 0 && pacedBrpm <= MAX_PACED_BRPM);
+  const pacedValid =
+    pacedTyped === '' || (pacedBrpm !== undefined && pacedBrpm > 0 && pacedBrpm <= MAX_PACED_BRPM);
 
   const sendToPc = async () => {
     if (!recorded) return;
@@ -569,12 +573,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   }));
 
   const canSend =
-    !running &&
-    recorded !== null &&
-    frames > 0 &&
-    address.trim() !== '' &&
-    token.trim() !== '' &&
-    pacedValid;
+    !running && recorded !== null && frames > 0 && address.trim() !== '' && token.trim() !== '' && pacedValid;
 
   return (
     <View style={{ gap: spacing.md }}>
@@ -631,6 +630,9 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       <AppText variant="headline">{t('lab.redTrace')}</AppText>
       <RedTrace values={trace} />
       <AppText tone="textDim">{t('lab.frames', { frames })}</AppText>
+      {activeFps !== null ? (
+        <AppText tone="textDim">{t('lab.activeFps', { fps: activeFps.toFixed(1) })}</AppText>
+      ) : null}
       {status ? (
         <>
           <AppText>

@@ -54,6 +54,11 @@ test('emits one batch per 100 ms holding the frames of that window', async () =>
   expect(batches[1]?.samples[0]?.tNs).toBe(START_NS + 5 * FRAME_NS);
 });
 
+test('start() reports the recording frame rate, whatever targetFps asks for', async () => {
+  const capture = new ReplayCapture(syntheticRecording(50, [10]));
+  await expect(capture.start({ targetFps: 120 })).resolves.toEqual({ activeFps: 50 });
+});
+
 test('emits status at 4 Hz with the frame rate over the last second', async () => {
   const capture = new ReplayCapture(syntheticRecording(200));
   const { statuses } = record(capture);

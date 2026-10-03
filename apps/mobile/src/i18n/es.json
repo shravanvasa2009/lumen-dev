@@ -380,6 +380,7 @@
   "lab.redTrace": "Media del rojo · en vivo",
   "lab.frames": "Cuadros grabados: {{frames}}",
   "lab.status": "{{fps}} fps · {{dropped}} % perdidos",
+  "lab.activeFps": "Cámara configurada a {{fps}} fps",
   "lab.thermalNominal": "Estado térmico: normal",
   "lab.thermalFair": "Estado térmico: moderado",
   "lab.thermalSerious": "Estado térmico: alto",

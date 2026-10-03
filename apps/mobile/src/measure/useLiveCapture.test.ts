@@ -63,6 +63,8 @@ class FakeCapture implements LumenCaptureModule {
     await this.startGate;
     if (this.startError) throw this.startError;
     this.started.push(config);
+    // This fake camera honors any requested rate; with none it runs at 30 fps.
+    return { activeFps: config.targetFps ?? 30 };
   }
   async stop() {
     this.stops += 1;

@@ -102,6 +102,7 @@ test('the OpenFreeMap tile host is allowed for the /care-map route only', (t) =>
   const style = "const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';\n";
   const allowed = runOn(t, {
     'apps/mobile/app/care-map.tsx': style,
+    'apps/mobile/app/(tabs)/care.tsx': style,
     'apps/mobile/src/care/CareMapView.tsx': style,
   });
   assert.equal(allowed.status, 0, allowed.stderr);
@@ -113,13 +114,21 @@ test('the OpenFreeMap tile host is allowed for the /care-map route only', (t) =>
   ]) {
     const run = runOn(t, { [file]: style });
     assert.equal(run.status, 1, file);
-    assert.match(run.stderr, /map tile host outside the \/care-map route/, file);
+    assert.match(run.stderr, /map tile host outside the Care map routes/, file);
   }
 });
 
 test('only the exact care-map route file is allowed, not look-alike paths', (t) => {
   const style = "const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';\n";
-  for (const file of ['apps/mobile/app/care-map.tsx.ts', 'apps/mobile/app/care-map.tsx/x.ts']) {
+  const lookAlikes = [
+    'apps/mobile/app/care-map.tsx.ts',
+    'apps/mobile/app/care-map.tsx/x.ts',
+    'apps/mobile/app/(tabs)/care-other.tsx',
+    'apps/mobile/app/care.tsx',
+    'apps/mobile/app/(tabs)/care.tsx.ts',
+    'apps/mobile/app/(tabs)/care.tsx/x.ts',
+  ];
+  for (const file of lookAlikes) {
     const run = runOn(t, { [file]: style });
     assert.equal(run.status, 1, file);
     assert.match(run.stderr, /map tile host outside/, file);

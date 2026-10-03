@@ -164,6 +164,9 @@ export const DSP_CONFIG = {
     slowRestingBpm: 50, // HR below this
     slowRestingAdjustedBpm: 40, // for athletes and people on a beta-blocker
     fastRestingBpm: 100, // HR above this
+    // §12 Modes "Duration" in clean seconds: §7's countdown counts only these, and a reading short of its
+    // mode's target ends inconclusive. Deep HRV's "5 min" is SDNN's §6.2 floor (ADR 0072).
+    modeMinCleanS: { quick: 30, full: 90, deep: 300 },
     restingMinCleanS: 30, // slow/fast resting and fast regular rhythm
     fastRegularBpm: [130, 220],
     fastRegularMaxNormalizedRmssd: 0.03, // strictly below

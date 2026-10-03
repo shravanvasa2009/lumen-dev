@@ -109,6 +109,7 @@
     "slowRestingBpm": 50,
     "slowRestingAdjustedBpm": 40,
     "fastRestingBpm": 100,
+    "modeMinCleanS": { "quick": 30, "full": 90, "deep": 300 },
     "restingMinCleanS": 30,
     "fastRegularBpm": [130, 220],
     "fastRegularMaxNormalizedRmssd": 0.03,

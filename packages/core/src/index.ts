@@ -85,6 +85,8 @@ export {
   type RhythmOutputs,
 } from './reading-result';
 export { createLiveSession, type LiveSessionConfig } from './live';
+export { SHAPE_FEATURE_NAMES, shapeFeatures } from './shape-features';
+export { hrSummary } from './reading-metrics';
 export {
   rateDevice,
   tierUnlocks,

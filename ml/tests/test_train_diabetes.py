@@ -9,10 +9,12 @@ from export import to_onnx, verify_onnx, write_manifest
 from export.provenance import ALL_BAD_BASIS, load_metrics
 from export.specs import SPECS
 from export.to_onnx import source_model
-from nets.diabetes_net import BEAT, SHAPE_FEATURE_NAMES
+from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES
+from nets.diabetes_net import BEAT, HR_SUMMARY_NAMES
 from tests.training_artifacts import fit_baseline, save_trained
 from train import diabetes, rhythm
 from train.diabetes import (
+    EMPTY_COLUMN_FILL,
     HR_ONLY,
     TABULAR,
     TARGET_SPECIFICITY,
@@ -27,7 +29,6 @@ from train.diabetes import (
     ship_decision,
     subject_units,
 )
-from train.hr_summary import HR_SUMMARY_NAMES
 from train.rhythm import Units, specificity_at
 
 DIABETES_MODELS = ("diabetes-net", "diabetes-logistic", "diabetes-lgbm")
@@ -143,6 +144,16 @@ def test_fill_refuses_a_feature_with_no_dev_train_value():
     table.loc[table["split"] == "dev-train", "eOverA"] = np.nan
     with pytest.raises(ValueError, match="eOverA"):
         fill_medians(table)
+
+
+def test_sdnn_with_no_dev_train_value_is_filled_with_a_stored_constant():
+    # SDNN on 90 s segments: DSP-12 never gives it, so the column is all null.
+    table = synthetic_table(2, 2)
+    table["sdnnMs"] = np.nan
+    medians = fill_medians(table)
+    assert medians["sdnnMs"] == EMPTY_COLUMN_FILL
+    filled = segment_set(table, "dev-val", medians)
+    assert (filled.tabular[:, TABULAR.index("sdnnMs")] == EMPTY_COLUMN_FILL).all()
 
 
 def test_tau_is_the_lowest_threshold_with_85_percent_specificity():

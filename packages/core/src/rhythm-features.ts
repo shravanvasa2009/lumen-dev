@@ -4,6 +4,27 @@ import { median } from './median';
 // Every sum runs in index order so ml/lumen_dsp/rhythm.py, which uses the same loops, gives the same
 // doubles (§10.2 parity), up to 1 ulp where Python's ** 2 uses the platform pow().
 
+// Rhythm model inputs by name, in training order (ml/train/rhythm_windows.py FEATURE_NAMES): the first 8 are
+// rhythmFeatureVector's (v1), the last 7 rhythmV2Features' (v2). A model reads the prefix its manifest
+// featureOrder names.
+export const RHYTHM_FEATURE_NAMES = [
+  'normalizedRmssd',
+  'shannonEntropyBits',
+  'turningPointRatio',
+  'sd1S',
+  'sd2S',
+  'pnn50',
+  'sampleEntropy',
+  'atypicalFraction',
+  'medianAbsDiffNorm',
+  'shortLongPairShare',
+  'rmssdPairsRemovedNorm',
+  'trimmedRmssdNorm',
+  'largeChangeShare',
+  'rrLag1Autocorr',
+  'rrLag2Autocorr',
+] as const;
+
 export interface RhythmWindow {
   startInterval: number; // index of the window's first interval in the reading
   intervalsS: number[];

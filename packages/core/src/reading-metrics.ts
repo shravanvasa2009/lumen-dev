@@ -181,8 +181,11 @@ export function hrv(
   return { rmssdMs, sdnnMs, pnn50, nnIntervals: intervalsS.length };
 }
 
-// The order is diabetes-net's [1, 4] input; null values get the model's training median, not a core fill.
-/** ML-6: diabetes-net's HR/HRV summary [HR bpm, RMSSD ms, SDNN ms, pNN50] by DSP-11 and DSP-12. */
+// The order of hrSummary's output: diabetes-net's [1, 4] input, named as in its manifest featureOrder.hrSummary.
+export const HR_SUMMARY_NAMES = ['hrBpm', 'rmssdMs', 'sdnnMs', 'pnn50'] as const;
+
+// Null values get the model's training median, not a core fill.
+/** ML-6: diabetes-net's HR/HRV summary, in HR_SUMMARY_NAMES order, by DSP-11 and DSP-12. */
 export function hrSummary(
   segments: ClassifiedBeat[][],
   rhythm: ReadingRhythm | null, // null: no rhythm card
@@ -190,10 +193,11 @@ export function hrSummary(
   cleanS: number,
 ): (number | null)[] {
   const variability = hrv(segments, rhythm, captureFps, cleanS);
-  return [
-    heartRate(segments, cleanS),
-    variability?.rmssdMs ?? null,
-    variability?.sdnnMs ?? null,
-    variability?.pnn50 ?? null,
-  ];
+  const byName: Record<(typeof HR_SUMMARY_NAMES)[number], number | null> = {
+    hrBpm: heartRate(segments, cleanS),
+    rmssdMs: variability?.rmssdMs ?? null,
+    sdnnMs: variability?.sdnnMs ?? null,
+    pnn50: variability?.pnn50 ?? null,
+  };
+  return HR_SUMMARY_NAMES.map((name) => byName[name]);
 }

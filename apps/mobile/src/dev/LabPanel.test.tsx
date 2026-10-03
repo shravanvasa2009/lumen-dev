@@ -3,7 +3,12 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import en from '@/i18n/en.json';
 import tokens from '@/theme/tokens.json';
 
-import { ReplayCapture, type LabDiagnostics, type RecordedCapture } from '../../modules/lumen-capture/src';
+import {
+  ReplayCapture,
+  type CaptureStarted,
+  type LabDiagnostics,
+  type RecordedCapture,
+} from '../../modules/lumen-capture/src';
 
 import { LabPanel } from './LabPanel';
 import type { StrapEvents } from './polarStrap';
@@ -181,10 +186,10 @@ test('a second Start press while the first is pending does not record every fram
 
 test('stops the camera if the screen closes while start() is pending, and reports a failed stop', async () => {
   const replay = new ReplayCapture(syntheticRecording());
-  let finishStart: () => void = () => undefined;
+  let finishStart: (started: CaptureStarted) => void = () => undefined;
   jest.spyOn(replay, 'start').mockImplementation(
     () =>
-      new Promise<void>((resolve) => {
+      new Promise<CaptureStarted>((resolve) => {
         finishStart = resolve;
       }),
   );
@@ -197,7 +202,7 @@ test('stops the camera if the screen closes while start() is pending, and report
   expect(screen.getByRole('button', { name: en['lab.start'] })).toBeDisabled();
   unmount();
   await act(async () => {
-    finishStart();
+    finishStart({ activeFps: 60 });
   });
 
   expect(stop).toHaveBeenCalledTimes(1);
@@ -255,6 +260,8 @@ test('starts with the chosen lens, target fps, and torch level', async () => {
   await press(en['lab.start']);
 
   expect(start).toHaveBeenCalledWith({ lensId: 'synthetic-wide', targetFps: 60, torchLevel: 0.5 });
+  // A recording keeps its own rate, so Lab shows the rate start() reported, not the one asked for.
+  expect(screen.getByText(fill(en['lab.activeFps'], { fps: '50.0' }))).toBeOnTheScreen();
 });
 
 test('the default start leaves lens and fps to native and turns the torch on full', async () => {

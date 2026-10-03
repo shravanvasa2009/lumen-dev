@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router';
-import { requestPermissionsAsync } from 'expo-notifications';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -10,6 +9,9 @@ import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
 import { ListRow } from '@/components/ListRow';
+import { loadNotificationPrefs } from '@/notifications/prefs';
+import { askPermission, saveAndSyncNotifications } from '@/settings/applyPrefs';
+import { formatClock } from '@/settings/formatClock';
 import { Toggle } from '@/settings/Toggle';
 import { useTheme } from '@/theme';
 
@@ -33,12 +35,7 @@ export default function RemindersScreen() {
     doctor: true,
   });
   const timeOf = (hourOfDay: number, withPeriod = true) =>
-    new Intl.DateTimeFormat(i18n.language, { hour: 'numeric', minute: '2-digit' })
-      .formatToParts(new Date(2000, 0, 1, (hourOfDay + HOURS_PER_DAY) % HOURS_PER_DAY))
-      .filter((part) => withPeriod || part.type !== 'dayPeriod')
-      .map((part) => part.value)
-      .join('')
-      .trim();
+    formatClock({ hour: (hourOfDay + HOURS_PER_DAY) % HOURS_PER_DAY, minute: 0 }, i18n.language, withPeriod);
   // Each time is formatted once: the screen shows neighbours without AM/PM, screen readers get it in full.
   const selected = timeOf(hour);
   const spokenBefore = timeOf(hour - 1);
@@ -54,7 +51,22 @@ export default function RemindersScreen() {
   // The app works without notifications, so a refusal or a failed request still moves on to Home.
   async function askPermissionThenOpenHome() {
     try {
-      await requestPermissionsAsync();
+      const permission = await askPermission();
+      const saved = loadNotificationPrefs();
+      await saveAndSyncNotifications(
+        {
+          ...saved,
+          enabled: {
+            ...saved.enabled,
+            daily: enabled.daily,
+            confirmation: enabled.followUp,
+            'doctor-followup': enabled.doctor,
+          },
+          dailyTime: { hour, minute: 0 },
+        },
+        i18n.language,
+        permission,
+      );
     } catch (error) {
       console.warn(
         `Notification permission request failed: ${error instanceof Error ? error.message : String(error)}`,

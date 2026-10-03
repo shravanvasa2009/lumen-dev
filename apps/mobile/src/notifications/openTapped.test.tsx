@@ -7,6 +7,7 @@ let mockResponse: NotificationResponse | null = null;
 
 jest.mock('expo-notifications', () => ({
   ...jest.requireActual('expo-notifications'),
+  getPermissionsAsync: jest.fn(async () => ({ status: 'granted', granted: true })),
   useLastNotificationResponse: () => mockResponse,
 }));
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({

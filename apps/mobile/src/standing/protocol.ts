@@ -4,6 +4,8 @@ export const LYING_MS = 5 * MINUTE_MS;
 const BASELINE_STARTS_MS = 4 * MINUTE_MS;
 const LAST_STANDING_MINUTE = 10;
 const LAST_READING_WINDOW_MS = 45_000;
+// The test ends when the last reading window closes.
+const TEST_MS = LYING_MS + LAST_STANDING_MINUTE * MINUTE_MS + LAST_READING_WINDOW_MS;
 
 export const STANDING_READING_MINUTES = [1, 3, 5, LAST_STANDING_MINUTE] as const;
 
@@ -11,6 +13,7 @@ type Stage = 'intro' | 'lying' | 'baseline' | 'standing' | 'final' | 'done';
 
 // The intro is the pre-test warning and is not numbered; steps 1 to 5 match mockup 21.
 const NUMBERED_STAGES: readonly Stage[] = ['lying', 'baseline', 'standing', 'final', 'done'];
+export const STEP_COUNT = NUMBERED_STAGES.length;
 
 export type ReadingSlot = { minute: 0 | (typeof STANDING_READING_MINUTES)[number] };
 
@@ -33,6 +36,10 @@ export type TestView = {
   lyingRemainingMs: number;
   standingElapsedMs: number;
   nextReadingAtMs: number | null;
+  // Time until the next reading opens (baseline or standing), for the live timer; null when none is left.
+  nextReadingInMs: number | null;
+  // The share of the test's time already passed, 0 to 1, for the live timer's progress bar.
+  progress: number;
   dueSlot: ReadingSlot | null;
   baseline: number | null;
   latest: number | null;
@@ -103,6 +110,11 @@ export function viewAt(state: TestState, nowMs: number): TestView {
   const nextReading = state.standing.find(
     ({ minute, bpm }) => bpm === null && standingElapsedMs < minute * MINUTE_MS,
   );
+  // Elapsed test times when each reading still to take opens; a missed baseline is already in the past.
+  const nextOpensAtMs = [
+    ...(state.baseline === null ? [BASELINE_STARTS_MS] : []),
+    ...state.standing.filter(({ bpm }) => bpm === null).map(({ minute }) => LYING_MS + minute * MINUTE_MS),
+  ].find((opensAtMs) => opensAtMs > elapsedMs);
   const taken = state.standing.flatMap(({ bpm, atMs }) =>
     bpm === null || atMs === null ? [] : [{ minute: atMs / MINUTE_MS, bpm }],
   );
@@ -116,6 +128,9 @@ export function viewAt(state: TestState, nowMs: number): TestView {
     standingElapsedMs,
     nextReadingAtMs:
       (stage === 'standing' || stage === 'final') && nextReading ? nextReading.minute * MINUTE_MS : null,
+    nextReadingInMs:
+      state.startedAt !== null && live && nextOpensAtMs !== undefined ? nextOpensAtMs - elapsedMs : null,
+    progress: Math.min(1, elapsedMs / TEST_MS),
     dueSlot,
     baseline: state.baseline,
     latest,

@@ -1,13 +1,12 @@
 import { type ErrorBoundaryProps, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
 
 import '@/i18n';
 import { StorageErrorScreen } from '@/components/StorageErrorScreen';
 import { DemoStrip } from '@/demo/DemoStrip';
+import { useSavedLanguage } from '@/i18n/language';
 import { showNotificationsInForeground } from '@/notifications/foreground';
 import { useOpenTappedNotification } from '@/notifications/openTapped';
-import { resyncNotifications } from '@/settings/applyPrefs';
 import { useTheme } from '@/theme';
 
 showNotificationsInForeground();
@@ -23,8 +22,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 export default function RootLayout() {
   const { colors, isDark, type } = useTheme();
   useOpenTappedNotification();
-  // A sync missed in the background (app closed, failure) is repaired at the next launch.
-  useEffect(resyncNotifications, []);
+  useSavedLanguage();
   return (
     <DemoStrip>
       <StatusBar style={isDark ? 'light' : 'dark'} />

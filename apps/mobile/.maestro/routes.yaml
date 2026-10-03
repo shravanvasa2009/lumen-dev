@@ -48,7 +48,8 @@ name: Every route opens
 - openLink: lumen://
 - assertVisible: 'Change mode'
 - openLink: lumen://trends
-- assertVisible: 'Your band'
+- assertVisible: 'No readings yet'
+- assertVisible: 'Take a reading and your trends will appear here.'
 - openLink: lumen://learn
 - assertVisible: 'How Lumen reads your pulse'
 - openLink: lumen://settings

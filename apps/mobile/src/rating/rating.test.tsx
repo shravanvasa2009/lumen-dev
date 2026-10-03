@@ -23,6 +23,11 @@ jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
 }));
 
+// The launch re-sync waits for the saved language, so it would land in the middle of these tests.
+jest.mock('@/i18n/language', () => ({
+  ...jest.requireActual('@/i18n/language'),
+  useSavedLanguage: jest.fn(),
+}));
 jest.mock('@/settings/applyPrefs', () => ({
   ...jest.requireActual('@/settings/applyPrefs'),
   resyncNotifications: jest.fn(),
@@ -172,6 +177,20 @@ describe('the rating from the probe and practice', () => {
     expect(await screen.findByText(en['rating.pending'])).toBeOnTheScreen();
     expect(screen.getByText('—')).toBeOnTheScreen();
     expect(await loadDeviceRating()).toBeNull();
+  });
+
+  it('rates the phone from a practice that just reaches the 30 steady seconds onboarding asks for', async () => {
+    mockGetCapabilities.mockResolvedValue(sixtyFpsPhone);
+    // H-047 A: the practice passes at 30 steady seconds, DSP-10's minimum for a perfusion index. A capture of
+    // exactly 30.0 s analyses to just under 30 clean seconds, so the practice runs a little past its target.
+    keepCapture(steadyPulse('main', 31));
+    renderRouter('./app', { initialUrl: '/rating' });
+    jest.mocked(resyncNotifications).mockClear();
+
+    expect(await screen.findByText(en['tier.full'])).toBeOnTheScreen();
+    const stored = await loadDeviceRating();
+    expect(stored?.components.coupling).not.toBeNull();
+    expect(stored?.tier).toBe('full');
   });
 
   it('leaves the rating open when the practice was too short for a perfusion index', async () => {

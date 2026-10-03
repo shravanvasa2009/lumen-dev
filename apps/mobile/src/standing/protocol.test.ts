@@ -40,6 +40,16 @@ describe('standing test steps', () => {
     expect(viewAt(started, at(6)).lyingRemainingMs).toBe(0);
   });
 
+  it('tracks progress through the 15:45 test, held at 0 before it and 1 after it', () => {
+    expect(viewAt(newTest(), at(3)).progress).toBe(0);
+    expect(viewAt(started, at(0)).progress).toBe(0);
+    expect(viewAt(started, at(4)).progress).toBeCloseTo(4 / 15.75);
+    expect(viewAt(started, at(10)).progress).toBeCloseTo(10 / 15.75);
+    expect(viewAt(started, at(15, 45)).progress).toBe(1);
+    expect(viewAt(started, at(30)).progress).toBe(1);
+    expect(viewAt(stop(started, at(2)), at(30)).progress).toBeCloseTo(2 / 15.75);
+  });
+
   it('offers the baseline reading in minute 4 to 5 only', () => {
     expect(viewAt(started, at(3)).dueSlot).toBeNull();
     expect(viewAt(started, at(4, 10)).dueSlot).toEqual({ minute: 0 });
@@ -52,6 +62,18 @@ describe('standing test steps', () => {
     const view = viewAt(started, at(8, 12));
     expect(formatClock(view.standingElapsedMs)).toBe('03:12');
     expect(view.nextReadingAtMs).toBe(5 * MINUTE);
+  });
+
+  it('counts down to the next reading that opens, baseline first', () => {
+    expect(viewAt(newTest(), at(0)).nextReadingInMs).toBeNull();
+    expect(viewAt(started, at(1)).nextReadingInMs).toBe(3 * MINUTE);
+    expect(viewAt(started, at(4, 30)).nextReadingInMs).toBe(MINUTE + 30_000);
+    const withBaseline = recordReading(started, { minute: 0 }, 68, at(4, 10));
+    expect(viewAt(withBaseline, at(4, 20)).nextReadingInMs).toBe(MINUTE + 40_000);
+    const withMinuteOne = recordReading(withBaseline, { minute: 1 }, 80, at(6, 5));
+    expect(viewAt(withMinuteOne, at(6, 10)).nextReadingInMs).toBe(MINUTE + 50_000);
+    expect(viewAt(started, at(15, 10)).nextReadingInMs).toBeNull();
+    expect(viewAt(stop(started, at(2)), at(3)).nextReadingInMs).toBeNull();
   });
 
   it('keeps each standing reading open until the next is due', () => {

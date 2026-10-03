@@ -5,7 +5,7 @@
 // https://docs.expo.dev/router/advanced/native-intent/
 const CHECK = /^lumen:\/\/check\/?(\?[^#]*)?$/i;
 const STANDING = /^lumen:\/\/standing\/?$/i;
-const FULL_MODE = /[?&]mode=full(&|$)/;
+const FULL_MODE = /[?&]mode=full(&|$)/i;
 
 export function redirectSystemPath({ path }: { path: string }): string {
   const check = CHECK.exec(path);

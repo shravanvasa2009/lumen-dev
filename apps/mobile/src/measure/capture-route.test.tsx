@@ -1,6 +1,7 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import type { LiveCapture } from './useLiveCapture';
 
@@ -20,7 +21,11 @@ const unavailable: LiveCapture = {
   elapsedS: 0,
   cleanSeconds: null,
   coachingKey: null,
+  recentWaveform: { tS: [], ppg: [] },
+  rejectedSpans: [],
 };
+
+preloadAppRoutes();
 
 describe('capture route', () => {
   beforeEach(() => {

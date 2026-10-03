@@ -6,6 +6,7 @@ import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
 import es from '@/i18n/es.json';
 import { readingById } from '@/results/fixtures';
 import { formatClock } from '@/results/format';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
 import { ReportView } from './ReportView';
@@ -55,6 +56,8 @@ describe.each([
     expect(drawn().includes(tokens.light.criticalText)).toBe(false);
   });
 });
+
+preloadAppRoutes();
 
 describe('Doctor report content', () => {
   beforeEach(() => {

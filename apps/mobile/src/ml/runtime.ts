@@ -344,3 +344,22 @@ export async function sqiVeto(feeds: ModelFeeds): Promise<SqiVeto> {
   const pClean = (outputs[model.scoreOutput] as number[])[0] as number;
   return { source: 'model', model: modelId(model), veto: pClean < (model.threshold[label] as number) };
 }
+
+// §11.2: SQI-Net's P(clean) cut-off from the manifest, or null while no SQI model ships.
+export function sqiThreshold(): number | null {
+  const plan = plans.sqi;
+  if ('reason' in plan) return null;
+  return plan.model.threshold[plan.model.labels[0] as string] as number;
+}
+
+export type SqiScore = { source: 'model'; pClean: number } | BasicAnalysis;
+
+// The live session wants the score itself, not a veto: it applies the threshold to the 4 s it rejects (ADR 0042).
+export async function scoreSqiWindow(window: Float32Array): Promise<SqiScore> {
+  const plan = plans.sqi;
+  if ('reason' in plan) return basic(plan.reason);
+  const [input, dims] = Object.entries(plan.model.inputs)[0] as [string, Shape];
+  const run = await runFamily('sqi', { [input]: { values: window, dims } });
+  if (!('model' in run)) return run;
+  return { source: 'model', pClean: (run.outputs[run.model.scoreOutput] as number[])[0] as number };
+}

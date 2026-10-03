@@ -209,9 +209,9 @@ describe('red team: non-finite values in any channel or stat, at 30/60/120/240 f
       moving: (tS) => tS >= 10 && tS < 15,
     });
     const saved = expectParity(session, fps);
-    expect(saved.rejectedSpans.some((span) => span.reason === 'motion' && span.startS < 11 && span.endS > 14)).toBe(
-      true,
-    );
+    expect(
+      saved.rejectedSpans.some((span) => span.reason === 'motion' && span.startS < 11 && span.endS > 14),
+    ).toBe(true);
   });
 
   it.each([
@@ -293,8 +293,9 @@ describe('red team: single bad frames cutting the beat path', () => {
     expect(withNaN.rhythmWindows.length).toBe(dropped.rhythmWindows.length);
   });
 
-  // Segments one bad frame apart (~8 ms at 240 fps) must not share or double a beat. NaN red on the
-  // frame at the systolic peak of every 3rd beat (2.4 s apart, so each run is over minSegmentS).
+  // NaN red on the frame at the systolic peak of every 3rd beat (2.4 s apart). A lone bad frame is a
+  // dropped frame, leaving a 2-frame gap (66.7 ms at 30 fps, 33.3 at 60, 8.3 at 240), within DSP-2's
+  // 150 ms, so the capture is one segment. No beat may be doubled or lost around the bad frames.
   it.each([30, 60, 240])(
     '%i fps, NaN at every 3rd peak: no doubled beat, no interval across a cut',
     (fps) => {
@@ -305,7 +306,7 @@ describe('red team: single bad frames cutting the beat path', () => {
       const detectedS = heartBeats(saved)
         .map((beat) => beat.peakS)
         .sort((x, y) => x - y);
-      expect(saved.segments.length).toBeGreaterThan(20);
+      expect(saved.segments.length).toBe(1);
       for (let i = 1; i < detectedS.length; i++)
         expect(detectedS[i]! - detectedS[i - 1]!).toBeGreaterThan(0.4);
       for (const peakS of detectedS)
@@ -315,25 +316,35 @@ describe('red team: single bad frames cutting the beat path', () => {
     },
   );
 
-  it('240 fps, 95 s cut by NaN red every 30 s: no rhythm window spans a cut', () => {
-    const channels = patchFrames(pulse, 240, everyFrames(240, 30), { r: NaN });
-    const saved = expectParity(replay(captureAt(regularOffsets(240, 95), channels), 240), 240);
-    // Index of the interval from each segment's last beat to the next segment's first.
-    const crossings: number[] = [];
-    let beatsBefore = 0;
-    for (const segment of saved.segments) {
-      if (beatsBefore > 0) crossings.push(beatsBefore - 1);
-      beatsBefore += segment.filter((beat) => beat.beatClass !== 'not-a-beat').length;
-    }
-    expect(saved.segments.length).toBe(4);
-    expect(saved.rhythmWindows.length).toBeGreaterThan(0);
-    const { windowIntervals } = DSP_CONFIG.dsp15;
-    for (const window of saved.rhythmWindows) {
-      const inWindow = (index: number) =>
-        index >= window.startInterval && index < window.startInterval + windowIntervals;
-      expect(crossings.filter(inWindow)).toEqual([]);
-    }
-  });
+  // NaN red at 30, 60, and 90 s. One frame leaves a gap of 2 / 240 s = 8.3 ms, within DSP-2's 150 ms:
+  // one segment. 48 frames (200 ms) leave 49 / 240 s = 204 ms, over 150 ms: a cut at each, 4 segments.
+  it.each([
+    ['one frame', 1, 1],
+    ['200 ms of frames', 48, 4],
+  ])(
+    '240 fps, 95 s, %s of NaN red every 30 s: DSP-2 segments; no rhythm window spans a cut',
+    (_label, badFrames, segments) => {
+      const period = 30 * 240;
+      const isBad = (k: number) => k >= period && k % period < badFrames;
+      const channels = patchFrames(pulse, 240, isBad, { r: NaN });
+      const saved = expectParity(replay(captureAt(regularOffsets(240, 95), channels), 240), 240);
+      // Index of the interval from each segment's last beat to the next segment's first.
+      const crossings: number[] = [];
+      let beatsBefore = 0;
+      for (const segment of saved.segments) {
+        if (beatsBefore > 0) crossings.push(beatsBefore - 1);
+        beatsBefore += segment.filter((beat) => beat.beatClass !== 'not-a-beat').length;
+      }
+      expect(saved.segments.length).toBe(segments);
+      expect(saved.rhythmWindows.length).toBeGreaterThan(0);
+      const { windowIntervals } = DSP_CONFIG.dsp15;
+      for (const window of saved.rhythmWindows) {
+        const inWindow = (index: number) =>
+          index >= window.startInterval && index < window.startInterval + windowIntervals;
+        expect(crossings.filter(inWindow)).toEqual([]);
+      }
+    },
+  );
 });
 
 // Each window check needs 4 s of covered, gap-free frames, so a bad frame every few seconds means no

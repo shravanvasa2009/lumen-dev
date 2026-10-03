@@ -2,6 +2,7 @@ import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-li
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import en from '@/i18n/en.json';
+import { resyncNotifications } from '@/settings/applyPrefs';
 import { lumenDatabase } from '@/store/database';
 import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -13,11 +14,19 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => 'light',
 }));
 
+jest.mock('@/settings/applyPrefs', () => ({
+  ...jest.requireActual('@/settings/applyPrefs'),
+  resyncNotifications: jest.fn(),
+}));
+
 preloadAppRoutes();
 
 const ANSWERED_AT = Date.UTC(2026, 9, 2, 15, 30);
 
-beforeEach(emptyMockDatabases);
+beforeEach(() => {
+  emptyMockDatabases();
+  jest.mocked(resyncNotifications).mockClear();
+});
 
 afterEach(() => jest.restoreAllMocks());
 
@@ -56,6 +65,7 @@ describe('the follow-up sheet', () => {
     const savedAt = await followUpAnsweredAt();
     expect(savedAt).not.toBeNull();
     expect(savedAt).toBeGreaterThanOrEqual(before);
+    expect(resyncNotifications).toHaveBeenCalledTimes(1);
   });
 
   it('stores "Booked" without it counting as a visit', async () => {
@@ -71,5 +81,6 @@ describe('the follow-up sheet', () => {
     fireEvent.press(screen.getByRole('button', { name: en['followUp.saw'] }));
     await waitFor(() => expect(screen.getByText(en['profile.saveFailed'])).toBeOnTheScreen());
     expect(screen.getByRole('header', { name: en['followUp.title'] })).toBeOnTheScreen();
+    expect(resyncNotifications).not.toHaveBeenCalled();
   });
 });

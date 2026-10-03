@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { resyncNotifications } from '@/settings/applyPrefs';
 import { saveReading } from '@/store/readings';
 
 import { analyzeKeptCapture, type AnalysisRequest } from './analyzeKeptCapture';
@@ -32,6 +33,7 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
     for (const listener of tracker.listeners) listener(progress);
   }).then(async ({ readingId, recordedMs, context, models, reading, progress }) => {
     await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
+    resyncNotifications();
     return { readingId, progress };
   });
   outcome.catch(() => runs.delete(capture));

@@ -5,6 +5,7 @@ import { renderRouter } from 'expo-router/testing-library';
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import en from '@/i18n/en.json';
 import { type KeptCapture, keepCapture } from '@/measure/keptCapture';
+import { resyncNotifications } from '@/settings/applyPrefs';
 import { loadDeviceRating, saveDeviceRating, storedReadingTier } from '@/store/deviceRating';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
@@ -20,6 +21,11 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(),
   useLastNotificationResponse: () => null,
   setNotificationHandler: jest.fn(),
+}));
+
+jest.mock('@/settings/applyPrefs', () => ({
+  ...jest.requireActual('@/settings/applyPrefs'),
+  resyncNotifications: jest.fn(),
 }));
 
 const mockGetCapabilities = jest.fn<Promise<Capabilities>, []>();
@@ -112,6 +118,7 @@ beforeEach(() => {
   keepCapture(null);
   mockModuleLinked = true;
   mockGetCapabilities.mockReset();
+  jest.mocked(resyncNotifications).mockClear();
 });
 
 describe('the rating from the probe and practice', () => {
@@ -139,6 +146,7 @@ describe('the rating from the probe and practice', () => {
     });
     expect(stored?.practice?.achievedFps).toBeCloseTo(FPS, 3);
     expect(stored?.unlocks).toContain('diabetes');
+    expect(resyncNotifications).toHaveBeenCalledTimes(1);
   });
 
   it('shows the stored rating and its breakdown on Your phone, with no practice capture', async () => {
@@ -168,6 +176,7 @@ describe('the rating from the probe and practice', () => {
     renderRouter('./app', { initialUrl: '/rating' });
     expect(await screen.findByText(en['rating.pending'])).toBeOnTheScreen();
     expect(await loadDeviceRating()).toBeNull();
+    expect(resyncNotifications).not.toHaveBeenCalled();
   });
 
   it('leaves the rating open when motion covers most of the practice', async () => {

@@ -25,7 +25,7 @@ function paletteOf(colors: typeof tokens.light): Palette {
 // The widgets' copy, in the app's language. Kotlin holds no strings, so this is all a widget can show.
 // "Last check" and the streak stay templates: the widget fills in the hours when it draws, and those
 // drift between publishes. i18next does not re-interpolate a value, so "{{hours}}" survives t().
-export function widgetDisplay(language: string) {
+function widgetDisplay(language: string) {
   const lock = lockscreenStrings(language);
   const t = i18next.getFixedT(language);
   const upToDate = lockTextLines(lock['widget.lock.upToDate']);

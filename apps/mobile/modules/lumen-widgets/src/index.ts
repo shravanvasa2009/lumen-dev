@@ -2,7 +2,7 @@ import { NativeModule, requireOptionalNativeModule } from 'expo';
 
 // What the ongoing standing-test notification shows (LIVE-1). Every string comes from lockscreen.json, so
 // the notification never carries a value or a condition name (WID-2).
-export type StandingTimerContent = {
+type StandingTimerContent = {
   channelName: string;
   title: string;
   text: string;

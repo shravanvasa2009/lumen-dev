@@ -31,6 +31,7 @@
     "peakWindowS": 0.111,
     "beatWindowS": 0.667,
     "beta": 0.02,
+    "offsetWindowS": 10,
     "refineHalfWindowS": 0.015625,
     "minSegmentS": 2
   },

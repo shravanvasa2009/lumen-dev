@@ -24,9 +24,9 @@ function detectionsAwayFrom(
 }
 
 describe('DSP-7 Elgendi beat detection', () => {
-  it('rounds W1 = 111 ms and W2 = 667 ms to the nearest odd number of samples', () => {
-    expect(elgendiWindows(64)).toEqual({ peakSamples: 7, beatSamples: 43 });
-    expect(elgendiWindows(256)).toEqual({ peakSamples: 29, beatSamples: 171 });
+  it('rounds W1 = 111 ms, W2 = 667 ms and the 10 s offset window to the nearest odd number of samples', () => {
+    expect(elgendiWindows(64)).toEqual({ peakSamples: 7, beatSamples: 43, offsetSamples: 641 });
+    expect(elgendiWindows(256)).toEqual({ peakSamples: 29, beatSamples: 171, offsetSamples: 2561 });
   });
 
   // Tolerances come from these synthetic signals (measured 0.9 ms regular, 1.4 ms dicrotic-heavy, 3.3 ms
@@ -69,42 +69,102 @@ describe('DSP-7 Elgendi beat detection', () => {
     expect(Math.max(...nearestErrors(detected, beats))).toBeLessThan(0.01);
   });
 
-  it('matches a direct transcription of the published rules on noise, including THR2 block rejection', () => {
+  it('matches a direct transcription of the rules with the local offset on noise, including THR2', () => {
     const uniforms = parkMillerUniforms(2000, 99);
     const noise = uniforms.map((u, n) => (u - 0.5) * (1 + Math.sin(n / 40)));
-    const w1 = elgendiWindows(64).peakSamples;
-    const w2 = elgendiWindows(64).beatSamples;
-    const squared = noise.map((value) => (value > 0 ? value * value : 0));
-    // Centered window; samples outside the signal count as zero, and the sum is divided by W.
-    const centeredMean = (n: number, width: number) => {
-      let sum = 0;
-      for (let k = n - (width - 1) / 2; k <= n + (width - 1) / 2; k++) sum += squared[k] ?? 0;
-      return sum / width;
-    };
-    let total = 0;
-    for (const value of squared) total += value;
-    const offset = beta * (total / squared.length);
-    const expected: number[] = [];
-    let narrowBlocks = 0;
-    for (let n = 0; n < noise.length;) {
-      if (!(centeredMean(n, w1) > centeredMean(n, w2) + offset)) {
-        n++;
-        continue;
-      }
-      const start = n;
-      while (n < noise.length && centeredMean(n, w1) > centeredMean(n, w2) + offset) n++;
-      if (n - start < w1) {
-        narrowBlocks++;
-        continue;
-      }
-      let peak = start;
-      for (let k = start; k < n; k++) if (noise[k]! > noise[peak]!) peak = k;
-      expected.push(peak);
-    }
+    const { expected, narrowBlocks } = transcribedPeaks(noise);
+    expect(noise.length).toBeGreaterThan(elgendiWindows(64).offsetSamples);
     expect(narrowBlocks).toBeGreaterThan(0);
     expect(elgendiPeaks(noise, 64)).toEqual(expected);
   });
+
+  it('uses the published segment-wide offset on a segment shorter than the offset window', () => {
+    const uniforms = parkMillerUniforms(320, 7);
+    const noise = uniforms.map((u, n) => (u - 0.5) * (1 + Math.sin(n / 20)));
+    // A window of 2 × length − 1 reaches every sample from every sample: the segment-wide mean.
+    const { expected } = transcribedPeaks(noise, 2 * noise.length - 1);
+    expect(expected.length).toBeGreaterThan(0);
+    expect(elgendiPeaks(noise, 64)).toEqual(expected);
+  });
+
+  // 20 min at 64 Hz with transients 10⁴ times a beat's energy, each followed by a flat stretch longer than
+  // the offset window: the running sum must give the same peaks as direct sums, and none in the flat part.
+  it('keeps the running offset sum equal to direct sums over a long segment with large transients', () => {
+    const uniforms = parkMillerUniforms(64 * 1200, 31);
+    const flat = (n: number) => n % 6400 >= 3200 && n % 6400 < 4200;
+    const band = uniforms.map((u, n) => {
+      if (flat(n)) return 0;
+      const pulse = Math.exp(-0.5 * (((n % 64) - 20) / 4) ** 2) + 0.05 * (u - 0.5);
+      return n % 6400 >= 3100 && n % 6400 < 3200 ? 100 * pulse : pulse;
+    });
+    const { expected } = transcribedPeaks(band);
+    const peaks = elgendiPeaks(band, 64);
+    expect(peaks).toEqual(expected);
+    expect(peaks.filter(flat)).toEqual([]);
+  });
+
+  // ADR 0081: a step's band transient raises THR1 only within half the offset window of itself. Beats
+  // alternate ±50% in strength; with a segment-wide offset the weak ones were lost across the segment.
+  it('finds every beat farther than half the offset window from a large transient', () => {
+    const rateHz = 64;
+    const transientS = 20;
+    const band = Array.from({ length: 40 * rateHz }, (_, n) => {
+      const beatS = Math.floor(n / rateHz);
+      const sinceBeatS = n / rateHz - beatS;
+      const pulse = (beatS % 2 ? 0.5 : 1.5) * Math.exp(-0.5 * ((sinceBeatS - 0.3) / 0.06) ** 2);
+      return Math.abs(n / rateHz - transientS) < 0.25 ? 40 * Math.sin((2 * Math.PI * n) / rateHz) : pulse;
+    });
+    const reachS = DSP_CONFIG.dsp7.offsetWindowS / 2 + DSP_CONFIG.dsp7.beatWindowS;
+    const farBeatsS = Array.from({ length: 40 }, (_, k) => k + 0.3).filter(
+      (beatS) => Math.abs(beatS - transientS) > reachS && beatS > 1 && beatS < 39,
+    );
+    const peaksS = elgendiPeaks(band, rateHz).map((peak) => peak / rateHz);
+    for (const beatS of farBeatsS)
+      expect(Math.min(...peaksS.map((peakS) => Math.abs(peakS - beatS)))).toBeLessThan(1 / rateHz);
+  });
 });
+
+// The published rules transcribed directly: centred W1 and W2 means with samples outside the signal counted
+// as zero; THR1's offset β × the mean of the squared signal over the samples within ± offsetWindow / 2 that
+// lie in the signal, each summed directly.
+function transcribedPeaks(
+  band: number[],
+  offsetWidth = elgendiWindows(64).offsetSamples,
+): { expected: number[]; narrowBlocks: number } {
+  const w1 = elgendiWindows(64).peakSamples;
+  const w2 = elgendiWindows(64).beatSamples;
+  const squared = band.map((value) => (value > 0 ? value * value : 0));
+  const centeredMean = (n: number, width: number) => {
+    let sum = 0;
+    for (let k = n - (width - 1) / 2; k <= n + (width - 1) / 2; k++) sum += squared[k] ?? 0;
+    return sum / width;
+  };
+  const offsets = squared.map((_, n) => {
+    const from = Math.max(0, n - (offsetWidth - 1) / 2);
+    const to = Math.min(squared.length - 1, n + (offsetWidth - 1) / 2);
+    let sum = 0;
+    for (let k = from; k <= to; k++) sum += squared[k]!;
+    return beta * (sum / (to - from + 1));
+  });
+  const expected: number[] = [];
+  let narrowBlocks = 0;
+  for (let n = 0; n < band.length;) {
+    if (!(centeredMean(n, w1) > centeredMean(n, w2) + offsets[n]!)) {
+      n++;
+      continue;
+    }
+    const start = n;
+    while (n < band.length && centeredMean(n, w1) > centeredMean(n, w2) + offsets[n]!) n++;
+    if (n - start < w1) {
+      narrowBlocks++;
+      continue;
+    }
+    let peak = start;
+    for (let k = start; k < n; k++) if (band[k]! > band[peak]!) peak = k;
+    expected.push(peak);
+  }
+  return { expected, narrowBlocks };
+}
 
 describe('DSP-7 refinement on the 256 Hz morphology band', () => {
   it('reports times between 256 Hz samples (parabolic interpolation), not on the grid', () => {

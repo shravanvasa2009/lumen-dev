@@ -41,7 +41,12 @@ export const DSP_CONFIG = {
   dsp7: {
     peakWindowS: 0.111, // W1 for MA_peak; also the minimum block width (THR2)
     beatWindowS: 0.667, // W2 for MA_beat
-    beta: 0.02, // THR1 = MA_beat + beta · mean(squared signal)
+    beta: 0.02, // THR1 = MA_beat + beta · mean(squared signal over offsetWindowS)
+    // ADR 0081: the mean is over this centred window, not the whole segment, so one transient raises THR1
+    // only near itself. 10 s is the longest that read every red-team step case right (20 s halved three ±70%
+    // alternans steps, 30 s seven of 75 milder ones); it spans 15 W2 windows and 6 beats at 40 bpm, so no
+    // beat raises its own threshold, and a segment up to 10 s long gets the published segment-wide mean.
+    offsetWindowS: 10,
     // The 64 Hz peak is refined on the 256 Hz morphology band within ± one 64 Hz sample.
     refineHalfWindowS: 0.015625,
     // Not given by the spec (ADR 0041): shorter DSP-2 segments are not searched for beats. 2 s is three W2

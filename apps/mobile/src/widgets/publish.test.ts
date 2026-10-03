@@ -1,0 +1,100 @@
+import { waitFor } from '@testing-library/react-native';
+
+import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
+import '@/i18n';
+import { memoryFiles, mockFileSystem } from '@/testing/memoryFiles';
+import { makeReading } from '@/testing/reading';
+import type { PlannedNotification } from '@/notifications/plan';
+import { saveScheduleRecord } from '@/notifications/record';
+import { saveReading } from '@/store/readings';
+import { setPreference } from '@/theme/preferences';
+
+import { LumenWidgets } from '../../modules/lumen-widgets/src';
+import { publishWidgets } from './publish';
+import type { WidgetSnapshot } from './snapshot';
+
+jest.mock('expo-file-system', () => mockFileSystem);
+jest.mock('../../modules/lumen-widgets/src', () => ({
+  LumenWidgets: { publishSnapshot: jest.fn(() => Promise.resolve()) },
+}));
+
+const NOW = Date.parse('2026-10-12T15:00:00Z');
+const HOUR_MS = 3_600_000;
+
+const publishSnapshot = () => jest.mocked(LumenWidgets!.publishSnapshot);
+
+function publishedSnapshot(): WidgetSnapshot {
+  const calls = publishSnapshot().mock.calls;
+  return JSON.parse(calls[calls.length - 1]![0]) as WidgetSnapshot;
+}
+
+async function saveFullCheck(takenAt: number, hr: number) {
+  await saveReading({
+    id: `reading-${takenAt}`,
+    createdAt: takenAt,
+    mode: 'full',
+    context: {
+      captureFps: 60,
+      tier: null,
+      mode: 'full',
+      restTimerDone: true,
+      recordedAt: null,
+      motionSpans: [],
+      coldHandsSpans: [],
+      sqi: null,
+      validationRhythmLabel: null,
+    },
+    results: makeReading(takenAt, hr, 40).outcome,
+    models: { rhythm: null, diabetes: null },
+  });
+}
+
+const confirmation = (fireAt: number): PlannedNotification => ({
+  id: `confirm-${fireAt}`,
+  type: 'confirmation',
+  fireAt: new Date(fireAt).toISOString(),
+  route: 'lumen://check?mode=full',
+  createdFor: 'reading-1',
+});
+
+beforeEach(() => {
+  emptyMockDatabases();
+  memoryFiles.clear();
+  publishSnapshot().mockClear();
+});
+
+describe('publishing the widgets', () => {
+  it('publishes the newest saved reading with the given preferences', async () => {
+    await saveFullCheck(NOW - 2 * HOUR_MS, 70);
+    await saveFullCheck(NOW - HOUR_MS, 64);
+    await publishWidgets({ appearance: 'dark', hideWidgetValues: false }, NOW);
+    expect(publishedSnapshot()).toMatchObject({
+      lastReadingAt: '2026-10-12T14:00:00Z',
+      status: 'regular',
+      hrBpm: 64,
+      hideValues: false,
+      theme: 'dark',
+      nextConfirmationAt: null,
+    });
+  });
+
+  it('shows the soonest confirmation reminder that has not fired yet', async () => {
+    saveScheduleRecord([
+      confirmation(NOW - HOUR_MS),
+      confirmation(NOW + 20 * HOUR_MS),
+      confirmation(NOW + 4 * HOUR_MS),
+      { ...confirmation(NOW + HOUR_MS), id: 'daily-1', type: 'daily', route: 'lumen://check' },
+    ]);
+    await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
+    expect(publishedSnapshot().nextConfirmationAt).toBe('2026-10-12T19:00:00Z');
+  });
+
+  it('keeps the saved readings when a preference changes', async () => {
+    await saveFullCheck(NOW - HOUR_MS, 64);
+    setPreference('appearance', 'dark');
+    await waitFor(() => expect(publishSnapshot()).toHaveBeenCalledTimes(1));
+    expect(publishedSnapshot()).toMatchObject({ hrBpm: 64, theme: 'dark' });
+    setPreference('appearance', 'system');
+    await waitFor(() => expect(publishSnapshot()).toHaveBeenCalledTimes(2));
+  });
+});

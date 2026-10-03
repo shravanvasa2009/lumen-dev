@@ -1,8 +1,9 @@
 import i18next from 'i18next';
 
-import type { StoredReading } from '@/home/readings';
 import { lockscreenStrings } from '@/i18n/lockscreen';
+import { loadScheduleRecord } from '@/notifications/record';
 import { lockTextLines } from '@/settings/lockText';
+import { listReadings } from '@/store/readings';
 import type { Appearance } from '@/theme/preferences';
 import tokens from '@/theme/tokens.json';
 
@@ -10,12 +11,6 @@ import { LumenWidgets } from '../../modules/lumen-widgets/src';
 import { widgetSnapshot, type WidgetStatus } from './snapshot';
 
 type WidgetPreferences = { appearance: Appearance; hideWidgetValues: boolean };
-
-type ReadingHistory = {
-  readings: readonly StoredReading[];
-  nextConfirmationAt: number | null;
-  followUpAnsweredAt: number | null;
-};
 
 type Palette = Record<(typeof PALETTE_KEYS)[number], string>;
 
@@ -53,29 +48,31 @@ function widgetDisplay(language: string) {
   };
 }
 
-// Held in memory like the readings themselves (no reading storage exists yet), so a preference change
-// re-publishes the readings this session last published.
-let lastHistory: ReadingHistory = { readings: [], nextConfirmationAt: null, followUpAnsweredAt: null };
+// The soonest confirmation reminder the last notification sync scheduled. A reminder that already fired
+// is not "next".
+function nextConfirmationAt(now: number): number | null {
+  const upcoming = loadScheduleRecord()
+    .filter((entry) => entry.type === 'confirmation')
+    .map((entry) => Date.parse(entry.fireAt))
+    .filter((fireAt) => fireAt > now);
+  return upcoming.length === 0 ? null : Math.min(...upcoming);
+}
 
-// Spec §9.6: called after every saved reading (with its history) and whenever a preference the snapshot
-// carries changes. Resolves without doing anything where the native module is not linked (iOS until its
-// widget target lands, Jest).
-export function publishWidgets(
-  preferences: WidgetPreferences,
-  history: ReadingHistory = lastHistory,
-  now = Date.now(),
-): Promise<void> {
-  lastHistory = history;
-  if (!LumenWidgets) return Promise.resolve();
+// Spec §9.6: called after every saved reading and whenever a preference the snapshot carries changes. It
+// reads the saved readings each time, so a preference change never publishes an empty history. Resolves
+// without doing anything where the native module is not linked (iOS until its widget target lands, Jest).
+export async function publishWidgets(preferences: WidgetPreferences, now = Date.now()): Promise<void> {
+  if (!LumenWidgets) return;
   const snapshot = widgetSnapshot({
-    readings: history.readings,
-    nextConfirmationAt: history.nextConfirmationAt,
-    followUpAnsweredAt: history.followUpAnsweredAt,
+    readings: await listReadings(),
+    nextConfirmationAt: nextConfirmationAt(now),
+    // No follow-up answer is stored yet (ADR 0005), so a doctor status holds until a regular Full Check.
+    followUpAnsweredAt: null,
     hideValues: preferences.hideWidgetValues,
     theme: preferences.appearance,
     now,
   });
-  return LumenWidgets.publishSnapshot(
+  await LumenWidgets.publishSnapshot(
     JSON.stringify(snapshot),
     JSON.stringify(widgetDisplay(i18next.language)),
   );

@@ -25,6 +25,11 @@ export function usePreferences() {
   return useSyncExternalStore(subscribe, () => current);
 }
 
+// For code outside React, such as the widget publish after a saved reading.
+export function currentPreferences(): Preferences {
+  return current;
+}
+
 export function setPreference<Key extends keyof Preferences>(key: Key, value: Preferences[Key]) {
   current = { ...current, [key]: value };
   listeners.forEach((listener) => listener());

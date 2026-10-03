@@ -879,5 +879,12 @@
   "results.whatExperimentalMeans": "Qué significa Experimental",
   "evidence.experimental.explain": "Experimental significa que esta revisión todavía se está probando y aún no se ha demostrado que sea precisa.",
   "common.gotIt": "Entendido",
-  "checks.diabetes.name": "Diabetes"
+  "checks.diabetes.name": "Diabetes",
+  "checks.hrv.name": "VFC",
+  "checks.pots.name": "POTS",
+  "checks.from.standing": "Prueba de pie",
+  "results.notThisScan": "No forma parte de este escaneo",
+  "results.takeStanding": "Hacer la prueba de frecuencia cardíaca de pie ›",
+  "results.potsLabel": "Patrón de frecuencia cardíaca",
+  "common.close": "Cerrar"
 }

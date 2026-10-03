@@ -879,5 +879,12 @@
   "results.whatExperimentalMeans": "What Experimental means",
   "evidence.experimental.explain": "Experimental means this check is still being tested and has not been shown to be accurate yet.",
   "common.gotIt": "Got it",
-  "checks.diabetes.name": "Diabetes"
+  "checks.diabetes.name": "Diabetes",
+  "checks.hrv.name": "HRV",
+  "checks.pots.name": "POTS",
+  "checks.from.standing": "Standing test",
+  "results.notThisScan": "Not part of this scan",
+  "results.takeStanding": "Take the Standing Heart-Rate Test ›",
+  "results.potsLabel": "Heart-rate pattern",
+  "common.close": "Close"
 }

@@ -11,6 +11,7 @@ import { Screen } from '@/components/Screen';
 import { evidenceFor } from '@/evidence';
 import { useTheme } from '@/theme';
 
+import { CompactChecks } from './CompactChecks';
 import { DemoBanner } from './DemoBanner';
 import { DiabetesCheckCard } from './DiabetesCheckCard';
 import { ExperimentalCard } from './ExperimentalCard';
@@ -19,6 +20,7 @@ import { formatClock, formatDay } from './format';
 import { HeadlineCard } from './HeadlineCard';
 import { Icon } from '@/components/Icon';
 import { MetricCard } from './MetricCard';
+import { PotsCard } from './PotsCard';
 import { rhythmWords } from './rhythmWords';
 import { SafetySheet } from './SafetySheet';
 
@@ -163,6 +165,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
         <MetricCard
           title={t('results.heartRhythm')}
           checkName={t('checks.afib.name')}
+          icon="pulse"
           evidenceMetric="rhythm"
           reading={
             rhythm && {
@@ -175,6 +178,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
         {reading.mode === 'full' ? (
           <MetricCard
             title={t('results.hrv')}
+            icon="bars"
             evidenceMetric="hrv"
             reading={
               rmssd && {
@@ -189,10 +193,13 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           />
         ) : null}
 
+        {reading.mode !== 'full' ? <CompactChecks /> : null}
         {diabetesExperimental ? <DiabetesCheckCard /> : null}
+        {reading.mode === 'full' ? <PotsCard /> : null}
 
         <MetricCard
           title={t('results.heartRate')}
+          icon="heart"
           evidenceMetric="hr"
           reading={
             hr && {

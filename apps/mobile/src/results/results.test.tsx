@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
 import { StyleSheet } from 'react-native';
+import type { ReactTestInstance } from 'react-test-renderer';
 
 import en from '@/i18n/en.json';
 import diabetes from '@/i18n/diabetes.json';
@@ -118,6 +119,35 @@ describe.each([
     openResults('demo');
     const drawn = JSON.stringify(screen.toJSON());
     expect(drawn.includes('RNSVGLinearGradient')).toBe(true);
+  });
+
+  it('says POTS is not part of a Full Scan and links to the Standing test (ADR 0082)', () => {
+    openResults('demo');
+    expect(screen.getByText(en['checks.pots.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.notThisScan'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByText(en['results.takeStanding']));
+    expect(screen.getByRole('header', { name: en['standing.title'] })).toBeOnTheScreen();
+  });
+
+  it('lists HRV, Diabetes and POTS as compact rows on a Quick Check', () => {
+    openResults('demo-flag');
+    expect(screen.getByText(en['checks.hrv.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.diabetes.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.pots.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.from.standing'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['mode.full']).length).toBe(2);
+    expect(screen.queryByText(en['results.notThisScan'])).toBeNull();
+  });
+
+  it('shows the pill, the explanation, the research line and the accuracy link in the tag sheet', () => {
+    openResults('demo');
+    const badgesBefore = screen.getAllByTestId('evidence-badge').length;
+    fireEvent.press(screen.getByRole('button', { name: en['results.whatExperimentalMeans'] }));
+    expect(screen.getAllByTestId('evidence-badge').length).toBe(badgesBefore + 1);
+    expect(screen.getAllByText(en['dm.experimental']).length).toBe(2);
+    fireEvent.press(screen.getAllByText(`${en['results.accuracy']} ›`).at(-1) as ReactTestInstance);
+    expect(screen.queryByText(en['evidence.experimental.explain'])).toBeNull();
+    expect(screen.getByText(en['accuracy.heartRate'])).toBeOnTheScreen();
   });
 
   it('names the AFib check on the rhythm card', () => {

@@ -32,6 +32,8 @@ jobs:
         run: |
           node scripts/check-logo.mjs
           node scripts/check-assets.mjs
+      - name: Shipped models are synced into the app (ML-3)
+        run: node scripts/sync-models.mjs --check
       - name: Commit messages
         if: github.event_name == 'pull_request'
         run: |

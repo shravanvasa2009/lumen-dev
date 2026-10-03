@@ -33,6 +33,7 @@ const finishedProgress = {
   steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
   beats: 90,
   rejectedBeats: 2,
+  outputs: null,
 } as const;
 
 function analysedReading(): AnalysedReading {

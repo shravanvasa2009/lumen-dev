@@ -15,10 +15,14 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 let mockAnalysis: AnalysisState;
 jest.mock('./useReadingAnalysis', () => ({ useReadingAnalysis: () => mockAnalysis }));
 
+let mockRating: { tier: string } | null = null;
+jest.mock('@/store/useStoredRating', () => ({ useStoredRating: () => mockRating }));
+
 const midway: AnalysisProgress = {
   steps: { beats: 'done', rhythm: 'done', breathing: 'active', baseline: 'pending' },
   beats: 104,
   rejectedBeats: 6,
+  outputs: null,
 };
 
 preloadAppRoutes();
@@ -49,6 +53,7 @@ describe('completedPercent', () => {
 describe('processing screen', () => {
   beforeEach(() => {
     mockAnalysis = { phase: 'unavailable' };
+    mockRating = null;
   });
 
   it('shows every step waiting, no percentage and no counts when nothing can be analysed', () => {
@@ -94,21 +99,49 @@ describe('processing screen', () => {
     expect(screen.queryByRole('button', { name: en['processing.seeResults'] })).toBeNull();
   });
 
-  it('lists the checks in this reading and follows the steps the analysis reports', () => {
+  it('reads Checking or Waiting from the steps, and Ready for nothing before the reading holds a result', () => {
     mockAnalysis = { phase: 'running', progress: midway };
     renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
     expect(screen.getByText(en['checks.inReading'])).toBeOnTheScreen();
-    expect(screen.getByText(en['checks.state.ready'])).toBeOnTheScreen();
-    expect(screen.getByText(en['checks.state.working'])).toBeOnTheScreen();
-    expect(screen.getByText(en['checks.state.waiting'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['checks.state.working'])).toHaveLength(2);
+    expect(screen.getAllByText(en['checks.state.waiting'])).toHaveLength(1);
+    expect(screen.queryByText(en['checks.state.ready'])).toBeNull();
     expect(screen.getByText(en['checks.from.standing'])).toBeOnTheScreen();
     expect(screen.getAllByTestId('evidence-badge')).toHaveLength(1);
   });
 
-  it('marks HRV and Diabetes as not in a Quick Check', () => {
+  it('shows Ready only for checks with a real result and Not run for Diabetes with none', () => {
+    const finished: AnalysisProgress = {
+      steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
+      beats: 104,
+      rejectedBeats: 6,
+      outputs: { afib: true, hrv: true, diabetes: false },
+    };
+    mockAnalysis = { phase: 'failed', progress: finished, reason: 'kept on screen' };
+    renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(screen.getAllByText(en['checks.state.ready'])).toHaveLength(2);
+    expect(screen.getAllByText(en['checks.state.notRun'])).toHaveLength(1);
+  });
+
+  it('marks every check not in a Quick Check, where the 30 s reading cannot run the rhythm check', () => {
     mockAnalysis = { phase: 'running', progress: midway };
     renderRouter('./app', { initialUrl: '/measure/processing?mode=quick' });
-    expect(screen.getAllByText(en['checks.state.off'])).toHaveLength(2);
+    expect(screen.getAllByText(en['checks.state.off'])).toHaveLength(3);
+    expect(screen.queryByText(en['checks.state.working'])).toBeNull();
+  });
+
+  it('shows HRV and Diabetes locked, not ready, on a Basic phone', () => {
+    mockRating = { tier: 'basic' };
+    const finished: AnalysisProgress = {
+      steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
+      beats: 104,
+      rejectedBeats: 6,
+      outputs: { afib: true, hrv: true, diabetes: true },
+    };
+    mockAnalysis = { phase: 'failed', progress: finished, reason: 'kept on screen' };
+    renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(screen.getAllByText(en['mode.locked60fps'])).toHaveLength(2);
+    expect(screen.getAllByText(en['checks.state.ready'])).toHaveLength(1);
   });
 
   it('moves on to the reading once the analysis is done', () => {

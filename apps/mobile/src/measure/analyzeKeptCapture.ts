@@ -13,7 +13,7 @@ import evidence from '../../assets/evidence.json';
 import { classifyRhythm } from '../ml/runtime';
 import { storedReadingTier } from '../store/deviceRating';
 import { loadProfile } from '../store/profile';
-import { type AnalysisProgress, pendingProgress } from './analysisProgress';
+import { type AnalysisProgress, type CheckOutputs, pendingProgress } from './analysisProgress';
 import type { KeptCapture } from './keptCapture';
 import type { MeasureMode } from './mode';
 
@@ -66,7 +66,8 @@ async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs |
 const step = (
   steps: Partial<AnalysisProgress['steps']>,
   counts: Pick<AnalysisProgress, 'beats' | 'rejectedBeats'>,
-): AnalysisProgress => ({ steps: { ...pendingProgress.steps, ...steps }, ...counts });
+  outputs: CheckOutputs | null = null,
+): AnalysisProgress => ({ steps: { ...pendingProgress.steps, ...steps }, ...counts, outputs });
 
 // ADR 0041 / 0050: analyzeReading, then the rhythm model, then the decision rules and evidence labels.
 // Each step is reported when the work behind it has finished; breathing is computed inside analyzeReading,
@@ -109,6 +110,11 @@ export async function analyzeKeptCapture(
   const profile = await loadProfile();
   const reading = buildReadingResult(analysis, models, evidence, profile, []);
 
-  const finished = step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'done' }, counts);
+  const { rhythm, rmssd, diabetes } = reading.metrics;
+  const finished = step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'done' }, counts, {
+    afib: rhythm !== null,
+    hrv: rmssd !== null,
+    diabetes: diabetes !== null,
+  });
   return { readingId: `reading-${recordedMs}`, recordedMs, context, models, reading, progress: finished };
 }

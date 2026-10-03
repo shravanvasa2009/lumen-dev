@@ -2,6 +2,15 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, View } from 'react-native';
 
+import {
+  CHECK_ICON,
+  CHECK_IDS,
+  CHECK_PILL,
+  type CheckId,
+  checkCell,
+  type LockWhy,
+  type PlanTier,
+} from '@/checks/checkPlan';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -10,6 +19,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
 import { ProgressRing } from '@/onboarding/practiceParts';
+import { useStoredRating } from '@/store/useStoredRating';
 import { useTheme } from '@/theme';
 
 import { type AnalysisProgress, completedPercent, pendingProgress, STEP_ORDER } from './analysisProgress';
@@ -24,52 +34,57 @@ const NO_VALUE = '—';
 // Only the demo reading has an id the app can show without an analysis (ADR 0046).
 const SAMPLE_RESULTS = '/results/demo';
 
-type CheckLine = { icon: IconName; name: string; state: string; experimental?: boolean };
+const STEP_OF_CHECK = { afib: 'rhythm', hrv: 'breathing', diabetes: null, pots: null } as const;
 
-// Each check's live state follows the analysis step it depends on: AFib the rhythm step, HRV the breathing
-// and HRV step. Diabetes waits for the whole analysis. Which checks a scan runs follows spec 06 and 12.
+// What each check shows comes from the shared checks table (mode and tier). A check reads Ready only once the
+// finished reading holds its result; before that it reads Checking or Waiting, and afterwards a check that
+// produced nothing says so.
 function CheckSummary({ mode, progress }: { mode: MeasureMode; progress: AnalysisProgress }) {
   const { t } = useTranslation();
   const { colors, spacing } = useTheme();
-  const words = {
-    done: t('checks.state.ready'),
-    active: t('checks.state.working'),
-    pending: t('checks.state.waiting'),
+  const tier: PlanTier = useStoredRating()?.tier ?? 'unrated';
+  const names: Record<CheckId, string> = {
+    afib: t('checks.afib.name'),
+    hrv: t('checks.hrv.name'),
+    diabetes: t('checks.diabetes.name'),
+    pots: t('checks.pots.name'),
   };
-  const full = mode === 'full';
-  const lines: CheckLine[] = [
-    { icon: 'pulse', name: t('checks.afib.name'), state: words[progress.steps.rhythm] },
-    {
-      icon: 'trends',
-      name: t('checks.hrv.name'),
-      state: full ? words[progress.steps.breathing] : t('checks.state.off'),
-    },
-    {
-      icon: 'lens',
-      name: t('checks.diabetes.name'),
-      state: full ? words[progress.steps.baseline] : t('checks.state.off'),
-      experimental: true,
-    },
-    { icon: 'finger', name: t('checks.pots.name'), state: t('checks.from.standing') },
-  ];
+  const reasons: Record<LockWhy, string> = {
+    fps60: t('mode.locked60fps'),
+    basic: t('mode.lockedBasic'),
+    unsupported: t('mode.lockedUnsupported'),
+  };
+  const stateOf = (check: CheckId): string => {
+    const cell = checkCell(mode, check, tier);
+    if (cell.state === 'locked') return reasons[cell.why];
+    if (cell.state === 'notInScan') return check === 'pots' ? t('checks.from.standing') : t('checks.state.off');
+    if (progress.outputs !== null && check !== 'pots') {
+      return progress.outputs[check] ? t('checks.state.ready') : t('checks.state.notRun');
+    }
+    const step = STEP_OF_CHECK[check];
+    return step !== null && progress.steps[step] !== 'pending' ? t('checks.state.working') : t('checks.state.waiting');
+  };
   return (
     <Card>
       <AppText variant="caption" tone="textDim" style={{ fontWeight: '600', textTransform: 'uppercase' }}>
         {t('checks.inReading')}
       </AppText>
-      {lines.map(({ icon, name, state, experimental }) => (
-        <View
-          key={name}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 32 }}
-        >
-          <Icon name={icon} size={20} color={colors.accent} />
-          <AppText variant="headline">{name}</AppText>
-          {experimental ? <EvidenceBadge metric="diabetes" /> : null}
-          <AppText variant="caption" tone="textDim" style={{ flex: 1, textAlign: 'right' }}>
-            {state}
-          </AppText>
-        </View>
-      ))}
+      {CHECK_IDS.map((check) => {
+        const pill = CHECK_PILL[check];
+        return (
+          <View
+            key={check}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 32 }}
+          >
+            <Icon name={CHECK_ICON[check]} size={20} color={colors.accent} />
+            <AppText variant="headline">{names[check]}</AppText>
+            {pill === null ? null : <EvidenceBadge metric={pill} />}
+            <AppText variant="caption" tone="textDim" style={{ flex: 1, textAlign: 'right' }}>
+              {stateOf(check)}
+            </AppText>
+          </View>
+        );
+      })}
     </Card>
   );
 }
@@ -92,9 +107,12 @@ export function ProcessingView({ analysis, mode }: { analysis: AnalysisState; mo
     breathing: t('processing.breathing'),
     baseline: t('processing.baseline'),
   };
+  const tier: PlanTier = useStoredRating()?.tier ?? 'unrated';
+  const tagFor = (check: CheckId, icon: IconName, name: string) =>
+    checkCell(mode, check, tier).state === 'runs' ? { icon, name } : undefined;
   const tags: Partial<Record<(typeof STEP_ORDER)[number], { icon: IconName; name: string }>> = {
-    rhythm: { icon: 'pulse', name: t('checks.afib.name') },
-    ...(mode === 'full' ? { breathing: { icon: 'trends', name: t('checks.hrv.name') } } : {}),
+    rhythm: tagFor('afib', 'pulse', t('checks.afib.name')),
+    breathing: tagFor('hrv', 'trends', t('checks.hrv.name')),
   };
   const stateLabels = {
     done: t('processing.stateDone'),

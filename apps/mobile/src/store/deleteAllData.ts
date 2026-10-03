@@ -52,7 +52,8 @@ async function emptyEveryTable(): Promise<void> {
 // finishes its schedule and file writes before anything is deleted, and then the system's reminders are
 // cancelled so none fires or is re-planned meanwhile. Captures are held in memory
 // only, so nothing is on disk for them; the downloaded models are not the person's data and stay. A failure
-// throws before any in-memory state resets, and running it again finishes the job.
+// before the widget publish throws before any in-memory state resets; a failed publish throws after them. Either
+// way, running it again finishes the job.
 // expo-notifications 57: https://docs.expo.dev/versions/v57.0.0/sdk/notifications/
 // expo-file-system 57: https://docs.expo.dev/versions/v57.0.0/sdk/filesystem/
 export async function deleteAllData(languageTag: string): Promise<void> {

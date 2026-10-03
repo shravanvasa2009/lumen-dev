@@ -155,6 +155,7 @@ def test_hrv_gates():
     assert hrv(beats, "other", 60, 70) is None
     assert hrv(beats, "sinus", 59.9, 70) is None
     assert hrv(beats, "sinus", math.nan, 70) is None
+    assert hrv(beats, "sinus", math.inf, 70) is None
     fifty = [beats_from(alternating(50, 0.8, 0.84))]
     assert hrv(fifty, "sinus", 60, 60).rmssd_ms == pytest.approx(40, abs=1e-9)
     assert hrv(fifty, "sinus", 60, 59.9).rmssd_ms is None

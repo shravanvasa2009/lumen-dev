@@ -142,7 +142,8 @@ export function hrv(
   cleanS: number,
 ): Hrv | null {
   const config = DSP_CONFIG.dsp12;
-  if (rhythm !== 'sinus' || !(captureFps >= config.minFps)) return null;
+  // A capture format has a finite rate: +Infinity fails like NaN.
+  if (rhythm !== 'sinus' || !(Number.isFinite(captureFps) && captureFps >= config.minFps)) return null;
   const runs = filteredRuns(nnRuns(segments));
   const intervalsS = runs.flat();
   const differences = runs.flatMap((run) => run.slice(1).map((intervalS, i) => intervalS - run[i]!));

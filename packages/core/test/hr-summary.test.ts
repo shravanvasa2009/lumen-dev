@@ -35,6 +35,7 @@ describe('ML-6 diabetes-net HR/HRV summary (hand-computed answers)', () => {
 
   it('nulls HRV below 60 fps and SDNN below 300 clean seconds', () => {
     expect(hrSummary([alternatingBeats()], 'sinus', 30, 300).slice(1)).toEqual([null, null, null]);
+    expect(hrSummary([alternatingBeats()], 'sinus', Infinity, 300).slice(1)).toEqual([null, null, null]);
     const shorter = hrSummary([alternatingBeats()], 'sinus', 60, 120);
     expect(shorter[1]).toBeCloseTo(100, 9);
     expect(shorter[2]).toBeNull();

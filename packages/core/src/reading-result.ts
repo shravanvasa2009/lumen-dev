@@ -330,7 +330,6 @@ export function buildReadingResult(
 
   const beats = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');
   const atypical = beats.filter((beat) => beat.beatClass === 'atypical').length;
-  const normal = beats.filter((beat) => beat.beatClass === 'normal').length;
   return {
     headlineKey: headline(hr, rhythm),
     cleanSeconds: analysis.cleanSeconds,
@@ -346,11 +345,7 @@ export function buildReadingResult(
     experimental: {
       extraBeatsPerMin: analysis.cleanSeconds > 0 ? atypical / (analysis.cleanSeconds / 60) : 0,
       longPauses: beats.filter((beat) => beat.longPause).length,
-      pulseShape: {
-        available:
-          analysis.context.captureFps >= DSP_CONFIG.rules.pulseShapeMinFps &&
-          normal >= DSP_CONFIG.rules.pulseShapeMinNormalBeats,
-      },
+      pulseShape: { available: analysis.pulseShape !== null },
     },
     lostSeconds: analysis.lostSeconds,
     notChecked: ['bp', 'spo2', 'heartAttack'],

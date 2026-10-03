@@ -138,8 +138,8 @@ export function ensembleBeat(
     throw new RangeError(`${onsets.length} onsets but ${normal.length} normal-beat flags`);
   const { minNormalBeats, beatSamples, leadFraction, minFps, maxPeriodRatio } = DSP_CONFIG.dsp14;
   // The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
-  // nominal 60 fps session measures 59.9x. Written so that NaN fails the gate.
-  if (!(captureFps >= minFps)) return null;
+  // nominal 60 fps session measures 59.9x. NaN and +Infinity are no rate, so both fail the gate.
+  if (!(Number.isFinite(captureFps) && captureFps >= minFps)) return null;
 
   // A beat runs from its onset to the next one, so both beats must be normal.
   const candidates: number[] = [];

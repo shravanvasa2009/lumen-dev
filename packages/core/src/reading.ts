@@ -74,7 +74,7 @@ export interface ReadingAnalysis {
   rhythmWindows: RhythmWindow[];
   rhythmFeatures: number[][]; // rhythmFeatureVector per window: the Rhythm-Net / LightGBM input
   enoughRhythmIntervals: boolean;
-  pulseShape: PulseShape | null; // DSP-14 averaged beat of the longest segment: diabetes-net's beat input
+  pulseShape: PulseShape | null; // DSP-14 averaged beat (readingShape): diabetes-net's beat input
 }
 
 // A run of failing frames spans from its first frame to the next frame (the last frame ends the reading).
@@ -230,25 +230,32 @@ function beatSegments(timebase: Timebase, samples: Sample[], spans: RejectedSpan
   });
 }
 
-// DSP-14 on one segment, called as ML-6 training calls it on a 90 s VitalDB segment
-// (ml/train/diabetes_features.py): onsets of every beat that is not "not a beat" and has an onset, in
-// 256 Hz samples of the segment, and normal = class "normal". Training has one gap-free segment per scan;
-// ensembleBeat averages one signal, so a reading split at a gap uses its longest segment (the first on a
-// tie). The fps is the capture format's: DSP-14 gates on the configured rate, and VitalDB's 500 Hz is exact.
-function longestSegmentShape(segments: BeatSegment[], captureFps: number): PulseShape | null {
-  let longest: BeatSegment | null = null;
-  for (const segment of segments)
-    if (!longest || segment.shape.values.length > longest.shape.values.length) longest = segment;
-  if (!longest) return null;
+// DSP-14 called as ML-6 training calls it on a 90 s VitalDB segment (ml/train/diabetes_features.py):
+// onsets of every beat that is not "not a beat" and has an onset, in 256 Hz samples of the segment, and
+// normal = class "normal". The fps is the capture format's: DSP-14 gates on the configured rate, and
+// VitalDB's 500 Hz is exact.
+function segmentShape(segment: BeatSegment, captureFps: number): PulseShape | null {
   const { shapeRateHz } = DSP_CONFIG.dsp2;
   const onsets: number[] = [];
   const normal: boolean[] = [];
-  for (const beat of longest.beats) {
+  for (const beat of segment.beats) {
     if (beat.beatClass === 'not-a-beat' || beat.onsetS === null) continue;
-    onsets.push(beat.onsetS * shapeRateHz - longest.shape.firstIndex);
+    onsets.push(beat.onsetS * shapeRateHz - segment.shape.firstIndex);
     normal.push(beat.beatClass === 'normal');
   }
-  return ensembleBeat(longest.shape.values, onsets, normal, captureFps);
+  return ensembleBeat(segment.shape.values, onsets, normal, captureFps);
+}
+
+// Training has one gap-free segment per scan, and ensembleBeat averages one signal. A reading split at a
+// gap tries its segments from longest to shortest (the first on a tie) and keeps the first that gives a
+// shape, so a long flat or moving stretch does not hide a shorter segment with a clean pulse.
+function readingShape(segments: BeatSegment[], captureFps: number): PulseShape | null {
+  const byLength = [...segments].sort((x, y) => y.shape.values.length - x.shape.values.length);
+  for (const segment of byLength) {
+    const shape = segmentShape(segment, captureFps);
+    if (shape) return shape;
+  }
+  return null;
 }
 
 // Intervals per segment, between consecutive beats that are not "not a beat"; none crosses a segment gap.
@@ -359,6 +366,6 @@ export function analyzeReading(
     rhythmWindows: windows,
     rhythmFeatures: windows.map(rhythmFeatureVector),
     enoughRhythmIntervals: hasEnoughUsableIntervals(spansArtifact),
-    pulseShape: longestSegmentShape(bands, context.captureFps),
+    pulseShape: readingShape(bands, context.captureFps),
   };
 }

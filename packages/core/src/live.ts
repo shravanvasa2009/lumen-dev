@@ -3,7 +3,7 @@ import { DSP_CONFIG } from './config';
 import { frameProblem } from './contact';
 import { butterBandpass, CausalFilter, type SosSection } from './filters';
 import type { CoachingKey, LiveSession, RejectedSpan, SqiWindow } from './live-session';
-import { modelWindowAt, nextModelTickS, usableFrom } from './model-window';
+import { FlatRuns, modelWindowAt, nextModelTickS, usableFrom } from './model-window';
 import type { NsSpan, SqiScores } from './reading';
 import { cleanSeconds as cleanTime } from './reading-metrics';
 
@@ -91,6 +91,7 @@ class Session implements LiveSession {
   private readonly motion: NsSpan[] = [];
   private readonly coldHands: NsSpan[] = [];
   private readonly quality: RejectedSpan[] = [];
+  private readonly flatRuns = new FlatRuns();
   private openContact: OpenSpan | null = null;
   private openMotionNs: number | null = null;
   private openColdHandsNs: number | null = null;
@@ -142,6 +143,8 @@ class Session implements LiveSession {
         throw new RangeError(`timestamps must strictly increase; ${sample.tNs} ns does not`);
       previousNs = sample.tNs;
     });
+    // Everything addFrame could refuse is checked above, and DSP-4 keeps non-finite values out of every
+    // spline, so a batch is applied whole or not at all.
     samples.forEach((sample, i) => this.addFrame(sample, stats[i]!));
     this.shownClean = Math.max(this.shownClean, this.trueCleanSeconds());
   }
@@ -153,7 +156,15 @@ class Session implements LiveSession {
     const gap = this.count > 0 && tS - this.latestS > DSP_CONFIG.dsp2.maxGapS;
     // The causal filter assumes evenly spaced frames; after a DSP-2 gap it restarts in steady state.
     if (this.filter === null || gap) this.filter = new CausalFilter(this.sos);
-    const value = this.filter.filter([-sample.r])[0]!;
+    // A non-finite red would leave the filter state NaN for the rest of the reading. The frame is a
+    // coverage frame (DSP-4), so the waveform holds its last value and the filter restarts after it.
+    const finite = Number.isFinite(sample.r);
+    const value = finite
+      ? this.filter.filter([-sample.r])[0]!
+      : this.count > 0
+        ? this.filtered[this.count - 1]!
+        : 0;
+    if (!finite) this.filter = null;
 
     if (this.lastExposureNs !== null && stat.exposureNs !== this.lastExposureNs) {
       const holdS = DSP_CONFIG.dsp5.exposureChangeArtifactS;
@@ -176,6 +187,7 @@ class Session implements LiveSession {
     this.red[at] = sample.r;
     this.filtered[at] = value;
     this.covered[at] = problem === 'coverage' ? 0 : 1;
+    this.flatRuns.add(tS, sample.r, problem !== 'coverage');
     this.lastNs = sample.tNs;
 
     if (tS >= this.nextTickS) {
@@ -198,6 +210,9 @@ class Session implements LiveSession {
   }
 
   setSqi(windowEndS: number, pClean: number): void {
+    // readingInput hands the end on in whole ns; a finer end would come back as a different span.
+    if (Math.round(windowEndS * 1e9) / 1e9 !== windowEndS)
+      throw new RangeError(`window end ${windowEndS} s is not a whole ns; pass sqiWindow.endS unchanged`);
     this.modelRan = true;
     this.scores.push({ endS: windowEndS, pClean });
     if (pClean < this.config.sqiThreshold) this.rejectWindow(windowEndS);
@@ -271,6 +286,7 @@ class Session implements LiveSession {
       ...seconds(this.nsSpans(this.motion, this.openMotionNs), 'motion'),
       ...seconds(this.nsSpans(this.coldHands, this.openColdHandsNs), 'coldHands'),
       ...this.quality,
+      ...this.flatRuns.spans(),
     ].sort((x, y) => x.startS - y.startS);
   }
 

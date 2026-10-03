@@ -15,11 +15,11 @@ export default function AccuracyScreen() {
   const { t, i18n } = useTranslation();
   const metrics = [
     { metric: 'hr', heading: t('accuracy.heartRate'), icon: 'pulse' },
-    { metric: 'rhythm', heading: t('accuracy.rhythm'), icon: 'trends' },
+    { metric: 'rhythm', heading: t('accuracy.rhythm'), icon: 'rhythm' },
     { metric: 'hrv', heading: t('accuracy.hrv'), icon: 'clock' },
-    { metric: 'resp', heading: t('accuracy.breathing'), icon: 'lens' },
-    { metric: 'diabetes', heading: t('accuracy.diabetes'), icon: 'finger' },
-    { metric: 'extraBeats', heading: t('accuracy.extraBeats'), icon: 'hint' },
+    { metric: 'resp', heading: t('accuracy.breathing'), icon: 'breath' },
+    { metric: 'diabetes', heading: t('accuracy.diabetes'), icon: 'drop' },
+    { metric: 'extraBeats', heading: t('accuracy.extraBeats'), icon: 'extraBeat' },
   ] as const satisfies readonly { metric: EvidenceMetric; heading: string; icon: IconName }[];
   const { checked, total } = countChecked(bundledAccuracy);
   const { colors, spacing } = useTheme();
@@ -32,7 +32,7 @@ export default function AccuracyScreen() {
           <View style={{ flex: 1 }}>
             <AppText variant="headline">{t('accuracy.summaryTitle')}</AppText>
             <AppText>{t('accuracy.summary', { checked, total })}</AppText>
-            <AppText tone="textDim">{t('accuracy.summaryRest')}</AppText>
+            {checked < total ? <AppText tone="textDim">{t('accuracy.summaryRest')}</AppText> : null}
           </View>
         </View>
       </Card>

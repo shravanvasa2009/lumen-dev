@@ -76,6 +76,7 @@ export {
 } from './reading';
 export {
   buildReadingResult,
+  isProbabilityRow,
   type DiabetesOutputs,
   type EvidenceFile,
   type ModelOutputs,

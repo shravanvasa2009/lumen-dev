@@ -18,11 +18,19 @@ export interface Upstroke {
   maxUpslope: number; // per sample
 }
 
-/** DSP-7: Elgendi W1 and W2 in samples, each rounded to the nearest odd count so the window centres. */
-export function elgendiWindows(rateHz: number): { peakSamples: number; beatSamples: number } {
+/** DSP-7: Elgendi W1, W2 and the offset window in samples, each rounded to the nearest odd count to centre. */
+export function elgendiWindows(rateHz: number): {
+  peakSamples: number;
+  beatSamples: number;
+  offsetSamples: number;
+} {
   const nearestOdd = (samples: number) => 2 * Math.round((samples - 1) / 2) + 1;
-  const { peakWindowS, beatWindowS } = DSP_CONFIG.dsp7;
-  return { peakSamples: nearestOdd(peakWindowS * rateHz), beatSamples: nearestOdd(beatWindowS * rateHz) };
+  const { peakWindowS, beatWindowS, offsetWindowS } = DSP_CONFIG.dsp7;
+  return {
+    peakSamples: nearestOdd(peakWindowS * rateHz),
+    beatSamples: nearestOdd(beatWindowS * rateHz),
+    offsetSamples: nearestOdd(offsetWindowS * rateHz),
+  };
 }
 
 // Centered moving average. At the edges, samples outside the signal count as zero and the sum is still
@@ -39,25 +47,55 @@ function centeredMean(squared: Float64Array, width: number): Float64Array {
   return means;
 }
 
-/** DSP-7: Elgendi et al. 2013 peak indices on a morphology-band signal, as published. */
+// Centred moving mean for DSP-7's offset (ADR 0081): the window is clipped to the signal and the sum is
+// divided by the samples actually in range, so a segment shorter than the window gets the published
+// segment-wide mean. A running sum keeps it O(n). It is summed afresh every `width` samples, so rounding
+// drift spans at most one window, and whenever one sample leaving the window takes more than half the sum:
+// cancellation there would leave a residue of the large value (after a transient, ~1e-13 where the direct
+// sum is exactly 0) or a negative sum. Python repeats every operation in the same order.
+function localMean(squared: Float64Array, width: number): Float64Array {
+  const half = (width - 1) / 2;
+  const last = squared.length - 1;
+  const means = new Float64Array(squared.length);
+  let sum = 0;
+  for (let n = 0; n < squared.length; n++) {
+    const from = Math.max(0, n - half);
+    const to = Math.min(last, n + half);
+    let resum = n % width === 0;
+    if (!resum) {
+      if (n + half <= last) sum += squared[to]!;
+      if (n - half > 0) {
+        const leaving = squared[from - 1]!;
+        sum -= leaving;
+        resum = sum < leaving;
+      }
+    }
+    if (resum) {
+      sum = 0;
+      for (let k = from; k <= to; k++) sum += squared[k]!;
+    }
+    means[n] = sum / (to - from + 1);
+  }
+  return means;
+}
+
+/** DSP-7: Elgendi et al. 2013 peak indices on a morphology-band signal, offset over a local window. */
 export function elgendiPeaks(filtered: ArrayLike<number>, rateHz: number): number[] {
-  const { peakSamples, beatSamples } = elgendiWindows(rateHz);
+  const { peakSamples, beatSamples, offsetSamples } = elgendiWindows(rateHz);
   const squared = Float64Array.from(filtered, (value) => (value > 0 ? value * value : 0));
   const maPeak = centeredMean(squared, peakSamples);
   const maBeat = centeredMean(squared, beatSamples);
-  let total = 0;
-  for (const value of squared) total += value;
-  const offset = DSP_CONFIG.dsp7.beta * (total / squared.length);
+  const offsets = localMean(squared, offsetSamples).map((mean) => DSP_CONFIG.dsp7.beta * mean);
 
   const peaks: number[] = [];
   let n = 0;
   while (n < squared.length) {
-    if (!(maPeak[n]! > maBeat[n]! + offset)) {
+    if (!(maPeak[n]! > maBeat[n]! + offsets[n]!)) {
       n++;
       continue;
     }
     const blockStart = n;
-    while (n < squared.length && maPeak[n]! > maBeat[n]! + offset) n++;
+    while (n < squared.length && maPeak[n]! > maBeat[n]! + offsets[n]!) n++;
     // THR2: a block narrower than W1 cannot hold a systolic peak.
     if (n - blockStart < peakSamples) continue;
     let peak = blockStart;

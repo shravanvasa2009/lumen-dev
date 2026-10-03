@@ -33,13 +33,17 @@ def js_round(x: float) -> int:
     return floor + 1 if x - floor >= 0.5 else floor
 
 
-# DSP-7: Elgendi W1 and W2 in samples, each rounded to the nearest odd count so the window centres.
-def elgendi_windows(rate_hz: float) -> tuple[int, int]:
+# DSP-7: Elgendi W1, W2 and the offset window in samples, each rounded to the nearest odd count to centre.
+def elgendi_windows(rate_hz: float) -> tuple[int, int, int]:
     def nearest_odd(samples: float) -> int:
         return 2 * js_round((samples - 1) / 2) + 1
 
     dsp7 = DSP_CONFIG["dsp7"]
-    return nearest_odd(dsp7["peakWindowS"] * rate_hz), nearest_odd(dsp7["beatWindowS"] * rate_hz)
+    return (
+        nearest_odd(dsp7["peakWindowS"] * rate_hz),
+        nearest_odd(dsp7["beatWindowS"] * rate_hz),
+        nearest_odd(dsp7["offsetWindowS"] * rate_hz),
+    )
 
 
 def _centered_mean(squared: list[float], width: int) -> list[float]:
@@ -54,26 +58,50 @@ def _centered_mean(squared: list[float], width: int) -> list[float]:
     return means
 
 
-# DSP-7: Elgendi et al. 2013 peak indices on a morphology-band signal, as published.
+def _local_mean(squared: list[float], width: int) -> list[float]:
+    # DSP-7's offset window (ADR 0081), clipped to the signal and divided by the samples in range. The same
+    # running sum as beats.ts: summed afresh every `width` samples, and whenever one sample leaving the window
+    # takes more than half the sum (cancellation would leave a residue of the large value).
+    half = (width - 1) // 2
+    last = len(squared) - 1
+    means = []
+    total = 0.0
+    for n in range(len(squared)):
+        start = max(0, n - half)
+        end = min(last, n + half)
+        resum = n % width == 0
+        if not resum:
+            if n + half <= last:
+                total += squared[end]
+            if n - half > 0:
+                leaving = squared[start - 1]
+                total -= leaving
+                resum = total < leaving
+        if resum:
+            total = 0.0
+            for k in range(start, end + 1):
+                total += squared[k]
+        means.append(total / (end - start + 1))
+    return means
+
+
+# DSP-7: Elgendi et al. 2013 peak indices on a morphology-band signal, offset over a local window.
 def elgendi_peaks(filtered: Sequence[float], rate_hz: float) -> list[int]:
     values = [float(value) for value in filtered]
-    peak_samples, beat_samples = elgendi_windows(rate_hz)
+    peak_samples, beat_samples, offset_samples = elgendi_windows(rate_hz)
     squared = [value * value if value > 0 else 0.0 for value in values]
     ma_peak = _centered_mean(squared, peak_samples)
     ma_beat = _centered_mean(squared, beat_samples)
-    total = 0.0
-    for value in squared:
-        total += value
-    offset = DSP_CONFIG["dsp7"]["beta"] * (total / len(squared))
+    offsets = [DSP_CONFIG["dsp7"]["beta"] * mean for mean in _local_mean(squared, offset_samples)]
 
     peaks = []
     n = 0
     while n < len(squared):
-        if not ma_peak[n] > ma_beat[n] + offset:
+        if not ma_peak[n] > ma_beat[n] + offsets[n]:
             n += 1
             continue
         block_start = n
-        while n < len(squared) and ma_peak[n] > ma_beat[n] + offset:
+        while n < len(squared) and ma_peak[n] > ma_beat[n] + offsets[n]:
             n += 1
         # THR2: a block narrower than W1 cannot hold a systolic peak.
         if n - block_start < peak_samples:

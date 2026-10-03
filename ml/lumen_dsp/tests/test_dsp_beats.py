@@ -34,16 +34,17 @@ def test_js_round_rounds_halves_up_like_math_round():
     ]
 
 
-def test_windows_round_111_and_667_ms_to_the_nearest_odd_sample_count():
-    assert elgendi_windows(64) == (7, 43)
-    assert elgendi_windows(256) == (29, 171)
+def test_windows_round_111_ms_667_ms_and_10_s_to_the_nearest_odd_sample_count():
+    assert elgendi_windows(64) == (7, 43, 641)
+    assert elgendi_windows(256) == (29, 171, 2561)
 
 
-def test_peaks_match_a_direct_transcription_of_the_published_rules_on_noise():
-    uniforms = park_miller_uniforms(2000, seed=99)
-    noise = [(u - 0.5) * (1 + math.sin(n / 40)) for n, u in enumerate(uniforms)]
-    w1, w2 = elgendi_windows(64)
-    squared = [value * value if value > 0 else 0.0 for value in noise]
+def transcribed_peaks(band, offset_width=None):
+    # The rules transcribed directly: centred W1 and W2 means with samples outside the signal counted as zero;
+    # THR1's offset β × the mean over the samples within ± offset_width / 2 that lie in the signal.
+    w1, w2, default_offset_width = elgendi_windows(64)
+    offset_half = ((offset_width or default_offset_width) - 1) // 2
+    squared = [value * value if value > 0 else 0.0 for value in band]
 
     def centered_mean(n, width):
         total = 0.0
@@ -51,28 +52,66 @@ def test_peaks_match_a_direct_transcription_of_the_published_rules_on_noise():
             total += squared[k] if 0 <= k < len(squared) else 0.0
         return total / width
 
-    total = 0.0
-    for value in squared:
-        total += value
-    offset = DSP_CONFIG["dsp7"]["beta"] * (total / len(squared))
+    offsets = []
+    for n in range(len(squared)):
+        start, end = max(0, n - offset_half), min(len(squared) - 1, n + offset_half)
+        total = 0.0
+        for k in range(start, end + 1):
+            total += squared[k]
+        offsets.append(DSP_CONFIG["dsp7"]["beta"] * (total / (end - start + 1)))
     expected, narrow, n = [], 0, 0
-    while n < len(noise):
-        if not centered_mean(n, w1) > centered_mean(n, w2) + offset:
+    while n < len(band):
+        if not centered_mean(n, w1) > centered_mean(n, w2) + offsets[n]:
             n += 1
             continue
         start = n
-        while n < len(noise) and centered_mean(n, w1) > centered_mean(n, w2) + offset:
+        while n < len(band) and centered_mean(n, w1) > centered_mean(n, w2) + offsets[n]:
             n += 1
         if n - start < w1:
             narrow += 1
             continue
         peak = start
         for k in range(start, n):
-            if noise[k] > noise[peak]:
+            if band[k] > band[peak]:
                 peak = k
         expected.append(peak)
+    return expected, narrow
+
+
+def test_peaks_match_a_direct_transcription_with_the_local_offset_on_noise():
+    uniforms = park_miller_uniforms(2000, seed=99)
+    noise = [(u - 0.5) * (1 + math.sin(n / 40)) for n, u in enumerate(uniforms)]
+    expected, narrow = transcribed_peaks(noise)
+    assert len(noise) > elgendi_windows(64)[2]
     assert narrow > 0
     assert elgendi_peaks(noise, 64) == expected
+
+
+def test_a_segment_shorter_than_the_offset_window_uses_the_published_segment_wide_offset():
+    uniforms = park_miller_uniforms(320, seed=7)
+    noise = [(u - 0.5) * (1 + math.sin(n / 20)) for n, u in enumerate(uniforms)]
+    # A window of 2 × length − 1 reaches every sample from every sample: the segment-wide mean.
+    expected, _ = transcribed_peaks(noise, 2 * len(noise) - 1)
+    assert expected
+    assert elgendi_peaks(noise, 64) == expected
+
+
+def test_running_offset_sum_equals_direct_sums_after_large_transients():
+    # 5 min at 64 Hz; transients 10^4 times a beat's energy, each followed by a flat stretch longer than the
+    # offset window, where no peak may appear.
+    uniforms = park_miller_uniforms(64 * 300, seed=31)
+
+    def flat(n):
+        return 3200 <= n % 6400 < 4200
+
+    band = []
+    for n, u in enumerate(uniforms):
+        pulse = math.exp(-0.5 * ((n % 64 - 20) / 4) ** 2) + 0.05 * (u - 0.5)
+        band.append(0.0 if flat(n) else 100 * pulse if 3100 <= n % 6400 < 3200 else pulse)
+    expected, _ = transcribed_peaks(band)
+    peaks = elgendi_peaks(band, 64)
+    assert peaks == expected
+    assert not [peak for peak in peaks if flat(peak)]
 
 
 def test_finds_every_beat_of_a_regular_rhythm_once_within_2_ms():

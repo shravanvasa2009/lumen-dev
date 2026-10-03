@@ -13,8 +13,8 @@ import { useTheme } from '@/theme';
 
 // HRSA's health-center finder; opened only when the person taps the link (spec 8.4).
 const CARE_FINDER_URL = 'https://findahealthcenter.hrsa.gov';
-// One constant so moving the Care map to a tab later is a one-line change.
-const CARE_MAP_ROUTE = '/care-map';
+// The Care map is a tab root (ADR 0065).
+const CARE_MAP_ROUTE = '/care';
 const GRABBER_WIDTH = 40;
 const GRABBER_HEIGHT = 4;
 const GRABBER_RADIUS = GRABBER_HEIGHT / 2;

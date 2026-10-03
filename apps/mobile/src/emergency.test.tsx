@@ -29,6 +29,7 @@ describe('emergency screen', () => {
   it('has no Care map entry; it is only for calling emergency services', () => {
     renderRouter('./app', { initialUrl: '/emergency' });
     expect(screen.queryByRole('button', { name: en['careMap.enter'] })).toBeNull();
+    expect(screen.queryByRole('button', { name: en['results.findCare'] })).toBeNull();
   });
 
   it('opens the dialer for 911', async () => {

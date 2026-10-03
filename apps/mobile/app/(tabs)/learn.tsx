@@ -39,7 +39,7 @@ export default function LearnScreen() {
           leading={<LessonTile tone="accent" />}
           title={t('learn.careFinder')}
           subtitle={t('learn.careFinderHint')}
-          onPress={() => router.push('/care-map')}
+          onPress={() => router.push('/care')}
         />
       </Card>
       <Pressable

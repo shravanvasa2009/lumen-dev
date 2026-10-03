@@ -292,7 +292,7 @@ describe('Doctor follow-up', () => {
     renderRouter(appDirectory, { initialUrl: '/' });
     fireEvent.press(await screen.findByRole('button', { name: en['home.followUp'] }));
     fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
-    expectNavTitle(en['careMap.title']);
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
     expect(screen.queryByRole('header', { name: en['followUp.title'] })).toBeNull();
     await screen.findByText(en['careMap.denied']);
   });
@@ -300,7 +300,7 @@ describe('Doctor follow-up', () => {
   it('opens the Care map from Find a doctor nearby', async () => {
     renderRouter(appDirectory, { initialUrl: '/follow-up' });
     fireEvent.press(screen.getByRole('button', { name: en['careMap.enter'] }));
-    expectNavTitle(en['careMap.title']);
+    expect(screen.getByRole('header', { name: en['careMap.title'] })).toBeOnTheScreen();
     await screen.findByText(en['careMap.denied']);
   });
 

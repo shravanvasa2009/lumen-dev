@@ -1,11 +1,11 @@
-import type { RatingMode } from '@lumen/core';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { CHECK_ICON, CHECK_IDS, CHECK_PILL, type CheckId, checkCell, type LockWhy, type PlanMode } from '@/checks/checkPlan';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
-import { Icon, type IconName } from '@/components/Icon';
+import { Icon } from '@/components/Icon';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
 import { TryDemoButton } from '@/demo/TryDemoButton';
@@ -51,24 +51,29 @@ function UnlockedModes({ rating }: { rating: StoredRating }) {
   );
 }
 
-type CheckRowSpec = { icon: IconName; name: string; what: string; mode: RatingMode; experimental?: boolean };
+// Each check is listed under the mode that runs it: the Standing test for POTS, a Full Scan for the rest.
+const LISTED_MODE: Record<CheckId, PlanMode> = { afib: 'full', hrv: 'full', diabetes: 'full', pots: 'standing' };
 
-// Each check needs one rating mode; a phone below that mode shows the row locked (spec 05 gating).
 function CheckableList({ rating }: { rating: StoredRating }) {
   const { t } = useTranslation();
   const { colors, spacing, radius } = useTheme();
-  const rows: CheckRowSpec[] = [
-    { icon: 'pulse', name: t('checks.afib.name'), what: t('checks.afib.what'), mode: 'rhythmFlags' },
-    { icon: 'trends', name: t('checks.hrv.name'), what: t('checks.hrv.what'), mode: 'hrv' },
-    {
-      icon: 'lens',
-      name: t('checks.diabetes.name'),
-      what: t('checks.diabetes.what'),
-      mode: 'diabetes',
-      experimental: true,
-    },
-    { icon: 'finger', name: t('checks.pots.name'), what: t('checks.pots.whatShort'), mode: 'standingTest' },
-  ];
+  const names: Record<CheckId, string> = {
+    afib: t('checks.afib.name'),
+    hrv: t('checks.hrv.name'),
+    diabetes: t('checks.diabetes.name'),
+    pots: t('checks.pots.name'),
+  };
+  const whats: Record<CheckId, string> = {
+    afib: t('checks.afib.what'),
+    hrv: t('checks.hrv.what'),
+    diabetes: t('checks.diabetes.what'),
+    pots: t('checks.pots.whatShort'),
+  };
+  const reasons: Record<LockWhy, string> = {
+    fps60: t('mode.locked60fps'),
+    basic: t('mode.lockedBasic'),
+    unsupported: t('mode.lockedUnsupported'),
+  };
   return (
     <View
       style={{
@@ -82,13 +87,15 @@ function CheckableList({ rating }: { rating: StoredRating }) {
       <View style={{ padding: spacing.md }}>
         <SectionLabel>{t('rating.checksHere')}</SectionLabel>
       </View>
-      {rows.map((row) => {
-        const open = rating.unlocks.includes(row.mode);
+      {CHECK_IDS.map((check) => {
+        const cell = checkCell(LISTED_MODE[check], check, rating.tier);
+        const lockedWhy = cell.state === 'locked' ? cell.why : null;
+        const pill = CHECK_PILL[check];
         return (
           <View
-            key={row.mode}
+            key={check}
             accessible
-            accessibilityLabel={`${row.name}: ${open ? row.what : t('mode.locked60fps')}`}
+            accessibilityLabel={`${names[check]}: ${lockedWhy === null ? whats[check] : reasons[lockedWhy]}`}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
@@ -108,20 +115,28 @@ function CheckableList({ rating }: { rating: StoredRating }) {
                 justifyContent: 'center',
               }}
             >
-              <Icon name={row.icon} size={20} color={open ? colors.accent : colors.textFaint} />
+              <Icon
+                name={CHECK_ICON[check]}
+                size={20}
+                color={lockedWhy === null ? colors.accent : colors.textFaint}
+              />
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-                <AppText variant="headline" tone={open ? 'text' : 'textDim'}>
-                  {row.name}
+                <AppText variant="headline" tone={lockedWhy === null ? 'text' : 'textDim'}>
+                  {names[check]}
                 </AppText>
-                {row.experimental ? <EvidenceBadge metric="diabetes" /> : null}
+                {pill === null ? null : <EvidenceBadge metric={pill} />}
               </View>
               <AppText variant="caption" tone="textDim">
-                {open ? row.what : t('mode.locked60fps')}
+                {lockedWhy === null ? whats[check] : reasons[lockedWhy]}
               </AppText>
             </View>
-            <Icon name={open ? 'check' : 'lock'} size={20} color={open ? colors.accent : colors.textFaint} />
+            <Icon
+              name={lockedWhy === null ? 'check' : 'lock'}
+              size={20}
+              color={lockedWhy === null ? colors.accent : colors.textFaint}
+            />
           </View>
         );
       })}

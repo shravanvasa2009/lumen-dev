@@ -328,6 +328,28 @@ describe('mode picker gating', () => {
     expect(screen.queryByText(en['mode.locked60fps'])).toBeNull();
   });
 
+  it('gives each check on a Limited phone the reason from the checks table, never 60 fps for POTS', async () => {
+    await storeRating(noFlashPhone, { ...practiceOf(60), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
+    expect((await loadDeviceRating())?.tier).toBe('limited');
+    renderRouter('./app', { initialUrl: '/rating' });
+    const reasonOf = async (name: string) =>
+      (await screen.findByLabelText(new RegExp(`^${name}: `))).props.accessibilityLabel as string;
+    expect(await reasonOf(en['checks.hrv.name'])).toBe(`${en['checks.hrv.name']}: ${en['mode.locked60fps']}`);
+    expect(await reasonOf(en['checks.diabetes.name'])).toBe(
+      `${en['checks.diabetes.name']}: ${en['mode.locked60fps']}`,
+    );
+    expect(await reasonOf(en['checks.pots.name'])).toBe(`${en['checks.pots.name']}: ${en['mode.lockedBasic']}`);
+    expect(await reasonOf(en['checks.afib.name'])).toBe(`${en['checks.afib.name']}: ${en['mode.lockedBasic']}`);
+  });
+
+  it('opens POTS on a Basic phone and gives HRV and Diabetes the 60 fps reason', async () => {
+    await storeRating(thirtyFpsPhone, practiceOf(30));
+    renderRouter('./app', { initialUrl: '/rating' });
+    expect(await screen.findByLabelText(`${en['checks.pots.name']}: ${en['checks.pots.whatShort']}`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['checks.afib.name']}: ${en['checks.afib.what']}`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['checks.hrv.name']}: ${en['mode.locked60fps']}`)).toBeOnTheScreen();
+  });
+
   it('gives a flash-less Limited phone the flash reason on every locked mode', async () => {
     await storeRating(noFlashPhone, { ...practiceOf(60), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
     renderRouter('./app', { initialUrl: '/measure/mode' });

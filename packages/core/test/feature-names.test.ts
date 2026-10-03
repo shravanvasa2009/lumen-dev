@@ -31,11 +31,11 @@ describe('ML-3 rhythm feature names', () => {
   });
 
   it('every rhythm entry in models/manifest.json names a prefix of them', () => {
-    const rhythm = entries.filter((entry) => Array.isArray(entry.featureOrder));
+    const rhythm = entries.filter((entry) => entry.family === 'rhythm');
     expect(rhythm.length).toBeGreaterThan(0);
     for (const { featureOrder } of rhythm) {
+      expect(Array.isArray(featureOrder)).toBe(true);
       const names = featureOrder as string[];
-      if (names[0] !== RHYTHM_FEATURE_NAMES[0]) continue; // not a rhythm model (e.g. sqi-rule)
       expect(names).toEqual(RHYTHM_FEATURE_NAMES.slice(0, names.length));
     }
   });
@@ -61,5 +61,17 @@ describe('ML-6 HR summary names', () => {
     expect(withSummary.length).toBeGreaterThan(0);
     for (const { featureOrder } of withSummary)
       expect((featureOrder as { hrSummary: string[] }).hrSummary).toEqual([...HR_SUMMARY_NAMES]);
+  });
+
+  it('match ml/nets/diabetes_net.py HR_SUMMARY_NAMES', () => {
+    const source = fs.readFileSync(path.join(repo, 'ml/nets/diabetes_net.py'), 'utf8');
+    const tuple = /^HR_SUMMARY_NAMES = \(([^)]*)\)/m.exec(source);
+    expect(tuple).not.toBeNull();
+    expect([...tuple![1]!.matchAll(/"(\w+)"/g)].map((match) => match[1])).toEqual([...HR_SUMMARY_NAMES]);
+  });
+
+  it('are frozen, like the rhythm names', () => {
+    expect(Object.isFrozen(HR_SUMMARY_NAMES)).toBe(true);
+    expect(Object.isFrozen(RHYTHM_FEATURE_NAMES)).toBe(true);
   });
 });

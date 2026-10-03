@@ -15,6 +15,7 @@ import type { LostSeconds, RhythmClass } from './results';
 import {
   hasEnoughUsableIntervals,
   rhythmFeatureVector,
+  rhythmV2Features,
   rhythmWindows,
   type RhythmWindow,
 } from './rhythm-features';
@@ -72,7 +73,7 @@ export interface ReadingAnalysis {
   breathing: BreathingRate | null;
   normalizedRmssd: number | null; // over accepted intervals, for §10.1 fast regular rhythm
   rhythmWindows: RhythmWindow[];
-  rhythmFeatures: number[][]; // rhythmFeatureVector per window: the Rhythm-Net / LightGBM input
+  rhythmFeatures: number[][]; // per window, RHYTHM_FEATURE_NAMES order (v1 8 + v2 7): the rhythm model input
   enoughRhythmIntervals: boolean;
   pulseShape: PulseShape | null; // DSP-14 averaged beat (readingShape): diabetes-net's beat input
 }
@@ -383,7 +384,7 @@ export function analyzeReading(
     breathing: breathingRate(segments, clean),
     normalizedRmssd: normalizedRmssdOf(bySegment),
     rhythmWindows: windows,
-    rhythmFeatures: windows.map(rhythmFeatureVector),
+    rhythmFeatures: windows.map((window) => [...rhythmFeatureVector(window), ...rhythmV2Features(window)]),
     enoughRhythmIntervals: hasEnoughUsableIntervals(spansArtifact),
     pulseShape: readingShape(bands, context.captureFps),
   };

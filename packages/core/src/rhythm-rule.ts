@@ -1,5 +1,6 @@
 import { DSP_CONFIG } from './config';
 import { RHYTHM_CLASSES, type RhythmOutputs } from './reading-result';
+import { RHYTHM_FEATURE_NAMES } from './rhythm-features';
 
 // §11.1's logistic rhythm rule, run in code as basic analysis (§11.10) when the shipped rhythm model does
 // not load. Every number comes from the rhythm-logistic entry of models/manifest.json, which
@@ -157,11 +158,28 @@ export function logisticRhythmOutputs(
   const abstainLine = DSP_CONFIG.rules.uncertainBelowTopProb;
   if (entry.abstainBelow !== abstainLine)
     throw new Error(`the entry's abstainBelow ${JSON.stringify(entry.abstainBelow)} is not ${abstainLine}`);
+  // Core computes every rhythm feature (RHYTHM_FEATURE_NAMES); an entry reads the prefix it was trained on,
+  // so a v1 rule keeps working on the wider v2 vector. Names, when the entry lists them, must be that prefix.
+  if (featureCount > RHYTHM_FEATURE_NAMES.length)
+    throw new Error(
+      `the entry asks for ${featureCount} features; core computes ${RHYTHM_FEATURE_NAMES.length}`,
+    );
+  const expectedOrder = RHYTHM_FEATURE_NAMES.slice(0, featureCount);
+  if (
+    entry.featureOrder !== undefined &&
+    (!Array.isArray(entry.featureOrder) ||
+      entry.featureOrder.length !== featureCount ||
+      entry.featureOrder.some((name, i) => name !== expectedOrder[i]))
+  )
+    throw new Error(`the entry's featureOrder must be ${JSON.stringify(expectedOrder)}`);
+  // Only the entry's own width or core's full width: any other length is an upstream fault. Every value must
+  // be finite, read or not (ADR 0024 makes every DSP-15 feature finite).
+  const widths = [featureCount, RHYTHM_FEATURE_NAMES.length];
   const vectors = Array.from(windowFeatures, (vector: unknown) => {
     const copy = copyOf(vector);
-    if (copy === null || copy.length !== featureCount || !copy.every(isFiniteNumber))
-      throw new RangeError(`each feature vector needs ${featureCount} finite numbers`);
-    return copy;
+    if (copy === null || !widths.includes(copy.length) || !copy.every(isFiniteNumber))
+      throw new RangeError(`each feature vector needs ${widths.join(' or ')} finite numbers`);
+    return copy.slice(0, featureCount);
   });
 
   const classOrder = RHYTHM_CLASSES.map((name) => rule.classes.indexOf(name));

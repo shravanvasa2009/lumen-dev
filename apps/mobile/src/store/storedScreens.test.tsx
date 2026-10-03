@@ -111,6 +111,16 @@ describe('Results for a saved reading id', () => {
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
   });
 
+  it('shows the error screen when the reading cannot be read, and Try again opens Home', async () => {
+    await saveHeartRate(71);
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(await lumenDatabase(), 'getFirstAsync').mockRejectedValueOnce(new Error('unreadable'));
+    renderRouter('./app', { initialUrl: `/results/${ID}` });
+    expect(await screen.findByRole('header', { name: en['error.title'] })).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['error.retry'] }));
+    expect(await screen.findByText(TODAY_LINE)).toBeOnTheScreen();
+  });
+
   it('shows no values for an id that was never saved', async () => {
     renderRouter('./app', { initialUrl: '/results/reading-1' });
     await waitFor(() => expect(screen.getByText(en['result.inconclusive'])).toBeOnTheScreen());

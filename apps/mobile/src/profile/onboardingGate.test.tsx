@@ -60,8 +60,19 @@ describe('first-launch gate', () => {
     jest.spyOn(await lumenDatabase(), 'runAsync').mockRejectedValue(new Error('disk full'));
     renderRouter('./app', { initialUrl: '/reminders' });
     fireEvent.press(screen.getByRole('button', { name: en['reminders.notNow'] }));
-    await waitFor(() => expect(screen.getByText(en['profile.saveFailed'])).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getByText(en['reminders.finishFailed'])).toBeOnTheScreen());
     expect(screen.getByRole('header', { name: en['reminders.title'] })).toBeOnTheScreen();
+  });
+
+  it('shows the error screen when the profile cannot be read, and Try again opens Home', async () => {
+    await startOnboarded();
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(await lumenDatabase(), 'getFirstAsync').mockRejectedValueOnce(new Error('unreadable'));
+    renderRouter('./app', { initialUrl: '/' });
+    expect(await screen.findByRole('header', { name: en['error.title'] })).toBeOnTheScreen();
+    expect(screen.getByText(en['error.body'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['error.retry'] }));
+    expect(await screen.findByRole('header', { name: HOME_GREETING })).toBeOnTheScreen();
   });
 
   it('follows a widget link to the Quick Check for an onboarded user', async () => {

@@ -150,7 +150,7 @@ export default function RemindersScreen() {
       </AppText>
       {finishFailed ? (
         <AppText variant="caption" tone="textDim" accessibilityRole="alert">
-          {t('profile.saveFailed')}
+          {t('reminders.finishFailed')}
         </AppText>
       ) : null}
     </OnboardingStep>

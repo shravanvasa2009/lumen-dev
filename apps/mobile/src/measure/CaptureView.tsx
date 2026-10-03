@@ -1,3 +1,4 @@
+import type { RatingMode } from '@lumen/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -11,7 +12,9 @@ import { FingerPreview, ProgressRing } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
 import { StillMotion } from '@/theme/motion';
 
+import { CheckingRow } from './CheckingRow';
 import { TipsSheet } from './TipsSheet';
+import { checkingItems } from './checkingItems';
 import { LiveWaveform } from './LiveWaveform';
 import { coachingText } from './coachingText';
 import { cleanSecondsNeeded, type MeasureMode } from './mode';
@@ -25,11 +28,13 @@ const NO_VALUE = '—';
 type CaptureViewProps = {
   mode: MeasureMode;
   live: LiveCapture;
+  // What the phone's rating unlocks; null before the phone is rated.
+  unlocks?: readonly RatingMode[] | null;
   onCancel: () => void;
   onStop: () => void;
 };
 
-export function CaptureView({ mode, live, onCancel, onStop }: CaptureViewProps) {
+export function CaptureView({ mode, live, unlocks, onCancel, onStop }: CaptureViewProps) {
   const { t } = useTranslation();
   const { colors, spacing, radius, control } = useTheme();
   const [tipsOpen, setTipsOpen] = useState(false);
@@ -49,7 +54,7 @@ export function CaptureView({ mode, live, onCancel, onStop }: CaptureViewProps) 
   return (
     <StillMotion.Provider value>
       <Screen headerless footer={<Button variant="secondary" label={t('capture.stop')} onPress={onStop} />}>
-        <ScrollView contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.xxxl }}>
+        <ScrollView contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <Pressable
               accessibilityRole="button"
@@ -177,6 +182,8 @@ export function CaptureView({ mode, live, onCancel, onStop }: CaptureViewProps) 
               ) : null}
             </View>
           ) : null}
+
+          <CheckingRow items={checkingItems(mode, live.cleanSeconds, unlocks)} />
         </ScrollView>
       </Screen>
     </StillMotion.Provider>

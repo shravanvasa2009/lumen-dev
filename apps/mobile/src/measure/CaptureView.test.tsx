@@ -1,8 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { tierUnlocks } from '@lumen/core';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 
 import en from '@/i18n/en.json';
 
 import { CaptureView } from './CaptureView';
+import { CheckingRow } from './CheckingRow';
+import { checkingItems } from './checkingItems';
 import type { LiveCapture } from './useLiveCapture';
 
 import '@/i18n';
@@ -24,10 +27,22 @@ const base: LiveCapture = {
   rejectedSpans: [],
 };
 
-const show = (live: Partial<LiveCapture>, mode: 'quick' | 'full' = 'quick') => {
+const show = (
+  live: Partial<LiveCapture>,
+  mode: 'quick' | 'full' = 'quick',
+  unlocks: ReturnType<typeof tierUnlocks> | null = null,
+) => {
   const onCancel = jest.fn();
   const onStop = jest.fn();
-  render(<CaptureView mode={mode} live={{ ...base, ...live }} onCancel={onCancel} onStop={onStop} />);
+  render(
+    <CaptureView
+      mode={mode}
+      live={{ ...base, ...live }}
+      unlocks={unlocks}
+      onCancel={onCancel}
+      onStop={onStop}
+    />,
+  );
   return { onCancel, onStop };
 };
 
@@ -98,5 +113,71 @@ describe('CaptureView', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
     fireEvent.press(screen.getByRole('button', { name: en['capture.stop'] }));
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  describe('checking row', () => {
+    const item = (name: string) => screen.getByLabelText(new RegExp(`^${name},`));
+
+    it('lights each Full Scan check as its clean seconds are reached', () => {
+      show({ cleanSeconds: 20 }, 'full', tierUnlocks('full'));
+      expect(item(en['checks.afib.name'])).toHaveAccessibleName(`AFib, ${en['checks.state.working']}`);
+      expect(screen.queryByText(en['checks.state.ready'])).toBeNull();
+    });
+
+    it('marks AFib and HRV ready at 60 clean seconds and Diabetes at 90', () => {
+      show({ cleanSeconds: 60 }, 'full', tierUnlocks('full'));
+      expect(item(en['checks.afib.name'])).toHaveAccessibleName(`AFib, ${en['checks.state.ready']}`);
+      expect(item(en['checks.hrv.name'])).toHaveAccessibleName(`HRV, ${en['checks.state.ready']}`);
+      expect(item(en['checks.diabetes.name'])).toHaveAccessibleName(
+        `Diabetes, ${en['checks.state.working']}`,
+      );
+    });
+
+    it('tags Diabetes Experimental from the evidence reader', () => {
+      show({ cleanSeconds: 90 }, 'full', tierUnlocks('full'));
+      expect(item(en['checks.diabetes.name'])).toHaveAccessibleName(`Diabetes, ${en['checks.state.ready']}`);
+      expect(
+        within(item(en['checks.diabetes.name'])).getByText(en['evidence.experimental']),
+      ).toBeOnTheScreen();
+    });
+
+    it('shows Diabetes as unavailable on a phone that cannot run it', () => {
+      show({ cleanSeconds: 90 }, 'full', tierUnlocks('basic'));
+      expect(item(en['checks.diabetes.name'])).toHaveAccessibleName(
+        `Diabetes, ${en['checks.state.unavailable']}`,
+      );
+      expect(item(en['checks.afib.name'])).toHaveAccessibleName(`AFib, ${en['checks.state.ready']}`);
+    });
+
+    it('shows only the rhythm check in Quick Check', () => {
+      show({ cleanSeconds: 30 }, 'quick', tierUnlocks('full'));
+      expect(item(en['checks.afib.name'])).toHaveAccessibleName(`AFib, ${en['checks.state.ready']}`);
+      expect(screen.queryByLabelText(/^HRV,/)).toBeNull();
+      expect(screen.queryByLabelText(/^Diabetes,/)).toBeNull();
+      expect(screen.queryByText('POTS')).toBeNull();
+    });
+
+    it('shows the row beside the coaching message without moving anything', () => {
+      show({ cleanSeconds: 18, coachingKey: 'coach.lighter' }, 'full', tierUnlocks('full'));
+      expect(screen.getByRole('alert')).toHaveTextContent(en['coach.lighter']);
+      expect(screen.getByText(en['checks.checking'])).toBeOnTheScreen();
+    });
+
+    it('changes only colour and icon between states, with no transform or opacity to animate', () => {
+      const pending = render(<CheckingRow items={checkingItems('full', 10, null)} />);
+      const pendingTree = JSON.stringify(pending.toJSON());
+      pending.unmount();
+      const ready = render(<CheckingRow items={checkingItems('full', 90, null)} />);
+      expect(JSON.stringify(ready.toJSON())).not.toBe(pendingTree);
+      for (const tree of [pendingTree, JSON.stringify(ready.toJSON())]) {
+        expect(tree).not.toMatch(/"(transform|opacity|transition\w*)"/);
+      }
+    });
+
+    it('keeps Stop in the footer outside the scrolling content', () => {
+      const { onStop } = show({ cleanSeconds: 10 }, 'full', tierUnlocks('full'));
+      fireEvent.press(screen.getByRole('button', { name: en['capture.stop'] }));
+      expect(onStop).toHaveBeenCalledTimes(1);
+    });
   });
 });

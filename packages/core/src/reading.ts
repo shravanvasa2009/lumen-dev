@@ -3,10 +3,10 @@ import { classifyBeats } from './beat-classes';
 import { breathingRate, type BreathingRate } from './breathing';
 import type { FrameStat, Sample } from './capture';
 import { DSP_CONFIG } from './config';
-import { frameProblem } from './contact';
+import { frameProblem, validChannels } from './contact';
 import { butterBandpass, filterZeroPhase } from './filters';
 import { fingerSignals } from './finger-signal';
-import { FlatRuns, modelWindowAt, nextModelTickS } from './model-window';
+import { FlatRuns, modelWindowAt, nextModelTickS, unscoredSpan } from './model-window';
 import type { RejectedSpan, RejectionReason } from './live-session';
 import { cleanSeconds, heartRate, measureBeats, perfusionIndex, type MeasuredBeat } from './reading-metrics';
 import { resampleCubic, type ResampledSegment } from './resample';
@@ -76,11 +76,18 @@ export interface ReadingAnalysis {
 }
 
 // A run of failing frames spans from its first frame to the next frame (the last frame ends the reading).
-function contactSpans(timebase: Timebase, samples: Sample[], stats: FrameStat[]): RejectedSpan[] {
+// With skipBroken, broken frames are passed over as if dropped.
+function contactSpans(
+  timebase: Timebase,
+  samples: Sample[],
+  stats: FrameStat[],
+  skipBroken: boolean,
+): RejectedSpan[] {
   const spans: RejectedSpan[] = [];
   const { tS } = timebase;
   let open: RejectedSpan | null = null;
   for (let i = 0; i < samples.length; i++) {
+    if (skipBroken && !validChannels(samples[i]!)) continue;
     const reason = frameProblem(samples[i]!, stats[i]!);
     if (open && open.reason !== reason) {
       open.endS = tS[i]!;
@@ -131,12 +138,18 @@ function callerSpans(context: ReadingContext, startNs: number): RejectedSpan[] {
 
 // ADR 0023 flat windows (at the live session's once-per-second checks) and ADR 0057 flat runs, found
 // from the frames, so they are rejected whether or not SQI-Net ran and match the live screen.
-function flatWindowSpans(timebase: Timebase, samples: Sample[], stats: FrameStat[]): RejectedSpan[] {
+function frameQualitySpans(
+  timebase: Timebase,
+  samples: Sample[],
+  stats: FrameStat[],
+  modelRan: boolean,
+): RejectedSpan[] {
   const covered = Uint8Array.from(samples, (sample, i) =>
     frameProblem(sample, stats[i]!) === 'coverage' ? 0 : 1,
   );
   const windowS = DSP_CONFIG.dsp3.modelWindowS;
   const spans: RejectedSpan[] = [];
+  const unscored: RejectedSpan[] = [];
   const flatRuns = new FlatRuns();
   let nextTickS = DSP_CONFIG.live.sqiEveryS;
   timebase.tS.forEach((tS, i) => {
@@ -146,9 +159,11 @@ function flatWindowSpans(timebase: Timebase, samples: Sample[], stats: FrameStat
     const window = modelWindowAt(timebase.tS, timebase.r, covered, i + 1);
     if (window && !window.input)
       spans.push({ startS: window.endS - windowS, endS: window.endS, reason: 'quality' });
+    const missing = window ? null : unscoredSpan(timebase.tS, i + 1);
+    if (missing) unscored.push(missing);
   });
-  // After the windows, as LiveSession lists them, so equal starts sort alike.
-  return [...spans, ...flatRuns.spans()];
+  // In LiveSession's order, so equal starts sort alike.
+  return [...spans, ...(modelRan ? unscored : []), ...flatRuns.spans()];
 }
 
 function lostSecondsOf(spans: RejectedSpan[], durationS: number): LostSeconds {
@@ -181,25 +196,18 @@ function morphologyBand(segment: ResampledSegment, rateHz: number): ResampledSeg
 
 // DSP-2 to DSP-9 per segment, then the DSP-10/13 per-beat values. Segments shorter than dsp7.minSegmentS
 // are not searched for beats.
-function beatSegments(timebase: Timebase, spans: RejectedSpan[]): MeasuredBeat[][] {
+function beatSegments(timebase: Timebase, samples: Sample[], spans: RejectedSpan[]): MeasuredBeat[][] {
   const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
   const { primary } = fingerSignals(timebase);
-  // A non-finite frame (already a coverage span) cuts the capture: DSP-2 splines only finite runs.
-  const runs: [number, number][] = [];
-  let runStart = 0;
-  for (let i = 0; i <= primary.length; i++) {
-    if (i < primary.length && Number.isFinite(primary[i]!)) continue;
-    if (i > runStart) runs.push([runStart, i]);
-    runStart = i + 1;
-  }
-  const resampled = (rateHz: number) =>
-    runs.flatMap(([from, to]) =>
-      resampleCubic(timebase.tS.subarray(from, to), primary.subarray(from, to), rateHz),
-    );
-  const models = resampled(modelRateHz);
-  const shapes = resampled(shapeRateHz);
+  // A broken frame (already a coverage span) is left out as if dropped: DSP-2 splines across it when the
+  // frames either side are within its gap limit, and splits there otherwise.
+  const kept = samples.flatMap((sample, i) => (validChannels(sample) ? [i] : []));
+  const keptS = Float64Array.from(kept, (i) => timebase.tS[i]!);
+  const keptSignal = Float64Array.from(kept, (i) => primary[i]!);
+  const models = resampleCubic(keptS, keptSignal, modelRateHz);
+  const shapes = resampleCubic(keptS, keptSignal, shapeRateHz);
   // The two rates split at the same gaps, but a very short segment can lack a grid point at 64 Hz, so
-  // the pairs are matched by time; segments are > 150 ms apart, so at most one overlaps.
+  // the pairs are matched by time; at most one overlaps.
   const span = (segment: ResampledSegment, rateHz: number) =>
     [segment.firstIndex / rateHz, (segment.firstIndex + segment.values.length - 1) / rateHz] as const;
   return shapes.flatMap((raw) => {
@@ -282,15 +290,24 @@ export function analyzeReading(
 ): ReadingAnalysis {
   const timebase = buildTimebase(capture.samples, capture.stats);
   const durationS = timebase.tS[timebase.tS.length - 1]!;
-  const rejectedSpans = [
-    ...contactSpans(timebase, capture.samples, capture.stats),
+  const otherSpans = [
     ...exposureSpans(timebase),
     ...callerSpans(context, timebase.startNs),
-    ...flatWindowSpans(timebase, capture.samples, capture.stats),
-  ].sort((x, y) => x.startS - y.startS);
+    ...frameQualitySpans(timebase, capture.samples, capture.stats, context.sqi !== null),
+  ];
+  const byStart = (x: RejectedSpan, y: RejectedSpan) => x.startS - y.startS;
+  const rejectedSpans = [
+    ...contactSpans(timebase, capture.samples, capture.stats, false),
+    ...otherSpans,
+  ].sort(byStart);
   const clean = cleanSeconds(0, durationS, rejectedSpans);
+  // A broken frame keeps its coverage span for clean seconds, but beats are classified as if it were
+  // dropped (ADR 0057): a dropped frame does not make a beat an artifact.
+  const signalSpans = [...contactSpans(timebase, capture.samples, capture.stats, true), ...otherSpans].sort(
+    byStart,
+  );
 
-  const segments = beatSegments(timebase, rejectedSpans);
+  const segments = beatSegments(timebase, capture.samples, signalSpans);
   const bySegment = intervalsBySegment(segments, timebase.startNs);
   const { intervalsS, spansArtifact, atypicalBeats } = rhythmInputs(segments);
   // rhythmWindows takes one flag per beat; with no beat at all there is nothing to window.

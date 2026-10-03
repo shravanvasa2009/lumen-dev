@@ -97,6 +97,15 @@
     "sampleEntropyR": 0.2,
     "minUsableIntervals": 40
   },
+  "dsp16": {
+    "minAgeYears": 13,
+    "adolescentMaxAgeYears": 19,
+    "adolescentRiseBpm": 40,
+    "adultRiseBpm": 30,
+    "standingMinutes": [1, 3, 5, 10],
+    "consecutiveReadings": 2,
+    "flagPairBeforeFaintStop": false
+  },
   "rules": {
     "slowRestingBpm": 50,
     "slowRestingAdjustedBpm": 40,
@@ -127,6 +136,7 @@
     "frameMargin": 0.25,
     "waveformS": 6,
     "sqiEveryS": 1,
+    "minFlatS": 2,
     "motionRmsThreshold": 0.05,
     "leakRedRatio": 2.5,
     "coldHandsAfterS": 10,

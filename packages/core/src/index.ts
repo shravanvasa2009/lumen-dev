@@ -98,3 +98,4 @@ export {
   type RatingTier,
 } from './rating';
 export { logisticRhythmOutputs } from './rhythm-rule';
+export { standingRise, type StandingMinute, type StandingReading, type StandingRise } from './standing';

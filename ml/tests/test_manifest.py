@@ -261,6 +261,42 @@ def test_the_logistic_rule_entry_carries_the_rule_for_the_app(with_rule):
     assert np.abs(probs - onnx_probs).max() <= TOLERANCE
 
 
+# The fields of a non-diabetes manifest entry (Appendix B and its accepted additions); `rule` is added only on
+# classical rhythm entries the app runs in code.
+ENTRY_FIELDS = {
+    "name",
+    "family",
+    "ships",
+    "role",
+    "version",
+    "file",
+    "sha256",
+    "inputs",
+    "outputs",
+    "labels",
+    "threshold",
+    "abstainBelow",
+    "externalTest",
+    "trainedOn",
+    "development",
+    "opset",
+    "toolchain",
+    "commit",
+    "date",
+    "card",
+}
+
+
+def test_only_diabetes_entries_carry_the_feature_fill(with_rule):
+    # Rhythm and SQI training also writes a featureOrder list; it stays out of their manifest entries.
+    models_dir, runs_dir, _pipeline = with_rule
+    entries = _manifest(models_dir, runs_dir)
+    for name, entry in entries.items():
+        if entry["family"] == "diabetes":
+            continue
+        assert set(entry) == ENTRY_FIELDS | ({"rule"} if name == "rhythm-logistic" else set()), name
+
+
 def test_a_rule_without_column_selection_is_refused():
     spec = SPECS["rhythm-lgbm"]
     features = np.random.default_rng(2).normal(size=(90, 8))

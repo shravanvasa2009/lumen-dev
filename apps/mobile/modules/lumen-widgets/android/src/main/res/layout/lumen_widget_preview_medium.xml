@@ -14,7 +14,7 @@
         android:layout_weight="1"
         android:orientation="vertical">
         <include layout="@layout/lumen_widget_preview_mark" />
-        <View
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />

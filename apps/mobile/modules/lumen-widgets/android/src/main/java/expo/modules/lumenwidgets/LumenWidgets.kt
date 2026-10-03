@@ -93,10 +93,10 @@ private fun joinLine(vararg parts: String?): String? = parts.filterNotNull().joi
 // A 1 dp line-colored ring around the surface, like the app's cards. Glance has no border modifier, so the
 // ring is the outer box's background showing through its padding.
 @Composable
-private fun Card(view: WidgetView, scale: Float, content: @Composable () -> Unit) {
+private fun Card(view: WidgetView, scale: Float, modifier: GlanceModifier = GlanceModifier, content: @Composable () -> Unit) {
     Box(
         modifier =
-            GlanceModifier
+            modifier
                 .fillMaxSize()
                 .background(view.color { it.line })
                 .cornerRadius(CARD_RADIUS.dp)
@@ -187,7 +187,9 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
     val title = view.status ?: view.emptyTitle
     val detail = if (view.statusKey == null) view.emptyBody else view.lastCheck
     val detailFits = scale >= ROOMY_SCALE || title.length <= ONE_LINE_TITLE_CHARS
-    Card(view, scale) {
+    // The whole small widget opens the check, as a tap on the iOS small widget does (widgetURL); a tap beside
+    // the button did nothing on the API 37 emulator (2026-10-03).
+    Card(view, scale, GlanceModifier.clickable(check)) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
             Row(modifier = GlanceModifier.fillMaxWidth()) {
                 Mark(view, (26 * scale).dp, view.name)

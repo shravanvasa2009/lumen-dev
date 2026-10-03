@@ -45,12 +45,23 @@ describe('Android widget fallback resources', () => {
   });
 });
 
+const REMOTE_VIEWS_TAGS = new Set(['FrameLayout', 'LinearLayout', 'ImageView', 'TextView', 'include']);
+
 describe('Android widget picker', () => {
   it.each(['small', 'medium'])('gives the %s widget a description and a preview layout', (size) => {
     const provider = fs.readFileSync(path.join(RES, 'xml', `lumen_widget_${size}.xml`), 'utf8');
     expect(provider).toContain(`android:description="@string/lumen_widget_${size}_description"`);
     expect(provider).toContain(`android:previewLayout="@layout/lumen_widget_preview_${size}"`);
     expect(fs.existsSync(path.join(RES, 'layout', `lumen_widget_preview_${size}.xml`))).toBe(true);
+  });
+
+  // The picker inflates the preview as RemoteViews, which refuses any other class and shows "Couldn't add
+  // widget" instead (a plain View did that on the API 37 emulator, 2026-10-03).
+  // https://developer.android.com/develop/ui/views/appwidgets/layouts
+  it.each(['small', 'medium', 'mark'])('draws the %s preview only with RemoteViews classes', (name) => {
+    const layout = fs.readFileSync(path.join(RES, 'layout', `lumen_widget_preview_${name}.xml`), 'utf8');
+    const tags = [...layout.matchAll(/<([A-Za-z]+)[\s>]/g)].map(([, tag]) => tag);
+    expect(tags.filter((tag) => !REMOTE_VIEWS_TAGS.has(tag!))).toEqual([]);
   });
 
   it('describes both widgets in English and Spanish', () => {

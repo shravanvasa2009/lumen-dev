@@ -11,8 +11,8 @@ import type { MeasureMode } from '@/measure/mode';
 import { saveReading } from '@/store/readings';
 import { setPreference } from '@/theme/preferences';
 
+import * as evidence from '@/evidence';
 import { LumenWidgets } from '../../modules/lumen-widgets/src';
-import { evidenceFor } from '@/evidence';
 import { publishWidgets } from './publish';
 import type { WidgetSnapshot } from './snapshot';
 
@@ -78,16 +78,22 @@ function publishedDisplay(): { checks: string[]; diabetesTag: string | null } {
 }
 
 describe('the four checks on the medium widget', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   it('names AFib, POTS, HRV and Diabetes in the app language', async () => {
     await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
     expect(publishedDisplay().checks).toEqual(['AFib', 'POTS', 'HRV', 'Diabetes']);
   });
 
   // EVID-1: the tag is the evidence label's word, never written into the widget.
-  it('tags Diabetes only while its evidence label is Experimental', async () => {
+  it.each([
+    ['experimental', 'Experimental'],
+    ['checked', null],
+  ] as const)('tags Diabetes only while its evidence label is Experimental (%s)', async (label, tag) => {
+    const real = evidence.evidenceFor('diabetes');
+    jest.spyOn(evidence, 'evidenceFor').mockReturnValue({ ...real, label });
     await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
-    const experimental = evidenceFor('diabetes').label === 'experimental';
-    expect(publishedDisplay().diabetesTag).toBe(experimental ? 'Experimental' : null);
+    expect(publishedDisplay().diabetesTag).toBe(tag);
   });
 });
 

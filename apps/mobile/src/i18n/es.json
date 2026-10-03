@@ -569,6 +569,7 @@
   "settings.phoneNotTested": "Aún sin probar",
   "settings.version": "Versión {{version}} · toca 7 veces para el modo Lab",
   "appearance.segmentSystem": "Sistema",
+  "phoneRating.measures": "Qué mira la prueba",
   "phoneRating.noScore": "—",
   "phoneRating.notTested": "Aún sin probar",
   "phoneRating.notTestedBody": "Haz la prueba del teléfono para ver tu puntuación, tu nivel y lo que puede hacer este teléfono.",

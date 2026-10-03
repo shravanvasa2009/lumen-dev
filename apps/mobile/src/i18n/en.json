@@ -569,6 +569,7 @@
   "settings.phoneNotTested": "Not tested yet",
   "settings.version": "Version {{version}} · tap 7× for Lab mode",
   "appearance.segmentSystem": "System",
+  "phoneRating.measures": "What the test looks at",
   "phoneRating.noScore": "—",
   "phoneRating.notTested": "Not tested yet",
   "phoneRating.notTestedBody": "Run the phone check to see your score, your tier, and what this phone can do.",

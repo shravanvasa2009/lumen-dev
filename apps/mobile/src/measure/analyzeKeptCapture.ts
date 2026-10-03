@@ -1,15 +1,20 @@
 import {
   analyzeReading,
   buildReadingResult,
+  type DiabetesOutputs,
+  diabetesModelInput,
+  isProbabilityRow,
   type ModelOutputs,
+  type Profile,
   type ReadingAnalysis,
   type ReadingContext,
   type ReadingResult,
+  readingRhythm,
   type RhythmOutputs,
 } from '@lumen/core';
 
 import evidence from '../../assets/evidence.json';
-import { classifyRhythm } from '../ml/runtime';
+import { classifyRhythm, scoreDiabetesInput } from '../ml/runtime';
 import { storedReadingTier } from '../store/deviceRating';
 import { loadProfile } from '../store/profile';
 import { type AnalysisProgress, pendingProgress } from './analysisProgress';
@@ -52,10 +57,35 @@ async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs |
     const cut = outcome.threshold.af;
     if (sinus === undefined || af === undefined || other === undefined || typeof cut !== 'number')
       throw new Error('the rhythm model must score sinus, af and other and give an af threshold');
+    if (!isProbabilityRow([sinus, af, other])) {
+      console.warn('rhythm model returned a row that is not a probability row; the reading has no rhythm card');
+      return null;
+    }
     windowProbs.push([sinus, af, other]);
     tauAf = cut;
   }
   return tauAf === null ? null : { windowProbs, tauAf };
+}
+
+// Only a Full Scan's reading can show a diabetes card, so only it runs the model. No pulse-shape beat, or no
+// model, leaves the reading without one; buildReadingResult decides who may see the result.
+async function diabetesOutputs(
+  analysis: ReadingAnalysis,
+  rhythm: RhythmOutputs | null,
+  profile: Profile,
+): Promise<DiabetesOutputs | null> {
+  if (analysis.context.mode !== 'full') return null;
+  const input = diabetesModelInput(analysis, readingRhythm(analysis, rhythm, profile));
+  if (input === null) return null;
+  const outcome = await scoreDiabetesInput(input);
+  if (outcome.source !== 'model') return null;
+  const { pattern } = outcome.scores;
+  const cut = outcome.threshold.pattern;
+  if (pattern === undefined || typeof cut !== 'number') {
+    console.warn('the diabetes model gave no pattern score or threshold; the reading has no diabetes check');
+    return null;
+  }
+  return { probability: pattern, tauDm: cut };
 }
 
 const step = (
@@ -97,11 +127,12 @@ export async function analyzeKeptCapture(
 
   report(step({ beats: 'done', breathing: 'done', rhythm: 'active' }, counts));
   await letScreenDraw();
-  const models: ModelOutputs = { rhythm: await rhythmOutputs(analysis), diabetes: null };
+  const profile = await loadProfile();
+  const rhythm = await rhythmOutputs(analysis);
+  const models: ModelOutputs = { rhythm, diabetes: await diabetesOutputs(analysis, rhythm, profile) };
 
   report(step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'active' }, counts));
   await letScreenDraw();
-  const profile = await loadProfile();
   const reading = buildReadingResult(analysis, models, evidence, profile, []);
 
   const finished = step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'done' }, counts);

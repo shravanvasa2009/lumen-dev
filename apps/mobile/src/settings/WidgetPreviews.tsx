@@ -16,16 +16,6 @@ const LOCK_CIRCLE_SIZE = 64;
 const PILL_MIN_HEIGHT = 40;
 const BUTTON_COLUMN_WIDTH = 132;
 const LOCK_DOT_SIZE = 10;
-// Android home-screen cells: 2x2 is about 110 dp and 4x2 about 250 x 110 dp (res/xml/lumen_widget_*.xml).
-const ANDROID_SMALL_WIDTH = 110;
-const ANDROID_WIDGET_MIN_HEIGHT = 110;
-// Track F's Glance WidgetBody (modules/lumen-widgets/android/.../LumenWidgets.kt), in dp.
-const ANDROID_RADIUS = 20;
-const ANDROID_PADDING = 12;
-const ANDROID_PILL_PADDING_V = 8;
-const ANDROID_PILL_GAP = 8;
-const ANDROID_UNIT_GAP = 4;
-
 function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
   const { colors, radius, spacing } = useTheme();
   return (
@@ -93,7 +83,8 @@ export function SmallWidgetPreview({ status, detail, action }: SmallWidgetProps)
 
 type MediumWidgetProps = {
   name: string;
-  reading: string;
+  // Null leaves the reading row out, as the Android widget does when values are hidden.
+  reading: string | null;
   unit: string;
   status: string;
   checkNow: string;
@@ -111,12 +102,14 @@ export function MediumWidgetPreview({ name, reading, unit, status, checkNow, ful
             <AppText tone="textDim">{name}</AppText>
           </View>
           <View style={styles.mediumReading}>
-            <View style={[styles.readingRow, { gap: spacing.sm }]}>
-              <AppText variant="display">{reading}</AppText>
-              <AppText variant="headline" tone="textDim">
-                {unit}
-              </AppText>
-            </View>
+            {reading === null ? null : (
+              <View style={[styles.readingRow, { gap: spacing.sm }]}>
+                <AppText variant="display">{reading}</AppText>
+                <AppText variant="headline" tone="textDim">
+                  {unit}
+                </AppText>
+              </View>
+            )}
             <AppText tone="textDim">{status}</AppText>
           </View>
         </View>
@@ -126,116 +119,6 @@ export function MediumWidgetPreview({ name, reading, unit, status, checkNow, ful
         </View>
       </View>
     </WidgetFrame>
-  );
-}
-
-function AndroidFrame({ children, width }: { children: ReactNode; width?: number }) {
-  const { colors } = useTheme();
-  return (
-    <View
-      style={{
-        width,
-        minHeight: ANDROID_WIDGET_MIN_HEIGHT,
-        padding: ANDROID_PADDING,
-        borderRadius: ANDROID_RADIUS,
-        backgroundColor: colors.surface,
-      }}
-    >
-      {children}
-    </View>
-  );
-}
-
-function AndroidPill({ label, secondary }: { label: string; secondary?: boolean }) {
-  const { colors } = useTheme();
-  return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: 'center',
-        paddingVertical: ANDROID_PILL_PADDING_V,
-        borderRadius: ANDROID_RADIUS,
-        backgroundColor: secondary ? colors.line : colors.accentFill,
-      }}
-    >
-      <AppText
-        style={{
-          color: secondary ? colors.text : colors.onAccentFill,
-          fontSize: 14,
-          lineHeight: 20,
-          fontWeight: '500',
-        }}
-      >
-        {label}
-      </AppText>
-    </View>
-  );
-}
-
-type AndroidSmallProps = { name: string; status: string; lastCheck: string; checkNow: string };
-
-export function AndroidSmallWidgetPreview({ name, status, lastCheck, checkNow }: AndroidSmallProps) {
-  const { colors } = useTheme();
-  return (
-    <AndroidFrame width={ANDROID_SMALL_WIDTH}>
-      <AppText style={[styles.androidName, { color: colors.accentFill }]}>{name}</AppText>
-      <AppText style={styles.androidStatus}>{status}</AppText>
-      <AppText tone="textDim" style={styles.androidDetail}>
-        {lastCheck}
-      </AppText>
-      <View style={styles.androidPillSpace}>
-        <View style={styles.androidPillRow}>
-          <AndroidPill label={checkNow} />
-        </View>
-      </View>
-    </AndroidFrame>
-  );
-}
-
-type AndroidMediumProps = AndroidSmallProps & {
-  // Null when values are hidden: like F's widget, the whole reading row is left out rather than shown as a dash.
-  reading: string | null;
-  unit: string;
-  streak: string;
-  fullScan: string;
-};
-
-export function AndroidMediumWidgetPreview({
-  name,
-  reading,
-  unit,
-  status,
-  lastCheck,
-  streak,
-  checkNow,
-  fullScan,
-}: AndroidMediumProps) {
-  const { colors } = useTheme();
-  return (
-    <AndroidFrame>
-      <AppText style={[styles.androidName, { color: colors.accentFill }]}>{name}</AppText>
-      {reading === null ? null : (
-        <View style={styles.readingRow}>
-          <AppText style={styles.androidReading}>{reading}</AppText>
-          <AppText tone="textDim" style={[styles.androidUnit, { marginLeft: ANDROID_UNIT_GAP }]}>
-            {unit}
-          </AppText>
-        </View>
-      )}
-      <AppText style={styles.androidStatus}>{status}</AppText>
-      <AppText tone="textDim" style={styles.androidDetail}>
-        {lastCheck}
-      </AppText>
-      <AppText tone="textDim" style={styles.androidDetail}>
-        {streak}
-      </AppText>
-      <View style={styles.androidPillSpace}>
-        <View style={[styles.androidPillRow, { gap: ANDROID_PILL_GAP }]}>
-          <AndroidPill label={checkNow} />
-          <AndroidPill label={fullScan} secondary />
-        </View>
-      </View>
-    </AndroidFrame>
   );
 }
 
@@ -283,13 +166,6 @@ const styles = StyleSheet.create({
   spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   logoRow: { flexDirection: 'row', alignItems: 'center' },
   readingRow: { flexDirection: 'row', alignItems: 'baseline' },
-  androidName: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
-  androidReading: { fontSize: 34, lineHeight: 40, fontWeight: '700' },
-  androidUnit: { fontSize: 14, lineHeight: 20 },
-  androidStatus: { fontSize: 15, lineHeight: 20, fontWeight: '500' },
-  androidDetail: { fontSize: 12, lineHeight: 16 },
-  androidPillSpace: { flexGrow: 1, justifyContent: 'flex-end', paddingTop: ANDROID_PILL_GAP },
-  androidPillRow: { flexDirection: 'row' },
   dot: { width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2 },
   lockCircle: {
     width: LOCK_CIRCLE_SIZE,

@@ -11,7 +11,13 @@ from lumen_dsp.beats import detect_beats, elgendi_peaks
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.filters import CausalFilter, butter_bandpass, butter_lowpass, filter_zero_phase
 from lumen_dsp.resample import ResampledSegment, resample_cubic
-from lumen_dsp.rhythm import RhythmWindow, has_enough_usable_intervals, rhythm_feature_vector, rhythm_windows
+from lumen_dsp.rhythm import (
+    RhythmWindow,
+    has_enough_usable_intervals,
+    rhythm_feature_vector,
+    rhythm_v2_features,
+    rhythm_windows,
+)
 from lumen_dsp.shape import PulseShape, ensemble_beat
 from lumen_dsp.signals import dc_level, finger_signals, sqi_model_input
 from lumen_dsp.timebase import build_timebase
@@ -164,6 +170,7 @@ def golden_files() -> dict[str, dict]:
         "rhythm.json": rhythm_vectors(),
         "beats.json": beat_vectors(),
         "shape.json": shape_vectors(),
+        "rhythm-v2.json": rhythm_v2_vectors(),
     }
 
 
@@ -257,6 +264,33 @@ def rhythm_vectors() -> dict:
             "windows": [window_json(window) for window in windows],
         }
         cases.append({**case, "expected": expected})
+    return {"cases": cases}
+
+
+def rhythm_v2_vectors() -> dict:
+    # Rhythm v2 (ADR 0079) on the v1 cases, plus two that reach the v2 features' edge branches.
+    def case(name, intervals):
+        return {
+            "name": name,
+            "intervalsS": intervals,
+            "spansArtifact": [False] * len(intervals),
+            "atypicalBeats": [False] * (len(intervals) + 1),
+        }
+
+    extra = [
+        # Every interval equal: no differences, both autocorrelations take their constant-input 0.0.
+        case("constant", [0.8] * 32),
+        # Bigeminy: every pair is short–long, so no interval survives the pair removal (feature 3 is 0.0).
+        case("bigeminy", [0.55 if k % 2 == 0 else 1.15 for k in range(32)]),
+    ]
+    cases = []
+    for item in interval_cases() + extra:
+        windows = rhythm_windows(item["intervalsS"], item["spansArtifact"], item["atypicalBeats"])
+        expected = [
+            {"startInterval": window.start_interval, "v2Features": rhythm_v2_features(window)}
+            for window in windows
+        ]
+        cases.append({**item, "expected": {"windows": expected}})
     return {"cases": cases}
 
 

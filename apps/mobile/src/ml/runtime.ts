@@ -1,6 +1,7 @@
 import { Asset } from 'expo-asset';
 import { CryptoDigestAlgorithm, digest } from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
+import { type DiabetesModelInput, SHAPE_FEATURE_NAMES } from '@lumen/core';
 import type { InferenceSession } from 'onnxruntime-react-native';
 
 import { isRecord } from '../evidence';
@@ -42,6 +43,9 @@ type ShippedModel = {
   // The one output shaped [1, labels.length]: a score per label. Other outputs (a LightGBM `label`) are
   // read and recorded, not scored.
   scoreOutput: string;
+  // Per input, the training median of each of its features in order, for a value core left null (§11.4).
+  // Only the diabetes model has any; readShipped refuses a diabetes model whose manifest entry has none.
+  fills: Readonly<Record<string, readonly number[]>>;
 };
 
 type FamilyPlan = { model: ShippedModel; assetModule: number } | { reason: string };
@@ -97,6 +101,30 @@ function shapeSize(shape: Shape): number {
   return shape.reduce((product, dim) => product * dim, 1);
 }
 
+const diabetesFilledInputs = ['shapeFeatures', 'hrSummary'] as const;
+
+function readFills(entry: Record<string, unknown>, inputs: Readonly<Record<string, Shape>>) {
+  const { featureOrder, fillMedians } = entry;
+  if (!isRecord(featureOrder) || !isRecord(fillMedians)) return 'it has no featureOrder or fillMedians';
+  const fills: Record<string, number[]> = {};
+  for (const input of diabetesFilledInputs) {
+    const names = featureOrder[input];
+    const width = inputs[input]?.[1];
+    if (!Array.isArray(names) || names.length !== width)
+      return `its featureOrder.${input} does not list the ${width} features of that input`;
+    // Core builds shapeFeatures in SHAPE_FEATURE_NAMES order; a manifest in another order would put each
+    // feature, and each null's median, in the wrong model slot. Core exports no name list for hrSummary
+    // yet, so that input is checked for width only.
+    if (input === 'shapeFeatures' && names.some((name, index) => name !== SHAPE_FEATURE_NAMES[index]))
+      return `its featureOrder.shapeFeatures is not core's order: ${SHAPE_FEATURE_NAMES.join(', ')}`;
+    const medians = names.map((name) => (typeof name === 'string' ? fillMedians[name] : undefined));
+    if (!medians.every((median): median is number => typeof median === 'number' && Number.isFinite(median)))
+      return `its fillMedians has no finite median for every ${input} feature`;
+    fills[input] = medians;
+  }
+  return fills;
+}
+
 function readShipped(entry: Record<string, unknown>, family: ModelFamily): ShippedModel | string {
   const { name, version, role, file, sha256, labels, threshold } = entry;
   if (typeof name !== 'string' || typeof version !== 'string') return 'its name or version is missing';
@@ -127,6 +155,8 @@ function readShipped(entry: Record<string, unknown>, family: ModelFamily): Shipp
   // The guard compares its one score (P(clean)) with that label's threshold (ADR 0038: pClean < threshold.clean).
   if (role === 'guard' && (labels.length !== 1 || typeof threshold[labels[0] as string] !== 'number'))
     return `${id} is a guard without one label and a numeric threshold for it`;
+  const fills = family === 'diabetes' ? readFills(entry, inputs) : {};
+  if (typeof fills === 'string') return `${id} cannot be fed a missing value: ${fills}`;
   return {
     name,
     version,
@@ -139,6 +169,7 @@ function readShipped(entry: Record<string, unknown>, family: ModelFamily): Shipp
     threshold: threshold as Record<string, number | null>,
     abstainBelow,
     scoreOutput: scoreOutputs[0] as string,
+    fills,
   };
 }
 
@@ -334,6 +365,31 @@ export function classifyRhythm(feeds: ModelFeeds): Promise<ScoreOutcome> {
 // §11.4; the logistic-regression fallback is not in @lumen/core yet, so basic analysis has no value.
 export function scoreDiabetesPattern(feeds: ModelFeeds): Promise<ScoreOutcome> {
   return scoreFamily('diabetes', feeds);
+}
+
+// §11.4: core leaves a feature it could not compute null; the model's training median stands in for it here.
+export function scoreDiabetesInput({ beat, shapeFeatures, hrSummary }: DiabetesModelInput): Promise<ScoreOutcome> {
+  const plan = plans.diabetes;
+  if ('reason' in plan) return Promise.resolve(basic(plan.reason));
+  const { inputs, fills } = plan.model;
+  const feed = (values: ArrayLike<number>, input: string): ModelFeed => ({
+    values: Float32Array.from(values),
+    dims: inputs[input] ?? [],
+  });
+  const filled = (values: readonly (number | null)[], input: string) =>
+    feed(
+      values.map((value, index) => {
+        const median = fills[input]?.[index];
+        if (value === null && median === undefined) throw new Error(`no median for ${input}[${index}]`);
+        return value ?? (median as number);
+      }),
+      input,
+    );
+  return scoreDiabetesPattern({
+    beat: feed(beat, 'beat'),
+    shapeFeatures: filled(shapeFeatures, 'shapeFeatures'),
+    hrSummary: filled(hrSummary, 'hrSummary'),
+  });
 }
 
 export async function sqiVeto(feeds: ModelFeeds): Promise<SqiVeto> {

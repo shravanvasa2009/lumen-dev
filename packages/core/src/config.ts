@@ -149,6 +149,11 @@ export const DSP_CONFIG = {
     sampleEntropyM: 2,
     sampleEntropyR: 0.2, // × the window's population SD
     minUsableIntervals: 40, // a reading needs this many intervals that do not span an artifact
+    // Rhythm v2 features (ADR 0079), as fractions of the window's median interval. Initial values.
+    prematureShortFactor: 0.85, // a premature beat ends an interval shorter than this
+    pauseLongFactor: 1.1, // and the compensatory pause that follows is longer than this
+    trimmedDiffShare: 0.8, // the trimmed RMSSD keeps this share of the smallest |differences|
+    largeChangeFactor: 0.1, // a successive difference above this is a large change
   },
   // Standing heart-rate test (§10 DSP-16, §10.1 "Large rise on standing"; readings of the spec in ADR 0063).
   dsp16: {

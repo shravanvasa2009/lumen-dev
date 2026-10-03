@@ -36,6 +36,7 @@ export { butterBandpass, butterLowpass, CausalFilter, filterZeroPhase, type SosS
 export {
   hasEnoughUsableIntervals,
   rhythmFeatureVector,
+  rhythmV2Features,
   rhythmWindows,
   type RhythmWindow,
 } from './rhythm-features';

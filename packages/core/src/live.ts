@@ -1,11 +1,11 @@
-import type { CaptureStatus, SampleBatch } from './capture';
+import type { CaptureStatus, FrameStat, Sample, SampleBatch } from './capture';
 import { DSP_CONFIG } from './config';
 import { frameProblem } from './contact';
 import { butterBandpass, CausalFilter, type SosSection } from './filters';
-import { sqiModelInput } from './finger-signal';
 import type { CoachingKey, LiveSession, RejectedSpan, SqiWindow } from './live-session';
+import { modelWindowAt, nextModelTickS, usableFrom } from './model-window';
+import type { NsSpan, SqiScores } from './reading';
 import { cleanSeconds as cleanTime } from './reading-metrics';
-import { resampleCubic } from './resample';
 
 export interface LiveSessionConfig {
   captureFps: number; // the capture format's frame rate; sizes the buffers and designs the live filter
@@ -75,6 +75,9 @@ class Session implements LiveSession {
   private readonly red: Float64Array;
   private readonly filtered: Float64Array;
   private readonly covered: Uint8Array;
+  // The frames as received, for readingInput (H-025).
+  private readonly samples: Sample[] = [];
+  private readonly stats: FrameStat[] = [];
   private count = 0;
   private startNs: number | null = null;
   private lastNs = -Infinity;
@@ -83,12 +86,18 @@ class Session implements LiveSession {
 
   private readonly closed: RejectedSpan[] = []; // contact (DSP-4)
   private readonly exposure: RejectedSpan[] = []; // DSP-5
-  private readonly motion: RejectedSpan[] = [];
-  private readonly coldHands: RejectedSpan[] = [];
+  // Motion and cold hands are kept on the capture clock, as analyzeReading takes them (H-025); both edges
+  // fall on frame times, so no rounding is involved.
+  private readonly motion: NsSpan[] = [];
+  private readonly coldHands: NsSpan[] = [];
   private readonly quality: RejectedSpan[] = [];
   private openContact: OpenSpan | null = null;
-  private openMotion: OpenSpan | null = null;
-  private openColdHands: OpenSpan | null = null;
+  private openMotionNs: number | null = null;
+  private openColdHandsNs: number | null = null;
+  // Every setSqi score; endS on the 64 Hz grid. Flat windows are not here: analyzeReading finds them in the
+  // frames, as tick does.
+  private readonly scores: { endS: number; pClean: number }[] = [];
+  private modelRan = false;
 
   private leaking = false;
   private nextTickS: number;
@@ -160,6 +169,8 @@ class Session implements LiveSession {
     if (problem && !this.openContact) this.openContact = { startS: tS, reason: problem };
     this.leaking = problem === null && sample.r < DSP_CONFIG.live.leakRedRatio * (sample.g + sample.b);
 
+    this.samples.push({ ...sample });
+    this.stats.push({ ...stat });
     const at = this.count++;
     this.tS[at] = tS;
     this.red[at] = sample.r;
@@ -169,8 +180,7 @@ class Session implements LiveSession {
 
     if (tS >= this.nextTickS) {
       this.tick(tS);
-      const { sqiEveryS } = DSP_CONFIG.live;
-      this.nextTickS = (Math.floor(tS / sqiEveryS) + 1) * sqiEveryS;
+      this.nextTickS = nextModelTickS(tS);
     }
     this.updateCoaching();
   }
@@ -179,15 +189,17 @@ class Session implements LiveSession {
     // Statuses carry no timestamp; each applies at the newest frame.
     if (this.count === 0) return;
     const moving = status.motionRms > DSP_CONFIG.live.motionRmsThreshold;
-    if (moving && !this.openMotion) this.openMotion = { startS: this.latestS, reason: 'motion' };
-    if (!moving && this.openMotion) {
-      this.motion.push({ ...this.openMotion, endS: this.latestS });
-      this.openMotion = null;
+    if (moving && this.openMotionNs === null) this.openMotionNs = this.lastNs;
+    if (!moving && this.openMotionNs !== null) {
+      this.motion.push({ startNs: this.openMotionNs, endNs: this.lastNs });
+      this.openMotionNs = null;
     }
     this.updateCoaching();
   }
 
   setSqi(windowEndS: number, pClean: number): void {
+    this.modelRan = true;
+    this.scores.push({ endS: windowEndS, pClean });
     if (pClean < this.config.sqiThreshold) this.rejectWindow(windowEndS);
   }
 
@@ -196,50 +208,15 @@ class Session implements LiveSession {
     this.quality.push({ startS: windowEndS - windowS, endS: windowEndS, reason: 'quality' });
   }
 
-  // First buffered frame at or after fromS, if the frames from there to the newest are covered and
-  // gap-free; null otherwise or when the capture does not reach back to fromS.
-  private usableFrom(fromS: number): number | null {
-    if (this.count === 0 || this.tS[0]! > fromS) return null;
-    let first = this.count - 1;
-    while (first > 0 && this.tS[first - 1]! >= fromS) first--;
-    if (first > 0) first--; // one frame before fromS, so a spline covers fromS itself
-    for (let i = first; i < this.count; i++) {
-      if (!this.covered[i]) return null;
-      if (i > first && this.tS[i]! - this.tS[i - 1]! > DSP_CONFIG.dsp2.maxGapS) return null;
-    }
-    return first;
-  }
-
   // Once per sqiEveryS: the SQI-Net window (§11.2, ADR 0023) and the cold-hands check (§7).
   private tick(tS: number): void {
-    const { modelRateHz } = DSP_CONFIG.dsp2;
-    const samples = DSP_CONFIG.dsp3.modelWindowS * modelRateHz;
-    this.latestWindow = null;
-    // Two grid steps of slack so the 64 Hz grid holds 256 points ending at or before tS.
-    const first = this.usableFrom(tS - (samples + 1) / modelRateHz);
-    if (first !== null) {
-      const times = this.tS.slice(first, this.count);
-      const red = this.red.slice(first, this.count);
-      const [segment] = resampleCubic(
-        times,
-        red.map((value) => -value),
-        modelRateHz,
-      );
-      if (segment && segment.values.length >= samples) {
-        const values = segment.values.slice(-samples);
-        const endS = (segment.firstIndex + segment.values.length - 1) / modelRateHz;
-        // Flatness is judged on the frames: a spline through equal values can round to tiny wiggles that
-        // z-scoring would blow up into noise.
-        const flat = red.every((value) => value === red[0]);
-        const input = !flat && values.every(Number.isFinite) ? sqiModelInput(values) : null;
-        // ADR 0023: a flat (or broken) window never reaches the model and counts as rejected.
-        if (input) this.latestWindow = { endS, input };
-        else this.rejectWindow(endS);
-      }
-    }
+    const window = modelWindowAt(this.tS, this.red, this.covered, this.count);
+    this.latestWindow = window?.input ? { endS: window.endS, input: window.input } : null;
+    if (window && !window.input) this.rejectWindow(window.endS);
 
     const { coldHandsAfterS, perfusionWindowS } = DSP_CONFIG.live;
-    const from = tS >= coldHandsAfterS ? this.usableFrom(tS - perfusionWindowS) : null;
+    const from =
+      tS >= coldHandsAfterS ? usableFrom(this.tS, this.covered, this.count, tS - perfusionWindowS) : null;
     let cold = false;
     if (from !== null) {
       let low = Infinity;
@@ -252,10 +229,11 @@ class Session implements LiveSession {
       }
       cold = (100 * (high - low)) / (total / (this.count - from)) < this.config.perfusionFloorPct;
     }
-    if (cold && !this.openColdHands) this.openColdHands = { startS: tS, reason: 'coldHands' };
-    if (!cold && this.openColdHands) {
-      this.coldHands.push({ ...this.openColdHands, endS: tS });
-      this.openColdHands = null;
+    // tick runs on the newest frame, so lastNs is the frame at tS.
+    if (cold && this.openColdHandsNs === null) this.openColdHandsNs = this.lastNs;
+    if (!cold && this.openColdHandsNs !== null) {
+      this.coldHands.push({ startNs: this.openColdHandsNs, endNs: this.lastNs });
+      this.openColdHandsNs = null;
     }
   }
 
@@ -264,24 +242,61 @@ class Session implements LiveSession {
     if (this.openContact?.reason === 'coverage') active.add('coach.cover');
     if (this.openContact?.reason === 'clipping') active.add('coach.lighter');
     if (this.leaking) active.add('coach.flat');
-    if (this.openMotion) active.add('coach.still');
-    if (this.openColdHands) active.add('coach.warm');
+    if (this.openMotionNs !== null) active.add('coach.still');
+    if (this.openColdHandsNs !== null) active.add('coach.warm');
     this.coaching.update(this.latestS, active);
+  }
+
+  // Closed spans, then the open one ending at the newest frame.
+  private nsSpans(closed: NsSpan[], openNs: number | null): NsSpan[] {
+    const spans = closed.map((span) => ({ ...span }));
+    if (openNs !== null) spans.push({ startNs: openNs, endNs: this.lastNs });
+    return spans;
   }
 
   get rejectedSpans(): RejectedSpan[] {
     const close = (span: OpenSpan | null) => (span ? [{ ...span, endS: this.latestS }] : []);
+    // The same ns-to-seconds step as analyzeReading, so both give bit-identical spans.
+    const seconds = (spans: NsSpan[], reason: RejectedSpan['reason']) =>
+      spans.map((span): RejectedSpan => ({
+        startS: (span.startNs - this.startNs!) / 1e9,
+        endS: (span.endNs - this.startNs!) / 1e9,
+        reason,
+      }));
     // Same order as analyzeReading before its stable sort, so equal starts sort alike.
     return [
       ...this.closed,
       ...close(this.openContact),
       ...this.exposure,
-      ...this.motion,
-      ...close(this.openMotion),
-      ...this.coldHands,
-      ...close(this.openColdHands),
+      ...seconds(this.nsSpans(this.motion, this.openMotionNs), 'motion'),
+      ...seconds(this.nsSpans(this.coldHands, this.openColdHandsNs), 'coldHands'),
       ...this.quality,
     ].sort((x, y) => x.startS - y.startS);
+  }
+
+  // Fresh copies throughout: the caller may keep or change what it gets while the session goes on.
+  readingInput(): ReturnType<LiveSession['readingInput']> {
+    const startNs = this.startNs ?? 0;
+    // Null until SQI-Net has scored a window, so sqiAvailable keeps capping confidence when it never ran.
+    const sqi: SqiScores | null = this.modelRan
+      ? {
+          threshold: this.config.sqiThreshold,
+          // Window ends are 64 Hz grid times, k × 15.625 ms: whole ns, so this round trip is exact.
+          windows: this.scores.map(({ endS, pClean }) => ({
+            endNs: startNs + Math.round(endS * 1e9),
+            pClean,
+          })),
+        }
+      : null;
+    return {
+      capture: {
+        samples: this.samples.map((sample) => ({ ...sample })),
+        stats: this.stats.map((stat) => ({ ...stat })),
+      },
+      motionSpans: this.nsSpans(this.motion, this.openMotionNs),
+      coldHandsSpans: this.nsSpans(this.coldHands, this.openColdHandsNs),
+      sqi,
+    };
   }
 
   // What analyzeReading will count: time not covered by any span. A late SQI rejection lowers it.

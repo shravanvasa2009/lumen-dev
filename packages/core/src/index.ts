@@ -94,3 +94,4 @@ export {
   type RatingMode,
   type RatingTier,
 } from './rating';
+export { logisticRhythmOutputs } from './rhythm-rule';

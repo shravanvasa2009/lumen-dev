@@ -46,6 +46,24 @@ const blePlugin: [string, Record<string, unknown>] = [
   },
 ];
 
+// Care map (ADR 0054): foreground location only, asked when the map opens. The Always and motion keys are
+// switched off (false) so they never reach Info.plist; background modes default to off.
+const locationPurposeEn =
+  'Lumen uses your location only to show care near you. It is not saved or sent to Lumen.';
+const locationPurposeEs =
+  'Lumen usa tu ubicación solo para mostrarte atención médica cercana. No se guarda ni se envía a Lumen.';
+const locationPlugin: [string, Record<string, unknown>] = [
+  'expo-location',
+  {
+    locationWhenInUsePermission: locationPurposeEn,
+    locationAlwaysAndWhenInUsePermission: false,
+    locationAlwaysPermission: false,
+    motionUsagePermission: false,
+    isIosBackgroundLocationEnabled: false,
+    isAndroidBackgroundLocationEnabled: false,
+  },
+];
+
 const config: ExpoConfig = {
   ...brand,
   name: APP_NAME,
@@ -55,15 +73,26 @@ const config: ExpoConfig = {
   version: '0.1.0',
   orientation: 'portrait',
   ios: { ...brand.ios, ...iosSigning, supportsTablet: false },
-  android: { ...brand.android, package: BUNDLE_ID },
+  // Spanish iOS prompt: lumen-capture adds its camera string to this same locale (Expo writes it to es.lproj).
+  locales: { es: { ios: { NSLocationWhenInUseUsageDescription: locationPurposeEs } } },
+  android: {
+    ...brand.android,
+    package: BUNDLE_ID,
+    // Coarse location is enough for "clinics near you" (ADR 0054); expo-location also adds the precise one.
+    // https://docs.expo.dev/versions/v57.0.0/config/app/
+    blockedPermissions: ['android.permission.ACCESS_FINE_LOCATION'],
+  },
   plugins: [
     'expo-router',
     'expo-dev-client',
     ...(brand.plugins ?? []),
     blePlugin,
+    locationPlugin,
+    '@maplibre/maplibre-react-native',
     personalTeam ? [capturePlugin, { personalTeam: true }] : capturePlugin,
   ],
-  // No over-the-air updates: release builds make no network requests (PRIV-1).
+  // No over-the-air updates. Readings make no network requests (PRIV-1); only the optional Care map loads
+  // map tiles (ADR 0054).
   updates: { enabled: false },
   experiments: { typedRoutes: true },
   extra: { eas: { projectId: 'db228fc8-a593-4e0d-a2f7-fdac78228c79' } },

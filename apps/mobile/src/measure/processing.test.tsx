@@ -1,6 +1,7 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import { type AnalysisProgress, completedPercent, pendingProgress } from './analysisProgress';
 import type { AnalysisState } from './useReadingAnalysis';
@@ -18,6 +19,8 @@ const midway: AnalysisProgress = {
   beats: 104,
   rejectedBeats: 6,
 };
+
+preloadAppRoutes();
 
 describe('useReadingAnalysis', () => {
   it('reports unavailable until analyzeReading is in the app', () => {

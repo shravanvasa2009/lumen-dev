@@ -1,6 +1,7 @@
 import type { ReadingResult } from '@lumen/core';
 
 import type { StoredReading } from '@/home/readings';
+import type { MeasureMode } from '@/measure/mode';
 import { makeReading } from '@/testing/reading';
 
 import { widgetSnapshot, type WidgetSnapshot, type WidgetStatus } from './snapshot';
@@ -15,14 +16,25 @@ function dayAt(daysAgo: number, hour = 8): number {
 
 type Change = (outcome: ReadingResult) => void;
 
-function readingWith(change: Change, takenAt = NOW - HOUR): StoredReading {
+function readingWith(change: Change, takenAt = NOW - HOUR, mode?: MeasureMode): StoredReading {
   const reading = makeReading(takenAt, 64, 42);
   change(reading.outcome);
-  return reading;
+  return mode === undefined ? reading : { ...reading, mode };
 }
 
-function snapshotOf(readings: readonly StoredReading[], hideValues = false): WidgetSnapshot {
-  return widgetSnapshot({ readings, hideValues, theme: 'system', nextConfirmationAt: null, now: NOW });
+function snapshotOf(
+  readings: readonly StoredReading[],
+  hideValues = false,
+  followUpAnsweredAt: number | null = null,
+): WidgetSnapshot {
+  return widgetSnapshot({
+    readings,
+    hideValues,
+    theme: 'system',
+    nextConfirmationAt: null,
+    followUpAnsweredAt,
+    now: NOW,
+  });
 }
 
 function rhythm(flag: 'irregular' | 'possibleAf' | null): Change {
@@ -194,10 +206,90 @@ describe('widget status', () => {
     expect(snapshotOf([readingWith(change)])).toMatchObject({ status, rhythmFlag, diabetesFlag });
   });
 
-  it('follows the latest reading, not an older flagged one', () => {
-    const older = readingWith(rhythm('possibleAf'), NOW - 3 * HOUR);
+  it('follows the latest reading, not an older check-again one', () => {
+    const older = readingWith(rhythm('irregular'), NOW - 3 * HOUR);
     const newer = readingWith(() => {}, NOW - HOUR);
     expect(snapshotOf([newer, older])).toMatchObject({ status: 'regular', rhythmFlag: false });
+  });
+});
+
+describe('the doctor status persists', () => {
+  const flaggedAt = NOW - 5 * HOUR;
+  const flagged = readingWith(rhythm('possibleAf'), flaggedAt, 'quick');
+
+  it('stays after a regular Quick Check, with the latest heart rate', () => {
+    const quick = readingWith((outcome) => {
+      if (outcome.metrics.hr) outcome.metrics.hr.value = 71;
+    }, NOW - HOUR, 'quick');
+    expect(snapshotOf([flagged, quick])).toMatchObject({
+      status: 'see-doctor',
+      rhythmFlag: true,
+      diabetesFlag: false,
+      hrBpm: 71,
+      lastReadingAt: new Date(NOW - HOUR).toISOString().replace('.000Z', 'Z'),
+    });
+  });
+
+  it('stays after a regular reading whose mode is not recorded', () => {
+    expect(snapshotOf([flagged, readingWith(() => {})]).status).toBe('see-doctor');
+  });
+
+  it('clears after a regular Full Check', () => {
+    const full = readingWith(() => {}, NOW - HOUR, 'full');
+    expect(snapshotOf([flagged, full])).toMatchObject({
+      status: 'regular',
+      rhythmFlag: false,
+      diabetesFlag: false,
+    });
+  });
+
+  it('stays after a Full Check that is not regular', () => {
+    const full = readingWith(rhythm('irregular'), NOW - HOUR, 'full');
+    expect(snapshotOf([flagged, full]).status).toBe('see-doctor');
+  });
+
+  it('clears once the follow-up is answered, then follows the latest reading', () => {
+    const later = readingWith(rhythm('irregular'), NOW - HOUR, 'quick');
+    expect(snapshotOf([flagged, later], false, NOW - 2 * HOUR)).toMatchObject({
+      status: 'check-again',
+      rhythmFlag: true,
+    });
+    expect(snapshotOf([flagged], false, NOW - 2 * HOUR).status).toBe('see-doctor');
+  });
+
+  it.each([
+    { name: 'an inconclusive reading', change: inconclusive, mode: 'full' as const },
+    { name: "a couldn't-tell reading", change: uncertain, mode: 'full' as const },
+    { name: 'a slow resting rate', change: hrFlag('slowResting'), mode: 'quick' as const },
+  ])('stays after $name', ({ change, mode }) => {
+    expect(snapshotOf([flagged, readingWith(change, NOW - HOUR, mode)]).status).toBe('see-doctor');
+  });
+
+  it('is not cleared by a follow-up answered before the flag', () => {
+    const quick = readingWith(() => {}, NOW - HOUR, 'quick');
+    expect(snapshotOf([flagged, quick], false, flaggedAt - HOUR).status).toBe('see-doctor');
+  });
+
+  it('is not cleared by a regular Full Check taken before the flag', () => {
+    const full = readingWith(() => {}, flaggedAt - HOUR, 'full');
+    expect(snapshotOf([full, flagged]).status).toBe('see-doctor');
+  });
+
+  it('holds a newer flag even after an older one was cleared', () => {
+    const full = readingWith(() => {}, NOW - 4 * HOUR, 'full');
+    const again = readingWith(diabetes('public-data'), NOW - 3 * HOUR, 'quick');
+    const quick = readingWith(() => {}, NOW - HOUR, 'quick');
+    expect(snapshotOf([flagged, full, again, quick], false, NOW - 4 * HOUR)).toMatchObject({
+      status: 'see-doctor',
+      rhythmFlag: false,
+      diabetesFlag: true,
+    });
+  });
+
+  it('keeps the diabetes flag of a held diabetes result', () => {
+    const pattern = readingWith(diabetes('public-data'), flaggedAt, 'full');
+    const quick = readingWith(() => {}, NOW - HOUR, 'quick');
+    expect(snapshotOf([pattern, quick])).toMatchObject({ status: 'see-doctor', diabetesFlag: true });
   });
 });
 
@@ -241,6 +333,7 @@ describe('times', () => {
       hideValues: false,
       theme: 'dark',
       nextConfirmationAt: NOW + 2 * HOUR + 456,
+      followUpAnsweredAt: null,
       now: NOW + 789,
     });
     expect(snapshot.updatedAt).toMatch(UTC_SECONDS);
@@ -289,6 +382,7 @@ describe('privacy and size', () => {
       hideValues,
       theme: 'system',
       nextConfirmationAt: NOW + 30 * 24 * HOUR,
+      followUpAnsweredAt: null,
       now: NOW,
     });
 

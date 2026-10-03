@@ -1,11 +1,14 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'light',
 }));
+
+preloadAppRoutes();
 
 describe('how to sit', () => {
   it('lists the four seating checks', () => {

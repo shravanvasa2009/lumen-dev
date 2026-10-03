@@ -3,6 +3,9 @@
 **/models/manifest.json
 packages/core/test/golden/
 
+# Written by python -m lumen_dsp.rule_fixture; its shortest round-trip floats are the parity input.
+packages/core/test/fixtures/rhythm-logistic.json
+
 # Lockfiles are written by their package managers.
 package-lock.json
 ml/uv.lock

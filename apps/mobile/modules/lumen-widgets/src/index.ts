@@ -8,9 +8,9 @@ type StandingTimerContent = {
   actionLabel: string;
   title: string;
   text: string;
-  // "Step n of 5" beside the title (the subtext on Android), and the "Tap to measure" line, which Android
-  // shows in place of the text while a reading is due (a Live Activity has no buttons on iOS 16, so the whole
-  // card opens lumen://standing).
+  // "Step n of 5" beside the title (the subtext on Android), and the "Tap to measure" line. Android shows that
+  // line in place of the text while a reading is due. iOS always shows it, because a Live Activity has no
+  // buttons on iOS 16, so the whole card opens lumen://standing.
   step: string;
   tapHint: string;
   // Milliseconds until the next reading opens; null while a reading is due (no countdown shown).

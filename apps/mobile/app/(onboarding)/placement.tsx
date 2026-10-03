@@ -17,8 +17,8 @@ export default function PlacementScreen() {
   const { colors, spacing, radius, control } = useTheme();
   const tips: { icon: IconName; label: string }[] = [
     { icon: 'hint', label: t('placement.tipCover') },
-    { icon: 'close', label: t('placement.tipCase') },
-    { icon: 'warm', label: t('placement.tipWipe') },
+    { icon: 'phone', label: t('placement.tipCase') },
+    { icon: 'lens', label: t('placement.tipWipe') },
   ];
   return (
     <OnboardingStep

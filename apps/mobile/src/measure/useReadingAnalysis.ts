@@ -4,7 +4,7 @@ import { saveReading } from '@/store/readings';
 
 import { analyzeKeptCapture, type AnalysisRequest } from './analyzeKeptCapture';
 import { type AnalysisProgress, pendingProgress } from './analysisProgress';
-import { keptCapture } from './keptCapture';
+import { type KeptCapture, keptCapture } from './keptCapture';
 import { DEFAULT_MODE } from './mode';
 
 export type AnalysisState =
@@ -15,6 +15,30 @@ export type AnalysisState =
 
 // The Processing route always passes what pre-check recorded; this is only for a caller that has none.
 const DEFAULT_REQUEST: AnalysisRequest = { mode: DEFAULT_MODE, restTimerDone: false };
+
+type Tracker = { latest: AnalysisProgress; listeners: Set<(progress: AnalysisProgress) => void> };
+type Run = { tracker: Tracker; outcome: Promise<{ readingId: string; progress: AnalysisProgress }> };
+
+// One analysis and one save per kept capture, however many times the screen mounts or its params change:
+// a second run would store the same reading again. A failed run is forgotten so the next mount can retry.
+const runs = new WeakMap<KeptCapture, Run>();
+
+function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest): Run {
+  const existing = runs.get(capture);
+  if (existing !== undefined) return existing;
+  const tracker: Tracker = { latest: pendingProgress, listeners: new Set() };
+  const outcome = analyzeKeptCapture(capture, { mode, restTimerDone }, (progress) => {
+    tracker.latest = progress;
+    for (const listener of tracker.listeners) listener(progress);
+  }).then(async ({ readingId, recordedMs, context, models, reading, progress }) => {
+    await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
+    return { readingId, progress };
+  });
+  outcome.catch(() => runs.delete(capture));
+  const run = { tracker, outcome };
+  runs.set(capture, run);
+  return run;
+}
 
 // The Processing screen's steps. The capture was kept by useLiveCapture; with none (the module is not linked,
 // or nothing was recorded) there is nothing to analyse and the state stays unavailable rather than inventing
@@ -30,27 +54,25 @@ export function useReadingAnalysis(request: AnalysisRequest = DEFAULT_REQUEST): 
   useEffect(() => {
     if (capture === null) return;
     let active = true;
-    let latest = pendingProgress;
-    analyzeKeptCapture(capture, { mode, restTimerDone }, (progress) => {
-      latest = progress;
+    const run = runFor(capture, { mode, restTimerDone });
+    const showProgress = (progress: AnalysisProgress) => {
       if (active) setState({ phase: 'running', progress });
-    })
-      .then(async ({ readingId, recordedMs, context, models, reading, progress }) => {
-        await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
-        return { readingId, progress };
-      })
-      .then(
-        ({ readingId, progress }) => {
-          if (active) setState({ phase: 'done', progress, readingId });
-        },
-        (error: unknown) => {
-          const reason = error instanceof Error ? error.message : String(error);
-          console.warn(`Reading analysis failed: ${reason}`);
-          if (active) setState({ phase: 'failed', progress: latest, reason });
-        },
-      );
+    };
+    run.tracker.listeners.add(showProgress);
+    showProgress(run.tracker.latest);
+    run.outcome.then(
+      ({ readingId, progress }) => {
+        if (active) setState({ phase: 'done', progress, readingId });
+      },
+      (error: unknown) => {
+        const reason = error instanceof Error ? error.message : String(error);
+        console.warn(`Reading analysis failed: ${reason}`);
+        if (active) setState({ phase: 'failed', progress: run.tracker.latest, reason });
+      },
+    );
     return () => {
       active = false;
+      run.tracker.listeners.delete(showProgress);
     };
   }, [capture, mode, restTimerDone]);
 

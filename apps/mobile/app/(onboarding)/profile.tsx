@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TextInput, View } from 'react-native';
 
@@ -10,8 +10,8 @@ import { OnboardingStep } from '@/components/OnboardingStep';
 import { isValidPhone, useDoctorPhone } from '@/profile/doctorPhone';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { Segmented } from '@/settings/Segmented';
-import { type HealthNote, loadProfile, saveHealthNote } from '@/store/profile';
 import { Toggle } from '@/settings/Toggle';
+import { type HealthNote, loadProfile, saveHealthNote } from '@/store/profile';
 import { useTheme } from '@/theme';
 
 // Spec §8.2 step 3: the tutorial passes once an age of 13 or more is entered.
@@ -33,14 +33,17 @@ export default function ProfileScreen() {
     athlete: false,
   });
   const [saveFailed, setSaveFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // Answers given before the saved ones arrive: what the person just chose is newer than what was stored.
+  const answeredNow = useRef<Partial<Record<HealthNote, boolean>>>({});
   useEffect(() => {
     let active = true;
     loadProfile().then(
       (saved) => {
-        if (active) setNotes(saved);
+        if (active) setNotes({ ...saved, ...answeredNow.current });
       },
       () => {
-        if (active) setSaveFailed(true);
+        if (active) setLoadFailed(true);
       },
     );
     return () => {
@@ -64,7 +67,8 @@ export default function ProfileScreen() {
   }
   // The analysis reads these answers (a pacemaker turns rhythm screening off), so a failed save is shown.
   function saveNote(note: HealthNote, value: boolean) {
-    setNotes({ ...notes, [note]: value });
+    answeredNow.current[note] = value;
+    setNotes((current) => ({ ...current, [note]: value }));
     setSaveFailed(false);
     saveHealthNote(note, value).catch(() => setSaveFailed(true));
   }
@@ -170,6 +174,11 @@ export default function ProfileScreen() {
         <AppText variant="caption" tone="textDim">
           {t('profile.note')}
         </AppText>
+        {loadFailed ? (
+          <AppText variant="caption" tone="textDim" accessibilityRole="alert">
+            {t('profile.loadFailed')}
+          </AppText>
+        ) : null}
         {saveFailed ? (
           <AppText variant="caption" tone="textDim" accessibilityRole="alert">
             {t('profile.saveFailed')}

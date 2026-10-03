@@ -1,4 +1,4 @@
-import type { FrameStat, Sample } from '@lumen/core';
+import { buildReadingResult, type FrameStat, type Sample } from '@lumen/core';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { saveHealthNote } from '@/store/profile';
@@ -8,10 +8,16 @@ import type { KeptCapture } from './keptCapture';
 
 // A model double: the ONNX runtime is not available in Jest, and without a model the reading has no rhythm
 // card whatever the profile says, which would make the pacemaker case pass for the wrong reason.
+jest.mock('@lumen/core', () => {
+  const core = jest.requireActual<typeof import('@lumen/core')>('@lumen/core');
+  return { ...core, buildReadingResult: jest.fn(core.buildReadingResult) };
+});
+
+let mockRhythmScores = { sinus: 0.9, af: 0.05, other: 0.05 };
 jest.mock('../ml/runtime', () => ({
   classifyRhythm: async () => ({
     source: 'model',
-    scores: { sinus: 0.9, af: 0.05, other: 0.05 },
+    scores: mockRhythmScores,
     threshold: { af: 0.5 },
   }),
 }));
@@ -39,7 +45,10 @@ function slowPulse(): KeptCapture {
 
 const analyse = () => analyzeKeptCapture(slowPulse(), { mode: 'full', restTimerDone: true }, () => {});
 
-beforeEach(emptyMockDatabases);
+beforeEach(() => {
+  emptyMockDatabases();
+  mockRhythmScores = { sinus: 0.9, af: 0.05, other: 0.05 };
+});
 
 describe('analysis reads the saved profile', () => {
   it('flags a slow resting rate and screens rhythm when no condition is saved', async () => {
@@ -65,5 +74,23 @@ describe('analysis reads the saved profile', () => {
     await saveHealthNote('pacemaker', true);
     const { reading } = await analyse();
     expect(reading.metrics.rhythm).toBeNull();
+  });
+
+  // Through this pipeline the reading's confidence is capped at moderate (no SQI scores, no rated tier), and
+  // core only raises the rhythm flag at high confidence, so the flag itself is core's test. What is checked
+  // here is that the saved answer reaches core, which then reports AF as tracked, not flagged.
+  it('hands a known-AF answer to the decision rules, which then raise no rhythm flag', async () => {
+    mockRhythmScores = { sinus: 0.02, af: 0.96, other: 0.02 };
+    await saveHealthNote('knownAf', true);
+    const { reading } = await analyse();
+    expect(buildReadingResult).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      { athlete: false, betaBlocker: false, pacemaker: false, knownAf: true },
+      [],
+    );
+    expect(reading.metrics.rhythm?.class).toBe('af');
+    expect(reading.metrics.rhythm?.flag).toBeNull();
   });
 });

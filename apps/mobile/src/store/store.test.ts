@@ -43,6 +43,18 @@ describe('the schema', () => {
     expect(await database.getFirstAsync('PRAGMA user_version')).toEqual({ user_version: 1 });
   });
 
+  it('refuses a database written by a newer version and leaves its tables alone', async () => {
+    await jest.isolateModulesAsync(async () => {
+      const { openDatabaseAsync } = await import('expo-sqlite');
+      const newer = await openDatabaseAsync('lumen.db');
+      await newer.execAsync('PRAGMA user_version = 2');
+      const { lumenDatabase: openNewer } = await import('./database');
+      await expect(openNewer()).rejects.toThrow(/schema version 2, newer than this app's 1/);
+      await expect(openNewer()).rejects.toThrow(/newer/);
+      expect(await newer.getAllAsync("SELECT name FROM sqlite_master WHERE type = 'table'")).toEqual([]);
+    });
+  });
+
   it('opens once and shares the connection', async () => {
     expect(await lumenDatabase()).toBe(await lumenDatabase());
   });

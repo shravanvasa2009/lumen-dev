@@ -1,13 +1,13 @@
 import { renderHook } from '@testing-library/react-native';
 import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
+import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { useDoctorPhone } from '@/profile/doctorPhone';
-import { loadProfile } from '@/store/profile';
+import { lumenDatabase } from '@/store/database';
+import { loadProfile, saveHealthNote } from '@/store/profile';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
-
-import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -25,6 +25,7 @@ describe('profile', () => {
   beforeEach(emptyMockDatabases);
 
   afterEach(() => {
+    jest.restoreAllMocks();
     const { result: doctorPhone } = renderHook(() => useDoctorPhone());
     act(() => doctorPhone.current.setPhone(null));
   });
@@ -112,5 +113,36 @@ describe('profile', () => {
     fireEvent.changeText(phoneField(), '');
     expect(screen.queryByText(en['profile.doctorPhoneInvalid'])).not.toBeOnTheScreen();
     expect(saved.current.phone).toBeNull();
+  });
+
+  it('shows an alert, and keeps the switch as flipped, when a health note cannot be saved', async () => {
+    const database = await lumenDatabase();
+    jest.spyOn(database, 'runAsync').mockRejectedValue(new Error('disk full'));
+    renderRouter('./app', { initialUrl: '/profile' });
+    expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
+    fireEvent(screen.getByRole('switch', { name: en['profile.pacemaker'] }), 'valueChange', true);
+    await waitFor(() => expect(screen.getByText(en['profile.saveFailed'])).toBeOnTheScreen());
+    expect(screen.getByRole('switch', { name: en['profile.pacemaker'] })).toBeChecked();
+    expect(screen.queryByText(en['profile.loadFailed'])).not.toBeOnTheScreen();
+  });
+
+  it('says the saved answers could not be loaded, not that a save failed', async () => {
+    const database = await lumenDatabase();
+    jest.spyOn(database, 'getFirstAsync').mockRejectedValue(new Error('disk unreadable'));
+    renderRouter('./app', { initialUrl: '/profile' });
+    await waitFor(() => expect(screen.getByText(en['profile.loadFailed'])).toBeOnTheScreen());
+    expect(screen.queryByText(en['profile.saveFailed'])).not.toBeOnTheScreen();
+  });
+
+  it('keeps a switch flipped before the saved answers arrive', async () => {
+    await saveHealthNote('athlete', true);
+    await saveHealthNote('betaBlocker', true);
+    renderRouter('./app', { initialUrl: '/profile' });
+    fireEvent(screen.getByRole('switch', { name: en['profile.athlete'] }), 'valueChange', false);
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: en['profile.betaBlocker'] })).toBeChecked(),
+    );
+    expect(screen.getByRole('switch', { name: en['profile.athlete'] })).not.toBeChecked();
+    await waitFor(async () => expect((await loadProfile()).athlete).toBe(false));
   });
 });

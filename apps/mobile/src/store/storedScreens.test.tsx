@@ -1,3 +1,5 @@
+import { renderHook } from '@testing-library/react-native';
+import { type ReactNode, Component } from 'react';
 import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
@@ -6,7 +8,9 @@ import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import { makeReading } from '@/testing/reading';
 
+import { lumenDatabase } from './database';
 import { saveReading } from './readings';
+import { useStoredReading } from './useStoredReadings';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -46,6 +50,8 @@ async function saveHeartRate(hr: number): Promise<void> {
 
 beforeEach(emptyMockDatabases);
 
+afterEach(() => jest.restoreAllMocks());
+
 describe('Home with a saved reading', () => {
   it('shows it as the latest result, with its heart rate on the tile', async () => {
     await saveHeartRate(71);
@@ -67,6 +73,32 @@ describe('Home with a saved reading', () => {
   it('still shows the empty state when nothing is saved', async () => {
     renderRouter('./app', { initialUrl: '/' });
     await waitFor(() => expect(screen.getByText(en['home.noReadings'])).toBeOnTheScreen());
+  });
+});
+
+describe('a failed read', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  // Nothing catches it in the hook: it is thrown while rendering, for whichever error boundary is above.
+  it('is thrown from useStoredReading rather than shown as a missing reading', async () => {
+    const database = await lumenDatabase();
+    jest.spyOn(database, 'getFirstAsync').mockRejectedValue(new Error('the reading file is unreadable'));
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    const caught = jest.fn();
+    class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+      override state = { failed: false };
+      static getDerivedStateFromError() {
+        return { failed: true };
+      }
+      override componentDidCatch(error: Error) {
+        caught(error.message);
+      }
+      override render() {
+        return this.state.failed ? null : this.props.children;
+      }
+    }
+    renderHook(() => useStoredReading(ID), { wrapper: Boundary });
+    await waitFor(() => expect(caught).toHaveBeenCalledWith('the reading file is unreadable'));
   });
 });
 

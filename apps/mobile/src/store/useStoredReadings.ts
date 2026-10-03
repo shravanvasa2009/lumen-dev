@@ -5,7 +5,7 @@ import type { StoredReading } from '@/home/readings';
 
 import { listReadings, storedReadingById } from './readings';
 
-// A failed read is thrown during render so the route's error screen shows it; nothing here hides it.
+// A failed read is thrown during render for the nearest error boundary; nothing here hides it.
 function useLoaded<Loaded>(initial: Loaded): [Loaded, (load: () => Promise<Loaded>) => () => void] {
   const [loaded, setLoaded] = useState(initial);
   const [failure, setFailure] = useState<unknown>(null);

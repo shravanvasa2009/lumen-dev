@@ -36,6 +36,7 @@
   "profile.healthNotes": "Notas de salud",
   "profile.note": "Estos datos cambian los umbrales. Con un marcapasos, la revisión del ritmo se desactiva.",
   "profile.saveFailed": "No se pudo guardar esa respuesta. Inténtalo de nuevo.",
+  "profile.loadFailed": "No se pudieron cargar tus respuestas guardadas.",
   "phoneCheck.title": "Revisando tu teléfono",
   "phoneCheck.subtitle": "Unos 10 segundos. Mantén la app abierta.",
   "phoneCheck.cameraSpeed": "Velocidad de la cámara trasera",

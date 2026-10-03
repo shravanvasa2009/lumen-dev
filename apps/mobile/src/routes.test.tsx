@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
+import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
@@ -144,7 +145,10 @@ describe.each([
   });
 
   it.each(routes)('renders $url with its translated title', async ({ url, title, place }) => {
+    if (url === '/') await startOnboarded();
     renderRouter(appDirectory, { initialUrl: url });
+    // Home shows nothing until the profile says onboarding is done.
+    if (url === '/') await screen.findByRole('header', { name: en[title] });
     const isEmergency = url === '/emergency';
     if (place === 'nav') {
       expect(focusedNavHeader()).toMatchObject(navHeaderLook(en[title], colors));
@@ -214,8 +218,11 @@ describe('navigation', () => {
     expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
   });
 
-  it('walks Home through a measurement to results', () => {
-    followButtons('/', [['home.measure', 'mode.title']]);
+  it('walks Home through a measurement to results', async () => {
+    await startOnboarded();
+    renderRouter(appDirectory, { initialUrl: '/' });
+    await screen.findByRole('button', { name: en['home.measure'] });
+    pressThrough([['home.measure', 'mode.title']]);
     fireEvent.press(screen.getByText(en['mode.quick']));
     expectTitleOnScreen('precheck.title');
     fireEvent.press(screen.getByRole('button', { name: en['precheck.start'] }));

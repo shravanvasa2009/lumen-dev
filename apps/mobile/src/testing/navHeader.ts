@@ -27,3 +27,8 @@ export function expectNavTitle(title: string) {
   expect(focusedNavHeader()).toMatchObject({ title });
   expect(screen.queryByRole('header', { name: title })).toBeNull();
 }
+
+// Form sheets mount as RNSModalScreen, not RNSScreen, so the sheet's own presentation props are read here.
+export function sheetScreenProps(): HostProps | null {
+  return hostsOfType('RNSModalScreen', screen.toJSON()).at(-1)?.props ?? null;
+}

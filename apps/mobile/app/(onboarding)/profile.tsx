@@ -23,7 +23,7 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const { colors, spacing, radius, control } = useTheme();
   const [ageText, setAgeText] = useState('');
-  const { phone, setPhone } = useDoctorPhone();
+  const { phone, problem: phoneProblem, setPhone } = useDoctorPhone();
   const [phoneText, setPhoneText] = useState(phone ?? '');
   const [sex, setSex] = useState<Sex | null>(null);
   const [notes, setNotes] = useState<Record<HealthNote, boolean>>({
@@ -50,6 +50,10 @@ export default function ProfileScreen() {
       active = false;
     };
   }, []);
+  // The saved number arrives after the first render; it fills the field only while the person has typed nothing.
+  useEffect(() => {
+    if (phone !== null) setPhoneText((typed) => (typed === '' ? phone : typed));
+  }, [phone]);
   const ageEntered = ageText !== '';
   const ageValid = ageEntered && Number(ageText) >= MIN_AGE;
   const phoneInvalid = phoneText.trim() !== '' && !isValidPhone(phoneText.trim());
@@ -141,6 +145,11 @@ export default function ProfileScreen() {
             style={{ flex: 1, textAlign: 'right', fontSize: 16, color: colors.text }}
           />
         </View>
+        {phoneProblem !== null ? (
+          <AppText variant="caption" tone="textDim" accessibilityRole="alert">
+            {phoneProblem === 'load' ? t('profile.loadFailed') : t('profile.saveFailed')}
+          </AppText>
+        ) : null}
         {phoneInvalid ? (
           <AppText variant="caption" tone="textDim" accessibilityRole="alert">
             {t('profile.doctorPhoneInvalid')}

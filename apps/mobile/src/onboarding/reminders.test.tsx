@@ -123,10 +123,10 @@ describe('reminders', () => {
     warn.mockRestore();
   });
 
-  it('skips the permission request on Not now', () => {
+  it('skips the permission request on Not now', async () => {
     renderRouter('./app', { initialUrl: '/reminders' });
     fireEvent.press(screen.getByRole('button', { name: en['reminders.notNow'] }));
-    expect(screen.getByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: en['home.greetingMorning'] })).toBeOnTheScreen();
     expect(askPermission).not.toHaveBeenCalled();
   });
 });

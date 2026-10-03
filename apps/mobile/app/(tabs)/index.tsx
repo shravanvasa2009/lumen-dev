@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, View } from 'react-native';
@@ -14,10 +14,25 @@ import { latestReading, tileSeries } from '@/home/readings';
 import { WidgetPromo } from '@/home/WidgetPromo';
 import { durationLabel } from '@/measure/durationLabel';
 import { DEFAULT_MODE, MODES } from '@/measure/mode';
+import { useOnboardingState } from '@/profile/onboarding';
 import { useStoredReadings } from '@/store/useStoredReadings';
 import { useTheme } from '@/theme';
 
+// A fresh install opens on Welcome. Welcome's "Try demo mode" comes here with ?demo=1 and skips the gate
+// without recording that onboarding is done, so the next launch still starts at Welcome.
+// Only the launch screen is gated: a widget or notification link (lumen://check) opens its own screen
+// directly, which a person who never finished onboarding can reach, and Home then sends them to Welcome.
 export default function HomeScreen() {
+  const { demo } = useLocalSearchParams<{ demo?: string }>();
+  const onboarding = useOnboardingState();
+  if (demo === undefined) {
+    if (onboarding === 'loading') return null;
+    if (onboarding === 'needed') return <Redirect href="/welcome" />;
+  }
+  return <Home />;
+}
+
+function Home() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const readings = useStoredReadings();

@@ -147,15 +147,18 @@ describe('live heart rate for the Lab screen (M0 proof method)', () => {
   });
 
   // Regression guard, not a budget proof: §9.3's < 5 ms of JS is per 100 ms batch and shared by all live
-  // work, and this call is only part of it. The median ignores garbage-collection pauses on CI runners.
-  it('takes under 5 ms per call (median) on 10 s at 60 fps', () => {
+  // work, and this call is only part of it.
+  // CPU time, not wall time: §9.3 budgets JS work, and wall time also counts waiting for other processes
+  // on a busy machine (5.4 ms medians while other jobs ran, 2026-10-02). Measured over the whole batch
+  // because Windows counts process CPU in ~15.6 ms steps, too coarse for one ~1 ms call. The average
+  // includes garbage collection and V8's background threads, so it can only overstate the cost.
+  it('takes under 5 ms of CPU per call (batch average) on 10 s at 60 fps', () => {
     const samples = samplesAt(jitteredOffsets(60, 10, SAMPLE_JITTER_S), pulseRed(72));
     for (let call = 0; call < 20; call++) estimateLiveHeartRate(samples);
-    const callMs = Array.from({ length: 101 }, () => {
-      const startMs = performance.now();
-      estimateLiveHeartRate(samples);
-      return performance.now() - startMs;
-    }).sort((a, b) => a - b);
-    expect(callMs[50]).toBeLessThan(5);
+    const calls = 101;
+    const start = process.cpuUsage();
+    for (let call = 0; call < calls; call++) estimateLiveHeartRate(samples);
+    const spent = process.cpuUsage(start);
+    expect((spent.user + spent.system) / 1000 / calls).toBeLessThan(5);
   });
 });

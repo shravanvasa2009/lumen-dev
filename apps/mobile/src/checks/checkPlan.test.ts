@@ -1,4 +1,7 @@
 import { DSP_CONFIG } from '@lumen/core';
+import type { TFunction } from 'i18next';
+
+import en from '@/i18n/en.json';
 
 import {
   CHECK_IDS,
@@ -6,62 +9,115 @@ import {
   type CheckId,
   checkCell,
   type PlanMode,
-  type PlanTier,
+  type PlanPhone,
+  planPhone,
+  UNRATED_PHONE,
 } from './checkPlan';
+import { lockText } from './lockText';
 
-const state = (mode: PlanMode, check: CheckId, tier: PlanTier) => checkCell(mode, check, tier).state;
-const row = (mode: PlanMode, tier: PlanTier) => CHECK_IDS.map((check) => state(mode, check, tier));
+const phone = (tier: PlanPhone['tier'], over: Partial<PlanPhone> = {}): PlanPhone => ({
+  tier,
+  ambient: false,
+  fps60: tier === 'full',
+  ...over,
+});
+const state = (mode: PlanMode, check: CheckId, who: PlanPhone) => checkCell(mode, check, who).state;
+const row = (mode: PlanMode, who: PlanPhone) => CHECK_IDS.map((check) => state(mode, check, who));
+const why = (mode: PlanMode, check: CheckId, who: PlanPhone) => {
+  const cell = checkCell(mode, check, who);
+  return cell.state === 'locked' ? cell.why : null;
+};
+const text = (reason: Parameters<typeof lockText>[1]) =>
+  lockText(((key: keyof typeof en) => en[key]) as unknown as TFunction, reason);
 
 describe('which checks each mode runs (spec 12 Modes, spec 06 6.2)', () => {
   it('runs AFib, HRV and Diabetes in a Full Scan and leaves POTS to the Standing test', () => {
-    expect(row('full', 'full')).toEqual(['runs', 'runs', 'runs', 'notInScan']);
-    expect(row('standing', 'full')).toEqual(['notInScan', 'notInScan', 'notInScan', 'runs']);
+    expect(row('full', phone('full'))).toEqual(['runs', 'runs', 'runs', 'notInScan']);
+    expect(row('standing', phone('full'))).toEqual(['notInScan', 'notInScan', 'notInScan', 'runs']);
   });
 
   it('runs only HRV in Deep HRV', () => {
-    expect(row('deep', 'full')).toEqual(['notInScan', 'runs', 'notInScan', 'notInScan']);
+    expect(row('deep', phone('full'))).toEqual(['notInScan', 'runs', 'notInScan', 'notInScan']);
   });
 
   it('keeps AFib out of a 30 s Quick Check, because the rhythm check needs 60 s (owner decision a)', () => {
-    expect(row('quick', 'full')).toEqual(['notInScan', 'notInScan', 'notInScan', 'notInScan']);
+    expect(row('quick', phone('full'))).toEqual(['notInScan', 'notInScan', 'notInScan', 'notInScan']);
   });
 });
 
-describe('what each rating tier locks (spec 05 5.2)', () => {
+describe('what each rating tier locks, and why (spec 05 5.2)', () => {
   it('keeps everything open for a phone with no rating yet', () => {
-    expect(row('full', 'unrated')).toEqual(['runs', 'runs', 'runs', 'notInScan']);
+    expect(row('full', UNRATED_PHONE)).toEqual(['runs', 'runs', 'runs', 'notInScan']);
   });
 
-  it('locks HRV and Diabetes on a Basic phone with the 60 fps reason, and keeps AFib', () => {
-    expect(row('full', 'basic')).toEqual(['runs', 'locked', 'locked', 'notInScan']);
-    expect(checkCell('full', 'hrv', 'basic')).toEqual({ state: 'locked', why: 'fps60' });
-    expect(checkCell('full', 'diabetes', 'basic')).toEqual({ state: 'locked', why: 'fps60' });
+  it('Basic at 30 fps: HRV and Diabetes say the frame rate; AFib stays open', () => {
+    const basic = phone('basic');
+    expect(row('full', basic)).toEqual(['runs', 'locked', 'locked', 'notInScan']);
+    expect(text(why('full', 'hrv', basic)!)).toBe(en['mode.locked60fps']);
+    expect(text(why('full', 'diabetes', basic)!)).toBe(en['mode.locked60fps']);
   });
 
-  it('keeps the Standing test open on a Basic phone and locks it on a Limited one without the 60 fps reason', () => {
-    expect(state('standing', 'pots', 'basic')).toBe('runs');
-    expect(checkCell('standing', 'pots', 'limited')).toEqual({ state: 'locked', why: 'basic' });
+  it('Basic at 60 fps: HRV and Diabetes say the phone must be rated Full, not the frame rate', () => {
+    const basic60 = phone('basic', { fps60: true });
+    expect(text(why('full', 'hrv', basic60)!)).toBe(en['mode.lockedFull']);
+    expect(text(why('full', 'diabetes', basic60)!)).toBe(en['mode.lockedFull']);
   });
 
-  it('locks the whole Full Scan on a Limited phone; AFib is still a check Limited keeps (owner decision b)', () => {
-    expect(checkCell('full', 'hrv', 'limited')).toEqual({ state: 'locked', why: 'fps60' });
-    expect(checkCell('full', 'afib', 'limited')).toEqual({ state: 'locked', why: 'basic' });
+  it('Basic keeps the Standing test open', () => {
+    expect(state('standing', 'pots', phone('basic'))).toBe('runs');
   });
 
-  it('locks every listed check on an unsupported phone', () => {
-    expect(row('full', 'unsupported')).toEqual(['locked', 'locked', 'locked', 'notInScan']);
+  it('Limited that films at 60 fps with a flash that works: HRV and Diabetes say Full, POTS says Basic or Full', () => {
+    const limited60 = phone('limited', { fps60: true });
+    expect(text(why('full', 'hrv', limited60)!)).toBe(en['mode.lockedFull']);
+    expect(text(why('standing', 'pots', limited60)!)).toBe(en['mode.lockedBasic']);
   });
 
-  it('locks Deep HRV below Full', () => {
-    expect(checkCell('deep', 'hrv', 'basic')).toEqual({ state: 'locked', why: 'fps60' });
-    expect(state('deep', 'hrv', 'full')).toBe('runs');
+  it('Limited at 30 fps: HRV says the frame rate, POTS and AFib say Basic or Full (never 60 fps)', () => {
+    const limited = phone('limited');
+    expect(text(why('full', 'hrv', limited)!)).toBe(en['mode.locked60fps']);
+    expect(text(why('standing', 'pots', limited)!)).toBe(en['mode.lockedBasic']);
+    expect(text(why('full', 'afib', limited)!)).toBe(en['mode.lockedBasic']);
+  });
+
+  it('Limited because the flash does not reach the finger: every locked check says the flash', () => {
+    const noFlash = phone('limited', { ambient: true, fps60: true });
+    expect(text(why('full', 'hrv', noFlash)!)).toBe(en['mode.lockedFlash']);
+    expect(text(why('full', 'diabetes', noFlash)!)).toBe(en['mode.lockedFlash']);
+    expect(text(why('standing', 'pots', noFlash)!)).toBe(en['mode.lockedFlash']);
+    expect(text(why('full', 'afib', noFlash)!)).toBe(en['mode.lockedFlash']);
+  });
+
+  it('keeps AFib a check Limited owns, though the Full Scan holding it is locked (owner decision b)', () => {
+    expect(why('full', 'afib', phone('limited'))).toBe('basic');
+  });
+
+  it('unsupported: every listed check says Lumen cannot measure a pulse', () => {
+    const none = phone('unsupported');
+    expect(row('full', none)).toEqual(['locked', 'locked', 'locked', 'notInScan']);
+    expect(text(why('full', 'hrv', none)!)).toBe(en['mode.lockedUnsupported']);
+  });
+
+  it('Deep HRV below Full says the frame rate on a 30 fps phone and opens on Full', () => {
+    expect(why('deep', 'hrv', phone('basic'))).toBe('fps60');
+    expect(state('deep', 'hrv', phone('full'))).toBe('runs');
+  });
+});
+
+describe('planPhone', () => {
+  it('reads tier, ambient mode and the 60 fps level from the stored rating', () => {
+    expect(planPhone(null)).toEqual(UNRATED_PHONE);
+    const stored = { tier: 'limited', ambient: true, fpsLevel: 60 } as Parameters<typeof planPhone>[0];
+    expect(planPhone(stored)).toEqual({ tier: 'limited', ambient: true, fps60: true });
+    const slow = { tier: 'basic', ambient: false, fpsLevel: 30 } as Parameters<typeof planPhone>[0];
+    expect(planPhone(slow).fps60).toBe(false);
   });
 });
 
 describe('clean seconds each check needs (spec 06 6.2, DSP_CONFIG)', () => {
   it('reads the thresholds from the config', () => {
     const seconds = (mode: PlanMode, check: CheckId) => {
-      const cell: CheckCell = checkCell(mode, check, 'full');
+      const cell: CheckCell = checkCell(mode, check, phone('full'));
       return cell.state === 'runs' ? cell.cleanSeconds : undefined;
     };
     expect(seconds('full', 'afib')).toBe(DSP_CONFIG.rules.rhythmMinCleanS);

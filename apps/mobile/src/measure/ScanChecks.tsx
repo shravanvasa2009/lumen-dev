@@ -1,19 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
+import { CHECK_ICON, CHECK_IDS, CHECK_PILL, type CheckId, checkCell, planPhone } from '@/checks/checkPlan';
+import { lockText } from '@/checks/lockText';
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon } from '@/components/Icon';
-import {
-  CHECK_PILL,
-  CHECK_ICON,
-  CHECK_IDS,
-  type CheckId,
-  type LockWhy,
-  checkCell,
-  type PlanTier,
-} from '@/checks/checkPlan';
 import { useStoredRating } from '@/store/useStoredRating';
 import { useTheme } from '@/theme';
 
@@ -22,21 +15,18 @@ import type { MeasureMode } from './mode';
 export function ScanChecks({ mode }: { mode: MeasureMode }) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
-  const tier: PlanTier = useStoredRating()?.tier ?? 'unrated';
+  const phone = planPhone(useStoredRating());
   const names: Record<CheckId, string> = {
     afib: t('checks.afib.name'),
     hrv: t('checks.hrv.name'),
     diabetes: t('checks.diabetes.name'),
     pots: t('checks.pots.name'),
   };
-  const reasons: Record<LockWhy, string> = {
-    fps60: t('mode.locked60fps'),
-    basic: t('mode.lockedBasic'),
-    unsupported: t('mode.lockedUnsupported'),
-  };
-  const cells = CHECK_IDS.map((check) => ({ check, cell: checkCell(mode, check, tier) }));
+  const cells = CHECK_IDS.map((check) => ({ check, cell: checkCell(mode, check, phone) }));
   const running = cells.flatMap(({ check, cell }) => (cell.state === 'runs' ? [check] : []));
-  const locked = cells.flatMap(({ check, cell }) => (cell.state === 'locked' ? [{ check, why: cell.why }] : []));
+  const locked = cells.flatMap(({ check, cell }) =>
+    cell.state === 'locked' ? [{ check, why: cell.why }] : [],
+  );
   const left = cells.flatMap(({ check, cell }) => (cell.state === 'notInScan' ? [names[check]] : []));
   return (
     <Card>
@@ -74,7 +64,7 @@ export function ScanChecks({ mode }: { mode: MeasureMode }) {
         <View key={check} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <Icon name="lock" size={16} color={colors.textFaint} />
           <AppText variant="caption" tone="textDim" style={{ flex: 1 }}>
-            {`${names[check]}: ${reasons[why]}`}
+            {`${names[check]}: ${lockText(t, why)}`}
           </AppText>
         </View>
       ))}

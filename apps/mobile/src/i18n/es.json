@@ -581,6 +581,7 @@
   "settings.notActiveYet": "Aún no activo",
   "notifications.denied": "Las notificaciones están desactivadas para Lumen. Actívalas en los ajustes del teléfono para recibir recordatorios.",
   "notifications.openSettings": "Abrir Ajustes",
+  "notifications.updateFailed": "No se pudieron actualizar los recordatorios. Inténtalo de nuevo.",
   "lockScreen.sample": "Vistas de ejemplo. Tu pantalla de bloqueo muestra tu propio temporizador y recordatorios.",
   "results.extraBeatsRate": "Latidos extra u omitidos: {{rate}} por minuto",
   "result.uncertain": "No se pudo determinar: repite la medición.",

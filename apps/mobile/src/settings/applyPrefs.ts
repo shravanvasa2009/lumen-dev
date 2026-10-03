@@ -1,9 +1,9 @@
 import { PermissionStatus } from 'expo';
 import { getPermissionsAsync, requestPermissionsAsync } from 'expo-notifications';
 
-import type { NotificationPrefs, NotificationTriggers } from './plan';
-import { saveNotificationPrefs } from './prefs';
-import { syncNotifications } from './scheduler';
+import type { NotificationPrefs, NotificationTriggers } from '@/notifications/plan';
+import { saveNotificationPrefs } from '@/notifications/prefs';
+import { syncNotifications } from '@/notifications/scheduler';
 
 // expo-notifications 57: https://docs.expo.dev/versions/v57.0.0/sdk/notifications/#getpermissionsasync
 export type Permission = 'granted' | 'denied' | 'undetermined';
@@ -36,25 +36,21 @@ const NOTHING_ENABLED: NotificationPrefs['enabled'] = {
   retest: false,
 };
 
-// The person's choices are always saved. Without permission nothing is scheduled, but the choices stay so
-// they take effect when permission is granted.
+// Scheduling comes first: if it fails nothing is saved, so the screen can show the previous choice again
+// and the saved file still matches it. Without permission nothing is scheduled, but the choices are kept so
+// they take effect when permission is granted. Failures reach the caller.
 export async function saveAndSyncNotifications(
   prefs: NotificationPrefs,
   languageTag: string,
   permission: Permission,
 ): Promise<void> {
-  try {
-    saveNotificationPrefs(prefs);
-    await syncNotifications(
-      {
-        prefs: permission === 'granted' ? prefs : { ...prefs, enabled: NOTHING_ENABLED },
-        triggers: NO_TRIGGERS,
-        now: Date.now(),
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      },
-      languageTag,
-    );
-  } catch (error) {
-    console.warn(`Reminders could not be updated: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  await syncNotifications(
+    {
+      prefs: permission === 'granted' ? prefs : { ...prefs, enabled: NOTHING_ENABLED },
+      triggers: NO_TRIGGERS,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    },
+    languageTag,
+  );
+  saveNotificationPrefs(prefs);
 }

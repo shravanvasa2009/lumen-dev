@@ -581,6 +581,7 @@
   "settings.notActiveYet": "Not active yet",
   "notifications.denied": "Notifications are off for Lumen. Turn them on in your phone's settings to get reminders.",
   "notifications.openSettings": "Open Settings",
+  "notifications.updateFailed": "Couldn't update reminders. Try again.",
   "lockScreen.sample": "Sample previews. Your lock screen shows your own timer and reminders.",
   "results.extraBeatsRate": "Extra or skipped beats: {{rate}} per minute",
   "result.uncertain": "Couldn't tell — please retake.",

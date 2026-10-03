@@ -3,16 +3,17 @@ import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-librar
 import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
-import { memoryFiles, mockFileSystem } from '@/testing/memoryFiles';
+import * as prefsStore from '@/notifications/prefs';
 import { loadNotificationPrefs } from '@/notifications/prefs';
 import { syncNotifications } from '@/notifications/scheduler';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { memoryFiles } from '@/testing/memoryFiles';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import { setPreference } from '@/theme/preferences';
 
 fixClockAtMorning();
 
-jest.mock('expo-file-system', () => mockFileSystem);
+jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').mockFileSystem);
 jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
 jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(),
@@ -105,6 +106,7 @@ describe('Notifications settings', () => {
     expect(switchNamed('notifications.daily')).not.toBeChecked();
     expect(switchNamed('notifications.followUp')).not.toBeChecked();
     expect(loadNotificationPrefs().enabled.daily).toBe(true);
+    expect(switchNamed('notifications.daily')).toBeDisabled();
     expect(sync.mock.calls[0]?.[0].prefs.enabled).toEqual({
       daily: false,
       confirmation: false,
@@ -123,9 +125,44 @@ describe('Notifications settings', () => {
     openSettings.mockRestore();
   });
 
-  it('stores the hide-values choice in the preferences', async () => {
+  it('flips the hide-values preference for this session', async () => {
     await open();
     fireEvent.press(switchNamed('notifications.hideValues'));
     expect(switchNamed('notifications.hideValues')).toBeChecked();
+  });
+
+  it('shows a message and puts the switch back when scheduling fails', async () => {
+    await open();
+    sync.mockRejectedValueOnce(new Error('scheduler down'));
+    fireEvent.press(switchNamed('notifications.daily'));
+    expect(await screen.findByText(en['notifications.updateFailed'])).toBeOnTheScreen();
+    expect(switchNamed('notifications.daily')).not.toBeChecked();
+    expect(loadNotificationPrefs().enabled.daily).toBe(false);
+  });
+
+  it('shows a message and puts the switch back when saving fails', async () => {
+    await open();
+    const save = jest.spyOn(prefsStore, 'saveNotificationPrefs').mockImplementationOnce(() => {
+      throw new Error('disk full');
+    });
+    fireEvent.press(switchNamed('notifications.daily'));
+    expect(await screen.findByText(en['notifications.updateFailed'])).toBeOnTheScreen();
+    expect(switchNamed('notifications.daily')).not.toBeChecked();
+    save.mockRestore();
+  });
+
+  it('shows a message when the permission request fails', async () => {
+    permissionNow.mockResolvedValue(answer('undetermined'));
+    permissionAsk.mockRejectedValue(new Error('no permission module'));
+    await open();
+    fireEvent.press(switchNamed('notifications.daily'));
+    expect(await screen.findByText(en['notifications.updateFailed'])).toBeOnTheScreen();
+    expect(switchNamed('notifications.daily')).not.toBeChecked();
+  });
+
+  it('shows a message when permission cannot be read on opening', async () => {
+    permissionNow.mockRejectedValue(new Error('no permission module'));
+    renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
+    expect(await screen.findByText(en['notifications.updateFailed'])).toBeOnTheScreen();
   });
 });

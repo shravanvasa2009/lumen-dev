@@ -3,7 +3,16 @@ import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { CHECK_ICON, CHECK_IDS, CHECK_PILL, type CheckId, checkCell, type LockWhy, type PlanMode } from '@/checks/checkPlan';
+import {
+  CHECK_ICON,
+  CHECK_IDS,
+  CHECK_PILL,
+  type CheckId,
+  checkCell,
+  type PlanMode,
+  planPhone,
+} from '@/checks/checkPlan';
+import { lockText } from '@/checks/lockText';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon } from '@/components/Icon';
 import { NavButton } from '@/components/NavButton';
@@ -52,7 +61,12 @@ function UnlockedModes({ rating }: { rating: StoredRating }) {
 }
 
 // Each check is listed under the mode that runs it: the Standing test for POTS, a Full Scan for the rest.
-const LISTED_MODE: Record<CheckId, PlanMode> = { afib: 'full', hrv: 'full', diabetes: 'full', pots: 'standing' };
+const LISTED_MODE: Record<CheckId, PlanMode> = {
+  afib: 'full',
+  hrv: 'full',
+  diabetes: 'full',
+  pots: 'standing',
+};
 
 function CheckableList({ rating }: { rating: StoredRating }) {
   const { t } = useTranslation();
@@ -69,11 +83,6 @@ function CheckableList({ rating }: { rating: StoredRating }) {
     diabetes: t('checks.diabetes.what'),
     pots: t('checks.pots.whatShort'),
   };
-  const reasons: Record<LockWhy, string> = {
-    fps60: t('mode.locked60fps'),
-    basic: t('mode.lockedBasic'),
-    unsupported: t('mode.lockedUnsupported'),
-  };
   return (
     <View
       style={{
@@ -88,14 +97,14 @@ function CheckableList({ rating }: { rating: StoredRating }) {
         <SectionLabel>{t('rating.checksHere')}</SectionLabel>
       </View>
       {CHECK_IDS.map((check) => {
-        const cell = checkCell(LISTED_MODE[check], check, rating.tier);
+        const cell = checkCell(LISTED_MODE[check], check, planPhone(rating));
         const lockedWhy = cell.state === 'locked' ? cell.why : null;
         const pill = CHECK_PILL[check];
         return (
           <View
             key={check}
             accessible
-            accessibilityLabel={`${names[check]}: ${lockedWhy === null ? whats[check] : reasons[lockedWhy]}`}
+            accessibilityLabel={`${names[check]}: ${lockedWhy === null ? whats[check] : lockText(t, lockedWhy)}`}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
@@ -129,7 +138,7 @@ function CheckableList({ rating }: { rating: StoredRating }) {
                 {pill === null ? null : <EvidenceBadge metric={pill} />}
               </View>
               <AppText variant="caption" tone="textDim">
-                {lockedWhy === null ? whats[check] : reasons[lockedWhy]}
+                {lockedWhy === null ? whats[check] : lockText(t, lockedWhy)}
               </AppText>
             </View>
             <Icon

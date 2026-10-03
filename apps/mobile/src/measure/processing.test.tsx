@@ -94,6 +94,23 @@ describe('processing screen', () => {
     expect(screen.queryByRole('button', { name: en['processing.seeResults'] })).toBeNull();
   });
 
+  it('lists the checks in this reading and follows the steps the analysis reports', () => {
+    mockAnalysis = { phase: 'running', progress: midway };
+    renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(screen.getByText(en['checks.inReading'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.state.ready'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.state.working'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.state.waiting'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.from.standing'])).toBeOnTheScreen();
+    expect(screen.getAllByTestId('evidence-badge')).toHaveLength(1);
+  });
+
+  it('marks HRV and Diabetes as not in a Quick Check', () => {
+    mockAnalysis = { phase: 'running', progress: midway };
+    renderRouter('./app', { initialUrl: '/measure/processing?mode=quick' });
+    expect(screen.getAllByText(en['checks.state.off'])).toHaveLength(2);
+  });
+
   it('moves on to the reading once the analysis is done', () => {
     const finished: AnalysisProgress = {
       ...midway,

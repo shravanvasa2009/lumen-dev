@@ -8,8 +8,9 @@ import { useReadingAnalysis } from '@/measure/useReadingAnalysis';
 export default function ProcessingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string; restDone?: string }>();
+  const mode = parseMode(params.mode);
   const analysis = useReadingAnalysis({
-    mode: parseMode(params.mode),
+    mode,
     restTimerDone: params.restDone === 'true',
   });
 
@@ -18,5 +19,5 @@ export default function ProcessingScreen() {
     if (readingId !== null) router.replace(`/results/${readingId}`);
   }, [readingId, router]);
 
-  return <ProcessingView analysis={analysis} />;
+  return <ProcessingView analysis={analysis} mode={mode} />;
 }

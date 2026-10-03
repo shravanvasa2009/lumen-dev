@@ -1,11 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { renderRouter, screen } from 'expo-router/testing-library';
 
+import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { ReplayCapture, type RecordedCapture } from '../../modules/lumen-capture/src';
-
 import en from '@/i18n/en.json';
+import { storedReadingById } from '@/store/readings';
 
-import { finishedReading } from './finishedReadings';
 import { keepCapture, keptCapture } from './keptCapture';
 import { useLiveCapture } from './useLiveCapture';
 import { useReadingAnalysis } from './useReadingAnalysis';
@@ -67,6 +67,7 @@ async function replayFor(recording: RecordedCapture, seconds: number) {
 beforeEach(() => {
   jest.useFakeTimers();
   keepCapture(null);
+  emptyMockDatabases();
 });
 afterEach(() => jest.useRealTimers());
 
@@ -142,8 +143,10 @@ describe('reading analysis of a kept capture', () => {
       baseline: 'done',
     });
     expect(phases).toContain('running');
-    const reading = finishedReading(done.readingId)?.scan;
-    if (!reading) throw new Error('the finished reading was not saved');
+    const saved = await storedReadingById(done.readingId);
+    if (!saved) throw new Error('the finished reading was not saved');
+    const reading = saved.outcome;
+    expect(saved.mode).toBe('quick');
     expect(done.progress.beats).toBe(reading.beats);
     expect(done.progress.rejectedBeats).toBe(reading.rejectedBeats);
     expect(reading.cleanSeconds).toBeGreaterThan(35);
@@ -158,14 +161,13 @@ describe('reading analysis of a kept capture', () => {
     const { result: analysis } = renderHook(() => useReadingAnalysis({ mode: 'quick', restTimerDone: true }));
     await waitFor(() => expect(analysis.current.phase).toBe('done'), { timeout: 10_000 });
     if (analysis.current.phase !== 'done') throw new Error('analysis did not finish');
-    const stored = finishedReading(analysis.current.readingId);
+    const stored = await storedReadingById(analysis.current.readingId);
     if (!stored) throw new Error('the finished reading was not saved');
 
     renderRouter('./app', { initialUrl: `/results/${analysis.current.readingId}` });
     // No rhythm model ships yet, so the rule asks for a retake; the point is that it is this reading's headline.
-    expect(stored.scan.headlineKey).toBe('result.uncertain');
-    const headline = en['result.uncertain'];
-    expect(screen.getByText(headline)).toBeOnTheScreen();
+    expect(stored.outcome.headlineKey).toBe('result.uncertain');
+    expect(await screen.findByText(en['result.uncertain'])).toBeOnTheScreen();
   });
 
   it('reports a capture it cannot analyse as failed, with the reason and the steps so far', async () => {

@@ -25,5 +25,5 @@ export function makeReading(takenAt: number, hr: number | null, rmssd: number | 
     lostSeconds: { motion: 0, pressure: 0, coverage: 0, coldHands: 0 },
     notChecked: ['bp', 'spo2', 'heartAttack'],
   };
-  return { takenAt, outcome };
+  return { id: `reading-${takenAt}`, takenAt, outcome };
 }

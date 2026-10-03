@@ -1,0 +1,8 @@
+{
+  "type": "widget",
+  "deploymentTarget": "16.4",
+  "entitlements": {},
+  "images": {
+    "lumenMark": "../../assets/brand/notification-icon-96.png"
+  }
+}

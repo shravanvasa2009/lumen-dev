@@ -31,6 +31,6 @@ declare class LumenWidgetsNative extends NativeModule {
   endStandingTimer(): Promise<void>;
 }
 
-// null where the module is not linked (Jest, Expo Go, and iOS until its widget target lands), so importing
+// null where the module is not linked (Jest and Expo Go), so importing
 // this file never throws.
 export const LumenWidgets = requireOptionalNativeModule<LumenWidgetsNative>('LumenWidgets');

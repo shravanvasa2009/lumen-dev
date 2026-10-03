@@ -21,6 +21,8 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
+export const isDemoActive = (): boolean => active;
+
 export function useDemoActive(): boolean {
   return useSyncExternalStore(subscribe, () => active);
 }

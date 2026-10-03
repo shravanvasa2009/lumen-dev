@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
-import type { ReactNode } from 'react';
+import { createContext, type ReactNode, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
-import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { type EdgeInsets, SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
@@ -10,21 +10,32 @@ import { useTheme } from '@/theme';
 
 import { exitDemo, useDemoActive } from './demoSession';
 
-// §8.5: a persistent "Demo data" banner on every screen. It sits under the navigator and takes over the
-// bottom safe-area inset, so the screens above it do not pad for the same inset twice. The tree is the same
+const WindowInsetsContext = createContext<EdgeInsets | null>(null);
+
+// The device's real insets. A native sheet covers the demo bar, so it must not use the reduced insets that
+// the screens under the bar see.
+export function useWindowInsets(): EdgeInsets {
+  const reduced = useSafeAreaInsets();
+  return useContext(WindowInsetsContext) ?? reduced;
+}
+
+// §8.5: a persistent demo bar on every screen. It sits under the navigator and pads for the bottom inset
+// itself, so the screens above it see a bottom inset of 0 and do not pad for it twice. The tree is the same
 // with Demo on or off, so entering or leaving Demo never remounts the navigator.
 export function DemoStrip({ children }: { children: ReactNode }) {
   const demo = useDemoActive();
   const insets = useSafeAreaInsets();
   return (
-    <View style={{ flex: 1 }}>
+    <WindowInsetsContext.Provider value={insets}>
       <View style={{ flex: 1 }}>
-        <SafeAreaInsetsContext.Provider value={demo ? { ...insets, bottom: 0 } : insets}>
-          {children}
-        </SafeAreaInsetsContext.Provider>
+        <View style={{ flex: 1 }}>
+          <SafeAreaInsetsContext.Provider value={demo ? { ...insets, bottom: 0 } : insets}>
+            {children}
+          </SafeAreaInsetsContext.Provider>
+        </View>
+        {demo ? <ExitBar bottomInset={insets.bottom} /> : null}
       </View>
-      {demo ? <ExitBar bottomInset={insets.bottom} /> : null}
-    </View>
+    </WindowInsetsContext.Provider>
   );
 }
 

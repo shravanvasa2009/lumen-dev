@@ -136,9 +136,9 @@ export async function analyzeKeptCapture(
   await letScreenDraw();
   const reading = buildReadingResult(analysis, models, evidence, profile, []);
 
-  const { rhythm, rmssd, diabetes } = reading.metrics;
+  const { rhythm: rhythmMetric, rmssd, diabetes } = reading.metrics;
   const finished = step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'done' }, counts, {
-    afib: rhythm !== null,
+    afib: rhythmMetric !== null,
     hrv: rmssd !== null,
     diabetes: diabetes !== null,
   });

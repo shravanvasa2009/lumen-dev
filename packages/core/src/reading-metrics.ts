@@ -80,9 +80,12 @@ function beatPairs<T extends ClassifiedBeat>(segment: T[]): [T, T][] {
   return beats.slice(1).map((beat, i) => [beats[i]!, beat]);
 }
 
+// DSP-11's 15 s also binds the accepted intervals: a median of a few intervals in a long clean reading is
+// not a rate measured over 15 s (red team PR #171 round 3, ADR 0080).
 /** DSP-11: heart rate in bpm, 60 / the median interval between consecutive non-artifact beats. */
 export function heartRate(segments: ClassifiedBeat[][], cleanS: number): number | null {
-  if (!(cleanS >= DSP_CONFIG.dsp11.minCleanS)) return null;
+  const { minCleanS } = DSP_CONFIG.dsp11;
+  if (!(cleanS >= minCleanS)) return null;
   const intervalsS = segments.flatMap((segment) =>
     beatPairs(segment)
       .filter(([from, to]) => from.beatClass !== 'artifact' && to.beatClass !== 'artifact')
@@ -90,7 +93,9 @@ export function heartRate(segments: ClassifiedBeat[][], cleanS: number): number 
       // Two beats at the same or reversed times are one beat found twice, not a cardiac cycle.
       .filter((intervalS) => intervalS > 0),
   );
-  return intervalsS.length > 0 ? 60 / median(intervalsS) : null;
+  let spannedS = 0;
+  for (const intervalS of intervalsS) spannedS += intervalS;
+  return spannedS >= minCleanS ? 60 / median(intervalsS) : null;
 }
 
 // Runs of adjacent NN intervals: normal → normal, the second not ending a long pause. Anything else ends

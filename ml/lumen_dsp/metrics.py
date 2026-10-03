@@ -98,9 +98,11 @@ def beat_pairs(segment: Sequence[MeasuredBeat]) -> list[tuple[MeasuredBeat, Meas
     return list(zip(beats[:-1], beats[1:], strict=True))
 
 
-# DSP-11: heart rate in bpm, 60 / the median interval between consecutive non-artifact beats; 15 clean s.
+# DSP-11: heart rate in bpm, 60 / the median interval between consecutive non-artifact beats; 15 clean s,
+# and the accepted intervals must span 15 s too (ADR 0080). Summed in index order, as in TypeScript.
 def heart_rate(segments: Sequence[Sequence[MeasuredBeat]], clean_s: float) -> float | None:
-    if not clean_s >= DSP_CONFIG["dsp11"]["minCleanS"]:
+    min_clean_s = DSP_CONFIG["dsp11"]["minCleanS"]
+    if not clean_s >= min_clean_s:
         return None
     # Two beats at the same or reversed times are one beat found twice, not a cardiac cycle.
     intervals_s = [
@@ -111,7 +113,10 @@ def heart_rate(segments: Sequence[Sequence[MeasuredBeat]], clean_s: float) -> fl
         and later.beat_class != "artifact"
         and later.peak_s - earlier.peak_s > 0
     ]
-    return 60 / median(intervals_s) if intervals_s else None
+    spanned_s = 0.0
+    for interval_s in intervals_s:
+        spanned_s += interval_s
+    return 60 / median(intervals_s) if spanned_s >= min_clean_s else None
 
 
 def _nn_runs(segments: Sequence[Sequence[MeasuredBeat]]) -> list[list[float]]:

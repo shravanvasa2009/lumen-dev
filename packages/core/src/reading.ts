@@ -212,12 +212,20 @@ interface BeatSegment {
 
 // DSP-2 to DSP-9 per segment, then the DSP-10/13 per-beat values. Segments shorter than dsp7.minSegmentS
 // are not searched for beats.
-function beatSegments(timebase: Timebase, samples: Sample[], spans: RejectedSpan[]): BeatSegment[] {
+function beatSegments(
+  timebase: Timebase,
+  samples: Sample[],
+  stats: FrameStat[],
+  spans: RejectedSpan[],
+): BeatSegment[] {
   const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
   const { primary } = fingerSignals(timebase);
-  // A broken frame (already a coverage span) is left out as if dropped: DSP-2 splines across it when the
-  // frames either side are within its gap limit, and splits there otherwise.
-  const kept = samples.flatMap((sample, i) => (validChannels(sample) ? [i] : []));
+  // An uncovered frame holds no finger signal (DSP-3), only ambient light or a broken value, and left in
+  // it is a step that swamps DSP-7 over the whole segment (red team PR #171 round 3). It is left out as if
+  // dropped, as the SQI-Net window does (ADR 0057): DSP-2 splines across it when the frames either side
+  // are within its gap limit, and splits there otherwise. Its coverage span still makes a beat there an
+  // artifact (DSP-9 lost contact). Clipped frames are covered and stay.
+  const kept = samples.flatMap((sample, i) => (frameProblem(sample, stats[i]!) === 'coverage' ? [] : [i]));
   const keptS = Float64Array.from(kept, (i) => timebase.tS[i]!);
   const keptSignal = Float64Array.from(kept, (i) => primary[i]!);
   const models = resampleCubic(keptS, keptSignal, modelRateHz);
@@ -375,7 +383,7 @@ export function analyzeReading(
     byStart,
   );
 
-  const bands = beatSegments(timebase, capture.samples, signalSpans);
+  const bands = beatSegments(timebase, capture.samples, capture.stats, signalSpans);
   const segments = bands.map((segment) => segment.beats);
   const bySegment = intervalsBySegment(segments, timebase.startNs);
   const { intervalsS, spansArtifact, atypicalBeats } = rhythmInputs(segments);

@@ -136,6 +136,7 @@
     "sqiEveryS": 1,
     "minFlatS": 2,
     "minEffectiveFps": 24,
+    "minEffectiveFpsSpanS": 1,
     "motionRmsThreshold": 0.05,
     "leakRedRatio": 2.5,
     "coldHandsAfterS": 10,

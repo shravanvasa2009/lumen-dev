@@ -118,7 +118,16 @@ describe('red team: the mode target against one gap at dsp2.maxGapS, to the ns',
       .filter((intervalNs) => intervalNs > MAX_GAP_NS)
       .reduce((sum, intervalNs) => sum + intervalNs, 0);
     expect(Math.round(analysis.cleanSeconds * 1e6)).toBe(Math.round((lastNs - gapsNs) / 1e3));
-    expect(readingOutcome(analysis).kind).toBe(lastNs - gapsNs >= 90e9 ? 'reading' : 'inconclusive');
+    // With 200 gaps every DSP-2 segment but the last is under dsp7.minSegmentS, so its beats span about
+    // 3 s: under DSP-11's 15 s of accepted intervals (ADR 0080), so there is no heart rate. Until PR #171
+    // round 3 this read from 4 intervals.
+    const reasons = [
+      ...(lastNs - gapsNs >= 90e9 ? [] : ['tooFewCleanSeconds']),
+      ...(gapCount === 200 ? ['noHeartRate'] : []),
+    ];
+    const outcome = readingOutcome(analysis);
+    expect(outcome.kind === 'inconclusive' ? outcome.reasons : []).toEqual(reasons);
+    expect(outcome.kind).toBe(reasons.length > 0 ? 'inconclusive' : 'reading');
   });
 });
 

@@ -1,5 +1,6 @@
 import {
   analyzeReading,
+  cleanSeconds,
   DSP_CONFIG,
   type FrameStat,
   type ReadingAnalysis,
@@ -209,6 +210,24 @@ describe('analyzeReading acquisition spans', () => {
     expect(analysis.heartRateBpm).toBeCloseTo(analyze(base).heartRateBpm!, 0);
   });
 
+  // Red team PR #171 round 3: lifted frames left in the beat signal swamped DSP-7 over the whole segment.
+  it('DSP-2/DSP-4: uncovered frames are left out of the beat signal, so a 0.5 s lift splits it there', () => {
+    const base = syntheticReading({ seconds: 40 });
+    const analysis = analyze(syntheticReading({ seconds: 40, fingerOff: (tS) => tS >= 20 && tS < 20.5 }));
+    expect(analysis.segments).toHaveLength(2);
+    expect(analysis.segments[0]!.at(-1)!.peakS).toBeLessThan(20);
+    expect(analysis.segments[1]![0]!.peakS).toBeGreaterThan(20.5);
+    expect(analysis.heartRateBpm).toBeCloseTo(analyze(base).heartRateBpm!, 0);
+  });
+
+  it('DSP-2/DSP-9: an uncovered stretch shorter than the gap limit is splined; a beat in it is an artifact', () => {
+    // Frames 20.0–20.1 s uncovered (100 ms < dsp2.maxGapS): one segment, and lost contact (DSP-9).
+    const analysis = analyze(syntheticReading({ seconds: 40, fingerOff: (tS) => tS >= 20 && tS < 20.1 }));
+    expect(analysis.segments).toHaveLength(1);
+    const inside = analysis.segments[0]!.filter((beat) => beat.peakS >= 20 && beat.peakS < 20.1);
+    for (const beat of inside) expect(['artifact', 'not-a-beat']).toContain(beat.beatClass);
+  });
+
   it('DSP-4: clipping over 5% on a covered frame is a clipping span, counted as pressure', () => {
     const analysis = analyze(syntheticReading({ clipped: (tS) => tS >= 40 && tS < 43 }));
     expect(spansOf(analysis, 'clipping')).toHaveLength(1);
@@ -373,6 +392,29 @@ describe('analyzeReading acquisition spans', () => {
     expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - (24 - gap!.endS), 9);
   });
 
+  // Red team PR #171 round 3: a 0.6 s burst at 120 fps carried 3.4 s at 8 fps past the 96 frames.
+  it('ADR 0077: a model window holding 96 frames is rejected when 24 frames in it span 1 s or more', () => {
+    // 60 fps except 10.5–11.5 s, where every 8th frame is kept (7.5 fps, frames 133 ms apart).
+    const reading = syntheticReading({
+      seconds: 30,
+      dropped: (tS) => tS > 10.5 && tS < 11.5 && Math.round(tS * 60) % 8 !== 0,
+    });
+    const analysis = analyze(reading);
+    expect(spansOf(analysis, 'quality').length).toBeGreaterThan(0);
+    expect(cleanSeconds(10.5, 11.5, analysis.rejectedSpans)).toBe(0);
+    expect(analysis.cleanSeconds).toBeLessThan(analysis.durationS - 4);
+  });
+
+  it('ADR 0077: exactly 24 fps, and 30 fps dropping 1 frame in 5, pass the 1 s floor', () => {
+    expect(DSP_CONFIG.live.minEffectiveFps).toBe(24);
+    expect(DSP_CONFIG.live.minEffectiveFpsSpanS).toBe(1);
+    for (const reading of [
+      syntheticReading({ fps: 24, seconds: 40 }),
+      syntheticReading({ fps: 30, seconds: 40, dropped: (tS) => Math.round(tS * 30) % 5 === 4 }),
+    ])
+      expect(spansOf(analyze(reading), 'quality')).toEqual([]);
+  });
+
   it('splits at a dropped 300 ms stretch: no interval spans the gap', () => {
     const analysis = analyze(syntheticReading({ dropped: (tS) => tS > 45 && tS < 45.3 }));
     expect(analysis.segments).toHaveLength(2);
@@ -384,7 +426,8 @@ describe('analyzeReading acquisition spans', () => {
   });
 
   it('marks nn only for normal → normal intervals without a long pause', () => {
-    const analysis = analyze(syntheticReading({ fingerOff: (tS) => tS >= 30 && tS < 35 }));
+    // Clipped frames stay in the signal, so their beats are artifacts (DSP-9); uncovered ones leave it.
+    const analysis = analyze(syntheticReading({ clipped: (tS) => tS >= 30 && tS < 35 }));
     for (const interval of analysis.intervals) if (interval.nn) expect(interval.accepted).toBe(true);
     expect(analysis.intervals.some((interval) => !interval.accepted)).toBe(true);
   });

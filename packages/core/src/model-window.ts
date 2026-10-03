@@ -53,17 +53,33 @@ function windowFrames(
   return null;
 }
 
-// Frames delivered in [endS − dsp3.modelWindowS, endS] of frames [0, count), covered or not.
-function framesInWindow(tS: ArrayLike<number>, count: number, endS: number): number {
+// ADR 0077: under live.minEffectiveFps when frames [0, count) delivered in [endS − dsp3.modelWindowS, endS],
+// covered or not, number fewer than minEffectiveFps × the window, or when any span of
+// live.minEffectiveFpsSpanS that starts on one of them and ends inside the window holds fewer than
+// minEffectiveFps × that span, ends included as in the window count. The second test stops a fast burst
+// paying for a sparse rest of the window; exact 24 fps passes it, since 24 consecutive frames then span
+// 23/24 s.
+function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): boolean {
+  const { minEffectiveFps, minEffectiveFpsSpanS } = DSP_CONFIG.live;
   const startS = endS - DSP_CONFIG.dsp3.modelWindowS;
+  let first = count;
   let frames = 0;
-  for (let i = count - 1; i >= 0 && tS[i]! >= startS; i--) if (tS[i]! <= endS) frames++;
-  return frames;
+  for (let i = count - 1; i >= 0 && tS[i]! >= startS; i--) {
+    first = i;
+    if (tS[i]! <= endS) frames++;
+  }
+  if (frames < minEffectiveFps * DSP_CONFIG.dsp3.modelWindowS) return true;
+  const spanFrames = Math.ceil(minEffectiveFps * minEffectiveFpsSpanS);
+  for (let i = first; i < count && tS[i]! + minEffectiveFpsSpanS <= endS; i++) {
+    const last = i + spanFrames - 1;
+    if (last >= count || !(tS[last]! <= tS[i]! + minEffectiveFpsSpanS)) return true;
+  }
+  return false;
 }
 
 // The SQI-Net window ending at or before frame count − 1 (ADR 0023): 256 points of −R on the 64 Hz grid,
 // splined across uncovered frames within DSP-2's gap limit. input is null when the window is flat, not
-// finite, or holds fewer frames than live.minEffectiveFps (ADR 0077): it never reaches the model and
+// finite, or under live.minEffectiveFps (ADR 0077, underEffectiveFps): it never reaches the model and
 // counts as rejected. Null when no such window exists.
 export function modelWindowAt(
   tS: Float64Array,
@@ -91,8 +107,7 @@ export function modelWindowAt(
   // Flatness is judged on the frames: a spline through equal values can round to tiny wiggles that
   // z-scoring would blow up into noise.
   const flat = window.every((value) => value === window[0]);
-  const sparse =
-    framesInWindow(tS, count, endS) < DSP_CONFIG.live.minEffectiveFps * DSP_CONFIG.dsp3.modelWindowS;
+  const sparse = underEffectiveFps(tS, count, endS);
   const input = !flat && !sparse && values.every(Number.isFinite) ? sqiModelInput(values) : null;
   return { endS, input };
 }

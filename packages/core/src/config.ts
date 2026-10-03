@@ -107,7 +107,7 @@ export const DSP_CONFIG = {
     minCleanS: 30, // §6.2 "Signal strength (perfusion index)"
   },
   dsp11: {
-    minCleanS: 15, // §6.2 "Heart rate"
+    minCleanS: 15, // §6.2 "Heart rate"; the accepted intervals behind the median must span this too (ADR 0080)
   },
   dsp12: {
     // The caller passes the capture format's frame rate (ADR 0040): a measured median frame interval at
@@ -206,6 +206,10 @@ export const DSP_CONFIG = {
     // ADR 0077 (owner, option C): a model window (dsp3.modelWindowS) holding fewer frames than this many
     // per second is rejected as quality. §5.1's hard-fail floor: a rear camera that can't reach 24 fps.
     minEffectiveFps: 24,
+    // ADR 0077 implementation note (red team PR #171 round 3): every span this long that starts on a
+    // frame of the window and ends inside it must also hold minEffectiveFps × this many frames, so a fast
+    // burst cannot carry a sparse rest of the window. Only tightens the owner's floor.
+    minEffectiveFpsSpanS: 1,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.

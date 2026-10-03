@@ -13,6 +13,88 @@ const appDirectory = './app';
 
 preloadAppRoutes();
 
+type EnKey = keyof typeof en;
+
+const convertedLessons: readonly {
+  slug: string;
+  headings: readonly EnKey[];
+  paragraphs: readonly EnKey[];
+  takeaway: EnKey;
+  wrong: EnKey;
+  correct: EnKey;
+}[] = [
+  {
+    slug: 'what-is-afib',
+    headings: ['learn.afib.h1', 'learn.afib.h2', 'learn.afib.h3', 'learn.afib.h4'],
+    paragraphs: ['learn.afib.p1', 'learn.afib.p2', 'learn.afib.p3', 'learn.afib.p4'],
+    takeaway: 'learn.afib.takeaway',
+    wrong: 'learn.afib.answerDiagnosis',
+    correct: 'learn.afib.answerRetake',
+  },
+  {
+    slug: 'stroke-warning-signs',
+    headings: [
+      'learn.stroke.h1',
+      'learn.stroke.h2',
+      'learn.stroke.h3',
+      'learn.stroke.h4',
+      'learn.stroke.h5',
+      'learn.stroke.h6',
+      'learn.stroke.h7',
+    ],
+    paragraphs: [
+      'learn.stroke.intro',
+      'learn.stroke.balance',
+      'learn.stroke.eyes',
+      'learn.stroke.face',
+      'learn.stroke.arm',
+      'learn.stroke.speech',
+      'learn.stroke.time',
+    ],
+    takeaway: 'learn.stroke.takeaway',
+    wrong: 'learn.stroke.answerTremor',
+    correct: 'learn.stroke.answerTime',
+  },
+  {
+    slug: 'diabetes-and-your-pulse',
+    headings: ['learn.diabetes.h1', 'learn.diabetes.h2', 'learn.diabetes.h3'],
+    paragraphs: ['learn.diabetes.p1', 'learn.diabetes.p2', 'learn.diabetes.p3'],
+    takeaway: 'learn.diabetes.takeaway',
+    wrong: 'learn.diabetes.answerDiagnosis',
+    correct: 'learn.diabetes.answerA1c',
+  },
+  {
+    slug: 'heart-rate-variability',
+    headings: ['learn.hrv.h1', 'learn.hrv.h2', 'learn.hrv.h3', 'learn.hrv.h4'],
+    paragraphs: ['learn.hrv.p1', 'learn.hrv.p2', 'learn.hrv.p3', 'learn.hrv.p4'],
+    takeaway: 'learn.hrv.takeaway',
+    wrong: 'learn.hrv.answerOthers',
+    correct: 'learn.hrv.answerOwn',
+  },
+  {
+    slug: 'what-lumen-cannot-measure',
+    headings: ['learn.limits.h1', 'learn.limits.h2', 'learn.limits.h3', 'learn.limits.h4'],
+    paragraphs: ['learn.limits.p1', 'learn.limits.p2', 'learn.limits.p3', 'learn.limits.p4'],
+    takeaway: 'learn.limits.takeaway',
+    wrong: 'learn.limits.answerPressure',
+    correct: 'learn.limits.answerPulse',
+  },
+  {
+    slug: 'when-to-see-a-doctor',
+    headings: ['learn.doctor.h1', 'learn.doctor.h2', 'learn.doctor.h3', 'learn.doctor.h4', 'learn.doctor.h5'],
+    paragraphs: [
+      'learn.doctor.p1',
+      'learn.doctor.p2',
+      'learn.doctor.p3',
+      'learn.doctor.p4',
+      'learn.doctor.p5',
+    ],
+    takeaway: 'learn.doctor.takeaway',
+    wrong: 'learn.doctor.answerCost',
+    correct: 'learn.doctor.answerFainting',
+  },
+];
+
 describe('lesson detail', () => {
   it('renders every lesson under its own title', () => {
     for (const lesson of lessons) {
@@ -101,8 +183,13 @@ describe('lesson detail', () => {
     expect(screen.getAllByRole('image')).toHaveLength(2);
     const steps = [en['learn.pulse.step1'], en['learn.pulse.step2'], en['learn.pulse.step3']];
     expect(screen.getByRole('image', { name: steps.join('. ') })).toBeOnTheScreen();
-    const wave = [en['learn.pulse.beatMark'], en['learn.pulse.gapMark']];
-    expect(screen.getByRole('image', { name: new RegExp(wave.join('\. ')) })).toBeOnTheScreen();
+    const wave = [
+      en['learn.pulse.beatMark'],
+      en['learn.pulse.gapMark'],
+      en['learn.pulse.darker'],
+      en['learn.pulse.lighter'],
+    ];
+    expect(screen.getByRole('image', { name: wave.join('. ') })).toBeOnTheScreen();
   });
 
   it('labels the rhythm diagram with both row names', () => {
@@ -111,11 +198,59 @@ describe('lesson detail', () => {
     expect(screen.getByRole('image', { name: label })).toBeOnTheScreen();
   });
 
-  it('keeps the other lessons on plain paragraphs without template parts', () => {
-    renderRouter(appDirectory, { initialUrl: '/learn/what-is-afib' });
-    expect(screen.getByText(en['learn.afib.p1'])).toBeOnTheScreen();
-    expect(screen.queryByText(en['learn.quickCheck'])).toBeNull();
-    expect(screen.queryByText(en['learn.takeawayLabel'])).toBeNull();
+  it('marks only the picked quick-check answer as checked', () => {
+    renderRouter(appDirectory, { initialUrl: '/learn/how-lumen-reads-your-pulse' });
+    const guess = () => screen.getByRole('radio', { name: en['learn.pulse.answerGuess'] });
+    const retake = () => screen.getByRole('radio', { name: en['learn.pulse.answerRetake'] });
+    expect(guess().props.accessibilityState).toMatchObject({ checked: false });
+    fireEvent.press(guess());
+    expect(guess().props.accessibilityState).toMatchObject({ checked: true });
+    expect(retake().props.accessibilityState).toMatchObject({ checked: false });
+    fireEvent.press(retake());
+    expect(guess().props.accessibilityState).toMatchObject({ checked: false });
+    expect(retake().props.accessibilityState).toMatchObject({ checked: true });
+  });
+
+  it.each(convertedLessons)(
+    'gives $slug numbered cards with verbatim paragraphs, a takeaway and a quick check',
+    ({ slug, headings, paragraphs, takeaway, correct, wrong }) => {
+      renderRouter(appDirectory, { initialUrl: `/learn/${slug}` });
+      for (const heading of headings) {
+        expect(screen.getByRole('header', { name: en[heading] })).toBeOnTheScreen();
+      }
+      for (const paragraph of paragraphs) {
+        expect(screen.getByText(en[paragraph])).toBeOnTheScreen();
+      }
+      expect(screen.getByText(en['learn.takeawayLabel'])).toBeOnTheScreen();
+      expect(screen.getByText(en[takeaway])).toBeOnTheScreen();
+      fireEvent.press(screen.getByRole('radio', { name: en[wrong] }));
+      expect(screen.getByText(en['learn.quizTryAgain'])).toBeOnTheScreen();
+      fireEvent.press(screen.getByRole('radio', { name: en[correct] }));
+      expect(screen.getByText(en['learn.quizCorrect'])).toBeOnTheScreen();
+    },
+  );
+
+  it('lists the stroke signs in BE FAST order, then the 911 line, then a takeaway that says call 911', () => {
+    renderRouter(appDirectory, { initialUrl: '/learn/stroke-warning-signs' });
+    const signs = ['balance', 'eyes', 'face', 'arm', 'speech', 'time'] as const;
+    const shown = screen.getAllByText(new RegExp('^[BEFAST], ')).map((node) => node.props.children);
+    expect(shown).toEqual(signs.map((sign) => en[`learn.stroke.${sign}`]));
+    expect(en['learn.stroke.takeaway']).toContain('call 911 right away');
+    expect(screen.getByText(en['learn.stroke.takeaway'])).toBeOnTheScreen();
+  });
+
+  it('offers no stroke quiz answer that suggests waiting', () => {
+    for (const key of ['answerTime', 'answerTemperature', 'answerTremor'] as const) {
+      expect(en[`learn.stroke.${key}`]).not.toMatch(new RegExp('wait|later|rest|see if|monitor', 'i'));
+    }
+  });
+
+  it('names the diabetes pattern as a pattern linked to diabetes, never a diagnosis', () => {
+    renderRouter(appDirectory, { initialUrl: '/learn/diabetes-and-your-pulse' });
+    expect(screen.getByRole('header', { name: en['learn.diabetes.h2'] })).toBeOnTheScreen();
+    expect(screen.getByText(en['learn.diabetes.takeaway'])).toBeOnTheScreen();
+    expect(screen.getByText(en['learn.diabetes.question'])).toBeOnTheScreen();
+    expect(en['learn.diabetes.question']).toContain('screening prototype');
   });
 });
 

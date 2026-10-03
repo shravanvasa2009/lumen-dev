@@ -89,4 +89,12 @@ final class CapturePlanTests: XCTestCase {
     XCTAssertEqual(lockWaitS(medianIntervalNs: 1e9 / 5), 2, accuracy: 1e-12)
     XCTAssertEqual(lockWaitS(medianIntervalNs: 1e9), 3)
   }
+
+  // Spec §5.1 counts a fixed-focus lens like a focus lock (ADR 0058 item 5).
+  func testFocusHoldsWithALockOrWithNoAutofocus() {
+    XCTAssertTrue(focusHolds(lockedSupported: true, autoFocusSupported: true, continuousAutoFocusSupported: true))
+    XCTAssertTrue(focusHolds(lockedSupported: false, autoFocusSupported: false, continuousAutoFocusSupported: false))
+    XCTAssertFalse(focusHolds(lockedSupported: false, autoFocusSupported: true, continuousAutoFocusSupported: false))
+    XCTAssertFalse(focusHolds(lockedSupported: false, autoFocusSupported: false, continuousAutoFocusSupported: true))
+  }
 }

@@ -15,6 +15,8 @@ type ListRowProps = {
   chevron?: boolean;
   // A row that is announced but not available yet, e.g. "Coming soon"; it ignores presses.
   disabled?: boolean;
+  // Set on a row that opens and closes the content below it, so a screen reader hears its state.
+  expanded?: boolean;
   onPress?: () => void;
 };
 
@@ -26,6 +28,7 @@ export function ListRow({
   last = false,
   chevron = false,
   disabled = false,
+  expanded,
   onPress,
 }: ListRowProps) {
   const { colors, spacing, control } = useTheme();
@@ -33,7 +36,7 @@ export function ListRow({
     <Pressable
       accessibilityRole={onPress ? 'button' : undefined}
       disabled={!onPress || disabled}
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, expanded }}
       onPress={onPress}
       style={[
         styles.row,

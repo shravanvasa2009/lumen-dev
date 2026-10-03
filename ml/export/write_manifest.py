@@ -40,6 +40,10 @@ from eval.external_gate import RESULTS_FILE, read_results
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
 # Pass or fail facts eval.external writes next to the numbers (§11.5, ML-1, ML-4, ML-6). The role and the
 # family outcome are shown with them, so an ablation model's own floorMet is never read as a pass (ADR 0045).
+LEVEL_UNITS = {
+    "reading": "Reading level (90 s pseudo-readings, scored like the app scores a reading)",
+    "window": "Window level (the rhythm model's input windows)",
+}
 EXTERNAL_VERDICTS = ("role", "floorMet", "status", "passed", "outcome")
 # Where the spec states each family's "ship the network only if it beats the baselines" rule.
 SHIP_RULE_SECTION = {"sqi": "§11.1", "rhythm": "§11.3", "diabetes": "§11.4"}
@@ -223,6 +227,8 @@ def external_run(
             "role": report["role"],
             "floorMet": report["floorMet"],
             "outcome": block["outcome"],
+            # §11.5 asks for window- and reading-level results next to the subject-level ones.
+            "levels": {"reading": report["reading"], "window": report["window"]},
         }
     # §11.5: the numbers hold only at the threshold the run used; one chosen again after it would sit next
     # to results it was never tested at.
@@ -586,6 +592,20 @@ def reliability_svg(spec: ModelSpec, calibration: dict) -> str:
     )
 
 
+def _external_rows(report: dict, fields: list[str]) -> list[dict]:
+    intervals = report.get("ci95")
+    rows = []
+    for field in fields:
+        # Rhythm and diabetes give one interval per metric; ML-4's single interval is the gap's (ADR 0028).
+        if isinstance(intervals, dict):
+            interval = intervals.get(field)
+        else:
+            interval = intervals if field == "rhythmBiasGapPts" else None
+        low, high = interval or ("", "")
+        rows.append({"metric": field, "estimate": report[field], "95% CI low": low, "95% CI high": high})
+    return rows
+
+
 def _external_section(spec: ModelSpec, external: ExternalRun | None) -> str:
     header = f"Dataset: {spec.external_dataset}."
     if external is None:
@@ -597,29 +617,22 @@ def _external_section(spec: ModelSpec, external: ExternalRun | None) -> str:
             "finish, so no numbers were recorded. The data has been seen: a retry needs a new owner approval "
             "(ADR 0045)."
         )
-    intervals = report.get("ci95")
-    rows = []
-    for field in spec.external_fields:
-        if field in ("ci95", "ppvNpv", *EXTERNAL_VERDICTS):
-            continue
-        # Rhythm and diabetes give one interval per metric; ML-4's single interval is the gap's (ADR 0028).
-        if isinstance(intervals, dict):
-            interval = intervals.get(field)
-        else:
-            interval = intervals if field == "rhythmBiasGapPts" else None
-        low, high = interval or ("", "")
-        rows.append({"metric": field, "estimate": report[field], "95% CI low": low, "95% CI high": high})
+    fields = [field for field in spec.external_fields if field not in ("ci95", "ppvNpv", *EXTERNAL_VERDICTS)]
     parts = [
         f"{header} Run once, finished {run['finishedAt']}, under the owner's approval {run['approval']} at "
         f"commit {run['commit']}, at the threshold frozen in the manifest. Confidence intervals resample "
         "subjects.",
-        _table(rows),
+        _table(_external_rows(report, fields)),
     ]
     verdicts = [f"- {key}: {report[key]}" for key in EXTERNAL_VERDICTS if key in report]
     if verdicts:
         parts.append("\n".join(verdicts))
     if report.get("ppvNpv"):
         parts.append(f"PPV and NPV at the stated prevalences:\n\n{_table(report['ppvNpv'])}")
+    for level, unit in LEVEL_UNITS.items():
+        if level in report.get("levels", {}):
+            rows = _external_rows(report["levels"][level], ["units", "auroc", "sensitivity", "specificity"])
+            parts.append(f"{unit}, at the same threshold; intervals resample subjects:\n\n{_table(rows)}")
     return "\n\n".join(parts)
 
 

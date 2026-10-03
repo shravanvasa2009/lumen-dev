@@ -558,6 +558,8 @@ def _external_results(models_dir, runs_dir, status="done"):
             "model": f"{name}@1.0.0",
             "role": "shipped" if seed == 0 else "ablation",
             "subject": binary_report(_units(seed), frozen(name), RHYTHM_PREVALENCES),
+            "reading": binary_report(_units(seed + 10), frozen(name), ()),
+            "window": binary_report(_units(seed + 20), frozen(name), ()),
             "floorMet": True,
         }
         for seed, name in enumerate(("rhythm-lgbm", "rhythm-net"))
@@ -620,6 +622,14 @@ def test_a_finished_external_run_fills_the_entry_and_the_card(trained, monkeypat
     assert "- floorMet: True" in rhythm_card and "PPV and NPV" in rhythm_card
     assert "- outcome: shipped-meets-floor" in rhythm_card
     assert "- role: ablation" in _external_card(models_dir, entries["rhythm-net"])
+    reading = results["rhythm"]["models"]["rhythm-lgbm"]["reading"]
+    low, high = reading["ci95"]["sensitivity"]
+    levels = rhythm_card.split("Reading level", 1)[1]
+    assert (
+        f"| sensitivity | {reading['sensitivity']} | {low} | {high} |" in levels.split("Window level", 1)[0]
+    )
+    assert "| units | 40 |" in levels
+    assert "Reading level" not in _external_card(models_dir, entries["diabetes-net"])
     sqi_low, sqi_high = results["sqi"]["ci95"]
     assert f"| {sqi_low} | {sqi_high} |" in _external_card(models_dir, entries["sqi-finger"])
     assert "- passed: " in _external_card(models_dir, entries["sqi-finger"])
@@ -684,6 +694,17 @@ def test_refuses_external_numbers_at_another_threshold(trained, monkeypatch):
     results["diabetes"]["threshold"] = 0.31
     _write_external(models_dir, results)
     _assert_refused(models_dir, runs_dir, ProvenanceError, "tested at pattern threshold 0.31")
+
+
+def test_refuses_rhythm_numbers_at_another_threshold(trained, monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    models_dir, runs_dir = trained
+    results = _external_results(models_dir, runs_dir)
+    results["rhythm"]["models"]["rhythm-net"]["subject"]["threshold"] = 0.77
+    _write_external(models_dir, results)
+    _assert_refused(
+        models_dir, runs_dir, ProvenanceError, "rhythm-net@1.0.0 was externally tested at af threshold 0.77"
+    )
 
 
 def test_refuses_two_finished_runs_of_one_version(trained, monkeypatch):

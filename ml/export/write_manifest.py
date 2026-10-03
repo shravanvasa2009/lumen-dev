@@ -43,8 +43,8 @@ EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owne
 EXTERNAL_VERDICTS = ("role", "floorMet", "status", "passed", "outcome")
 # §11.5's other units of analysis, as eval.external's rhythm_part scores them: no abstain or rhythm-card rule.
 LEVEL_UNITS = {
-    "reading": "Reading level: each 90 s pseudo-reading's mean window P(AF) against τ",
-    "window": "Window level: each rhythm window's P(AF) against τ",
+    "reading": ("Reading level: each 90 s pseudo-reading's mean window P(AF) against τ", "pseudo-readings"),
+    "window": ("Window level: each rhythm window's P(AF) against τ", "windows"),
 }
 # Where the spec states each family's "ship the network only if it beats the baselines" rule.
 SHIP_RULE_SECTION = {"sqi": "§11.1", "rhythm": "§11.3", "diabetes": "§11.4"}
@@ -236,7 +236,8 @@ def external_run(
     # to results it was never tested at.
     (key,) = spec.threshold_keys
     frozen = (metrics or {}).get("threshold", {}).get(key)
-    for scored in (report, *report.get("levels", {}).values()):
+    answered = report.get("appReadings", {}).get("answered")
+    for scored in (report, *report.get("levels", {}).values(), *([answered] if answered else [])):
         if scored.get("threshold") != frozen:
             raise ProvenanceError(
                 f"{spec.file_stem} was externally tested at {key} threshold {scored.get('threshold')}, but "
@@ -632,11 +633,13 @@ def _external_section(spec: ModelSpec, external: ExternalRun | None) -> str:
         parts.append("\n".join(verdicts))
     if report.get("ppvNpv"):
         parts.append(f"PPV and NPV at the stated prevalences:\n\n{_table(report['ppvNpv'])}")
-    for level, unit in LEVEL_UNITS.items():
+    for level, (label, noun) in LEVEL_UNITS.items():
         if level in report.get("levels", {}):
             scored = report["levels"][level]
             rows = _external_rows(scored, ["auroc", "sensitivity", "specificity"])
-            parts.append(f"{unit} ({scored['units']} units; intervals resample subjects):\n\n{_table(rows)}")
+            parts.append(
+                f"{label} ({scored['units']} {noun}; intervals resample subjects):\n\n{_table(rows)}"
+            )
     if "appReadings" in report:
         parts.append(_app_readings_section(report["appReadings"]))
     return "\n\n".join(parts)
@@ -665,7 +668,8 @@ def _app_readings_section(app: dict) -> str:
         f"Scored like the app scores a reading (ADR 0041): {app['readings']} readings, "
         f"{app['readingsWithRhythmCard']} with a rhythm card. The answered readings' rows come from readings "
         f"that did not abstain; the last two rows score {subjects['subjects']} subjects by the 2-of-3 "
-        f"possible-AF rule. Intervals resample subjects.\n\n{_table(rows)}"
+        f"possible-AF rule. Not applied: the 60 clean-second floor and card confidence, which need camera "
+        f"coverage and SQI. Intervals resample subjects.\n\n{_table(rows)}"
     )
 
 

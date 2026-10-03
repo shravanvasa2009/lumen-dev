@@ -98,10 +98,11 @@ test('a file with a non-ASCII name is scanned too', (t) => {
   assert.match(run.stderr, /señal\.tsx: network call outside/);
 });
 
-test('the OpenFreeMap tile host is allowed for the /care-map route only', (t) => {
+test('the OpenFreeMap tile host is allowed in the Care map routes only', (t) => {
   const style = "const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';\n";
   const allowed = runOn(t, {
     'apps/mobile/app/care-map.tsx': style,
+    'apps/mobile/app/(tabs)/care.tsx': style,
     'apps/mobile/src/care/CareMapView.tsx': style,
   });
   assert.equal(allowed.status, 0, allowed.stderr);
@@ -113,22 +114,31 @@ test('the OpenFreeMap tile host is allowed for the /care-map route only', (t) =>
   ]) {
     const run = runOn(t, { [file]: style });
     assert.equal(run.status, 1, file);
-    assert.match(run.stderr, /map tile host outside the \/care-map route/, file);
+    assert.match(run.stderr, /map tile host outside the Care map routes/, file);
   }
 });
 
-test('only the exact care-map route file is allowed, not look-alike paths', (t) => {
+test('only the exact Care map route files are allowed, not look-alike paths', (t) => {
   const style = "const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';\n";
-  for (const file of ['apps/mobile/app/care-map.tsx.ts', 'apps/mobile/app/care-map.tsx/x.ts']) {
+  const lookAlikes = [
+    'apps/mobile/app/care-map.tsx.ts',
+    'apps/mobile/app/care-map.tsx/x.ts',
+    'apps/mobile/app/(tabs)/care-other.tsx',
+    'apps/mobile/app/care.tsx',
+    'apps/mobile/app/(tabs)/care.tsx.ts',
+    'apps/mobile/app/(tabs)/care.tsx/x.ts',
+  ];
+  for (const file of lookAlikes) {
     const run = runOn(t, { [file]: style });
     assert.equal(run.status, 1, file);
     assert.match(run.stderr, /map tile host outside/, file);
   }
 });
 
-test('the map library and care code may be imported only inside the care-map paths', (t) => {
+test('the map library and care code may be imported only inside the Care map paths', (t) => {
   const allowed = runOn(t, {
     'apps/mobile/app/care-map.tsx': "import { CareMapScreen } from '@/care/CareMapScreen';\n",
+    'apps/mobile/app/(tabs)/care.tsx': "import { CareMapScreen } from '@/care/CareMapScreen';\n",
     'apps/mobile/src/care/CareMapView.tsx': "import { Map } from '@maplibre/maplibre-react-native';\n",
     'apps/mobile/src/care/CareMapScreen.tsx': "import { CareMapView } from './CareMapView';\n",
   });
@@ -142,6 +152,8 @@ test('the map library and care code may be imported only inside the care-map pat
     'apps/mobile/app/care.tsx': "export { x } from '@/care/clinics';\n",
     'apps/mobile/app/open-map.tsx': "import CareMap from './care-map';\n",
     'apps/mobile/app/open-map-ext.tsx': "import CareMap from './care-map.tsx';\n",
+    'apps/mobile/app/(tabs)/care-other.tsx': "import { CareMapScreen } from '@/care/CareMapScreen';\n",
+    'apps/mobile/app/(tabs)/other.tsx': "import Care from './care';\n",
     'apps/mobile/src/results/Template.tsx': 'const care = await import(`@/care/x`);\n',
   };
   for (const [file, contents] of Object.entries(forms)) {

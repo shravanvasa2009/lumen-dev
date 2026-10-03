@@ -2,6 +2,7 @@ import i18next from 'i18next';
 
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { loadScheduleRecord } from '@/notifications/record';
+import { followUpAnsweredAt } from '@/profile/followUp';
 import { lockTextLines } from '@/settings/lockText';
 import { listReadings } from '@/store/readings';
 import type { Appearance } from '@/theme/preferences';
@@ -66,8 +67,8 @@ export async function publishWidgets(preferences: WidgetPreferences, now = Date.
   const snapshot = widgetSnapshot({
     readings: await listReadings(),
     nextConfirmationAt: nextConfirmationAt(now),
-    // No follow-up answer is stored yet (ADR 0005), so a doctor status holds until a regular Full Check.
-    followUpAnsweredAt: null,
+    // Only "Yes, I saw a doctor" gives a time, and only one after the flagged reading clears it (ADR 0005).
+    followUpAnsweredAt: await followUpAnsweredAt(),
     hideValues: preferences.hideWidgetValues,
     theme: preferences.appearance,
     now,

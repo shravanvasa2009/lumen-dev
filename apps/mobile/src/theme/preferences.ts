@@ -32,9 +32,14 @@ export function currentPreferences(): Preferences {
 export function setPreference<Key extends keyof Preferences>(key: Key, value: Preferences[Key]) {
   current = { ...current, [key]: value };
   listeners.forEach((listener) => listener());
-  // The widget snapshot carries both (Appendix B). A failed write is not caught here: React Native reports
-  // the unhandled rejection, and the widget keeps its previous snapshot.
-  if (key === 'hideWidgetValues' || key === 'appearance') void publishWidgets(current);
+  // The widget snapshot carries both (Appendix B). A failed publish is reported, since release builds drop
+  // unhandled rejections; the widget keeps its previous snapshot.
+  if (key === 'hideWidgetValues' || key === 'appearance') {
+    publishWidgets(current).catch((error: unknown) => {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`Widget update failed: ${reason}`);
+    });
+  }
 }
 
 export function resetPreferences() {

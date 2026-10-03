@@ -6,6 +6,8 @@ import { memoryFiles, mockFileSystem } from '@/testing/memoryFiles';
 import { makeReading } from '@/testing/reading';
 import type { PlannedNotification } from '@/notifications/plan';
 import { saveScheduleRecord } from '@/notifications/record';
+import { type FollowUpAnswer, saveFollowUpAnswer } from '@/profile/followUp';
+import type { MeasureMode } from '@/measure/mode';
 import { saveReading } from '@/store/readings';
 import { setPreference } from '@/theme/preferences';
 
@@ -28,15 +30,21 @@ function publishedSnapshot(): WidgetSnapshot {
   return JSON.parse(calls[calls.length - 1]![0]) as WidgetSnapshot;
 }
 
-async function saveFullCheck(takenAt: number, hr: number) {
+async function saveCheck(
+  takenAt: number,
+  hr: number,
+  { flag = null, mode = 'full' }: { flag?: 'fastRegular' | null; mode?: MeasureMode } = {},
+) {
+  const { outcome } = makeReading(takenAt, hr, 40);
+  if (outcome.metrics.hr) outcome.metrics.hr.flag = flag;
   await saveReading({
     id: `reading-${takenAt}`,
     createdAt: takenAt,
-    mode: 'full',
+    mode,
     context: {
       captureFps: 60,
       tier: null,
-      mode: 'full',
+      mode,
       restTimerDone: true,
       recordedAt: null,
       motionSpans: [],
@@ -44,7 +52,7 @@ async function saveFullCheck(takenAt: number, hr: number) {
       sqi: null,
       validationRhythmLabel: null,
     },
-    results: makeReading(takenAt, hr, 40).outcome,
+    results: outcome,
     models: { rhythm: null, diabetes: null },
   });
 }
@@ -65,8 +73,8 @@ beforeEach(() => {
 
 describe('publishing the widgets', () => {
   it('publishes the newest saved reading with the given preferences', async () => {
-    await saveFullCheck(NOW - 2 * HOUR_MS, 70);
-    await saveFullCheck(NOW - HOUR_MS, 64);
+    await saveCheck(NOW - 2 * HOUR_MS, 70);
+    await saveCheck(NOW - HOUR_MS, 64);
     await publishWidgets({ appearance: 'dark', hideWidgetValues: false }, NOW);
     expect(publishedSnapshot()).toMatchObject({
       lastReadingAt: '2026-10-12T14:00:00Z',
@@ -90,11 +98,34 @@ describe('publishing the widgets', () => {
   });
 
   it('keeps the saved readings when a preference changes', async () => {
-    await saveFullCheck(NOW - HOUR_MS, 64);
+    await saveCheck(NOW - HOUR_MS, 64);
     setPreference('appearance', 'dark');
     await waitFor(() => expect(publishSnapshot()).toHaveBeenCalledTimes(1));
     expect(publishedSnapshot()).toMatchObject({ hrBpm: 64, theme: 'dark' });
     setPreference('appearance', 'system');
     await waitFor(() => expect(publishSnapshot()).toHaveBeenCalledTimes(2));
+  });
+
+  it.each<[FollowUpAnswer, string]>([
+    ['saw', 'regular'],
+    ['booked', 'see-doctor'],
+    ['notYet', 'see-doctor'],
+  ])('a "%s" follow-up answer after a doctor result publishes %s', async (answer, status) => {
+    await saveCheck(NOW - 3 * HOUR_MS, 150, { flag: 'fastRegular' });
+    await saveFollowUpAnswer(answer, NOW - 2 * HOUR_MS);
+    // A regular Quick Check never clears the doctor status by itself, so only the answer can.
+    await saveCheck(NOW - HOUR_MS, 64, { mode: 'quick' });
+    await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
+    expect(publishedSnapshot().status).toBe(status);
+  });
+
+  it('reports a failed publish after a preference change', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    publishSnapshot().mockRejectedValueOnce(new Error('widget store unavailable'));
+    setPreference('appearance', 'dark');
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('Widget update failed: widget store unavailable'));
+    setPreference('appearance', 'system');
+    await waitFor(() => expect(publishSnapshot()).toHaveBeenCalledTimes(2));
+    warn.mockRestore();
   });
 });

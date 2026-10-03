@@ -7,12 +7,12 @@ import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
 import { HeartRateChart } from '@/standing/HeartRateChart';
-import { formatClock } from '@/standing/protocol';
+import { formatClock, STEP_COUNT } from '@/standing/protocol';
 import { SafetyCard } from '@/standing/SafetyCard';
+import { useStandingLiveTimer } from '@/standing/useStandingLiveTimer';
 import { type StandingTestSource, useStandingTest } from '@/standing/useStandingTest';
 import { useTheme } from '@/theme';
 
-const STEP_COUNT = 5;
 const NO_VALUE = '—';
 
 function formatRise(rise: number | null): string {
@@ -35,6 +35,7 @@ export function StandingTestScreen({ source }: { source: StandingTestSource }) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   const { view, canRead, reading, readFailed, start, takeReading, stopForFaint } = useStandingTest(source);
+  useStandingLiveTimer(view);
 
   const stageNames = {
     lying: t('standing.stage.lying'),

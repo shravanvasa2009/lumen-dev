@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { keepDemoReading } from '@/demo/demoReadings';
 import { resyncNotifications } from '@/settings/applyPrefs';
 import { saveReading } from '@/store/readings';
+import { currentPreferences } from '@/theme/preferences';
+import { publishWidgets } from '@/widgets/publish';
 
 import { analyzeKeptCapture, type AnalysisRequest } from './analyzeKeptCapture';
 import { type AnalysisProgress, pendingProgress } from './analysisProgress';
@@ -38,6 +40,12 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
     if (capture.demo) return { readingId: keepDemoReading(analysed, mode), progress };
     await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
     resyncNotifications();
+    // Spec §9.6: the widgets show the new reading. The reading is already saved, so a failed widget write
+    // is reported and the result screen still opens; the widget keeps its previous snapshot.
+    publishWidgets(currentPreferences()).catch((error: unknown) => {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`Widget update failed: ${reason}`);
+    });
     return { readingId, progress };
   });
   outcome.catch(() => runs.delete(capture));

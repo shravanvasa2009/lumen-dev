@@ -95,9 +95,7 @@ function heldSeeDoctor(input: SnapshotInput): StoredReading | null {
   const answeredSince = input.followUpAnsweredAt !== null && input.followUpAnsweredAt > flagged.takenAt;
   const regularFullSince = input.readings.some(
     (reading) =>
-      reading.takenAt > flagged.takenAt &&
-      reading.mode === 'full' &&
-      statusOf(reading.outcome) === 'regular',
+      reading.takenAt > flagged.takenAt && reading.mode === 'full' && statusOf(reading.outcome) === 'regular',
   );
   return answeredSince || regularFullSince ? null : flagged;
 }

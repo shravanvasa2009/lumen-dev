@@ -64,6 +64,10 @@ struct WidgetLines {
   let streak: String?
   let checkNow: String
   let fullScan: String
+  // The Appendix B status ("regular", "check-again", "see-doctor", "inconclusive"); nil before the first reading.
+  let statusKey: String?
+  let checks: [String]
+  let diabetesTag: String?
 
   init(_ content: WidgetContent, at date: Date) {
     let snapshot = content.snapshot
@@ -89,6 +93,9 @@ struct WidgetLines {
       ? display.streak.replacingOccurrences(of: "{{days}}", with: String(snapshot.streakDays)) : nil
     checkNow = display.checkNow
     fullScan = display.fullScan
+    statusKey = snapshot.status
+    checks = display.checks ?? []
+    diabetesTag = display.diabetesTag
   }
 }
 
@@ -187,16 +194,18 @@ private struct EmptyWidget: View {
   }
 }
 
-private struct WidgetHeader: View {
-  let name: String
-  let colors: WidgetColors
+// The four checks in the order the app publishes their names (publish.ts): AFib, POTS, HRV, Diabetes. SF Symbols
+// available on iOS 16: https://developer.apple.com/sf-symbols/
+private let checkSymbols = ["waveform.path.ecg", "figure.stand", "chart.bar.fill", "drop.fill"]
+private let diabetesCheck = 3
 
-  var body: some View {
-    HStack(spacing: 6) {
-      LumenMark().frame(width: 16, height: 16)
-      Text(name).font(.caption.weight(.bold))
-    }
-    .foregroundColor(colors.accentFill)
+// The colors the app uses for each kind of result; mockup 32's dot is the up-to-date accent (as WidgetView.kt).
+private func statusColor(_ key: String?, _ colors: WidgetColors) -> Color? {
+  switch key {
+  case nil: return nil
+  case "regular": return colors.accent
+  case "see-doctor": return colors.criticalText
+  default: return colors.flag
   }
 }
 
@@ -204,74 +213,127 @@ private struct Pill: View {
   let label: String
   let fill: Color
   let content: Color
+  var outline: Color? = nil
 
   var body: some View {
     Text(label)
-      .font(.subheadline.weight(.medium))
+      .font(.subheadline.weight(.semibold))
       .foregroundColor(content)
       .lineLimit(1)
       .minimumScaleFactor(0.8)
       .frame(maxWidth: .infinity)
-      .padding(.vertical, 8)
+      .padding(.vertical, 10)
       .background(Capsule().fill(fill))
+      .overlay(Capsule().stroke(outline ?? .clear, lineWidth: 1))
   }
 }
 
-// Mockup 32: the status, how long ago, and "Check now". A small widget takes only one tap target, so the
-// whole widget opens the Quick Check.
+// Four-checks proposal A (owner, 2026-10-03): each check's icon and name, and the Diabetes evidence tag while it is
+// Experimental. Home screen only; the lock-screen families never name a condition (WID-2).
+private struct CheckRow: View {
+  let lines: WidgetLines
+  let colors: WidgetColors
+
+  var body: some View {
+    HStack(spacing: 8) {
+      ForEach(Array(zip(lines.checks, checkSymbols).enumerated()), id: \.offset) { index, check in
+        HStack(spacing: 3) {
+          Image(systemName: check.1).font(.system(size: 10, weight: .semibold)).foregroundColor(colors.accent)
+          Text(check.0).font(.caption.weight(.medium)).foregroundColor(colors.text).lineLimit(1)
+          if index == diabetesCheck, let tag = lines.diabetesTag {
+            Text(tag)
+              .font(.system(size: 9))
+              .foregroundColor(colors.badgeExperimentalFg)
+              .padding(.horizontal, 5)
+              .padding(.vertical, 1)
+              .background(Capsule().fill(colors.badgeExperimentalBg))
+          }
+        }
+      }
+    }
+    .minimumScaleFactor(0.8)
+  }
+}
+
+// Mockup 32 small: the mark (with the four check icons beside it) and the status dot, the status, how long ago, and
+// "Check now". A small widget takes only one tap target, so the whole widget opens the Quick Check.
 private struct SmallWidget: View {
   let lines: WidgetLines
   let colors: WidgetColors
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      WidgetHeader(name: lines.name, colors: colors)
+      HStack(alignment: .top, spacing: 6) {
+        LumenMark().frame(width: 14, height: 26).foregroundColor(colors.accent)
+        if !lines.checks.isEmpty {
+          HStack(spacing: 3) {
+            ForEach(checkSymbols, id: \.self) { symbol in
+              Image(systemName: symbol).font(.system(size: 8, weight: .semibold)).foregroundColor(colors.textDim)
+            }
+          }
+          .padding(.top, 8)
+        }
+        Spacer(minLength: 0)
+        if let dot = statusColor(lines.statusKey, colors) {
+          Circle().fill(dot).frame(width: 10, height: 10).padding(.top, 4)
+        }
+      }
+      Spacer(minLength: 0)
       if let status = lines.status {
         Text(status).font(.headline).foregroundColor(colors.text).lineLimit(2)
       }
       if let lastCheck = lines.lastCheck {
-        Text(lastCheck).font(.caption).foregroundColor(colors.textDim)
+        Text(lastCheck).font(.caption).foregroundColor(colors.textDim).lineLimit(1)
       }
-      Spacer(minLength: 0)
-      Pill(label: lines.checkNow, fill: colors.accentFill, content: colors.onAccentFill)
+      Pill(label: lines.checkNow, fill: colors.accentFill, content: colors.onAccentFill).padding(.top, 6)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
   }
 }
 
-// Mockup 32: heart rate (unless hidden), status and streak, with "Check now" and "Full Scan" as their own links.
+// Mockup 32 medium: the mark and name top left, the heart rate (unless hidden) and "status · streak" bottom left,
+// "Check now" over an outlined "Full Scan" on the right, then the four checks under a line.
 private struct MediumWidget: View {
   let lines: WidgetLines
   let colors: WidgetColors
 
   var body: some View {
-    HStack(spacing: 12) {
-      VStack(alignment: .leading, spacing: 4) {
-        WidgetHeader(name: lines.name, colors: colors)
-        Spacer(minLength: 0)
-        if let bpm = lines.bpm {
-          HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(bpm).font(.system(size: 34, weight: .bold)).foregroundColor(colors.text)
-            Text(lines.bpmUnit).font(.subheadline).foregroundColor(colors.textDim)
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 2) {
+          HStack(spacing: 8) {
+            LumenMark().frame(width: 12, height: 22).foregroundColor(colors.accent)
+            Text(lines.name).font(.callout).foregroundColor(colors.textDim).lineLimit(1)
+          }
+          Spacer(minLength: 0)
+          if let bpm = lines.bpm {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+              Text(bpm).font(.system(size: 34, weight: .bold)).foregroundColor(colors.text)
+              Text(lines.bpmUnit).font(.callout.weight(.semibold)).foregroundColor(colors.text)
+            }
+          }
+          // Mockup 32 reads "Up to date · streak 5 days"; the separator is the one lockscreen.json uses.
+          Text([lines.status, lines.streak].compactMap { $0 }.joined(separator: " · "))
+            .font(.subheadline)
+            .foregroundColor(colors.textDim)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(spacing: 8) {
+          Link(destination: LumenLink.check) {
+            Pill(label: lines.checkNow, fill: colors.accentFill, content: colors.onAccentFill)
+          }
+          Link(destination: LumenLink.fullScan) {
+            Pill(label: lines.fullScan, fill: colors.surface, content: colors.text, outline: colors.line2)
           }
         }
-        // Mockup 32 reads "Up to date · streak 5 days"; the separator is the one lockscreen.json uses.
-        Text([lines.status, lines.streak].compactMap { $0 }.joined(separator: " · "))
-          .font(.subheadline)
-          .foregroundColor(colors.textDim)
-          .lineLimit(1)
-          .minimumScaleFactor(0.8)
+        .frame(maxWidth: 148)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      VStack(spacing: 8) {
-        Link(destination: LumenLink.check) {
-          Pill(label: lines.checkNow, fill: colors.accentFill, content: colors.onAccentFill)
-        }
-        Link(destination: LumenLink.fullScan) {
-          Pill(label: lines.fullScan, fill: colors.line, content: colors.text)
-        }
+      if !lines.checks.isEmpty {
+        Rectangle().fill(colors.line).frame(height: 1)
+        CheckRow(lines: lines, colors: colors)
       }
-      .frame(maxWidth: 140)
     }
   }
 }

@@ -35,10 +35,17 @@ struct WidgetSnapshot: Decodable {
 struct WidgetPalette: Decodable {
   let surface: String
   let line: String
+  let line2: String
   let text: String
   let textDim: String
+  let accent: String
   let accentFill: String
   let onAccentFill: String
+  let flag: String
+  let criticalText: String
+  // Optional so a snapshot from an app version before the four-checks row still decodes.
+  let badgeExperimentalFg: String?
+  let badgeExperimentalBg: String?
 }
 
 struct WidgetPalettes: Decodable {
@@ -60,6 +67,10 @@ struct WidgetDisplay: Decodable {
   let checkNow: String
   let fullScan: String
   let palette: WidgetPalettes
+  // The four checks the medium widget lists (owner, 2026-10-03, proposal A) and the Diabetes evidence tag while
+  // that label is Experimental (EVID-1). Absent from older app versions.
+  let checks: [String]?
+  let diabetesTag: String?
 }
 
 enum WidgetPayloadError: LocalizedError {

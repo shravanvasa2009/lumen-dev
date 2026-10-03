@@ -16,20 +16,33 @@ let appDisplayName = WidgetStore.appBundle().object(forInfoDictionaryKey: "CFBun
 struct WidgetColors {
   let surface: Color
   let line: Color
+  let line2: Color
   let text: Color
   let textDim: Color
+  let accent: Color
   let accentFill: Color
   let onAccentFill: Color
+  let flag: Color
+  let criticalText: Color
+  let badgeExperimentalFg: Color
+  let badgeExperimentalBg: Color
 
   init(_ palettes: WidgetPalettes, theme: String, scheme: ColorScheme) {
     let dark = theme == "dark" || (theme != "light" && scheme == .dark)
     let palette = dark ? palettes.dark : palettes.light
     surface = Color(hex: palette.surface)
     line = Color(hex: palette.line)
+    line2 = Color(hex: palette.line2)
     text = Color(hex: palette.text)
     textDim = Color(hex: palette.textDim)
+    accent = Color(hex: palette.accent)
     accentFill = Color(hex: palette.accentFill)
     onAccentFill = Color(hex: palette.onAccentFill)
+    flag = Color(hex: palette.flag)
+    criticalText = Color(hex: palette.criticalText)
+    // An older app publishes no badge colors; the tag it can't send isn't drawn then anyway.
+    badgeExperimentalFg = Color(hex: palette.badgeExperimentalFg ?? palette.textDim)
+    badgeExperimentalBg = Color(hex: palette.badgeExperimentalBg ?? palette.line)
   }
 }
 

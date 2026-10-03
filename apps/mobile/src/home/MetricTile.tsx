@@ -9,7 +9,7 @@ import { useTheme } from '@/theme';
 import { Sparkline } from './Sparkline';
 
 // The 360 x 640 layout trades sparkline height for room (mockup 10-home.small).
-const SPARKLINE_COMPACT = 22;
+const SPARKLINE_COMPACT = 18;
 
 type MetricTileProps = { label: string; unit: string; points: readonly number[]; compact?: boolean };
 

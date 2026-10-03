@@ -37,9 +37,9 @@ export default function HomeScreen() {
 // compact check cards and tiles, so the four checks and the tiles fit without scrolling.
 const COMPACT_HEIGHT = 700;
 const MEASURE_SIZE = 320;
-const COMPACT_GREETING_LINE = 34;
+const COMPACT_GREETING = { size: 26, lineHeight: 30 };
 // The link's 44 dp target tucks under the Measure halo, which is transparent at its edge.
-const COMPACT_LINK_OVERLAP = 24;
+const COMPACT_LINK_OVERLAP = 32;
 const MEASURE_SIZE_COMPACT = 164;
 
 function Home() {
@@ -63,12 +63,12 @@ function Home() {
   });
 
   return (
-    <Screen headerless>
+    <Screen headerless tight={compact}>
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
           gap: compact ? spacing.xs : spacing.md,
-          paddingBottom: spacing.lg,
+          paddingBottom: compact ? 0 : spacing.lg,
         }}
       >
         <View>
@@ -76,12 +76,16 @@ function Home() {
           <AppText
             variant="display"
             accessibilityRole="header"
-            style={compact ? { lineHeight: COMPACT_GREETING_LINE } : undefined}
+            style={
+              compact
+                ? { fontSize: COMPACT_GREETING.size, lineHeight: COMPACT_GREETING.lineHeight }
+                : undefined
+            }
           >
             {greetings[dayPeriod(now.getHours())]}
           </AppText>
         </View>
-        <View style={{ alignItems: 'center', marginTop: compact ? -spacing.sm : 0 }}>
+        <View style={{ alignItems: 'center', marginTop: compact ? -spacing.lg : 0 }}>
           <MeasureButton
             label={t('home.measure')}
             modeLabel={modeLabel}

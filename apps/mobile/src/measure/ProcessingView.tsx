@@ -2,15 +2,8 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, View } from 'react-native';
 
-import {
-  CHECK_ICON,
-  CHECK_IDS,
-  CHECK_PILL,
-  type CheckId,
-  checkCell,
-  type LockWhy,
-  type PlanTier,
-} from '@/checks/checkPlan';
+import { CHECK_ICON, CHECK_IDS, CHECK_PILL, type CheckId, checkCell, planPhone } from '@/checks/checkPlan';
+import { lockText } from '@/checks/lockText';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -42,27 +35,25 @@ const STEP_OF_CHECK = { afib: 'rhythm', hrv: 'breathing', diabetes: null, pots: 
 function CheckSummary({ mode, progress }: { mode: MeasureMode; progress: AnalysisProgress }) {
   const { t } = useTranslation();
   const { colors, spacing } = useTheme();
-  const tier: PlanTier = useStoredRating()?.tier ?? 'unrated';
+  const phone = planPhone(useStoredRating());
   const names: Record<CheckId, string> = {
     afib: t('checks.afib.name'),
     hrv: t('checks.hrv.name'),
     diabetes: t('checks.diabetes.name'),
     pots: t('checks.pots.name'),
   };
-  const reasons: Record<LockWhy, string> = {
-    fps60: t('mode.locked60fps'),
-    basic: t('mode.lockedBasic'),
-    unsupported: t('mode.lockedUnsupported'),
-  };
   const stateOf = (check: CheckId): string => {
-    const cell = checkCell(mode, check, tier);
-    if (cell.state === 'locked') return reasons[cell.why];
-    if (cell.state === 'notInScan') return check === 'pots' ? t('checks.from.standing') : t('checks.state.off');
+    const cell = checkCell(mode, check, phone);
+    if (cell.state === 'locked') return lockText(t, cell.why);
+    if (cell.state === 'notInScan')
+      return check === 'pots' ? t('checks.from.standing') : t('checks.state.off');
     if (progress.outputs !== null && check !== 'pots') {
       return progress.outputs[check] ? t('checks.state.ready') : t('checks.state.notRun');
     }
     const step = STEP_OF_CHECK[check];
-    return step !== null && progress.steps[step] !== 'pending' ? t('checks.state.working') : t('checks.state.waiting');
+    return step !== null && progress.steps[step] !== 'pending'
+      ? t('checks.state.working')
+      : t('checks.state.waiting');
   };
   return (
     <Card>
@@ -107,9 +98,9 @@ export function ProcessingView({ analysis, mode }: { analysis: AnalysisState; mo
     breathing: t('processing.breathing'),
     baseline: t('processing.baseline'),
   };
-  const tier: PlanTier = useStoredRating()?.tier ?? 'unrated';
+  const phone = planPhone(useStoredRating());
   const tagFor = (check: CheckId, icon: IconName, name: string) =>
-    checkCell(mode, check, tier).state === 'runs' ? { icon, name } : undefined;
+    checkCell(mode, check, phone).state === 'runs' ? { icon, name } : undefined;
   const tags: Partial<Record<(typeof STEP_ORDER)[number], { icon: IconName; name: string }>> = {
     rhythm: tagFor('afib', 'pulse', t('checks.afib.name')),
     breathing: tagFor('hrv', 'trends', t('checks.hrv.name')),

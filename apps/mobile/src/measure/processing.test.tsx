@@ -15,7 +15,7 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 let mockAnalysis: AnalysisState;
 jest.mock('./useReadingAnalysis', () => ({ useReadingAnalysis: () => mockAnalysis }));
 
-let mockRating: { tier: string } | null = null;
+let mockRating: { tier: string; ambient: boolean; fpsLevel: number } | null = null;
 jest.mock('@/store/useStoredRating', () => ({ useStoredRating: () => mockRating }));
 
 const midway: AnalysisProgress = {
@@ -131,7 +131,7 @@ describe('processing screen', () => {
   });
 
   it('shows HRV and Diabetes locked, not ready, on a Basic phone', () => {
-    mockRating = { tier: 'basic' };
+    mockRating = { tier: 'basic', ambient: false, fpsLevel: 30 };
     const finished: AnalysisProgress = {
       steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
       beats: 104,

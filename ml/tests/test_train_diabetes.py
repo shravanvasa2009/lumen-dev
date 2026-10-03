@@ -9,7 +9,8 @@ from export import to_onnx, verify_onnx, write_manifest
 from export.provenance import ALL_BAD_BASIS, load_metrics
 from export.specs import SPECS
 from export.to_onnx import source_model
-from nets.diabetes_net import BEAT, HR_SUMMARY_NAMES, SHAPE_FEATURE_NAMES
+from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES
+from nets.diabetes_net import BEAT, HR_SUMMARY_NAMES
 from tests.training_artifacts import fit_baseline, save_trained
 from train import diabetes, rhythm
 from train.diabetes import (

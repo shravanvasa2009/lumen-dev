@@ -4,13 +4,13 @@ import math
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.dummy import DummyClassifier
 
 from export.provenance import ProvenanceError
 from export.specs import SPECS
 from lumen_dsp.config import DSP_CONFIG
-from lumen_dsp.rhythm_rule import RHYTHM_CLASSES, RULE_METHOD
-from lumen_dsp.shape_features import shape_features
-from nets.diabetes_net import HR_SUMMARY_NAMES, SHAPE_FEATURE_NAMES
+from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES, shape_features
+from nets.diabetes_net import HR_SUMMARY_NAMES
 from tests.test_train_diabetes import write_inputs
 from tests.test_vitaldb_pleth import write_vital
 from tests.training_artifacts import fit_baseline, save_trained
@@ -23,32 +23,26 @@ from train.diabetes_features import (
     coverage,
     extract_case_features,
     feature_table,
-    load_rhythm_rule,
+    ShippedRhythm,
+    load_rhythm_model,
     segment_features,
     segment_table,
 )
 from train.vitaldb_pleth import PLETH_RATE_HZ, SEGMENT_S, extract_case
 
 
-def constant_rule(sinus: float, af: float, other: float) -> dict:
-    # A rule whose window probabilities are softmax(intercepts) whatever the features, so a test picks the
-    # reading's rhythm label.
-    return {
-        "method": RULE_METHOD,
-        "features": ["normalizedRmssd"],
-        "featureIndices": [0],
-        "mean": [0.0],
-        "scale": [1.0],
-        "classes": list(RHYTHM_CLASSES),
-        "coefficients": [[0.0], [0.0], [0.0]],
-        "intercepts": [sinus, af, other],
-    }
+def constant_model(sinus: int, af: int, other: int, sha: str) -> ShippedRhythm:
+    # A real classifier whose window probabilities are the class shares it was fitted on, whatever the
+    # features, so a test picks the reading's rhythm label.
+    labels = [0] * sinus + [1] * af + [2] * other
+    classifier = DummyClassifier(strategy="prior").fit(np.zeros((len(labels), 8)), labels)
+    return ShippedRhythm(classifier, sha, DSP_CONFIG["rules"]["uncertainBelowTopProb"])
 
 
-SINUS = constant_rule(5.0, 0.0, 0.0)
-AF = constant_rule(0.0, 5.0, 0.0)
-# softmax of equal logits is 1/3 per class, under the 0.6 abstain line.
-UNDECIDED = constant_rule(0.0, 0.0, 0.0)
+SINUS = constant_model(90, 5, 5, "sinus-model")
+AF = constant_model(5, 90, 5, "af-model")
+# 1/3 per class, under the 0.6 abstain line.
+UNDECIDED = constant_model(1, 1, 1, "undecided-model")
 
 
 def finger_pulse_codes(seconds: float, bpm: float = 70.0, seed: int = 1) -> np.ndarray:
@@ -91,9 +85,9 @@ def test_a_clean_sinus_segment_gives_an_averaged_beat_its_shape_features_and_hrv
     assert row["sdnnMs"] is None
 
 
-@pytest.mark.parametrize(("rule", "label"), [(AF, "af"), (UNDECIDED, ABSTAINED)])
-def test_hrv_is_null_unless_the_reading_is_confidently_sinus(rule, label):
-    row, _ = segment_features(bands_of(finger_pulse_codes(SEGMENT_S)), rule)
+@pytest.mark.parametrize(("model", "label"), [(AF, "af"), (UNDECIDED, ABSTAINED)])
+def test_hrv_is_null_unless_the_reading_is_confidently_sinus(model, label):
+    row, _ = segment_features(bands_of(finger_pulse_codes(SEGMENT_S)), model)
     assert row["rhythm"] == label
     assert row["hrBpm"] == pytest.approx(70, abs=2)
     assert [row["rmssdMs"], row["sdnnMs"], row["pnn50"]] == [None, None, None]
@@ -119,16 +113,18 @@ def test_noise_without_a_pulse_gives_no_averaged_beat():
     assert row["rhythm"] == NO_READING
 
 
-def test_the_rhythm_rule_comes_from_the_trained_rhythm_logistic_files(tmp_path):
-    spec = SPECS["rhythm-logistic"]
-    save_trained(spec, tmp_path, fit_baseline(spec), {"featureOrder": ["f"] * 8})
-    rule = load_rhythm_rule(tmp_path)
-    assert rule["method"] == RULE_METHOD and rule["classes"] == list(spec.labels)
+def test_the_rhythm_model_is_the_shipped_one_from_its_trained_files(tmp_path):
+    spec = SPECS["rhythm-lgbm"]
+    assert spec.ships
+    metrics = save_trained(spec, tmp_path, fit_baseline(spec))
+    model = load_rhythm_model(tmp_path)
+    assert model.source_sha256 == metrics["sourceSha256"]
+    assert model.abstain_below == spec.abstain_below == DSP_CONFIG["rules"]["uncertainBelowTopProb"]
     (tmp_path / spec.source_file).write_bytes(b"not the trained pickle")
     with pytest.raises(ProvenanceError, match="sha256"):
-        load_rhythm_rule(tmp_path)
+        load_rhythm_model(tmp_path)
     with pytest.raises(FileNotFoundError):
-        load_rhythm_rule(tmp_path / "empty")
+        load_rhythm_model(tmp_path / "empty")
 
 
 def pleth_case(tmp_path, caseid: int, codes: np.ndarray | None):
@@ -146,21 +142,22 @@ def test_case_features_are_cached_and_resumed(tmp_path, monkeypatch):
     assert shapes["beat"].shape == (2, DSP_CONFIG["dsp14"]["beatSamples"])
     assert shapes["waves"].shape == (2, 5) and shapes["waves"][0, 0] >= 0
 
-    def fail(bands, rule):
+    def fail(bands, model):
         raise AssertionError("a cached case was recomputed")
 
     monkeypatch.setattr(diabetes_features, "segment_features", fail)
     assert extract_case_features(7, 70, tmp_path / "pleth", tmp_path / "features", SINUS) == status
 
 
-def test_case_features_are_redone_when_settings_or_the_rhythm_rule_change(tmp_path, monkeypatch):
+def test_case_features_are_redone_when_settings_or_the_rhythm_model_change(tmp_path, monkeypatch):
     pleth_case(tmp_path, 7, finger_pulse_codes(SEGMENT_S + 5))
     first = extract_case_features(7, 70, tmp_path / "pleth", tmp_path / "features", SINUS)
     assert first["segments"][0]["rhythm"] == "sinus"
     redone = extract_case_features(7, 70, tmp_path / "pleth", tmp_path / "features", AF)
-    assert redone["segments"][0]["rhythm"] == "af" and redone["params"]["rhythmRule"] == AF
+    assert redone["segments"][0]["rhythm"] == "af"
+    assert redone["params"]["rhythmModel"]["sourceSha256"] == "af-model"
     params = diabetes_features.cache_params(AF) | {"features": ["another.module"]}
-    monkeypatch.setattr(diabetes_features, "cache_params", lambda rule: params)
+    monkeypatch.setattr(diabetes_features, "cache_params", lambda model: params)
     again = extract_case_features(7, 70, tmp_path / "pleth", tmp_path / "features", AF)
     assert again["params"]["features"] == ["another.module"]
 

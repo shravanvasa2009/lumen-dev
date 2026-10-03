@@ -21,7 +21,8 @@ from datasets.splits import ensure_not_external
 from datasets.vitaldb_cases import DEV_SPLIT_FILE, SPLIT_FILE, ensure_dev_only, load_dev_split, load_split
 from export.provenance import sha256_of
 from export.specs import RUNS_DIR, SPECS, ModelSpec
-from nets.diabetes_net import BEAT, HR_SUMMARY, HR_SUMMARY_NAMES, SHAPE_FEATURE_NAMES, DiabetesNet
+from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES
+from nets.diabetes_net import BEAT, HR_SUMMARY, HR_SUMMARY_NAMES, DiabetesNet
 from train.rhythm import (
     LGBM_EARLY_STOPPING_ROUNDS,
     LGBM_PARAMS,

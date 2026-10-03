@@ -6,6 +6,7 @@ from collections import Counter
 from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -15,17 +16,16 @@ from datasets.vitaldb_cases import ensure_dev_only, load_dev_split, load_split
 from eval.external_mimic import rhythm_inputs
 from export.provenance import load_metrics
 from export.specs import RUNS_DIR, SPECS
-from export.to_onnx import source_model
-from export.write_manifest import logistic_rule
+from export.to_onnx import Classifier, source_model
 from lumen_dsp.beat_classes import classify_beats
 from lumen_dsp.beats import detect_beats
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.metrics import MeasuredBeat, hr_summary, measure_beats
 from lumen_dsp.rhythm import has_enough_usable_intervals, rhythm_feature_vector, rhythm_windows
-from lumen_dsp.rhythm_rule import RHYTHM_CLASSES, rule_probs
 from lumen_dsp.shape import PulseShape, ensemble_beat
-from lumen_dsp.shape_features import shape_features
-from nets.diabetes_net import HR_SUMMARY_NAMES, SHAPE_FEATURE_NAMES
+from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES, shape_features
+from nets.diabetes_net import HR_SUMMARY_NAMES
+from nets.rhythm_net import LABELS
 from train import vitaldb_pleth
 from train.diabetes import TABLE_COLUMNS
 from train.vitaldb_pleth import PLETH_RATE_HZ, SEGMENT_S, SegmentBands, write_atomic
@@ -33,10 +33,11 @@ from train.vitaldb_pleth import PLETH_RATE_HZ, SEGMENT_S, SegmentBands, write_at
 BEAT_CLASSES = ("normal", "atypical", "artifact", "not-a-beat")
 WAVES = ("a", "b", "c", "d", "e")
 NO_WAVE = -1
-# The app opens DSP-12 with the reading's rhythm label and runs §11.10's logistic rule when the rhythm
-# model is not loaded; ADR 0047's addendum takes that rule's label for training (order
-# D.C_TASK-hr-summary-call-on-vitaldb).
-RHYTHM_RULE = SPECS["rhythm-logistic"]
+# The app opens DSP-12 with the reading's rhythm label, which comes from the shipped rhythm model
+# (ADR 0031: rhythm-lgbm, export/specs.py), so training takes that model's label (ADR 0047 addendum).
+RHYTHM_MODEL = SPECS["rhythm-lgbm"]
+# The app reads probabilities in this order (packages/core reading-result.ts RHYTHM_CLASSES).
+RHYTHM_CLASSES = ("sinus", "af", "other")
 # Reading labels besides RHYTHM_CLASSES: no rhythm card at all, a card that abstains, or no reading at
 # all because the app's analysis refuses the segment.
 NO_RHYTHM_CARD = "none"
@@ -50,9 +51,15 @@ CLEAN_S = float(SEGMENT_S)
 log = logging.getLogger("train.diabetes_features")
 
 
-def cache_params(rule: dict) -> dict:
+class ShippedRhythm(NamedTuple):
+    classifier: Classifier
+    source_sha256: str  # of the trained pickle, from its metrics file
+    abstain_below: float  # the manifest entry's abstainBelow
+
+
+def cache_params(rhythm_model: ShippedRhythm) -> dict:
     # Read at call time, so a case cached with other DSP settings, segment rules, feature definitions, or
-    # another rhythm rule is detected and redone.
+    # another rhythm model is detected and redone.
     rules = DSP_CONFIG["rules"]
     return {
         "pleth": vitaldb_pleth.selection_params(),
@@ -63,49 +70,71 @@ def cache_params(rule: dict) -> dict:
         "rules": {key: rules[key] for key in ("rhythmMinCleanS", "uncertainBelowTopProb")},
         "diabetesFeatures": DSP_CONFIG["diabetesFeatures"],
         "features": [shape_features.__module__, hr_summary.__module__],
-        "rhythmRule": rule,
+        "rhythmModel": {
+            "name": RHYTHM_MODEL.name,
+            "sourceSha256": rhythm_model.source_sha256,
+            "abstainBelow": rhythm_model.abstain_below,
+        },
     }
 
 
-def load_rhythm_rule(runs_dir: Path) -> dict:
-    # The rule block write_manifest puts in the rhythm-logistic manifest entry, from the same trained
-    # pickle; source_model refuses a pickle that is not the one its metrics file describes.
-    metrics = load_metrics(RHYTHM_RULE, runs_dir)
+def load_rhythm_model(runs_dir: Path) -> ShippedRhythm:
+    # As the release loads it: source_model refuses a pickle that is not the one its metrics describe.
+    if not RHYTHM_MODEL.ships:
+        raise ValueError(f"{RHYTHM_MODEL.name} is no longer the shipped rhythm model; update RHYTHM_MODEL")
+    metrics = load_metrics(RHYTHM_MODEL, runs_dir)
     if metrics is None:
-        raise FileNotFoundError(f"{runs_dir / RHYTHM_RULE.file_stem}.json not found; train rhythm-logistic")
-    pipeline = source_model(RHYTHM_RULE, runs_dir, None)
-    return logistic_rule(pipeline, metrics["featureOrder"], RHYTHM_RULE.labels)
+        raise FileNotFoundError(f"{runs_dir / RHYTHM_MODEL.file_stem}.json not found; train rhythm-lgbm")
+    # buildReadingResult abstains at rules.uncertainBelowTopProb, and core's model loader refuses an entry
+    # asking for another line, so the two must agree here too.
+    abstain_below = RHYTHM_MODEL.abstain_below
+    if abstain_below != DSP_CONFIG["rules"]["uncertainBelowTopProb"]:
+        raise ValueError(f"abstainBelow {abstain_below} is not rules.uncertainBelowTopProb")
+    classifier = source_model(RHYTHM_MODEL, runs_dir, None)
+    return ShippedRhythm(classifier, metrics["sourceSha256"], abstain_below)
 
 
-def reading_rhythm(segments: Sequence[Sequence[MeasuredBeat]], rule: dict, clean_s: float) -> str:
+def window_probs(rhythm_model: ShippedRhythm, features: list[list[float]]) -> np.ndarray:
+    # The app feeds the ONNX model float32 features (export/verify_onnx checks the pickle against it on
+    # float32 inputs); columns are put in RHYTHM_CLASSES order by label name.
+    probs = rhythm_model.classifier.predict_proba(np.asarray(features, dtype=np.float32))
+    return probs[:, [LABELS.index(name) for name in RHYTHM_CLASSES]]
+
+
+def reading_rhythm(
+    segments: Sequence[Sequence[MeasuredBeat]], rhythm_model: ShippedRhythm, clean_s: float
+) -> str:
     # packages/core reading-result.ts: rhythmCall gives a card only with a DSP-15 window, rhythmMinCleanS
     # clean seconds, and DSP-15's usable intervals; its class is the highest mean window probability (the
     # first in sinus, af, other order on a tie); DSP-12 runs only when that class is sinus at or above
-    # uncertainBelowTopProb (confidentSinus). The window probabilities are logisticRhythmOutputs'.
+    # abstainBelow (confidentSinus). τ_AF only decides the irregular flag, not this label.
     intervals_s, spans_artifact, atypical, _ = rhythm_inputs(segments)
     # packages/core rhythmWindows throws on an interval that is not positive (two detected peaks at the
     # same or reversed times), which ends analyzeReading, so the app would save no reading.
     if any(not interval_s > 0 for interval_s in intervals_s):
         return NO_READING
     windows = rhythm_windows(intervals_s, spans_artifact, atypical) if atypical else []
-    rules = DSP_CONFIG["rules"]
-    if not windows or clean_s < rules["rhythmMinCleanS"] or not has_enough_usable_intervals(spans_artifact):
+    if (
+        not windows
+        or clean_s < DSP_CONFIG["rules"]["rhythmMinCleanS"]
+        or not has_enough_usable_intervals(spans_artifact)
+    ):
         return NO_RHYTHM_CARD
-    feature_count = RHYTHM_RULE.inputs["features"][1]
-    probs = rule_probs(rule, [rhythm_feature_vector(window) for window in windows], feature_count)
-    # Summed in window order and then divided, as rhythmCall does.
+    # The app passes rhythmFeatureVector as computed, atypical fraction included; the model was trained
+    # with that feature held constant and never splits on it.
+    probs = window_probs(rhythm_model, [rhythm_feature_vector(window) for window in windows])
+    # Summed in window order in double precision and then divided, as rhythmCall does.
     mean = []
-    for name in RHYTHM_CLASSES:
-        column = rule["classes"].index(name)
+    for column in range(len(RHYTHM_CLASSES)):
         total = 0.0
         for row in probs:
-            total += row[column]
+            total += float(row[column])
         mean.append(total / len(windows))
     top = mean.index(max(mean))
-    return RHYTHM_CLASSES[top] if mean[top] >= rules["uncertainBelowTopProb"] else ABSTAINED
+    return RHYTHM_CLASSES[top] if mean[top] >= rhythm_model.abstain_below else ABSTAINED
 
 
-def segment_features(bands: SegmentBands, rule: dict) -> tuple[dict, PulseShape | None]:
+def segment_features(bands: SegmentBands, rhythm_model: ShippedRhythm) -> tuple[dict, PulseShape | None]:
     detected = detect_beats(bands.model, bands.shape)
     # VitalDB carries no acquisition evidence (SQI, motion, exposure spans), so DSP-9's interval rule is
     # the only artifact source (Track C's reply in order D.C_TASK-dsp7-8-python).
@@ -129,7 +158,7 @@ def segment_features(bands: SegmentBands, rule: dict) -> tuple[dict, PulseShape 
         [beat.amplitude for beat in detected],
         bands.shape,
     )
-    rhythm = reading_rhythm([measured], rule, CLEAN_S)
+    rhythm = reading_rhythm([measured], rhythm_model, CLEAN_S)
     # One 90 s segment is one Full Scan; PLETH's 500 Hz passes DSP-12's 60 fps gate (Track C, order
     # D.C_TASK-hr-summary-call-on-vitaldb).
     summary = hr_summary([measured], rhythm, PLETH_RATE_HZ, CLEAN_S)
@@ -161,9 +190,11 @@ def _wave_indices(pulse_shape: PulseShape) -> list[int]:
     return [NO_WAVE if index is None else index for index in labels]
 
 
-def extract_case_features(caseid: int, subjectid: int, pleth_dir: Path, out_dir: Path, rule: dict) -> dict:
+def extract_case_features(
+    caseid: int, subjectid: int, pleth_dir: Path, out_dir: Path, rhythm_model: ShippedRhythm
+) -> dict:
     status_path = _status_path(caseid, out_dir)
-    params = cache_params(rule)
+    params = cache_params(rhythm_model)
     if status_path.exists():
         cached = json.loads(status_path.read_text(encoding="utf-8"))
         if cached["params"] == params:
@@ -178,7 +209,7 @@ def extract_case_features(caseid: int, subjectid: int, pleth_dir: Path, out_dir:
     rows = []
     shapes: list[tuple[int, PulseShape]] = []
     for index, bands in enumerate(segments):
-        row, pulse_shape = segment_features(bands, rule)
+        row, pulse_shape = segment_features(bands, rhythm_model)
         rows.append({"segment": index, **row})
         if pulse_shape is not None:
             shapes.append((index, pulse_shape))
@@ -297,10 +328,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m train.diabetes_features")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument(
-        "--rhythm-runs-dir", type=Path, default=RUNS_DIR, help="holds the trained rhythm-logistic rule"
+        "--rhythm-runs-dir", type=Path, default=RUNS_DIR, help="holds the trained shipped rhythm model"
     )
     args = parser.parse_args(argv)
-    rule = load_rhythm_rule(args.rhythm_runs_dir)
+    rhythm_model = load_rhythm_model(args.rhythm_runs_dir)
 
     cases = vitaldb_pleth.dev_cases()[["caseid", "subjectid", "preop_dm"]]
     ensure_dev_only(cases["subjectid"], load_split())
@@ -313,7 +344,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         futures = [
             pool.submit(
-                extract_case_features, int(case.caseid), int(case.subjectid), pleth_dir, out_dir, rule
+                extract_case_features, int(case.caseid), int(case.subjectid), pleth_dir, out_dir, rhythm_model
             )
             for case in cases.itertuples(index=False)
         ]

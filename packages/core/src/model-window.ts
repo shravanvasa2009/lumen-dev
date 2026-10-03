@@ -1,7 +1,7 @@
 import { DSP_CONFIG } from './config';
 import { sqiModelInput } from './finger-signal';
 import type { RejectedSpan } from './live-session';
-import { resampleCubic } from './resample';
+import { isFrameGap, resampleCubic } from './resample';
 
 // Shared by LiveSession and analyzeReading, so the live screen and the saved result reject the same flat
 // windows (ADR 0023, ADR 0057).
@@ -109,7 +109,7 @@ export class FlatRuns {
   private red = 0;
 
   add(tS: number, red: number, covered: boolean): void {
-    const continues = covered && this.runStartS !== null && tS - this.lastS <= DSP_CONFIG.dsp2.maxGapS;
+    const continues = covered && this.runStartS !== null && !isFrameGap(this.lastS, tS);
     if (continues && red === this.red) {
       this.lastS = tS;
       return;

@@ -156,11 +156,10 @@ class Session implements LiveSession {
     this.startNs ??= sample.tNs;
     // DSP-1: seconds from the first frame, subtracted in ns first.
     const tS = (sample.tNs - this.startNs) / 1e9;
-    const gap = this.count > 0 && tS - this.latestS > DSP_CONFIG.dsp2.maxGapS;
     const gapSpan = this.count > 0 ? frameGapSpan(this.latestS, tS) : null;
     if (gapSpan) this.gaps.push(gapSpan);
     // The causal filter assumes evenly spaced frames; after a DSP-2 gap it restarts in steady state.
-    if (this.filter === null || gap) this.filter = new CausalFilter(this.sos);
+    if (this.filter === null || gapSpan) this.filter = new CausalFilter(this.sos);
     // A broken frame (NaN, or a channel outside 0..1) would leave the filter state NaN or ringing. It is a
     // coverage frame (DSP-4), so the waveform holds its last value and the filter restarts after it.
     const valid = validChannels(sample);

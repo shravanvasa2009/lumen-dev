@@ -7,7 +7,6 @@ export const STEADY_SECONDS_NEEDED = 30;
 // therefore reads full only 1 s later; the 30 s rule itself is unchanged.
 export const HOLD_PAST_NEEDED_S = 1;
 
-/** The steady seconds to show: whole seconds, held at one short of the target until the extra hold is in. */
 export function practiceSteadySeconds(cleanSeconds: number | null): number {
   const clean = cleanSeconds ?? 0;
   if (clean >= STEADY_SECONDS_NEEDED + HOLD_PAST_NEEDED_S) return STEADY_SECONDS_NEEDED;

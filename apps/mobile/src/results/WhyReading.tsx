@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
-import { ListRow } from '@/components/ListRow';
+import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { useTheme } from '@/theme';
 
@@ -29,7 +29,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
   const { t } = useTranslation();
   const router = useRouter();
   const [poincareOpen, setPoincareOpen] = useState(false);
-  const { colors, radius, spacing } = useTheme();
+  const { colors, radius, spacing, control } = useTheme();
   const { rhythm } = reading.scan.metrics;
   if (!rhythm || reading.intervalsMs.length === 0) {
     return (
@@ -69,8 +69,14 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
           {why.title}
         </AppText>
 
+        <SectionCaption text={t('why.plainWords')} />
         <Card>
-          <AppText>{why.explain}</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <Icon name="pulse" size={control.chevronSize} color={seriesColor} />
+            <AppText variant="headline" style={{ flex: 1 }}>
+              {why.explain}
+            </AppText>
+          </View>
           <View
             style={{
               flexDirection: 'row',
@@ -107,6 +113,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
           </View>
         </Card>
 
+        <SectionCaption text={t('why.seeBeats')} />
         <SectionCaption text={t('why.intervals')} />
         <Card>
           <Tachogram intervalsMs={reading.intervalsMs} color={seriesColor} />
@@ -120,16 +127,37 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
           <AppText>{t('why.extraBeatsNote', { rate: reading.scan.experimental.extraBeatsPerMin })}</AppText>
         </Card>
 
-        <ListRow
-          title={t('why.learnMore')}
-          chevron
-          expanded={poincareOpen}
-          onPress={() => setPoincareOpen(!poincareOpen)}
-        />
-        {poincareOpen ? (
-          <>
-            <SectionCaption text={t('why.poincare')} />
-            <View style={{ flexDirection: 'row', gap: spacing.md }}>
+        <Card flush>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('why.learnMore')}
+            accessibilityState={{ expanded: poincareOpen }}
+            onPress={() => setPoincareOpen(!poincareOpen)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: spacing.md,
+              minHeight: control.minTarget,
+              paddingHorizontal: spacing.lg,
+            }}
+          >
+            <AppText variant="headline" importantForAccessibility="no">
+              {t('why.poincare')}
+            </AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+              <AppText tone="textDim" importantForAccessibility="no">
+                {t('why.learnMore')}
+              </AppText>
+              <View style={{ transform: [{ rotate: poincareOpen ? '-90deg' : '90deg' }] }}>
+                <Icon name="chevron" size={control.chevronSize} color={colors.text} />
+              </View>
+            </View>
+          </Pressable>
+          {poincareOpen ? (
+            <View
+              style={{ flexDirection: 'row', gap: spacing.md, padding: spacing.lg, paddingTop: spacing.xs }}
+            >
               <View style={{ flex: 1, gap: spacing.sm }}>
                 <PoincarePlot
                   intervalsMs={reading.intervalsMs}
@@ -153,8 +181,12 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
                 </AppText>
               </View>
             </View>
-          </>
-        ) : null}
+          ) : null}
+        </Card>
+
+        <AppText variant="caption" tone="textFaint" style={{ textAlign: 'center' }}>
+          {t('prototype.banner')}
+        </AppText>
       </ScrollView>
     </Screen>
   );

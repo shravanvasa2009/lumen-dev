@@ -74,16 +74,24 @@ describe.each([
     expect(at(en['results.accuracy'])).toBeLessThan(at(en['why.intervals']));
   });
 
-  it('folds the Poincare plot under a collapsed Learn more button that expands and collapses', () => {
+  it('folds the Poincare plots under a collapsed Learn more button that expands and collapses', () => {
     openWhy('demo-flag');
     const toggle = () => screen.getByRole('button', { name: en['why.learnMore'] });
     expect(toggle().props.accessibilityState).toMatchObject({ expanded: false });
-    expect(screen.queryByText(en['why.poincare'])).toBeNull();
+    expect(screen.getByText(en['why.poincare'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['why.yours'])).toBeNull();
     fireEvent.press(toggle());
     expect(toggle().props.accessibilityState).toMatchObject({ expanded: true });
-    expect(screen.getByText(en['why.poincare'])).toBeOnTheScreen();
+    expect(screen.getByText(en['why.yours'])).toBeOnTheScreen();
     fireEvent.press(toggle());
-    expect(screen.queryByText(en['why.poincare'])).toBeNull();
+    expect(screen.queryByText(en['why.yours'])).toBeNull();
+  });
+
+  it('captions the sentence and the chart and ends with the not-a-diagnosis line', () => {
+    openWhy('demo-flag');
+    expect(screen.getByText(en['why.plainWords'])).toBeOnTheScreen();
+    expect(screen.getByText(en['why.seeBeats'])).toBeOnTheScreen();
+    expect(screen.getByText(en['prototype.banner'])).toBeOnTheScreen();
   });
 
   it('does not invent an irregularity score', () => {

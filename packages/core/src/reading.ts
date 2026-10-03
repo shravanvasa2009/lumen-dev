@@ -223,52 +223,60 @@ function beatSegments(timebase: Timebase, samples: Sample[], spans: RejectedSpan
   });
 }
 
-// Intervals per segment, between consecutive beats that are not "not a beat"; none crosses a segment gap.
+// One segment's beats that are not "not a beat". Two beats at the same or reversed times are one beat found
+// twice, not a cardiac cycle (as heartRate): the later-listed one is left out, and the interval that
+// bridges it (ending at the next kept beat) is not used, so no interval is ≤ 0 (ADR 0068).
+function distinctBeats(segment: MeasuredBeat[]): { beat: MeasuredBeat; bridgesDuplicate: boolean }[] {
+  const kept: { beat: MeasuredBeat; bridgesDuplicate: boolean }[] = [];
+  let bridgesDuplicate = false;
+  for (const beat of segment) {
+    if (beat.beatClass === 'not-a-beat') continue;
+    const previous = kept[kept.length - 1];
+    if (previous && !(beat.peakS > previous.beat.peakS)) {
+      bridgesDuplicate = true;
+      continue;
+    }
+    kept.push({ beat, bridgesDuplicate });
+    bridgesDuplicate = false;
+  }
+  return kept;
+}
+
+// Intervals per segment, between consecutive distinct beats; none crosses a segment gap.
 function intervalsBySegment(segments: MeasuredBeat[][], startNs: number): BeatInterval[][] {
   const toNs = (peakS: number) => startNs + Math.round(peakS * 1e9);
   return segments.map((segment) => {
-    const beats = segment.filter((beat) => beat.beatClass !== 'not-a-beat');
-    return beats.slice(1).map((to, i) => {
-      const from = beats[i]!;
+    const beats = distinctBeats(segment);
+    return beats.slice(1).map(({ beat: to, bridgesDuplicate }, i) => {
+      const from = beats[i]!.beat;
       const tNs = toNs(to.peakS);
       return {
         tNs,
         ibiMs: (tNs - toNs(from.peakS)) / 1e6,
-        accepted: from.beatClass !== 'artifact' && to.beatClass !== 'artifact',
-        nn: from.beatClass === 'normal' && to.beatClass === 'normal' && !to.longPause,
+        accepted: !bridgesDuplicate && from.beatClass !== 'artifact' && to.beatClass !== 'artifact',
+        nn: !bridgesDuplicate && from.beatClass === 'normal' && to.beatClass === 'normal' && !to.longPause,
       };
     });
   });
 }
 
-// DSP-15 inputs over the whole reading: an interval spans an artifact when either beat is one, or when it
-// crosses a segment gap.
+// DSP-15 inputs over the whole reading: an interval spans an artifact when either beat is one, when it
+// bridges a beat found twice, or when it crosses a segment gap (segments do not overlap in time).
 function rhythmInputs(segments: MeasuredBeat[][]) {
   const beats: MeasuredBeat[] = [];
   const spansArtifact: boolean[] = [];
   const intervalsS: number[] = [];
-  // Two beats at the same or reversed times are one beat found twice, not a cardiac cycle (as heartRate).
-  // The later-listed one is left out, and the interval that bridges it spans an artifact, so DSP-15 never
-  // sees a non-positive interval or counts one as usable (ADR 0068).
-  let bridgesDuplicate = false;
   for (const segment of segments) {
-    segment
-      .filter((beat) => beat.beatClass !== 'not-a-beat')
-      .forEach((beat, i) => {
-        const previous = beats[beats.length - 1];
-        if (previous && !(beat.peakS > previous.peakS)) {
-          bridgesDuplicate = true;
-          return;
-        }
-        if (previous) {
-          intervalsS.push(beat.peakS - previous.peakS);
-          spansArtifact.push(
-            i === 0 || bridgesDuplicate || previous.beatClass === 'artifact' || beat.beatClass === 'artifact',
-          );
-        }
-        bridgesDuplicate = false;
-        beats.push(beat);
-      });
+    distinctBeats(segment).forEach(({ beat, bridgesDuplicate }, i) => {
+      const previous = beats[beats.length - 1];
+      if (previous) {
+        intervalsS.push(beat.peakS - previous.peakS);
+        spansArtifact.push(
+          i === 0 || bridgesDuplicate || previous.beatClass === 'artifact' || beat.beatClass === 'artifact',
+        );
+      }
+      beats.push(beat);
+    });
   }
   return { intervalsS, spansArtifact, atypicalBeats: beats.map((beat) => beat.beatClass === 'atypical') };
 }

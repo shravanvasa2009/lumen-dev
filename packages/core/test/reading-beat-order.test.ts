@@ -61,5 +61,10 @@ describe('analyzeReading with two beats at the same or reversed times (DSP-15 in
       for (const intervalS of window.intervalsS) expect(intervalS).toBeGreaterThan(0);
     // The bridging interval is no longer usable, so 39 remain: below DSP-15's 40.
     expect(analysis.enoughRhythmIntervals).toBe(false);
+    // The same rule for the reading's intervals (replay output, the fast-regular rule's normalized RMSSD).
+    const accepted = analysis.intervals.filter((interval) => interval.accepted);
+    expect(accepted).toHaveLength(39);
+    for (const interval of accepted) expect(interval.ibiMs).toBeGreaterThan(0);
+    for (const interval of analysis.intervals) expect(interval.ibiMs).toBeGreaterThan(0);
   });
 });

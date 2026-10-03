@@ -57,9 +57,11 @@ function windowFrames(
 // covered or not, number fewer than minEffectiveFps × the window, or when any span of live.subWindowS that
 // starts on one of them and ends inside the window holds fewer than live.minSubWindowFps × that span, ends
 // included as in the window count. The second test stops a fast burst paying for a sparse rest of the
-// window while letting random drops at a mean above 24 fps through.
+// window while letting random drops at a mean above 24 fps through. It counts distinct sample times
+// (implementation note 3): from the span's first frame, a frame counts only live.minSampleSpacingS or more
+// after the last counted one, so back-to-back frames cannot stand in for samples of the pulse.
 function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): boolean {
-  const { minEffectiveFps, minSubWindowFps, subWindowS } = DSP_CONFIG.live;
+  const { minEffectiveFps, minSubWindowFps, subWindowS, minSampleSpacingS } = DSP_CONFIG.live;
   const startS = endS - DSP_CONFIG.dsp3.modelWindowS;
   let first = count;
   let frames = 0;
@@ -68,10 +70,17 @@ function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): 
     if (tS[i]! <= endS) frames++;
   }
   if (frames < minEffectiveFps * DSP_CONFIG.dsp3.modelWindowS) return true;
-  const spanFrames = Math.ceil(minSubWindowFps * subWindowS);
+  const spanSamples = Math.ceil(minSubWindowFps * subWindowS);
   for (let i = first; i < count && tS[i]! + subWindowS <= endS; i++) {
-    const last = i + spanFrames - 1;
-    if (last >= count || !(tS[last]! <= tS[i]! + subWindowS)) return true;
+    const spanEndS = tS[i]! + subWindowS;
+    let countedS = tS[i]!;
+    let samples = 1;
+    for (let j = i + 1; j < count && tS[j]! <= spanEndS && samples < spanSamples; j++) {
+      if (tS[j]! - countedS < minSampleSpacingS) continue;
+      countedS = tS[j]!;
+      samples++;
+    }
+    if (samples < spanSamples) return true;
   }
   return false;
 }

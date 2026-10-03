@@ -405,12 +405,28 @@ describe('analyzeReading acquisition spans', () => {
     expect(analysis.cleanSeconds).toBeLessThan(analysis.durationS - 4);
   });
 
-  it('ADR 0077: exactly 24 fps, and 30 fps dropping 1 frame in 5, pass the 1 s floor', () => {
+  // Red team PR #171 round 5: runs of frames 4.2 ms apart filled the 1 s count while the pulse was
+  // sampled about 7 times a second.
+  it('ADR 0077: 1 s of it counts only frames at least live.minSampleSpacingS after the last counted', () => {
+    expect(DSP_CONFIG.live.minSampleSpacingS).toBe(1 / 48);
+    // 240 fps except 10.5–11.5 s, where each 32 steps keep a run of 4: 30 frames, 7.5 distinct times.
+    const reading = syntheticReading({
+      fps: 240,
+      seconds: 30,
+      dropped: (tS) => tS > 10.5 && tS < 11.5 && Math.round(tS * 240) % 32 >= 4,
+    });
+    const analysis = analyze(reading, { captureFps: 240 });
+    expect(cleanSeconds(10.5, 11.5, analysis.rejectedSpans)).toBe(0);
+    expect(analysis.cleanSeconds).toBeLessThan(analysis.durationS - 4);
+  });
+
+  it('ADR 0077: exactly 24 fps, 240 fps, and 30 fps dropping 1 frame in 5, pass the 1 s floor', () => {
     expect(DSP_CONFIG.live.minEffectiveFps).toBe(24);
     expect(DSP_CONFIG.live.minSubWindowFps).toBe(16);
     expect(DSP_CONFIG.live.subWindowS).toBe(1);
     for (const reading of [
       syntheticReading({ fps: 24, seconds: 40 }),
+      syntheticReading({ fps: 240, seconds: 40 }),
       syntheticReading({ fps: 30, seconds: 40, dropped: (tS) => Math.round(tS * 30) % 5 === 4 }),
     ])
       expect(spansOf(analyze(reading), 'quality')).toEqual([]);

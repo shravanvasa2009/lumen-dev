@@ -1,4 +1,5 @@
 import { DSP_CONFIG } from './config';
+import { median } from './median';
 
 // Every sum runs in index order so ml/lumen_dsp/rhythm.py, which uses the same loops, gives the same
 // doubles (§10.2 parity).
@@ -164,4 +165,52 @@ export function rhythmFeatureVector(window: RhythmWindow): number[] {
 /** DSP-15: a reading needs at least 40 intervals that do not span an artifact. */
 export function hasEnoughUsableIntervals(spansArtifact: boolean[]): boolean {
   return spansArtifact.filter((spans) => !spans).length >= DSP_CONFIG.dsp15.minUsableIntervals;
+}
+
+// Population form; 0 when either side is constant, so the vector stays finite (ADR 0024).
+function pearson(a: number[], b: number[]): number {
+  const sdA = populationSd(a);
+  const sdB = populationSd(b);
+  if (sdA === 0 || sdB === 0) return 0;
+  const meanA = sum(a) / a.length;
+  const meanB = sum(b) / b.length;
+  const covariance = sum(a.map((value, i) => (value - meanA) * (b[i]! - meanB))) / a.length;
+  return covariance / (sdA * sdB);
+}
+
+function rootMeanSquare(values: number[]): number {
+  return Math.sqrt(sum(values.map((value) => value * value)) / values.length);
+}
+
+/** DSP-15 rhythm v2 (ADR 0079): 7 irregularity features that isolated premature beats barely move. */
+export function rhythmV2Features(window: RhythmWindow): number[] {
+  const { prematureShortFactor, pauseLongFactor, trimmedDiffShare, largeChangeFactor } = DSP_CONFIG.dsp15;
+  const x = window.intervalsS;
+  const differences = x.slice(1).map((value, i) => value - x[i]!);
+  const absolute = differences.map(Math.abs);
+  const med = median(x);
+
+  // A premature beat, then its compensatory pause: the short–long pair isolated ectopy makes and AF lacks.
+  const pairs: number[] = [];
+  for (let i = 0; i < differences.length; i++)
+    if (x[i]! < prematureShortFactor * med && x[i + 1]! > pauseLongFactor * med) pairs.push(i);
+  const kept = new Array<boolean>(x.length).fill(true);
+  for (const i of pairs) for (let j = Math.max(0, i - 1); j < Math.min(x.length, i + 3); j++) kept[j] = false;
+  // Only intervals still adjacent in the window are differenced, never across a dropped stretch.
+  const keptDifferences = differences.filter((_, i) => kept[i] && kept[i + 1]);
+  const pairsRemoved = keptDifferences.length < 2 ? 0 : rootMeanSquare(keptDifferences) / med;
+
+  const trimmed = [...absolute]
+    .sort((a, b) => a - b)
+    .slice(0, Math.max(1, Math.floor(trimmedDiffShare * absolute.length)));
+  const large = absolute.filter((value) => value > largeChangeFactor * med).length;
+  return [
+    median(absolute) / med,
+    pairs.length / differences.length,
+    pairsRemoved,
+    rootMeanSquare(trimmed) / med,
+    large / absolute.length,
+    pearson(x.slice(0, -1), x.slice(1)),
+    pearson(x.slice(0, -2), x.slice(2)),
+  ];
 }

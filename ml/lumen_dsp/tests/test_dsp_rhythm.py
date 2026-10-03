@@ -3,7 +3,12 @@ import math
 import pytest
 
 from lumen_dsp.config import DSP_CONFIG
-from lumen_dsp.rhythm import has_enough_usable_intervals, rhythm_feature_vector, rhythm_windows
+from lumen_dsp.rhythm import (
+    has_enough_usable_intervals,
+    rhythm_feature_vector,
+    rhythm_v2_features,
+    rhythm_windows,
+)
 
 WINDOW_INTERVALS = DSP_CONFIG["dsp15"]["windowIntervals"]
 
@@ -170,3 +175,34 @@ def test_rejects_an_interval_that_is_not_finite_and_positive(bad_interval, spans
     spans[5] = spans_artifact
     with pytest.raises(ValueError, match="finite"):
         rhythm_windows(intervals_s, spans, clean(33))
+
+
+def test_v2_features_alternating_known_answers():
+    features = rhythm_v2_features(only_window([0.8 if k % 2 == 0 else 1.0 for k in range(32)]))
+    assert features == pytest.approx([0.2 / 0.9, 0, 0.2 / 0.9, 0.2 / 0.9, 1, -1, 1], abs=1e-12)
+
+
+def test_v2_features_ignore_one_premature_beat_and_its_pause():
+    intervals = [0.8] * 32
+    intervals[10], intervals[11] = 0.5, 1.1
+    features = rhythm_v2_features(only_window(intervals))
+    assert [features[0], features[2], features[3]] == [0, 0, 0]
+    assert features[1] == pytest.approx(1 / 31, abs=1e-15)
+    assert features[4] == pytest.approx(3 / 31, abs=1e-15)
+
+
+def test_v2_features_of_constant_intervals_are_all_zero():
+    assert rhythm_v2_features(only_window([0.8] * 32)) == [0.0] * 7
+
+
+def test_v2_bigeminy_falls_back_to_zero_after_removing_every_interval():
+    features = rhythm_v2_features(only_window([0.55 if k % 2 == 0 else 1.15 for k in range(32)]))
+    assert features[1] == pytest.approx(16 / 31, abs=1e-15)
+    assert features[2] == 0.0
+
+
+def test_v2_pair_at_the_window_edge_drops_only_intervals_inside_it():
+    intervals = [0.8] * 32
+    intervals[0], intervals[1], intervals[20] = 0.5, 1.1, 0.9
+    expected = math.sqrt(2 * 0.01 / 28) / 0.8
+    assert rhythm_v2_features(only_window(intervals))[2] == pytest.approx(expected, abs=1e-12)

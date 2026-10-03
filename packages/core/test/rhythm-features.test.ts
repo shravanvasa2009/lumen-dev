@@ -2,6 +2,7 @@ import {
   DSP_CONFIG,
   hasEnoughUsableIntervals,
   rhythmFeatureVector,
+  rhythmV2Features,
   rhythmWindows,
   type RhythmWindow,
 } from '../src';
@@ -212,5 +213,48 @@ describe('DSP-15 Rhythm-Net feature vector (§11.3)', () => {
   it('keeps a defined sample entropy as it is', () => {
     const window = onlyWindow(uniforms(32, 29).map((u) => 0.4 + 0.8 * u));
     expect(rhythmFeatureVector(window)[6]).toBe(window.sampleEntropy);
+  });
+});
+
+describe('DSP-15 rhythm v2 features (ADR 0079), known answers', () => {
+  it('alternating 0.8 / 1.0 s: every difference is large, lag-1 is −1 and lag-2 is +1', () => {
+    const features = rhythmV2Features(onlyWindow(Array.from({ length: 32 }, (_, k) => (k % 2 ? 1 : 0.8))));
+    // median 0.9 s; neither 0.8 < 0.765 nor 1.0 after it, so there are no premature–pause pairs.
+    const expected = [0.2 / 0.9, 0, 0.2 / 0.9, 0.2 / 0.9, 1, -1, 1];
+    features.forEach((value, k) => expect(value).toBeCloseTo(expected[k]!, 12));
+  });
+
+  it('one premature beat and its compensatory pause leave the trimmed spread at 0', () => {
+    const intervalsS = new Array<number>(32).fill(0.8);
+    intervalsS[10] = 0.5;
+    intervalsS[11] = 1.1;
+    const [medianAbsDiff, pairShare, pairsRemoved, trimmed, largeShare] = rhythmV2Features(
+      onlyWindow(intervalsS),
+    );
+    expect([medianAbsDiff, pairsRemoved, trimmed]).toEqual([0, 0, 0]);
+    expect(pairShare).toBeCloseTo(1 / 31, 15);
+    expect(largeShare).toBeCloseTo(3 / 31, 15);
+  });
+
+  it('constant intervals give exactly 0 for all 7, including both autocorrelations', () => {
+    expect(rhythmV2Features(onlyWindow(new Array<number>(32).fill(0.8)))).toEqual([0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it('bigeminy removes every interval, so the pair-removed RMSSD falls back to 0', () => {
+    const features = rhythmV2Features(
+      onlyWindow(Array.from({ length: 32 }, (_, k) => (k % 2 ? 1.15 : 0.55))),
+    );
+    expect(features[1]).toBeCloseTo(16 / 31, 15);
+    expect(features[2]).toBe(0);
+  });
+
+  it('a premature beat at the window edge drops only the intervals inside the window', () => {
+    const intervalsS = new Array<number>(32).fill(0.8);
+    intervalsS[0] = 0.5;
+    intervalsS[1] = 1.1;
+    intervalsS[20] = 0.9;
+    // Intervals 0..2 are dropped; the kept differences are 0 except 0.1 s into and out of interval 20.
+    const pairsRemoved = rhythmV2Features(onlyWindow(intervalsS))[2]!;
+    expect(pairsRemoved).toBeCloseTo(Math.sqrt((2 * 0.01) / 28) / 0.8, 12);
   });
 });

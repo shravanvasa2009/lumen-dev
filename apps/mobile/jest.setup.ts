@@ -4,6 +4,7 @@ import 'expo-notifications';
 import NotificationsEmitterModule from 'expo-notifications/build/NotificationsEmitterModule';
 import { PermissionStatus } from 'expo';
 import NotificationPermissionsModule from 'expo-notifications/build/NotificationPermissionsModule';
+import NotificationScheduler from 'expo-notifications/build/NotificationScheduler';
 
 // jest-expo's stand-in for the native notifications emitter answers the synchronous
 // getLastNotificationResponse with a Promise, which expo-notifications then fails to read. A launch
@@ -18,3 +19,7 @@ NotificationPermissionsModule.getPermissionsAsync = async () => ({
   canAskAgain: true,
   expires: 'never',
 });
+
+// Likewise the scheduler stand-in answers the list of pending reminders with nothing, which the sync reads
+// before it plans. A fresh install has none pending.
+NotificationScheduler.getAllScheduledNotificationsAsync = async () => [];

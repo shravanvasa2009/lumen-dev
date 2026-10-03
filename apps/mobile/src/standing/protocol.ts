@@ -4,6 +4,8 @@ export const LYING_MS = 5 * MINUTE_MS;
 const BASELINE_STARTS_MS = 4 * MINUTE_MS;
 const LAST_STANDING_MINUTE = 10;
 const LAST_READING_WINDOW_MS = 45_000;
+// The test ends when the last reading window closes.
+const TEST_MS = LYING_MS + LAST_STANDING_MINUTE * MINUTE_MS + LAST_READING_WINDOW_MS;
 
 export const STANDING_READING_MINUTES = [1, 3, 5, LAST_STANDING_MINUTE] as const;
 
@@ -36,6 +38,8 @@ export type TestView = {
   nextReadingAtMs: number | null;
   // Time until the next reading opens (baseline or standing), for the live timer; null when none is left.
   nextReadingInMs: number | null;
+  // The share of the test's time already passed, 0 to 1, for the live timer's progress bar.
+  progress: number;
   dueSlot: ReadingSlot | null;
   baseline: number | null;
   latest: number | null;
@@ -126,6 +130,7 @@ export function viewAt(state: TestState, nowMs: number): TestView {
       (stage === 'standing' || stage === 'final') && nextReading ? nextReading.minute * MINUTE_MS : null,
     nextReadingInMs:
       state.startedAt !== null && live && nextOpensAtMs !== undefined ? nextOpensAtMs - elapsedMs : null,
+    progress: Math.min(1, elapsedMs / TEST_MS),
     dueSlot,
     baseline: state.baseline,
     latest,

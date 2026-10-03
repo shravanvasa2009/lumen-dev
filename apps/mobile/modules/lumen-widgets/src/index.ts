@@ -8,12 +8,18 @@ type StandingTimerContent = {
   actionLabel: string;
   title: string;
   text: string;
-  // iOS only: "Step n of 5" beside the title, and the "Tap to measure" line (a Live Activity has no buttons on
-  // iOS 16, so the whole card opens lumen://standing).
+  // "Step n of 5" beside the title (the subtext on Android), and the "Tap to measure" line. Android shows that
+  // line in place of the text while a reading is due. iOS always shows it, because a Live Activity has no
+  // buttons on iOS 16, so the whole card opens lumen://standing.
   step: string;
   tapHint: string;
   // Milliseconds until the next reading opens; null while a reading is due (no countdown shown).
   countdownMs: number | null;
+  // Android only: the share of the test's time already passed, 0 to 1, for the progress bar.
+  progress: number;
+  // Android only: the accent token for each phone theme, "#RRGGBB", tinting the icon and the bar.
+  accentLight: string;
+  accentDark: string;
 };
 
 declare class LumenWidgetsNative extends NativeModule {

@@ -75,10 +75,16 @@ class ShippedRhythm(NamedTuple):
 
 def code_sha256() -> dict[str, str]:
     # Module names never change, so the cache is keyed on the code itself: every lumen_dsp source file
-    # (beats, classes, shape, features, HRV, rhythm) and the two ml modules that cut segments and build
-    # rhythm inputs. Any change there redoes every case (~3 min on 8 workers).
+    # (beats, classes, shape, features, HRV, rhythm), the two ml modules that cut segments and build
+    # rhythm inputs, and dsp_config.json, whose liveHr range vitaldb_pleth's segment choice reads and no
+    # other key holds. Any change there redoes every case (~3 min on 8 workers).
     package = Path(lumen_dsp.__file__).parent
-    sources = [*sorted(package.glob("*.py")), Path(external_mimic.__file__), Path(vitaldb_pleth.__file__)]
+    sources = [
+        *sorted(package.glob("*.py")),
+        package / "dsp_config.json",
+        Path(external_mimic.__file__),
+        Path(vitaldb_pleth.__file__),
+    ]
     return {f"{source.parent.name}/{source.name}": sha256_of(source) for source in sources}
 
 

@@ -57,6 +57,12 @@ export function readAccuracy(file: unknown): Record<EvidenceMetric, AccuracyFigu
   ) as Record<EvidenceMetric, AccuracyFigures>;
 }
 
+// A measure counts as checked when its label is above Experimental, i.e. the file says so with a passed criterion.
+export function countChecked(accuracy: Record<EvidenceMetric, AccuracyFigures>): { checked: number; total: number } {
+  const all = Object.values(accuracy);
+  return { checked: all.filter((figures) => figures.measured).length, total: all.length };
+}
+
 export function readEvidenceDate(file: unknown): string | null {
   return isRecord(file) && typeof file.date === 'string' ? file.date : null;
 }

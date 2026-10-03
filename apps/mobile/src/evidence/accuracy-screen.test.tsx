@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { renderRouter, screen } from 'expo-router/testing-library';
+import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import AccuracyScreen from '../../app/settings/accuracy';
 import en from '@/i18n/en.json';
@@ -53,8 +53,32 @@ it('EVID-1: shows one badge per metric with the label the file supports', () => 
 it('EVID-1: shows measured figures only for the metrics that passed', () => {
   renderRouter({ _layout: () => <Stack />, index: AccuracyScreen });
   expect(screen.getByText('Average error 1.6 bpm')).toBeTruthy();
+  expect(screen.queryByText('95% CI: 1.2–2.1 bpm')).toBeNull();
+  fireEvent.press(screen.getByRole('button', { name: new RegExp(en['accuracy.heartRate']) }));
   expect(screen.getByText('95% CI: 1.2–2.1 bpm')).toBeTruthy();
   expect(screen.getByText('Sensitivity 89% · specificity 94%')).toBeTruthy();
   expect(screen.getByText(en['prototype.banner'])).toBeTruthy();
   expect(screen.queryByText(/Evidence file/)).toBeNull();
+});
+
+it('EVID-1: the summary counts the labels above Experimental from the file, not a typed number', () => {
+  renderRouter({ _layout: () => <Stack />, index: AccuracyScreen });
+  const shown = screen.getAllByTestId('evidence-badge').map((badge) => badge.props.accessibilityLabel);
+  const checked = shown.filter((label) => label !== en['evidence.experimental']).length;
+  expect(checked).toBeGreaterThan(0);
+  expect(
+    screen.getByText(
+      en['accuracy.summary'].replace('{{checked}}', String(checked)).replace('{{total}}', String(shown.length)),
+    ),
+  ).toBeTruthy();
+});
+
+it('keeps every row folded until it is pressed, then shows its detail', () => {
+  renderRouter({ _layout: () => <Stack />, index: AccuracyScreen });
+  const rows = screen.getAllByRole('button', { expanded: false });
+  expect(rows).toHaveLength(6);
+  expect(screen.queryByText('Reference: Polar H10')).toBeNull();
+  fireEvent.press(screen.getByRole('button', { name: new RegExp(en['accuracy.heartRate']) }));
+  expect(screen.getByText('Reference: Polar H10')).toBeTruthy();
+  expect(screen.getAllByRole('button', { expanded: true })).toHaveLength(1);
 });

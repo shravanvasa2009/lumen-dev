@@ -1,4 +1,4 @@
-import { readAccuracy, readEvidenceDate } from './readAccuracy';
+import { countChecked, readAccuracy, readEvidenceDate } from './readAccuracy';
 
 function fileWith(metrics: Record<string, unknown>, date: unknown = null) {
   return { commit: null, date, metrics };
@@ -73,5 +73,24 @@ describe('readAccuracy', () => {
     expect(readEvidenceDate(fileWith({}, '2026-10-20'))).toBe('2026-10-20');
     expect(readEvidenceDate(fileWith({}, null))).toBeNull();
     expect(readEvidenceDate(undefined)).toBeNull();
+  });
+});
+
+describe('countChecked', () => {
+  it('follows the file: more passed labels, a higher count of the same total', () => {
+    const none = countChecked(readAccuracy(fileWith({})));
+    const one = countChecked(readAccuracy(fileWith({ hr: { label: 'checked', passed: true } })));
+    const two = countChecked(
+      readAccuracy(
+        fileWith({ hr: { label: 'checked', passed: true }, rhythm: { label: 'public-data', passed: true } }),
+      ),
+    );
+    expect([none.checked, one.checked, two.checked]).toEqual([0, 1, 2]);
+    expect(new Set([none.total, one.total, two.total]).size).toBe(1);
+  });
+
+  it('does not count a label whose criterion did not pass', () => {
+    const unpassed = readAccuracy(fileWith({ hr: { label: 'checked', passed: false } }));
+    expect(countChecked(unpassed).checked).toBe(0);
   });
 });

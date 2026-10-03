@@ -8,9 +8,11 @@ import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
-// Turn on reminders asks the system for notification permission before it leaves the screen.
+// Turn on reminders asks the system for notification permission before it leaves the screen; the
+// notification settings screen reads it when it opens.
 jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
+  getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted', granted: true })),
   useLastNotificationResponse: () => null,
   setNotificationHandler: jest.fn(),
 }));

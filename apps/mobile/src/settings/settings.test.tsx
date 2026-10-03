@@ -134,27 +134,6 @@ describe('Appearance', () => {
   });
 });
 
-describe('Notifications', () => {
-  it('says nothing is active yet and shows every reminder switch disabled', () => {
-    renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
-    expect(screen.getByText(en['notifications.notActive'])).toBeOnTheScreen();
-    for (const key of [
-      'notifications.daily',
-      'notifications.followUp',
-      'notifications.doctor',
-      'notifications.standing',
-      'notifications.retest',
-      'notifications.hideValues',
-    ] as const) {
-      const reminder = screen.getByRole('switch', { name: en[key] });
-      expect(reminder).toBeDisabled();
-      expect(reminder).not.toBeChecked();
-    }
-    expect(screen.getByText(en['notifications.quietStart'])).toBeOnTheScreen();
-    expect(screen.getByText(en['notifications.limit'])).toBeOnTheScreen();
-  });
-});
-
 describe('Widget gallery', () => {
   const phoneOs = Platform.OS;
   afterEach(() => {

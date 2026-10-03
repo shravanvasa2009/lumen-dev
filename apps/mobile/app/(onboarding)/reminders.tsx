@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router';
-import { requestPermissionsAsync } from 'expo-notifications';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -10,6 +9,8 @@ import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
 import { ListRow } from '@/components/ListRow';
+import { askPermission, saveAndSyncNotifications } from '@/notifications/applyPrefs';
+import { loadNotificationPrefs } from '@/notifications/prefs';
 import { Toggle } from '@/settings/Toggle';
 import { useTheme } from '@/theme';
 
@@ -54,7 +55,22 @@ export default function RemindersScreen() {
   // The app works without notifications, so a refusal or a failed request still moves on to Home.
   async function askPermissionThenOpenHome() {
     try {
-      await requestPermissionsAsync();
+      const permission = await askPermission();
+      const saved = loadNotificationPrefs();
+      await saveAndSyncNotifications(
+        {
+          ...saved,
+          enabled: {
+            ...saved.enabled,
+            daily: true,
+            confirmation: enabled.followUp,
+            'doctor-followup': enabled.doctor,
+          },
+          dailyTime: { hour, minute: 0 },
+        },
+        i18n.language,
+        permission,
+      );
     } catch (error) {
       console.warn(
         `Notification permission request failed: ${error instanceof Error ? error.message : String(error)}`,

@@ -1,7 +1,7 @@
 import { Asset } from 'expo-asset';
 import { CryptoDigestAlgorithm, digest } from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
-import type { DiabetesModelInput } from '@lumen/core';
+import { type DiabetesModelInput, SHAPE_FEATURE_NAMES } from '@lumen/core';
 import type { InferenceSession } from 'onnxruntime-react-native';
 
 import { isRecord } from '../evidence';
@@ -112,6 +112,11 @@ function readFills(entry: Record<string, unknown>, inputs: Readonly<Record<strin
     const width = inputs[input]?.[1];
     if (!Array.isArray(names) || names.length !== width)
       return `its featureOrder.${input} does not list the ${width} features of that input`;
+    // Core builds shapeFeatures in SHAPE_FEATURE_NAMES order; a manifest in another order would put each
+    // feature, and each null's median, in the wrong model slot. Core exports no name list for hrSummary
+    // yet, so that input is checked for width only.
+    if (input === 'shapeFeatures' && names.some((name, index) => name !== SHAPE_FEATURE_NAMES[index]))
+      return `its featureOrder.shapeFeatures is not core's order: ${SHAPE_FEATURE_NAMES.join(', ')}`;
     const medians = names.map((name) => (typeof name === 'string' ? fillMedians[name] : undefined));
     if (!medians.every((median): median is number => typeof median === 'number' && Number.isFinite(median)))
       return `its fillMedians has no finite median for every ${input} feature`;
@@ -373,7 +378,11 @@ export function scoreDiabetesInput({ beat, shapeFeatures, hrSummary }: DiabetesM
   });
   const filled = (values: readonly (number | null)[], input: string) =>
     feed(
-      values.map((value, index) => value ?? (fills[input]?.[index] as number)),
+      values.map((value, index) => {
+        const median = fills[input]?.[index];
+        if (value === null && median === undefined) throw new Error(`no median for ${input}[${index}]`);
+        return value ?? (median as number);
+      }),
       input,
     );
   return scoreDiabetesPattern({

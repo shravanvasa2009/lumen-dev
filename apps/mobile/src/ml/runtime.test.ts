@@ -1,4 +1,5 @@
 /** @jest-environment node */
+import { SHAPE_FEATURE_NAMES } from '@lumen/core';
 import type * as OrtNode from 'onnxruntime-node';
 
 import expectedRhythm from './__fixtures__/rhythm-lgbm-fixture.expected.json';
@@ -166,7 +167,7 @@ function sqiEntry(changes: Record<string, unknown> = {}) {
   };
 }
 
-const shapeFeatureNames = Array.from({ length: 12 }, (_, index) => `shape${index}`);
+const shapeFeatureNames: string[] = [...SHAPE_FEATURE_NAMES];
 const hrSummaryNames = ['hrBpm', 'rmssdMs', 'sdnnMs', 'pnn50'];
 // Every median is different, so a null filled from the wrong slot gives a different score.
 const fillMedians = Object.fromEntries(
@@ -487,6 +488,16 @@ describe('diabetes inputs with missing values', () => {
       'a feature without a median',
       { fillMedians: { ...fillMedians, hrBpm: undefined } },
       'its fillMedians has no finite median for every hrSummary feature',
+    ],
+    [
+      'a reordered shapeFeatures list',
+      {
+        featureOrder: {
+          shapeFeatures: [...shapeFeatureNames.slice(1), shapeFeatureNames[0]],
+          hrSummary: hrSummaryNames,
+        },
+      },
+      `its featureOrder.shapeFeatures is not core's order: ${shapeFeatureNames.join(', ')}`,
     ],
     [
       'a featureOrder of the wrong length',

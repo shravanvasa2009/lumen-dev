@@ -33,10 +33,14 @@ export default function HomeScreen() {
   return <Home />;
 }
 
-// Below this window height (a 360 x 640 phone) the Measure disc shrinks to 160 dp (256 dp otherwise), the date line goes and the check cards drop their icons.
+// Below this window height (a 360 x 640 phone) the layout follows mockup 10-home.small: a 164 dp Measure (131 dp disc; 256 dp otherwise), no date line,
+// compact check cards and tiles, so the four checks and the tiles fit without scrolling.
 const COMPACT_HEIGHT = 700;
 const MEASURE_SIZE = 320;
-const MEASURE_SIZE_COMPACT = 200;
+const COMPACT_GREETING_LINE = 34;
+// The link's 44 dp target tucks under the Measure halo, which is transparent at its edge.
+const COMPACT_LINK_OVERLAP = 24;
+const MEASURE_SIZE_COMPACT = 164;
 
 function Home() {
   const { t, i18n } = useTranslation();
@@ -60,34 +64,53 @@ function Home() {
 
   return (
     <Screen headerless>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, gap: spacing.md, paddingBottom: spacing.lg }}>
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          gap: compact ? spacing.xs : spacing.md,
+          paddingBottom: spacing.lg,
+        }}
+      >
         <View>
           {compact ? null : <AppText tone="textDim">{dateLine(now, i18n.language)}</AppText>}
-          <AppText variant="display" accessibilityRole="header">
+          <AppText
+            variant="display"
+            accessibilityRole="header"
+            style={compact ? { lineHeight: COMPACT_GREETING_LINE } : undefined}
+          >
             {greetings[dayPeriod(now.getHours())]}
           </AppText>
         </View>
-        <View style={{ alignItems: 'center' }}>
+        <View style={{ alignItems: 'center', marginTop: compact ? -spacing.sm : 0 }}>
           <MeasureButton
             label={t('home.measure')}
             modeLabel={modeLabel}
             size={compact ? MEASURE_SIZE_COMPACT : MEASURE_SIZE}
             onPress={() => router.push('/measure/mode')}
           />
-          <NavButton label={t('home.changeMode')} href="/measure/mode" variant="link" />
+          <View style={{ marginTop: compact ? -COMPACT_LINK_OVERLAP : 0 }}>
+            <NavButton label={t('home.changeMode')} href="/measure/mode" variant="link" />
+          </View>
         </View>
         <ChecksSection readings={readings} now={now} compact={compact} />
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
+        <View style={{ flexDirection: 'row', gap: compact ? spacing.sm : spacing.md }}>
           <MetricTile
             label={t('home.restingHr')}
             unit={t('home.unitBpm')}
             points={tileSeries(readings, 'hr')}
+            compact={compact}
           />
-          <MetricTile label={t('home.hrv')} unit={t('home.unitMs')} points={tileSeries(readings, 'rmssd')} />
+          <MetricTile
+            label={t('home.hrv')}
+            unit={t('home.unitMs')}
+            points={tileSeries(readings, 'rmssd')}
+            compact={compact}
+          />
           <MetricTile
             label={t('home.breathing')}
             unit={t('home.unitPerMin')}
             points={tileSeries(readings, 'resp')}
+            compact={compact}
           />
         </View>
         {promoDismissed ? null : <WidgetPromo onDismiss={() => setPromoDismissed(true)} />}

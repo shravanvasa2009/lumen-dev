@@ -1,5 +1,6 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import i18n from 'i18next';
+import { Dimensions } from 'react-native';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
@@ -105,6 +106,25 @@ describe('Home', () => {
   it('dismisses the promo with the close icon', () => {
     fireEvent.press(screen.getByRole('button', { name: en['home.promoDismiss'] }));
     expect(screen.queryByText(en['home.promoTitle'])).toBeNull();
+  });
+});
+
+describe('Home on a 360 x 640 phone', () => {
+  const regular = Dimensions.get('window');
+  beforeEach(async () => {
+    Dimensions.set({ window: { width: 360, height: 640, scale: 3, fontScale: 1 } });
+    await startOnboarded();
+    renderRouter('./app', { initialUrl: '/' });
+    await screen.findByRole('header', { name: en['home.greetingMorning'] });
+  });
+  afterEach(() => Dimensions.set({ window: regular }));
+
+  it('drops the date line and keeps Measure, Change mode, four Scan buttons and the tiles', () => {
+    expect(screen.queryByText('Thursday, Oct 1')).toBeNull();
+    expect(screen.getByRole('button', { name: en['home.measure'] })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: en['home.changeMode'] })).toBeOnTheScreen();
+    expect(screen.getAllByRole('button', { name: /^Scan for / })).toHaveLength(4);
+    expect(screen.getByRole('button', { name: new RegExp(`^${en['home.restingHr']}:`) })).toBeOnTheScreen();
   });
 });
 

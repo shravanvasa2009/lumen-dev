@@ -1,8 +1,8 @@
 import { measureLayout } from './MeasureButton';
 
-// 320 is the regular size (a 256 dp disc, the approved mockup); 200 is the 360 x 640 size.
+// 320 is the regular size (a 256 dp disc, the approved mockup); 164 is the 360 x 640 size (131 dp disc).
 describe('Measure button layout', () => {
-  it.each([320, 200])('keeps the label and mode line inside the solid disc at size %s', (size) => {
+  it.each([320, 164])('keeps the label and mode line inside the solid disc at size %s', (size) => {
     const { solidRadius, textCorner } = measureLayout(size, 18);
     expect(textCorner).toBeLessThanOrEqual(solidRadius);
   });

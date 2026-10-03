@@ -7,6 +7,9 @@ import { Icon, type IconName } from '@/components/Icon';
 import type { EvidenceMetric } from '@/evidence';
 import { useTheme } from '@/theme';
 
+// Compact Scan buttons draw 34 dp tall and keep the 44 dp touch target through hitSlop.
+const SCAN_HEIGHT_COMPACT = 34;
+
 type CheckCardProps = {
   icon: IconName;
   name: string;
@@ -41,7 +44,7 @@ export function CheckCard({ icon, name, evidence, finding, onOpenFinding, onScan
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
           <AppText variant="headline">{name}</AppText>
-          {evidence ? <EvidenceBadge metric={evidence} /> : null}
+          {evidence ? <EvidenceBadge metric={evidence} compact={compact} /> : null}
         </View>
         <AppText variant="caption" tone="textDim">
           {finding}
@@ -55,7 +58,8 @@ export function CheckCard({ icon, name, evidence, finding, onOpenFinding, onScan
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        padding: spacing.md,
+        paddingVertical: compact ? spacing.xs : spacing.md,
+        paddingHorizontal: spacing.md,
         backgroundColor: colors.surface,
         borderColor: colors.line,
         borderWidth: 1,
@@ -80,8 +84,9 @@ export function CheckCard({ icon, name, evidence, finding, onOpenFinding, onScan
         accessibilityRole="button"
         accessibilityLabel={t('checks.scanFor', { name })}
         onPress={onScan}
+        hitSlop={compact ? spacing.xs + 1 : 0}
         style={{
-          minHeight: control.minTarget,
+          minHeight: compact ? SCAN_HEIGHT_COMPACT : control.minTarget,
           minWidth: 72,
           paddingHorizontal: spacing.lg,
           alignItems: 'center',

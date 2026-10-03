@@ -7,7 +7,7 @@ import { useTheme } from '@/theme';
 import { AppText } from './AppText';
 
 // The label comes from the evidence reader alone.
-export function EvidenceBadge({ metric }: { metric: EvidenceMetric }) {
+export function EvidenceBadge({ metric, compact = false }: { metric: EvidenceMetric; compact?: boolean }) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   const { label } = evidenceFor(metric);
@@ -29,7 +29,7 @@ export function EvidenceBadge({ metric }: { metric: EvidenceMetric }) {
         backgroundColor: look.bg,
         borderRadius: radius.pill,
         paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
+        paddingVertical: compact ? 0 : spacing.xs,
       }}
     >
       <AppText variant="caption" style={{ color: look.fg }}>

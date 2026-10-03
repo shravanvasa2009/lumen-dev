@@ -38,7 +38,7 @@ const NATIVE_NETWORK = new RegExp(
   ].join('|'),
 );
 // ADR 0054: the Care map, opened only by the user, loads map tiles from OpenFreeMap. The host, the map
-// library, and imports of the care code are allowed only in the /care-map route file and src/care/, so no
+// library, and imports of the care code are allowed only in the Care map route files and src/care/, so no
 // other screen (such as a reading) can reach them.
 const TILE_HOST = /tiles\.openfreemap\.org/;
 // The old stack route stays allowed only until the Care tab move (ADR 0065) lands on main; remove it
@@ -92,9 +92,12 @@ for (const file of files) {
     continue;
   }
   if (!inCareMap(file)) {
-    if (TILE_HOST.test(text)) violations.push(`${file}: map tile host outside the Care map routes (/care-map, Care tab)`);
+    if (TILE_HOST.test(text))
+      violations.push(`${file}: map tile host outside the Care map routes (/care-map, Care tab)`);
     if (importsCareMapCode(file, text))
-      violations.push(`${file}: imports the map library or care code outside the Care map routes (/care-map, Care tab)`);
+      violations.push(
+        `${file}: imports the map library or care code outside the Care map routes (/care-map, Care tab)`,
+      );
   }
   const inDev = file.startsWith(DEV_DIR);
   if (NETWORK.test(text) && !inDev) violations.push(`${file}: network call outside ${DEV_DIR}`);

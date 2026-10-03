@@ -148,10 +148,41 @@ struct LumenWidgetView: View {
       .widgetURL(LumenLink.check)
       .widgetBackground(colors.surface, padded: true)
     } else {
-      LumenMark()
-        .frame(width: 40, height: 40)
+      EmptyWidget(medium: family == .systemMedium)
         .widgetURL(LumenLink.check)
         .widgetBackground(Color(uiColor: .systemBackground), padded: true)
+    }
+  }
+}
+
+// Before the app first publishes (and in the widget gallery): mockup 32's layout with the empty-state copy, in
+// system colors because no palette has been published yet.
+private struct EmptyWidget: View {
+  let medium: Bool
+
+  var body: some View {
+    HStack(spacing: 12) {
+      VStack(alignment: .leading, spacing: 4) {
+        LumenMark().frame(width: 26, height: 26).foregroundColor(fallbackAccentFill)
+        Spacer(minLength: 0)
+        Text(fallbackCopy.emptyTitle).font(.headline).foregroundColor(.primary).lineLimit(2)
+        Text(fallbackCopy.emptyBody).font(.caption).foregroundColor(.secondary).lineLimit(1)
+        if !medium {
+          Pill(label: fallbackCopy.checkNow, fill: fallbackAccentFill, content: fallbackOnAccentFill)
+        }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+      if medium {
+        VStack(spacing: 8) {
+          Link(destination: LumenLink.check) {
+            Pill(label: fallbackCopy.checkNow, fill: fallbackAccentFill, content: fallbackOnAccentFill)
+          }
+          Link(destination: LumenLink.fullScan) {
+            Pill(label: fallbackCopy.fullScan, fill: Color(uiColor: .secondarySystemFill), content: .primary)
+          }
+        }
+        .frame(maxWidth: 140)
+      }
     }
   }
 }
@@ -250,8 +281,10 @@ struct LumenWidget: Widget {
     StaticConfiguration(kind: "LumenWidget", provider: SnapshotProvider()) { entry in
       LumenWidgetView(entry: entry)
     }
-    // The gallery shows only the app's name, no description.
+    // The gallery shows the app's name (spec §2), this line, and EmptyWidget as the preview until the app
+    // first publishes. https://developer.apple.com/documentation/widgetkit/staticconfiguration
     .configurationDisplayName(appDisplayName)
+    .description(fallbackCopy.description)
     .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular, .accessoryInline])
   }
 }

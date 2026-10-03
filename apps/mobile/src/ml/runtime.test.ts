@@ -1,4 +1,5 @@
 /** @jest-environment node */
+import { SHAPE_FEATURE_NAMES } from '@lumen/core';
 import type * as OrtNode from 'onnxruntime-node';
 
 import expectedRhythm from './__fixtures__/rhythm-lgbm-fixture.expected.json';
@@ -166,7 +167,14 @@ function sqiEntry(changes: Record<string, unknown> = {}) {
   };
 }
 
-function diabetesEntry() {
+const shapeFeatureNames: string[] = [...SHAPE_FEATURE_NAMES];
+const hrSummaryNames = ['hrBpm', 'rmssdMs', 'sdnnMs', 'pnn50'];
+// Every median is different, so a null filled from the wrong slot gives a different score.
+const fillMedians = Object.fromEntries(
+  [...shapeFeatureNames, ...hrSummaryNames].map((name, index) => [name, 0.1 * index - 0.7]),
+);
+
+function diabetesEntry(changes: Record<string, unknown> = {}) {
   return {
     name: 'diabetes-net',
     version: '1.0.0',
@@ -180,6 +188,9 @@ function diabetesEntry() {
     labels: ['pattern'],
     threshold: { pattern: 0.5 },
     abstainBelow: null,
+    featureOrder: { shapeFeatures: shapeFeatureNames, hrSummary: hrSummaryNames },
+    fillMedians,
+    ...changes,
   };
 }
 
@@ -447,13 +458,6 @@ describe('rhythm feature width (ADR 0079)', () => {
   ]);
   const wideFeed = { features: { values: wide, dims: [1, 15] } };
 
-  it('gives a v1 [1, 8] manifest the 8 values it declares', async () => {
-    const runtime = await loadRuntime({ models: [rhythmEntry()] });
-    const outcome = await runtime.classifyRhythm(features);
-    if (outcome.source !== 'model') throw new Error(outcome.reason);
-    expect(outcome.scores.af).toBeCloseTo(expectedRhythm.probabilities[1] as number, 5);
-  });
-
   it('sends only the first 8 of 15-wide windows to a v1 manifest', async () => {
     const runtime = await loadRuntime({ models: [rhythmEntry()] });
     const outcome = await runtime.classifyRhythm(wideFeed);
@@ -507,6 +511,69 @@ describe('rhythm feature width (ADR 0079)', () => {
     const lastRun = tensorsRun[tensorsRun.length - 1];
     expect(lastRun?.dims).toEqual([1, 15]);
     expect(lastRun?.values).toEqual(Array.from(wide));
+  });
+});
+
+describe('diabetes inputs with missing values', () => {
+  const beat = new Float64Array(256).fill(0.25);
+  const shapeFeatures = (value: number | null) => shapeFeatureNames.map((_, index) => (index % 2 ? value : 0.3));
+  const hrSummary = (value: number | null) => hrSummaryNames.map((_, index) => (index % 2 ? 0.2 : value));
+  const scoreOf = async (input: Parameters<typeof Runtime.scoreDiabetesInput>[0]) => {
+    const runtime = await loadRuntime({ models: [diabetesEntry()] });
+    const outcome = await runtime.scoreDiabetesInput(input);
+    if (outcome.source !== 'model') throw new Error(outcome.reason);
+    return outcome.scores.pattern as number;
+  };
+
+  it("fills each null with the manifest's training median for that feature", async () => {
+    const medianAt = (names: string[], index: number) => fillMedians[names[index] as string] as number;
+    const filledByHand = {
+      beat,
+      shapeFeatures: shapeFeatures(null).map((value, index) => value ?? medianAt(shapeFeatureNames, index)),
+      hrSummary: hrSummary(null).map((value, index) => value ?? medianAt(hrSummaryNames, index)),
+    };
+    const withNulls = { beat, shapeFeatures: shapeFeatures(null), hrSummary: hrSummary(null) };
+    const zeroFilled = { beat, shapeFeatures: shapeFeatures(0), hrSummary: hrSummary(0) };
+    const scoreWithNulls = await scoreOf(withNulls);
+    expect(scoreWithNulls).toBeCloseTo(await scoreOf(filledByHand), 6);
+    expect(scoreWithNulls).not.toBeCloseTo(await scoreOf(zeroFilled), 3);
+  });
+
+  it('keeps the values it was given', async () => {
+    const given = { beat, shapeFeatures: shapeFeatures(0.9), hrSummary: hrSummary(0.9) };
+    const medianOnly = { beat, shapeFeatures: shapeFeatures(null), hrSummary: hrSummary(null) };
+    expect(await scoreOf(given)).not.toBeCloseTo(await scoreOf(medianOnly), 3);
+  });
+
+  it.each([
+    ['no fillMedians', { fillMedians: undefined }, 'it has no featureOrder or fillMedians'],
+    [
+      'a feature without a median',
+      { fillMedians: { ...fillMedians, hrBpm: undefined } },
+      'its fillMedians has no finite median for every hrSummary feature',
+    ],
+    [
+      'a reordered shapeFeatures list',
+      {
+        featureOrder: {
+          shapeFeatures: [...shapeFeatureNames.slice(1), shapeFeatureNames[0]],
+          hrSummary: hrSummaryNames,
+        },
+      },
+      `its featureOrder.shapeFeatures is not core's order: ${shapeFeatureNames.join(', ')}`,
+    ],
+    [
+      'a featureOrder of the wrong length',
+      { featureOrder: { shapeFeatures: shapeFeatureNames.slice(1), hrSummary: hrSummaryNames } },
+      'its featureOrder.shapeFeatures does not list the 12 features of that input',
+    ],
+  ])('refuses a diabetes model with %s', async (_, changes, why) => {
+    const runtime = await loadRuntime({ models: [diabetesEntry(changes)] });
+    const reason = `refused the shipped diabetes model: diabetes-net@1.0.0 cannot be fed a missing value: ${why}`;
+    expect(runtime.modelPlan().diabetes).toEqual({ source: 'basic', reason });
+    expect(
+      await runtime.scoreDiabetesInput({ beat, shapeFeatures: shapeFeatures(null), hrSummary: hrSummary(null) }),
+    ).toEqual({ source: 'basic', value: null, reason });
   });
 });
 

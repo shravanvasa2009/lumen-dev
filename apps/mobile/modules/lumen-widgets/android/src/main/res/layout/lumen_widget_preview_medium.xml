@@ -1,92 +1,171 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The picker's preview of the medium widget: the same sample reading as the in-app gallery and mockup 32 (64 bpm,
-     "Up to date · streak 5 days", Check now over Full Scan; LumenWidgets.kt MediumBody). The app's name comes from
-     lumen_widget_preview_name, which the config plugin sets to the app's name. -->
+     "Up to date · streak 5 days", Check now over Full Scan), then the four checks (LumenWidgets.kt MediumBody).
+     The Diabetes evidence tag is left out: a static preview can't read the evidence label (EVID-1). The app's name
+     comes from lumen_widget_preview_name, which the config plugin sets to the app's name. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/lumen_widget_preview_card"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
+    android:orientation="vertical"
     android:padding="14dp">
     <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="vertical">
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
         <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-            <include layout="@layout/lumen_widget_preview_mark" />
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <include layout="@layout/lumen_widget_preview_mark" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:maxLines="1"
+                    android:text="@string/lumen_widget_preview_name"
+                    android:textColor="@color/lumen_widget_preview_text_dim"
+                    android:textSize="16sp" />
+            </LinearLayout>
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxLines="1"
+                    android:text="@string/lumen_widget_sample_bpm"
+                    android:textColor="@color/lumen_widget_preview_text"
+                    android:textSize="40sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginBottom="7dp"
+                    android:maxLines="1"
+                    android:text="@string/lumen_widget_sample_bpm_unit"
+                    android:textColor="@color/lumen_widget_preview_text"
+                    android:textSize="16sp" />
+            </LinearLayout>
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
                 android:maxLines="1"
-                android:text="@string/lumen_widget_preview_name"
+                android:text="@string/lumen_widget_sample_status_streak"
                 android:textColor="@color/lumen_widget_preview_text_dim"
-                android:textSize="16sp" />
+                android:textSize="14sp" />
         </LinearLayout>
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="148dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/lumen_widget_preview_pill_filled"
+                android:gravity="center"
                 android:maxLines="1"
-                android:text="@string/lumen_widget_sample_bpm"
-                android:textColor="@color/lumen_widget_preview_text"
-                android:textSize="40sp"
-                android:textStyle="bold" />
+                android:text="@string/lumen_widget_check_now"
+                android:textColor="@color/lumen_widget_preview_on_accent_fill"
+                android:textSize="15sp" />
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom"
-                android:layout_marginStart="6dp"
-                android:layout_marginBottom="7dp"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/lumen_widget_preview_pill_outline"
+                android:gravity="center"
                 android:maxLines="1"
-                android:text="@string/lumen_widget_sample_bpm_unit"
+                android:text="@string/lumen_widget_full_scan"
                 android:textColor="@color/lumen_widget_preview_text"
-                android:textSize="16sp" />
+                android:textSize="15sp" />
         </LinearLayout>
+    </LinearLayout>
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp"
+        android:background="@color/lumen_widget_preview_line" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <ImageView
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_check_afib"
+            android:tint="@color/lumen_widget_preview_accent" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="3dp"
+            android:layout_marginEnd="8dp"
             android:maxLines="1"
-            android:text="@string/lumen_widget_sample_status_streak"
-            android:textColor="@color/lumen_widget_preview_text_dim"
-            android:textSize="14sp" />
-    </LinearLayout>
-    <LinearLayout
-        android:layout_width="148dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:orientation="vertical">
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:background="@drawable/lumen_widget_preview_pill_filled"
-            android:gravity="center"
-            android:maxLines="1"
-            android:text="@string/lumen_widget_check_now"
-            android:textColor="@color/lumen_widget_preview_on_accent_fill"
-            android:textSize="15sp" />
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/lumen_widget_preview_pill_outline"
-            android:gravity="center"
-            android:maxLines="1"
-            android:text="@string/lumen_widget_full_scan"
+            android:text="@string/lumen_widget_check_afib"
             android:textColor="@color/lumen_widget_preview_text"
-            android:textSize="15sp" />
+            android:textSize="12sp" />
+        <ImageView
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_check_pots"
+            android:tint="@color/lumen_widget_preview_accent" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="3dp"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:text="@string/lumen_widget_check_pots"
+            android:textColor="@color/lumen_widget_preview_text"
+            android:textSize="12sp" />
+        <ImageView
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_check_hrv"
+            android:tint="@color/lumen_widget_preview_accent" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="3dp"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:text="@string/lumen_widget_check_hrv"
+            android:textColor="@color/lumen_widget_preview_text"
+            android:textSize="12sp" />
+        <ImageView
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_check_diabetes"
+            android:tint="@color/lumen_widget_preview_accent" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="3dp"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:text="@string/lumen_widget_check_diabetes"
+            android:textColor="@color/lumen_widget_preview_text"
+            android:textSize="12sp" />
     </LinearLayout>
 </LinearLayout>

@@ -11,4 +11,8 @@
     <string name="lumen_widget_sample_bpm">64</string>
     <string name="lumen_widget_sample_bpm_unit">bpm</string>
     <string name="lumen_widget_sample_status_streak">Up to date · streak 5 days</string>
+    <string name="lumen_widget_check_afib">AFib</string>
+    <string name="lumen_widget_check_pots">POTS</string>
+    <string name="lumen_widget_check_hrv">HRV</string>
+    <string name="lumen_widget_check_diabetes">Diabetes</string>
 </resources>

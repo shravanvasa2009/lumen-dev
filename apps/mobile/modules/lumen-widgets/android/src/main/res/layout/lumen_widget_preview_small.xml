@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The picker's preview of the small widget: the same sample reading as the in-app gallery and mockup 32 (mark and
-     status dot, "Up to date", "Last check 2 h ago", Check now; LumenWidgets.kt SmallBody). Static views only, as the
-     picker requires. -->
+<!-- The picker's preview of the small widget: the same sample reading as the in-app gallery and mockup 32 (mark, the
+     four check icons and the status dot, "Up to date", "Last check 2 h ago", Check now; LumenWidgets.kt
+     SmallBody). Static views only, as the picker requires. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -13,6 +13,38 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal">
         <include layout="@layout/lumen_widget_preview_mark" />
+        <ImageView
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="7dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_check_afib"
+            android:tint="@color/lumen_widget_preview_text_dim" />
+        <ImageView
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:layout_marginStart="3dp"
+            android:layout_marginTop="7dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_check_pots"
+            android:tint="@color/lumen_widget_preview_text_dim" />
+        <ImageView
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:layout_marginStart="3dp"
+            android:layout_marginTop="7dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_check_hrv"
+            android:tint="@color/lumen_widget_preview_text_dim" />
+        <ImageView
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:layout_marginStart="3dp"
+            android:layout_marginTop="7dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_check_diabetes"
+            android:tint="@color/lumen_widget_preview_text_dim" />
         <FrameLayout
             android:layout_width="0dp"
             android:layout_height="1dp"

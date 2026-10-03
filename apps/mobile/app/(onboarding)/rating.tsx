@@ -1,9 +1,11 @@
+import type { RatingMode } from '@lumen/core';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { Icon } from '@/components/Icon';
+import { EvidenceBadge } from '@/components/EvidenceBadge';
+import { Icon, type IconName } from '@/components/Icon';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
 import { TryDemoButton } from '@/demo/TryDemoButton';
@@ -44,6 +46,89 @@ function UnlockedModes({ rating }: { rating: StoredRating }) {
           </View>
         ))}
       </View>
+    </View>
+  );
+}
+
+type CheckRowSpec = { icon: IconName; name: string; what: string; mode: RatingMode; experimental?: boolean };
+
+// Each check needs one rating mode; a phone below that mode shows the row locked (spec 05 gating).
+function CheckableList({ rating }: { rating: StoredRating }) {
+  const { t } = useTranslation();
+  const { colors, spacing, radius } = useTheme();
+  const rows: CheckRowSpec[] = [
+    { icon: 'pulse', name: t('checks.afib.name'), what: t('checks.afib.what'), mode: 'rhythmFlags' },
+    { icon: 'trends', name: t('checks.hrv.name'), what: t('checks.hrv.what'), mode: 'hrv' },
+    {
+      icon: 'lens',
+      name: t('checks.diabetes.name'),
+      what: t('checks.diabetes.what'),
+      mode: 'diabetes',
+      experimental: true,
+    },
+    { icon: 'finger', name: t('checks.pots.name'), what: t('checks.pots.whatShort'), mode: 'standingTest' },
+  ];
+  return (
+    <View
+      style={{
+        backgroundColor: colors.surface,
+        borderColor: colors.line,
+        borderWidth: 1,
+        borderRadius: radius.card,
+        overflow: 'hidden',
+      }}
+    >
+      <AppText
+        variant="caption"
+        tone="textDim"
+        accessibilityRole="header"
+        style={{ fontWeight: '600', textTransform: 'uppercase', padding: spacing.md }}
+      >
+        {t('rating.checksHere')}
+      </AppText>
+      {rows.map((row) => {
+        const open = rating.unlocks.includes(row.mode);
+        return (
+          <View
+            key={row.mode}
+            accessible
+            accessibilityLabel={`${row.name}: ${open ? row.what : t('rating.notOnPhone')}`}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.md,
+              padding: spacing.md,
+              borderTopWidth: 1,
+              borderTopColor: colors.line,
+            }}
+          >
+            <View
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: radius.card - 6,
+                backgroundColor: colors.surface2,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon name={row.icon} size={20} color={open ? colors.accent : colors.textFaint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+                <AppText variant="headline" tone={open ? 'text' : 'textDim'}>
+                  {row.name}
+                </AppText>
+                {row.experimental ? <EvidenceBadge metric="diabetes" /> : null}
+              </View>
+              <AppText variant="caption" tone="textDim">
+                {open ? row.what : t('rating.notOnPhone')}
+              </AppText>
+            </View>
+            <Icon name={open ? 'check' : 'lock'} size={20} color={open ? colors.accent : colors.textFaint} />
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -102,7 +187,10 @@ export default function RatingScreen() {
               <TryDemoButton />
             </>
           ) : (
-            <UnlockedModes rating={rating} />
+            <>
+              <UnlockedModes rating={rating} />
+              <CheckableList rating={rating} />
+            </>
           )}
         </>
       )}

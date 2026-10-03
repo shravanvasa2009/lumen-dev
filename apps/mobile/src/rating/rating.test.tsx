@@ -139,6 +139,9 @@ describe('the rating from the probe and practice', () => {
     expect(screen.getByText(en['tier.full'])).toBeOnTheScreen();
     expect(screen.getByText(en['ratingMode.deepHrv'])).toBeOnTheScreen();
     expect(screen.getByText(en['ratingMode.fullScan'])).toBeOnTheScreen();
+    expect(screen.getByText(en['rating.checksHere'])).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['checks.diabetes.name']}: ${en['checks.diabetes.what']}`)).toBeOnTheScreen();
+    expect(screen.queryByText(en['rating.notOnPhone'])).toBeNull();
 
     const stored = await loadDeviceRating();
     expect(stored).toMatchObject({
@@ -227,6 +230,8 @@ describe('the rating from the probe and practice', () => {
     jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText('84')).toBeOnTheScreen();
     expect(screen.getByText(en['tier.basic'])).toBeOnTheScreen();
+    // Basic phones keep AFib and POTS but lock HRV and Diabetes.
+    expect(screen.getAllByText(en['rating.notOnPhone'])).toHaveLength(2);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('not in the probe'));
     warn.mockRestore();
   });

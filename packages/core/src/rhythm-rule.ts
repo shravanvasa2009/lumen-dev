@@ -19,6 +19,14 @@ const RULE_KEYS = [
   'intercepts',
 ] as const;
 
+// The smallest normal double. write_manifest copies StandardScaler's scale_, which is sqrt(var_) (at least
+// about 2.2e-162) or 1 for a constant feature, so only a hand-edited manifest has a smaller scale, and a
+// subnormal one overflows z for almost any feature.
+const SMALLEST_NORMAL = 2.2250738585072014e-308;
+
+// Errors about the manifest are plain Errors; errors about the windows passed in are RangeErrors, so a
+// caller can tell a broken manifest from a bad reading.
+
 interface LogisticRule {
   featureIndices: number[];
   mean: number[];
@@ -34,11 +42,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
 
+// Array.from reads each element once and turns holes into undefined, so what is checked is what is used:
+// a getter or Proxy cannot change a value afterwards, and every() cannot skip a hole.
+const copyOf = (value: unknown): unknown[] | null =>
+  Array.isArray(value) ? Array.from(value as unknown[]) : null;
+
 function finiteNumbers(value: unknown, name: string, length: number): number[] {
-  if (!Array.isArray(value) || value.length !== length)
+  const copy = copyOf(value);
+  if (copy === null || copy.length !== length)
     throw new Error(`rule ${name} has the wrong length (need ${length})`);
-  if (!value.every(isFiniteNumber)) throw new Error(`rule ${name} has a value that is not a finite number`);
-  return value;
+  if (!copy.every(isFiniteNumber)) throw new Error(`rule ${name} has a value that is not a finite number`);
+  return copy;
 }
 
 function readRule(rule: unknown, featureCount: number): LogisticRule {
@@ -47,40 +61,44 @@ function readRule(rule: unknown, featureCount: number): LogisticRule {
   if (missing.length > 0) throw new Error(`rule is missing ${missing.join(', ')}`);
   if (rule.method !== RULE_METHOD)
     throw new Error(`rule method ${JSON.stringify(rule.method)} is not ${RULE_METHOD}`);
-  const indices = rule.featureIndices;
-  if (!Array.isArray(indices) || indices.length === 0)
+  const indices = copyOf(rule.featureIndices);
+  if (indices === null || indices.length === 0)
     throw new Error('rule featureIndices has the wrong length (need at least 1)');
   if (
-    !indices.every((index) => Number.isInteger(index) && index >= 0 && index < featureCount) ||
+    !indices.every(
+      (index) => typeof index === 'number' && Number.isInteger(index) && index >= 0 && index < featureCount,
+    ) ||
     new Set(indices).size !== indices.length
   )
     throw new Error(
       `rule featureIndices ${JSON.stringify(indices)} must be distinct integers below ${featureCount}`,
     );
   const columns = indices.length;
-  if (!Array.isArray(rule.features) || rule.features.length !== columns)
+  if (copyOf(rule.features)?.length !== columns)
     throw new Error(`rule features has the wrong length (need ${columns})`);
   const mean = finiteNumbers(rule.mean, 'mean', columns);
   const scale = finiteNumbers(rule.scale, 'scale', columns);
-  if (!scale.every((value) => value > 0)) throw new Error('rule scale must be > 0');
-  const { classes } = rule;
+  if (!scale.every((value) => value >= SMALLEST_NORMAL))
+    throw new Error(`rule scale must be a normal positive number (at least ${SMALLEST_NORMAL})`);
+  const classes = copyOf(rule.classes);
   if (
-    !Array.isArray(classes) ||
+    classes === null ||
     classes.length !== RHYTHM_CLASSES.length ||
+    !classes.every((name) => typeof name === 'string') ||
     !RHYTHM_CLASSES.every((name) => classes.includes(name))
   )
     throw new Error(
       `rule classes ${JSON.stringify(classes)} must be ${RHYTHM_CLASSES.join(', ')} in some order`,
     );
-  const rows = rule.coefficients;
-  if (!Array.isArray(rows) || rows.length !== classes.length)
+  const rows = copyOf(rule.coefficients);
+  if (rows === null || rows.length !== classes.length)
     throw new Error(`rule coefficients has the wrong length (need ${classes.length} rows)`);
   return {
     featureIndices: indices as number[],
     mean,
     scale,
     classes: classes as string[],
-    coefficients: rows.map((row: unknown) => finiteNumbers(row, 'coefficients', columns)),
+    coefficients: rows.map((row) => finiteNumbers(row, 'coefficients', columns)),
     intercepts: finiteNumbers(rule.intercepts, 'intercepts', classes.length),
   };
 }
@@ -113,6 +131,10 @@ function ruleProbs(rule: LogisticRule, vector: readonly number[]): number[] {
     row.forEach((weight, k) => (logit += weight * z[k]!));
     return logit;
   });
+  // An overflowed logit makes logit − top ∞ − ∞ = NaN. A window that far outside the training data has no
+  // meaningful probability, so it is refused rather than given a saturated one.
+  if (!logits.every(Number.isFinite))
+    throw new RangeError('a feature vector overflows the rule logits to a non-finite number');
   // Shifting by the largest logit leaves the softmax unchanged and keeps exp() from overflowing.
   const top = Math.max(...logits);
   const exps = logits.map((logit) => Math.exp(logit - top));
@@ -135,15 +157,18 @@ export function logisticRhythmOutputs(
   const abstainLine = DSP_CONFIG.rules.uncertainBelowTopProb;
   if (entry.abstainBelow !== abstainLine)
     throw new Error(`the entry's abstainBelow ${JSON.stringify(entry.abstainBelow)} is not ${abstainLine}`);
-  for (const vector of windowFeatures)
-    if (vector.length !== featureCount || !vector.every(isFiniteNumber))
+  const vectors = Array.from(windowFeatures, (vector: unknown) => {
+    const copy = copyOf(vector);
+    if (copy === null || copy.length !== featureCount || !copy.every(isFiniteNumber))
       throw new RangeError(`each feature vector needs ${featureCount} finite numbers`);
+    return copy;
+  });
 
-  const columns = RHYTHM_CLASSES.map((name) => rule.classes.indexOf(name));
+  const classOrder = RHYTHM_CLASSES.map((name) => rule.classes.indexOf(name));
   return {
-    windowProbs: windowFeatures.map((vector) => {
+    windowProbs: vectors.map((vector) => {
       const probs = ruleProbs(rule, vector);
-      return columns.map((c) => probs[c]!) as [number, number, number];
+      return classOrder.map((c) => probs[c]!) as [number, number, number];
     }),
     tauAf,
   };

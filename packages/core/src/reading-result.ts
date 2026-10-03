@@ -111,6 +111,17 @@ interface RhythmCall {
   positive: boolean; // the irregular rule fired (before the 2-of-3 rule)
 }
 
+function isProbabilityRow(row: readonly number[]): boolean {
+  if (row.length !== RHYTHM_CLASSES.length) return false;
+  let total = 0;
+  for (let c = 0; c < row.length; c++) {
+    const probability = row[c];
+    if (typeof probability !== 'number' || !(probability >= 0 && probability <= 1)) return false;
+    total += probability;
+  }
+  return Math.abs(total - 1) <= DSP_CONFIG.rules.rhythmRowSumTolerance;
+}
+
 function rhythmCall(
   analysis: ReadingAnalysis,
   outputs: RhythmOutputs | null,
@@ -123,6 +134,10 @@ function rhythmCall(
   const windows = analysis.rhythmWindows.length;
   if (outputs && outputs.windowProbs.length !== windows)
     throw new RangeError(`${windows} rhythm windows but ${outputs.windowProbs.length} probability rows`);
+  // Like a wrong row count, a row that is not a probability distribution means the model or rule
+  // misbehaved; a NaN here once reached the card as a class-less "irregular, retake".
+  if (outputs && !outputs.windowProbs.every(isProbabilityRow))
+    throw new RangeError('each rhythm window needs sinus, af, other probabilities that sum to 1');
   if (!outputs || profile.pacemaker || windows === 0) return null;
   if (analysis.cleanSeconds < rules.rhythmMinCleanS || !analysis.enoughRhythmIntervals) return null;
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
+import onnxruntime as ort
 import pandas as pd
 
 from datasets import paths
@@ -53,9 +54,22 @@ CLEAN_S = float(SEGMENT_S)
 log = logging.getLogger("train.diabetes_features")
 
 
+class OnnxRhythm:
+    # The release's rhythm ONNX file, run as the app runs it, with the pickle's predict_proba interface.
+    def __init__(self, path: Path, input_name: str, labels: Sequence[str]):
+        self.session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        self.input_name = input_name
+        self.columns = [list(labels).index(label) for label in LABELS]
+
+    def predict_proba(self, features: np.ndarray) -> np.ndarray:
+        (probs,) = self.session.run(None, {self.input_name: features})
+        return np.asarray(probs)[:, self.columns]
+
+
 class ShippedRhythm(NamedTuple):
-    classifier: Classifier
-    source_sha256: str  # of the trained pickle, from its metrics file
+    # predict_proba gives columns in nets.rhythm_net LABELS order for both kinds of classifier.
+    classifier: Classifier | OnnxRhythm
+    source_sha256: str  # of the model file it runs (for the pickle, from its metrics file)
     abstain_below: float  # the manifest entry's abstainBelow
 
 
@@ -89,18 +103,23 @@ def cache_params(rhythm_model: ShippedRhythm) -> dict:
     }
 
 
-def load_rhythm_model(runs_dir: Path) -> ShippedRhythm:
-    # As the release loads it: source_model refuses a pickle that is not the one its metrics describe.
+def shipped_abstain_below() -> float:
     if not RHYTHM_MODEL.ships:
         raise ValueError(f"{RHYTHM_MODEL.name} is no longer the shipped rhythm model; update RHYTHM_MODEL")
-    metrics = load_metrics(RHYTHM_MODEL, runs_dir)
-    if metrics is None:
-        raise FileNotFoundError(f"{runs_dir / RHYTHM_MODEL.file_stem}.json not found; train rhythm-lgbm")
     # buildReadingResult abstains at rules.uncertainBelowTopProb, and core's model loader refuses an entry
     # asking for another line, so the two must agree here too.
     abstain_below = RHYTHM_MODEL.abstain_below
     if abstain_below != DSP_CONFIG["rules"]["uncertainBelowTopProb"]:
         raise ValueError(f"abstainBelow {abstain_below} is not rules.uncertainBelowTopProb")
+    return abstain_below
+
+
+def load_rhythm_model(runs_dir: Path) -> ShippedRhythm:
+    # As the release loads it: source_model refuses a pickle that is not the one its metrics describe.
+    abstain_below = shipped_abstain_below()
+    metrics = load_metrics(RHYTHM_MODEL, runs_dir)
+    if metrics is None:
+        raise FileNotFoundError(f"{runs_dir / RHYTHM_MODEL.file_stem}.json not found; train rhythm-lgbm")
     classifier = source_model(RHYTHM_MODEL, runs_dir, None)
     return ShippedRhythm(classifier, metrics["sourceSha256"], abstain_below)
 
@@ -278,8 +297,9 @@ def segment_table(out_dir: Path, cases: pd.DataFrame, dev_split: dict[int, str])
     return pd.DataFrame(rows)
 
 
-def _for_training(table: pd.DataFrame) -> pd.Series:
-    # Segments the app would read, with an averaged beat: the rows train.diabetes gets.
+def scorable(table: pd.DataFrame) -> pd.Series:
+    # Segments the app would read, with an averaged beat: the rows train.diabetes trains on and
+    # train.diabetes_holdout scores.
     return table["hasShape"] & (table["rhythm"] != NO_READING)
 
 
@@ -288,7 +308,7 @@ def coverage(cases: pd.DataFrame, table: pd.DataFrame, dev_split: dict[int, str]
     for split in ("dev-train", "dev-val"):
         split_cases = cases[cases["subjectid"].map(dev_split) == split]
         split_rows = table[table["split"] == split]
-        trained = split_rows[_for_training(split_rows)]
+        trained = split_rows[scorable(split_rows)]
         labelled = split_cases.set_index("subjectid")["preop_dm"]
         trained_subjects = labelled[labelled.index.isin(trained["subjectid"])]
         report[split] = {
@@ -320,7 +340,7 @@ def coverage(cases: pd.DataFrame, table: pd.DataFrame, dev_split: dict[int, str]
 
 def feature_table(table: pd.DataFrame) -> pd.DataFrame:
     # train.diabetes's input; the label is a bool (preop_dm == 1).
-    usable = table[_for_training(table)]
+    usable = table[scorable(table)]
     columns = {
         "subject": usable["subjectid"].astype("int64"),
         "label": usable["preop_dm"] == 1,

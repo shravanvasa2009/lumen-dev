@@ -67,7 +67,8 @@ NOT_AF = LABELS.index("other")
 BLOCKS_PER_SUBJECT = 1000
 # ADR 0045: the diabetes pipeline's holdout scorer, called only from run() after the ledger records a
 # start: score_holdout(entry, models_dir, holdout_ids) -> {"onnxSha256", "holdoutWithoutPleth",
-# "subjects": [{"subject", "diabetic", "score"}]}, scoring models_dir / entry["file"] with onnxruntime.
+# "withoutPlethReasons", "subjects": [{"subject", "diabetic", "score"}]}, scoring
+# models_dir / entry["file"] with onnxruntime.
 DIABETES_SCORER = "train.diabetes_holdout"
 HOLDOUT_DATASET = "vitaldb-holdout"
 MIMIC = next(dataset for dataset in registry.DATASETS if dataset.key == "mimic-perform-af")
@@ -349,6 +350,8 @@ def diabetes_part(entry: dict, units: Units, scored: dict) -> dict:
         "diabeticSubjects": report["positives"],
         "nonDiabeticSubjects": report["negatives"],
         "holdoutWithoutPleth": scored["holdoutWithoutPleth"],
+        # Counts by reason: no PLETH track, no stable window, or no segment the app would read.
+        "holdoutWithoutPlethReasons": scored.get("withoutPlethReasons"),
         **{
             key: report[key] for key in ("threshold", "auroc", "sensitivity", "specificity", "ci95", "ppvNpv")
         },

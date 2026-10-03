@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The picker's preview of the medium widget: the same sample reading as the in-app gallery and mockup 32 (64 bpm,
-     "Up to date · streak 5 days", Check now over Full Scan; LumenWidgets.kt MediumBody). The app's name is left out
-     because a library resource can't name the app's label; the mark identifies it. -->
+     "Up to date · streak 5 days", Check now over Full Scan; LumenWidgets.kt MediumBody). The app's name comes from
+     lumen_widget_preview_name, which the config plugin sets to the app's name. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -14,7 +14,21 @@
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:orientation="vertical">
-        <include layout="@layout/lumen_widget_preview_mark" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <include layout="@layout/lumen_widget_preview_mark" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:maxLines="1"
+                android:text="@string/lumen_widget_preview_name"
+                android:textColor="@color/lumen_widget_preview_text_dim"
+                android:textSize="16sp" />
+        </LinearLayout>
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"

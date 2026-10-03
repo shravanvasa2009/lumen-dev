@@ -1,9 +1,11 @@
 import { PermissionStatus } from 'expo';
 import { getPermissionsAsync, requestPermissionsAsync } from 'expo-notifications';
+import i18next from 'i18next';
 
-import type { NotificationPrefs, NotificationTriggers } from '@/notifications/plan';
-import { saveNotificationPrefs } from '@/notifications/prefs';
+import type { NotificationPrefs } from '@/notifications/plan';
+import { loadNotificationPrefs, saveNotificationPrefs } from '@/notifications/prefs';
 import { syncNotifications } from '@/notifications/scheduler';
+import { storedTriggers } from '@/notifications/storedTriggers';
 
 // expo-notifications 57: https://docs.expo.dev/versions/v57.0.0/sdk/notifications/#getpermissionsasync
 export type Permission = 'granted' | 'denied' | 'undetermined';
@@ -19,15 +21,6 @@ export async function askPermission(): Promise<Permission> {
   return permissionOf(await requestPermissionsAsync());
 }
 
-// Nothing the triggers need is stored yet (no readings store, no standing-test state, no phone-check
-// date), so reminders that follow a result stay unscheduled until those exist.
-const NO_TRIGGERS: NotificationTriggers = {
-  confirmationFor: null,
-  doctorFollowupFor: null,
-  standingStartedAt: null,
-  lastPhoneCheckAt: null,
-};
-
 const NOTHING_ENABLED: NotificationPrefs['enabled'] = {
   daily: false,
   confirmation: false,
@@ -35,6 +28,17 @@ const NOTHING_ENABLED: NotificationPrefs['enabled'] = {
   standing: false,
   retest: false,
 };
+
+async function syncStored(prefs: NotificationPrefs, languageTag: string, permission: Permission) {
+  await syncNotifications(
+    {
+      prefs: permission === 'granted' ? prefs : { ...prefs, enabled: NOTHING_ENABLED },
+      triggers: await storedTriggers(),
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    },
+    languageTag,
+  );
+}
 
 // Scheduling comes first: if it fails nothing is saved, so the screen can show the previous choice again
 // and the saved file still matches it. Without permission nothing is scheduled, but the choices are kept so
@@ -44,13 +48,20 @@ export async function saveAndSyncNotifications(
   languageTag: string,
   permission: Permission,
 ): Promise<void> {
-  await syncNotifications(
-    {
-      prefs: permission === 'granted' ? prefs : { ...prefs, enabled: NOTHING_ENABLED },
-      triggers: NO_TRIGGERS,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    },
-    languageTag,
-  );
+  await syncStored(prefs, languageTag, permission);
   saveNotificationPrefs(prefs);
+}
+
+// For a saved reading, follow-up answer, phone rating, or language change: the saved choices are
+// unchanged, but the reminders move or need new text. A failure is reported and the app stays usable; the
+// next sync repairs the schedule. Resolves false on failure so a screen can say so.
+export async function resyncNotifications(languageTag: string = i18next.language): Promise<boolean> {
+  try {
+    await syncStored(loadNotificationPrefs(), languageTag, await currentPermission());
+    return true;
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`Reminders could not be updated: ${reason}`);
+    return false;
+  }
 }

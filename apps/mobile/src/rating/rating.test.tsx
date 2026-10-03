@@ -5,6 +5,7 @@ import { renderRouter } from 'expo-router/testing-library';
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import en from '@/i18n/en.json';
 import { type KeptCapture, keepCapture } from '@/measure/keptCapture';
+import { resyncNotifications } from '@/settings/applyPrefs';
 import { loadDeviceRating, saveDeviceRating, storedReadingTier } from '@/store/deviceRating';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
@@ -20,6 +21,16 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(),
   useLastNotificationResponse: () => null,
   setNotificationHandler: jest.fn(),
+}));
+
+// The launch re-sync waits for the saved language, so it would land in the middle of these tests.
+jest.mock('@/i18n/language', () => ({
+  ...jest.requireActual('@/i18n/language'),
+  useSavedLanguage: jest.fn(),
+}));
+jest.mock('@/settings/applyPrefs', () => ({
+  ...jest.requireActual('@/settings/applyPrefs'),
+  resyncNotifications: jest.fn(),
 }));
 
 const mockGetCapabilities = jest.fn<Promise<Capabilities>, []>();
@@ -112,6 +123,7 @@ beforeEach(() => {
   keepCapture(null);
   mockModuleLinked = true;
   mockGetCapabilities.mockReset();
+  jest.mocked(resyncNotifications).mockClear();
 });
 
 describe('the rating from the probe and practice', () => {
@@ -119,6 +131,8 @@ describe('the rating from the probe and practice', () => {
     mockGetCapabilities.mockResolvedValue(sixtyFpsPhone);
     keepCapture(steadyPulse('main'));
     renderRouter('./app', { initialUrl: '/rating' });
+    // The app-start sync is not the one under test.
+    jest.mocked(resyncNotifications).mockClear();
 
     // 60 fps level 24 + coupling 35 (PI and SNR past their full-credit marks) + locks 15 + timing 20.
     expect(await screen.findByText('94')).toBeOnTheScreen();
@@ -139,6 +153,7 @@ describe('the rating from the probe and practice', () => {
     });
     expect(stored?.practice?.achievedFps).toBeCloseTo(FPS, 3);
     expect(stored?.unlocks).toContain('diabetes');
+    expect(resyncNotifications).toHaveBeenCalledTimes(1);
   });
 
   it('shows the stored rating and its breakdown on Your phone, with no practice capture', async () => {
@@ -157,6 +172,8 @@ describe('the rating from the probe and practice', () => {
   it('says the phone is not rated yet when neither the probe nor a stored rating gives one', async () => {
     mockModuleLinked = false;
     renderRouter('./app', { initialUrl: '/rating' });
+    // The app-start sync is not the one under test.
+    jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText(en['rating.pending'])).toBeOnTheScreen();
     expect(screen.getByText('—')).toBeOnTheScreen();
     expect(await loadDeviceRating()).toBeNull();
@@ -166,8 +183,11 @@ describe('the rating from the probe and practice', () => {
     mockGetCapabilities.mockResolvedValue(sixtyFpsPhone);
     keepCapture(steadyPulse('main', 20));
     renderRouter('./app', { initialUrl: '/rating' });
+    // The app-start sync is not the one under test.
+    jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText(en['rating.pending'])).toBeOnTheScreen();
     expect(await loadDeviceRating()).toBeNull();
+    expect(resyncNotifications).not.toHaveBeenCalled();
   });
 
   it('leaves the rating open when motion covers most of the practice', async () => {
@@ -176,6 +196,8 @@ describe('the rating from the probe and practice', () => {
     const startNs = shaken.samples[0]!.tNs;
     keepCapture({ ...shaken, motionSpans: [{ startNs, endNs: startNs + 35e9 }] });
     renderRouter('./app', { initialUrl: '/rating' });
+    // The app-start sync is not the one under test.
+    jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText(en['rating.pending'])).toBeOnTheScreen();
     expect(await loadDeviceRating()).toBeNull();
   });
@@ -186,6 +208,8 @@ describe('the rating from the probe and practice', () => {
     mockGetCapabilities.mockResolvedValue(thirtyFpsPhone);
     keepCapture(steadyPulse('lens-that-is-not-in-the-probe'));
     renderRouter('./app', { initialUrl: '/rating' });
+    // The app-start sync is not the one under test.
+    jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText('84')).toBeOnTheScreen();
     expect(screen.getByText(en['tier.basic'])).toBeOnTheScreen();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('not in the probe'));
@@ -203,6 +227,8 @@ describe('the rating from the probe and practice', () => {
     expect(stored?.score).toBeLessThan(25);
     mockModuleLinked = false;
     renderRouter('./app', { initialUrl: '/rating' });
+    // The app-start sync is not the one under test.
+    jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText(en['rating.failScore'])).toBeOnTheScreen();
     expect(screen.getByText(en['rating.demoOffer'])).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: en['welcome.tryDemo'] })).toBeOnTheScreen();
@@ -214,6 +240,8 @@ describe('the rating from the probe and practice', () => {
     const flat = steadyPulse('main');
     keepCapture({ ...flat, samples: flat.samples.map((sample) => ({ ...sample, r: 0.7 })) });
     renderRouter('./app', { initialUrl: '/rating' });
+    // The app-start sync is not the one under test.
+    jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText(en['rating.pending'])).toBeOnTheScreen();
     expect(await loadDeviceRating()).toBeNull();
   });
@@ -221,6 +249,8 @@ describe('the rating from the probe and practice', () => {
   it('explains a phone with no rear camera without waiting for practice', async () => {
     mockGetCapabilities.mockResolvedValue(noCameraPhone);
     renderRouter('./app', { initialUrl: '/rating' });
+    // The app-start sync is not the one under test.
+    jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText(en['rating.failNoCamera'])).toBeOnTheScreen();
     expect(screen.getByText(en['tier.unsupported'])).toBeOnTheScreen();
     expect((await loadDeviceRating())?.tier).toBe('unsupported');

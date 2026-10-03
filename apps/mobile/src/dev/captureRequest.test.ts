@@ -97,3 +97,11 @@ test('sends the rest-timer answer and the paced breathing rate when Lab has them
   expect(unrested.restTimerDone).toBe(false);
   expect(unrested).not.toHaveProperty('labels');
 });
+
+test('sends only the score and tier of the rating, and no rating for an unrated phone', () => {
+  // A stored rating carries more (components, lens, OS); Appendix B's meta holds just these two.
+  const stored = { score: 86, tier: 'full' as const, lensId: 'wide', osVersion: '26.0' };
+  const { meta } = captureRequestBody(batches, { capabilities, summary, rating: stored });
+  expect(meta.rating).toStrictEqual({ score: 86, tier: 'full' });
+  expect(captureRequestBody(batches, { capabilities, summary }).meta).not.toHaveProperty('rating');
+});

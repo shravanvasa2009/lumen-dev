@@ -48,7 +48,7 @@ function showsDiabetesFlag(outcome: ReadingResult): boolean {
 // diabetes pattern's A1c advice; §6.2). Check again: the results that ask for a retake or a repeat
 // (one irregular reading, a slow or fast resting rate, "Couldn't tell"). A seek-care result wins even when
 // the rest of the reading was inconclusive.
-function statusOf(outcome: ReadingResult): WidgetStatus {
+export function statusOf(outcome: ReadingResult): WidgetStatus {
   const { hr, rhythm } = outcome.metrics;
   if (rhythm?.flag === 'possibleAf' || hr?.flag === 'fastRegular' || showsDiabetesFlag(outcome)) {
     return 'see-doctor';
@@ -95,9 +95,7 @@ function heldSeeDoctor(input: SnapshotInput): StoredReading | null {
   const answeredSince = input.followUpAnsweredAt !== null && input.followUpAnsweredAt > flagged.takenAt;
   const regularFullSince = input.readings.some(
     (reading) =>
-      reading.takenAt > flagged.takenAt &&
-      reading.mode === 'full' &&
-      statusOf(reading.outcome) === 'regular',
+      reading.takenAt > flagged.takenAt && reading.mode === 'full' && statusOf(reading.outcome) === 'regular',
   );
   return answeredSince || regularFullSince ? null : flagged;
 }

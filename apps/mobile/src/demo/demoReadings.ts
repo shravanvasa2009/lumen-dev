@@ -22,6 +22,10 @@ export function keepDemoReading(analysed: AnalysedReading, mode: MeasureMode): s
   return id;
 }
 
+export function clearDemoReadings(): void {
+  demoReadings.clear();
+}
+
 export function demoReadingById(id: string | undefined): FixtureReading | undefined {
   return id === undefined ? undefined : demoReadings.get(id);
 }

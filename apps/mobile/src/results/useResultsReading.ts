@@ -6,7 +6,7 @@ import { type FixtureReading, readingById } from './fixtures';
 
 // The beat intervals, the repeat counter and the diabetes days are not in the readings row, so a stored
 // reading shows none of them instead of invented ones.
-function fromStored(stored: StoredReading): FixtureReading {
+export function fromStored(stored: StoredReading): FixtureReading {
   return {
     id: stored.id,
     mode: stored.mode ?? 'quick',

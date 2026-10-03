@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import '@/i18n';
 import { StorageErrorScreen } from '@/components/StorageErrorScreen';
 import { DemoStrip } from '@/demo/DemoStrip';
+import { useSavedLanguage } from '@/i18n/language';
 import { showNotificationsInForeground } from '@/notifications/foreground';
 import { useOpenTappedNotification } from '@/notifications/openTapped';
 import { useTheme } from '@/theme';
@@ -21,6 +22,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 export default function RootLayout() {
   const { colors, isDark, type } = useTheme();
   useOpenTappedNotification();
+  useSavedLanguage();
   return (
     <DemoStrip>
       <StatusBar style={isDark ? 'light' : 'dark'} />

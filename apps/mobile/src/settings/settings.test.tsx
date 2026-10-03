@@ -14,6 +14,8 @@ import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 // The jest safe-area context reports no insets, so both are pinned to prove the cap subtracts them.
 const STATUS_BAR_INSET = 24;
 const HOME_INDICATOR_INSET = 34;
+// The app-start reminder sync has nothing to schedule here.
+jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
 jest.mock('react-native-safe-area-context', () => ({
   ...jest.requireActual('react-native-safe-area-context'),
   useSafeAreaInsets: () => ({ top: STATUS_BAR_INSET, bottom: HOME_INDICATOR_INSET, left: 0, right: 0 }),
@@ -39,23 +41,29 @@ beforeEach(() => {
 preloadAppRoutes();
 
 describe('Settings tab', () => {
-  it('groups the rows and marks features that do not exist yet', () => {
+  it('groups the rows, and every row does something', () => {
     renderRouter(appDirectory, { initialUrl: '/settings' });
     for (const key of [
       'settings.profile',
+      'settings.language',
       'settings.accuracy',
       'settings.phone',
       'settings.widgets',
+      'settings.demoMode',
+      'settings.export',
+      'settings.about',
     ] as const) {
-      expect(screen.getByRole('button', { name: new RegExp(en[key]) })).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: new RegExp(en[key].replace(/[()]/g, String.raw`\$&`)) }),
+      ).toBeOnTheScreen();
     }
-    expect(screen.queryByRole('button', { name: new RegExp(en['settings.delete']) })).toBeNull();
-    expect(screen.getAllByText(en['settings.comingSoon'])).toHaveLength(5);
-    expect(screen.queryByRole('button', { name: new RegExp(en['settings.demoMode']) })).toBeNull();
+    expect(screen.getByRole('button', { name: new RegExp(en['settings.delete']) })).toBeOnTheScreen();
+    expect(screen.queryByText(/coming soon/i)).toBeNull();
     expect(screen.queryByText(/8:00/)).toBeNull();
     const reminders = screen.getByRole('button', { name: new RegExp(en['notifications.title']) });
     expect(within(reminders).getByText(en['settings.notActiveYet'])).toBeOnTheScreen();
-    expect(screen.getByRole('switch', { name: en['settings.healthSync'] })).toBeDisabled();
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByText(/health app/i)).toBeNull();
   });
 
   it('opens Your phone and the accuracy screen from their rows', () => {

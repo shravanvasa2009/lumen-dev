@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { alignIntervals } from './eval-replay/align.mjs';
 import { readCaptures } from './eval-replay/captures.mjs';
-import { buildEvidence, decidePasses } from './eval-replay/evidence.mjs';
+import { buildEvidence, decidePasses, withRhythmDevelopment } from './eval-replay/evidence.mjs';
 import { computeMetrics } from './eval-replay/metrics.mjs';
 import { compareMetrics } from './eval-replay/recompute.mjs';
 import { mean, median, rmssd, subjectBootstrap } from './eval-replay/stats.mjs';
@@ -691,4 +691,62 @@ test('strap data that starts after the last phone beat is not aligned at all', (
   const metrics = computeMetrics([late], { commit: 'abc', date: '2026-10-20' }, (line) => logged.push(line));
   assert.equal(metrics.intervals.maeMs, null);
   assert.match(logged.join('\n'), /did not align/);
+});
+
+const rhythmManifest = () => ({
+  models: [
+    {
+      name: 'rhythm-logistic',
+      family: 'rhythm',
+      ships: false,
+      development: { metrics: { readingAbstainRate: { estimate: 0.9, low: 0.8, high: 1 } } },
+    },
+    {
+      name: 'rhythm-lgbm',
+      family: 'rhythm',
+      ships: true,
+      development: {
+        metrics: {
+          falseAfRatePrematureReadings: { estimate: 0.3, low: 0.1, high: 0.6, undefinedResamples: 0 },
+          readingAbstainRate: { estimate: 0.2, low: 0.15, high: 0.25, undefinedResamples: 0 },
+        },
+      },
+    },
+  ],
+});
+
+test('rhythm development rates come from the shipped model and leave the label alone', () => {
+  const before = seedEvidence();
+  const evidence = withRhythmDevelopment(before, rhythmManifest());
+  assert.deepEqual(evidence.metrics.rhythm.falseAfRatePrematureReadings, { estimate: 0.3, ci95: [0.1, 0.6] });
+  assert.deepEqual(evidence.metrics.rhythm.readingAbstainRate, { estimate: 0.2, ci95: [0.15, 0.25] });
+  assert.equal(evidence.metrics.rhythm.source, 'dev-augmented-premature');
+  assert.equal(evidence.metrics.rhythm.label, before.metrics.rhythm.label);
+  assert.equal(evidence.metrics.rhythm.passed, before.metrics.rhythm.passed);
+  assert.deepEqual(evidence.metrics.hr, before.metrics.hr);
+});
+
+test('a missing development metric becomes null and a manifest without one shipped rhythm model throws', () => {
+  const manifest = rhythmManifest();
+  delete manifest.models[1].development.metrics.falseAfRatePrematureReadings;
+  assert.equal(withRhythmDevelopment(seedEvidence(), manifest).metrics.rhythm.falseAfRatePrematureReadings, null);
+  manifest.models[1].ships = false;
+  assert.throws(() => withRhythmDevelopment(seedEvidence(), manifest), /need exactly 1/);
+});
+
+test('the CLI writes the rhythm rates into evidence.json and the app copy', (t) => {
+  const root = tempDir(t);
+  const manifestFile = path.join(root, 'manifest.json');
+  const out = path.join(root, 'evidence.json');
+  const app = path.join(root, 'assets', 'evidence.json');
+  fs.writeFileSync(manifestFile, JSON.stringify(rhythmManifest()));
+  fs.writeFileSync(out, JSON.stringify(seedEvidence()));
+  const run = spawnSync(
+    process.execPath,
+    [CLI, '--rhythm-dev', '--manifest', manifestFile, '--out', out, '--app', app],
+    { encoding: 'utf8' },
+  );
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(out, 'utf8')).metrics.rhythm.source, 'dev-augmented-premature');
+  assert.equal(fs.readFileSync(app, 'utf8'), fs.readFileSync(out, 'utf8'));
 });

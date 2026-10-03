@@ -76,3 +76,28 @@ export function buildEvidence(metrics, previous) {
     },
   };
 }
+
+const interval = (metric) =>
+  metric == null ? null : { estimate: metric.estimate, ci95: [metric.low, metric.high] };
+
+// §11.3: false-AF rate on premature beats and the reading abstain rate, copied from the shipped rhythm model's
+// development validation (augmented data). They never touch the rhythm label or passed, which come only from the
+// external test; `source` is a fixed code the app translates.
+export function withRhythmDevelopment(evidence, manifest) {
+  const shipped = (manifest.models ?? []).filter((model) => model.ships === true && model.family === 'rhythm');
+  if (shipped.length !== 1) throw new Error(`manifest has ${shipped.length} shipped rhythm models; need exactly 1`);
+  const metrics = shipped[0].development?.metrics;
+  if (metrics == null) throw new Error(`${shipped[0].name} has no development metrics`);
+  return {
+    ...evidence,
+    metrics: {
+      ...evidence.metrics,
+      rhythm: {
+        ...evidence.metrics.rhythm,
+        falseAfRatePrematureReadings: interval(metrics.falseAfRatePrematureReadings),
+        readingAbstainRate: interval(metrics.readingAbstainRate),
+        source: 'dev-augmented-premature',
+      },
+    },
+  };
+}

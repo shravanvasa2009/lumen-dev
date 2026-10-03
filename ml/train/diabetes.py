@@ -276,8 +276,8 @@ def fit_logistic(features: np.ndarray, train: SegmentSet) -> Pipeline:
 
 
 def fit_lgbm(train: SegmentSet, val: SegmentSet, seed: int) -> LGBMClassifier:
-    # Rhythm's tree settings: one tree per round here instead of three, so the 240-round cap stays near
-    # 160 KB, under diabetes's §11.9 limit of 300 KB.
+    # Rhythm's tree settings: one tree per round here instead of three, so the 240-round cap is estimated to
+    # stay near 160 KB, under diabetes's §11.9 limit of 300 KB (an estimate; parity.json records each size).
     params = {**LGBM_PARAMS, "random_state": seed}
     train_weights = sample_weights(train)
     probe = LGBMClassifier(**params).fit(

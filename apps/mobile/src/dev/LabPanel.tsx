@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
+import { loadDeviceRating } from '@/store/deviceRating';
 import { useTheme } from '@/theme';
 
 import {
@@ -21,7 +22,7 @@ import {
   type SampleBatch,
 } from '../../modules/lumen-capture/src';
 
-import { captureRequestBody, type PolarRr } from './captureRequest';
+import { captureRequestBody, type PhoneRating, type PolarRr } from './captureRequest';
 import type { HeartRateMeasurement } from './heartRateMeasurement';
 import { keepLiveWindow, readLiveHeartRate, type LiveHeartRate } from './liveHeartRate';
 import { connectStrap, type StrapConnection } from './polarStrap';
@@ -52,6 +53,7 @@ type Recorded = {
   summary: CaptureSummary;
   lab?: LabDiagnostics;
   polarRr?: PolarRr;
+  rating?: PhoneRating;
   recordedAt?: Date;
 };
 type SendState =
@@ -199,6 +201,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const lastEstimateNs = useRef<number | null>(null);
   const lastLab = useRef<LabDiagnostics | undefined>(undefined);
   const startedAt = useRef<Date | undefined>(undefined);
+  const ratingAtStart = useRef<PhoneRating | undefined>(undefined);
   const phone = useRef<Capabilities | null>(null);
   const capturing = useRef(false);
   const mounted = useRef(true);
@@ -210,6 +213,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const [trace, setTrace] = useState<number[]>([]);
   const [frames, setFrames] = useState(0);
   const [status, setStatus] = useState<CaptureStatus | null>(null);
+  const [activeFps, setActiveFps] = useState<number | null>(null);
   const [lab, setLab] = useState<LabDiagnostics | null>(null);
   const [liveHr, setLiveHr] = useState<LiveHeartRate>({ kind: 'none' });
   const [recorded, setRecorded] = useState<Recorded | null>(null);
@@ -351,6 +355,10 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
     setSendState({ kind: 'idle' });
     try {
       phone.current = await capture.getCapabilities();
+      // A replay carries no rating, and the one this phone holds now may not be the one the recording was
+      // made under, so a replay sends none (as with recordedAt). An unrated phone sends none either.
+      ratingAtStart.current =
+        capture instanceof ReplayCapture ? undefined : ((await loadDeviceRating()) ?? undefined);
       if (!mounted.current) return;
       batches.current = [];
       reds.current = [];
@@ -363,6 +371,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       setTrace([]);
       setFrames(0);
       setStatus(null);
+      setActiveFps(null);
       setLab(null);
       setRecorded(null);
       setLockDone(false);
@@ -396,7 +405,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       const config: CaptureConfig = { torchLevel };
       if (lensId !== undefined) config.lensId = lensId;
       if (targetFps !== undefined) config.targetFps = targetFps;
-      await capture.start(config);
+      const started = await capture.start(config);
       if (!mounted.current) {
         // The screen closed while the camera was starting, so its cleanup had nothing to stop yet.
         removeListeners();
@@ -404,6 +413,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
         return;
       }
       capturing.current = true;
+      setActiveFps(started.activeFps);
       setRunning(true);
       if (autoLock)
         autoLockTimer.current = setTimeout(() => {
@@ -434,6 +444,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
           summary,
           lab: lastLab.current,
           polarRr: stampStrapRr(strapNotifications.current, strapOffsetNs.current),
+          rating: ratingAtStart.current,
           recordedAt: startedAt.current,
         });
     } catch (error) {
@@ -498,7 +509,8 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   const pacedTyped = pacedText.trim().replace(',', '.');
   // Plain decimals only: Number() would also take forms like 0x10 or 1e1.
   const pacedBrpm = /^\d+(\.\d+)?$/.test(pacedTyped) ? Number(pacedTyped) : undefined;
-  const pacedValid = pacedTyped === '' || (pacedBrpm !== undefined && pacedBrpm > 0 && pacedBrpm <= MAX_PACED_BRPM);
+  const pacedValid =
+    pacedTyped === '' || (pacedBrpm !== undefined && pacedBrpm > 0 && pacedBrpm <= MAX_PACED_BRPM);
 
   const sendToPc = async () => {
     if (!recorded) return;
@@ -569,12 +581,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
   }));
 
   const canSend =
-    !running &&
-    recorded !== null &&
-    frames > 0 &&
-    address.trim() !== '' &&
-    token.trim() !== '' &&
-    pacedValid;
+    !running && recorded !== null && frames > 0 && address.trim() !== '' && token.trim() !== '' && pacedValid;
 
   return (
     <View style={{ gap: spacing.md }}>
@@ -631,6 +638,9 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
       <AppText variant="headline">{t('lab.redTrace')}</AppText>
       <RedTrace values={trace} />
       <AppText tone="textDim">{t('lab.frames', { frames })}</AppText>
+      {activeFps !== null ? (
+        <AppText tone="textDim">{t('lab.activeFps', { fps: activeFps.toFixed(1) })}</AppText>
+      ) : null}
       {status ? (
         <>
           <AppText>

@@ -5,7 +5,7 @@ import { butPpgDir, readButPpg, type ButPpgRecord } from './butppg';
 // DSP-D on real fingertip recordings (owner decision H-021, option A): extra detections kept < 5% of
 // beats and real beats removed ≤ 1%. Protocol and subject split from ADR 0025 ("Rule (e) rework on BUT
 // PPG"): DSP-9 was tuned on the tuning half, so only the report half is asserted. Subjects 100–111 (the
-// older file layout) were never in that split; they are printed, not asserted, pending owner H-038.
+// older file layout) were never in that split; they are printed, not asserted (owner H-038 A).
 const TUNING_SUBJECTS = new Set(
   '113 114 117 118 119 121 126 127 128 129 135 137 138 141 142 143 144 145 146'.split(' '),
 );

@@ -129,9 +129,9 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                 .map((point, index, shown) => {
                   const word = point.rhythm ? rhythmClassWords(t, point.rhythm).value : null;
                   const value = metricValue(t, metric, point.value);
-                  // A row opens a reading only when that reading exists; sample rows have no Results screen.
-                  const fixture = readingById(point.id);
-                  const opens = fixture !== undefined;
+                  // Saved readings always open. Sample rows open only when a fixture has that id.
+                  const fixture = demo ? readingById(point.id) : undefined;
+                  const opens = !demo || fixture !== undefined;
                   const clock = formatClock(point.createdAt, i18n.language);
                   const when = isToday(point.createdAt)
                     ? t('trends.todayAt', { time: clock })

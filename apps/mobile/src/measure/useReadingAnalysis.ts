@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 
 import { keepDemoReading } from '@/demo/demoReadings';
+import { resyncNotifications } from '@/settings/applyPrefs';
 import { saveReading } from '@/store/readings';
+import { currentPreferences } from '@/theme/preferences';
+import { publishWidgets } from '@/widgets/publish';
 
 import { analyzeKeptCapture, type AnalysisRequest } from './analyzeKeptCapture';
 import { type AnalysisProgress, pendingProgress } from './analysisProgress';
@@ -36,6 +39,15 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
     // §8.5: a Demo reading is shown from memory and never reaches the readings table.
     if (capture.demo) return { readingId: keepDemoReading(analysed, mode), progress };
     await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
+    // Spec §9.6: the widgets show the new reading. They publish after the reminders are re-planned, so the
+    // widget's next check time is current. The reading is already saved, so a failed widget write is reported
+    // and the result screen still opens; the widget keeps its previous snapshot.
+    void resyncNotifications().then(() =>
+      publishWidgets(currentPreferences()).catch((error: unknown) => {
+        const reason = error instanceof Error ? error.message : String(error);
+        console.warn(`Widget update failed: ${reason}`);
+      }),
+    );
     return { readingId, progress };
   });
   outcome.catch(() => runs.delete(capture));

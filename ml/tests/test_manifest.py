@@ -24,7 +24,7 @@ from eval.external_stats import (
     binary_report,
     rhythm_bias_report,
 )
-from export.write_manifest import EXTERNAL_NOT_RUN, NOT_MEASURED, logistic_rule
+from export.write_manifest import EXTERNAL_NOT_RUN, NOT_CALIBRATED, NOT_MEASURED, logistic_rule
 from nets.rhythm_net import LABELS
 from tests.training_artifacts import fit_baseline, save_trained
 from train.rhythm import LOGISTIC_FEATURES, Units, sensitivity_at, specificity_at, with_ci
@@ -149,6 +149,8 @@ def test_cards_have_every_heading_and_no_external_numbers(untrained):
         assert EXTERNAL_NOT_RUN in external
         if not entry["trainedOn"]:
             assert NOT_MEASURED in card.split("## Development metrics", 1)[1].split("\n## ", 1)[0]
+            calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
+            assert NOT_MEASURED in calibration and NOT_CALIBRATED not in calibration
     sqi_card = (models_dir / "sqi-finger@1.0.0.md").read_text(encoding="utf-8")
     assert "inverted red channel" in sqi_card and "finger recordings" in sqi_card
 
@@ -257,6 +259,42 @@ def test_the_logistic_rule_entry_carries_the_rule_for_the_app(with_rule):
     np.testing.assert_allclose(probs, expected, rtol=0, atol=1e-12)
     (onnx_probs,) = ort.InferenceSession(str(models_dir / entry["file"])).run(None, {"features": features})
     assert np.abs(probs - onnx_probs).max() <= TOLERANCE
+
+
+# The fields of a non-diabetes manifest entry (Appendix B and its accepted additions); `rule` is added only on
+# classical rhythm entries the app runs in code.
+ENTRY_FIELDS = {
+    "name",
+    "family",
+    "ships",
+    "role",
+    "version",
+    "file",
+    "sha256",
+    "inputs",
+    "outputs",
+    "labels",
+    "threshold",
+    "abstainBelow",
+    "externalTest",
+    "trainedOn",
+    "development",
+    "opset",
+    "toolchain",
+    "commit",
+    "date",
+    "card",
+}
+
+
+def test_only_diabetes_entries_carry_the_feature_fill(with_rule):
+    # Rhythm and SQI training also writes a featureOrder list; it stays out of their manifest entries.
+    models_dir, runs_dir, _pipeline = with_rule
+    entries = _manifest(models_dir, runs_dir)
+    for name, entry in entries.items():
+        if entry["family"] == "diabetes":
+            continue
+        assert set(entry) == ENTRY_FIELDS | ({"rule"} if name == "rhythm-logistic" else set()), name
 
 
 def test_a_rule_without_column_selection_is_refused():
@@ -773,3 +811,12 @@ def test_refuses_app_scored_readings_at_another_threshold(trained, monkeypatch):
     _assert_refused(
         models_dir, runs_dir, ProvenanceError, "rhythm-lgbm@1.0.0 was externally tested at af threshold 0.42"
     )
+
+
+def test_a_trained_model_without_calibration_says_so_not_that_it_is_untrained(trained):
+    models_dir, runs_dir = trained
+    entries = _manifest(models_dir, runs_dir)
+    card = (models_dir / entries["sqi-finger"]["card"]).read_text(encoding="utf-8")
+    calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
+    assert NOT_CALIBRATED in calibration and NOT_MEASURED not in calibration
+    assert "this version has none" in card and "team captures hand-labeled clean." not in card

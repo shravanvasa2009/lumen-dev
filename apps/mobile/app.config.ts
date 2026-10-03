@@ -90,6 +90,8 @@ const config: ExpoConfig = {
     locationPlugin,
     '@maplibre/maplibre-react-native',
     personalTeam ? [capturePlugin, { personalTeam: true }] : capturePlugin,
+    // The Android home-screen widget receivers (spec §12.5, ADR 0005).
+    './modules/lumen-widgets/app.plugin',
   ],
   // No over-the-air updates. Readings make no network requests (PRIV-1); only the optional Care map loads
   // map tiles (ADR 0054).

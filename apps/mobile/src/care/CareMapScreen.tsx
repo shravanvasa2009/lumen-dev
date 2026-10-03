@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
@@ -37,6 +37,12 @@ export function CareMapScreen() {
   const [failedCallPhone, setFailedCallPhone] = useState<string | null>(null);
   const [directionsFailedId, setDirectionsFailedId] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
+  // Android hides the keyboard (back key, chevron) without blurring the field, so the folded map would stay
+  // hidden after a search; the map comes back whenever the keyboard goes away.
+  useEffect(() => {
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
+    return () => hidden.remove();
+  }, []);
 
   const you = location.status === 'ready' ? location.origin : null;
   const centre = searchedPlace ?? you;
@@ -47,6 +53,8 @@ export function CareMapScreen() {
   ];
 
   const searchPlace = () => {
+    Keyboard.dismiss();
+    setTyping(false);
     const found = findPlace(query);
     setPlaceNotFound(found === null);
     if (found) {

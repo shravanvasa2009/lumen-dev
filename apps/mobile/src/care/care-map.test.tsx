@@ -1,7 +1,7 @@
 import { requireOptionalNativeModule } from 'expo';
 import * as Location from 'expo-location';
 import { act, fireEvent, renderHook, renderRouter, screen, within } from 'expo-router/testing-library';
-import { Dimensions, Linking, Platform, StyleSheet } from 'react-native';
+import { Dimensions, Keyboard, Linking, Platform, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
@@ -257,6 +257,34 @@ describe('Care map with location allowed', () => {
     fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'focus');
     expect(frameHeight()).toBe(0);
     fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'blur');
+    expect(frameHeight()).toBeGreaterThan(0);
+  });
+
+  // Android hides the keyboard without blurring the field; the folded map must still come back.
+  it('unfolds the map after a search, even though the ZIP field keeps focus', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss');
+    await openCareMap();
+    const frameHeight = () => StyleSheet.flatten(screen.getByTestId('care-map-frame').props.style).height;
+    const zip = screen.getByLabelText(en['careMap.zipLabel']);
+    fireEvent(zip, 'focus');
+    fireEvent.changeText(zip, '77002');
+    expect(frameHeight()).toBe(0);
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.search'] }));
+    expect(dismiss).toHaveBeenCalled();
+    expect(frameHeight()).toBeGreaterThan(0);
+  });
+
+  it('unfolds the map when the keyboard hides without a blur', async () => {
+    const listeners = new Map<string, () => void>();
+    jest.spyOn(Keyboard, 'addListener').mockImplementation((event, listener) => {
+      listeners.set(event, listener as () => void);
+      return { remove: jest.fn() } as unknown as ReturnType<typeof Keyboard.addListener>;
+    });
+    await openCareMap();
+    const frameHeight = () => StyleSheet.flatten(screen.getByTestId('care-map-frame').props.style).height;
+    fireEvent(screen.getByLabelText(en['careMap.zipLabel']), 'focus');
+    expect(frameHeight()).toBe(0);
+    act(() => listeners.get('keyboardDidHide')?.());
     expect(frameHeight()).toBeGreaterThan(0);
   });
 

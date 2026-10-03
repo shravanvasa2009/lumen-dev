@@ -5,8 +5,10 @@ import * as Sharing from 'expo-sharing';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
+import { memoryFiles } from '@/testing/memoryFiles';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
+jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').mockFileSystem);
 jest.mock('expo-print', () => ({ printToFileAsync: jest.fn() }));
 jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn(), shareAsync: jest.fn() }));
 
@@ -14,7 +16,7 @@ const printToFile = jest.mocked(printToFileAsync);
 const isAvailable = jest.mocked(Sharing.isAvailableAsync);
 const share = jest.mocked(Sharing.shareAsync);
 
-const pdfUri = 'file:///cache/Print/report.pdf';
+const pdfUri = 'cache/Print/report.pdf';
 
 function openReport(id: string) {
   renderRouter('./app', { initialUrl: `/report/${id}` });
@@ -27,6 +29,8 @@ const shareButton = () => screen.getByRole('button', { name: en['report.sharePdf
 
 beforeEach(() => {
   jest.resetAllMocks();
+  memoryFiles.clear();
+  memoryFiles.set(pdfUri, '%PDF');
   printToFile.mockResolvedValue({ uri: pdfUri, numberOfPages: 1 });
   isAvailable.mockResolvedValue(true);
   share.mockResolvedValue(undefined);
@@ -80,6 +84,24 @@ describe('Share PDF', () => {
     fireEvent.press(shareButton());
     expect(await screen.findByText(en['report.shareFailed'])).toBeOnTheScreen();
     expect(shareButton()).toBeEnabled();
+  });
+
+  it('deletes the PDF from the cache after the share sheet closes (PRIV-1)', async () => {
+    openReport('demo');
+    fireEvent.press(shareButton());
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1), { timeout: firstRenderMs });
+    await waitFor(() => expect(memoryFiles.has(pdfUri)).toBe(false));
+  });
+
+  it.each([
+    ['sharing is unavailable', () => isAvailable.mockResolvedValue(false)],
+    ['the share sheet throws', () => share.mockRejectedValue(new Error('cancelled by system'))],
+  ])('still deletes the PDF when %s', async (_name, breakIt) => {
+    breakIt();
+    openReport('demo');
+    fireEvent.press(shareButton());
+    expect(await screen.findByText(en['report.shareFailed'])).toBeOnTheScreen();
+    expect(memoryFiles.has(pdfUri)).toBe(false);
   });
 
   it('keeps the share-sheet caption and has no "later update" note', () => {

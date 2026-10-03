@@ -6,6 +6,7 @@ import { demoReadingById, keepDemoReading } from '@/demo/demoReadings';
 import { enterDemo, isDemoActive } from '@/demo/demoSession';
 import { pendingProgress } from '@/measure/analysisProgress';
 import { keepCapture, keptCapture } from '@/measure/keptCapture';
+import { syncNotifications } from '@/notifications/scheduler';
 import { saveNotificationPrefs } from '@/notifications/prefs';
 import { saveScheduleRecord } from '@/notifications/record';
 import { finishOnboarding } from '@/profile/onboarding';
@@ -21,8 +22,10 @@ import { listReadings } from './readings';
 
 jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').mockFileSystem);
 jest.mock('expo-notifications', () => ({ cancelAllScheduledNotificationsAsync: jest.fn() }));
+jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
 
 const cancelAll = jest.mocked(cancelAllScheduledNotificationsAsync);
+const sync = jest.mocked(syncNotifications);
 
 const EMPTY = { baselines: 0, device_rating: 0, profile: 0, readings: 0 };
 
@@ -58,13 +61,15 @@ beforeEach(() => {
   memoryFiles.clear();
   cancelAll.mockReset();
   cancelAll.mockResolvedValue(undefined);
+  sync.mockReset();
+  sync.mockResolvedValue(undefined);
 });
 
 describe('deleteAllData', () => {
   it('empties readings, profile, baselines and device rating', async () => {
     await fillEveryTable();
     expect(Object.values(await rowCounts()).every((count) => count > 0)).toBe(true);
-    await deleteAllData();
+    await deleteAllData('en');
     expect(await rowCounts()).toEqual(EMPTY);
     expect(await listReadings()).toEqual([]);
   });
@@ -72,7 +77,7 @@ describe('deleteAllData', () => {
   it('resets the onboarding gate and the health notes', async () => {
     await fillEveryTable();
     expect(await profileValue('onboardingDone')).toBe('true');
-    await deleteAllData();
+    await deleteAllData('en');
     expect(await profileValue('onboardingDone')).toBeNull();
     expect(await profileValue('athlete')).toBeNull();
   });
@@ -93,7 +98,7 @@ describe('deleteAllData', () => {
       },
     ]);
     expect(memoryFiles.size).toBe(2);
-    await deleteAllData();
+    await deleteAllData('en');
     expect(cancelAll).toHaveBeenCalledTimes(1);
     expect([...memoryFiles.keys()]).toEqual([]);
   });
@@ -133,7 +138,7 @@ describe('deleteAllData', () => {
     setPreference('appearance', 'dark');
     setPreference('hideWidgetValues', true);
     const preferences = renderHook(usePreferences);
-    await act(deleteAllData);
+    await act(() => deleteAllData('en'));
     expect(keptCapture()).toBeNull();
     expect(demoReadingById(demoId)).toBeUndefined();
     expect(isDemoActive()).toBe(false);
@@ -143,15 +148,75 @@ describe('deleteAllData', () => {
   it('throws when reminders cannot be cancelled, and leaves the data alone', async () => {
     await fillEveryTable();
     cancelAll.mockRejectedValue(new Error('scheduler unavailable'));
-    await expect(deleteAllData()).rejects.toThrow('scheduler unavailable');
+    await expect(deleteAllData('en')).rejects.toThrow('scheduler unavailable');
     expect((await rowCounts()).readings).toBe(1);
   });
 
   it('can be run again after a failure and then finishes the job', async () => {
     await fillEveryTable();
     cancelAll.mockRejectedValueOnce(new Error('scheduler unavailable'));
-    await expect(deleteAllData()).rejects.toThrow();
-    await deleteAllData();
+    await expect(deleteAllData('en')).rejects.toThrow();
+    await deleteAllData('en');
     expect(await rowCounts()).toEqual(EMPTY);
+  });
+
+  it('syncs with every reminder off before it cancels or deletes anything', async () => {
+    await fillEveryTable();
+    const order: string[] = [];
+    sync.mockImplementation(async () => {
+      order.push('sync');
+      expect((await rowCounts()).readings).toBe(1);
+    });
+    cancelAll.mockImplementation(async () => {
+      order.push('cancel');
+    });
+    await deleteAllData('es');
+    expect(order).toEqual(['sync', 'cancel']);
+    const [request, language] = sync.mock.calls[0]!;
+    expect(Object.values(request.prefs.enabled)).toEqual([false, false, false, false, false]);
+    expect(request.triggers).toEqual({
+      confirmationFor: null,
+      doctorFollowupFor: null,
+      standingStartedAt: null,
+      lastPhoneCheckAt: null,
+    });
+    expect(language).toBe('es');
+  });
+
+  it('stops without deleting when the sync fails', async () => {
+    await fillEveryTable();
+    sync.mockRejectedValue(new Error('sync failed'));
+    await expect(deleteAllData('en')).rejects.toThrow('sync failed');
+    expect(cancelAll).not.toHaveBeenCalled();
+    expect((await rowCounts()).readings).toBe(1);
+  });
+
+  it('removes the folder expo-print writes PDFs to, and leaves other cache files', async () => {
+    memoryFiles.set('cache/Print/a.pdf', 'x');
+    memoryFiles.set('cache/Print/b.pdf', 'x');
+    memoryFiles.set('cache/other.bin', 'x');
+    await deleteAllData('en');
+    expect([...memoryFiles.keys()]).toEqual(['cache/other.bin']);
+  });
+
+  it('turns secure_delete on before the deletes and vacuums after them', async () => {
+    await fillEveryTable();
+    const database = await lumenDatabase();
+    const issued: string[] = [];
+    const exec = database.execAsync.bind(database);
+    const run = database.runAsync.bind(database);
+    jest.spyOn(database, 'execAsync').mockImplementation(async (statement) => {
+      issued.push(statement);
+      await exec(statement);
+    });
+    jest.spyOn(database, 'runAsync').mockImplementation(async (statement, ...params) => {
+      if (statement.startsWith('DELETE')) issued.push('DELETE');
+      return run(statement, ...params);
+    });
+    await deleteAllData('en');
+    expect(issued[0]).toBe('PRAGMA secure_delete = ON');
+    expect(issued.at(-1)).toBe('VACUUM');
+    expect(issued.filter((statement) => statement === 'DELETE')).toHaveLength(4);
+    jest.restoreAllMocks();
   });
 });

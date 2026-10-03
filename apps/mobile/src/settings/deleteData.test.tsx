@@ -3,6 +3,7 @@ import { cancelAllScheduledNotificationsAsync } from 'expo-notifications';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
+import { syncNotifications } from '@/notifications/scheduler';
 import { listReadings } from '@/store/readings';
 import { memoryFiles } from '@/testing/memoryFiles';
 import { startOnboarded } from '@/testing/onboarded';
@@ -16,6 +17,7 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => 'dark',
 }));
 jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').mockFileSystem);
+jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
 jest.mock('expo-notifications', () => ({
   ...jest.requireActual('expo-notifications'),
   cancelAllScheduledNotificationsAsync: jest.fn(),
@@ -65,6 +67,20 @@ describe('Delete all data in Settings', () => {
     expect(await profileValue('onboardingDone')).toBeNull();
     expect(cancelAll).toHaveBeenCalledTimes(1);
     expect(memoryFiles.size).toBe(0);
+  });
+
+  it('disables the Delete row and both buttons while deleting', async () => {
+    let finish: () => void = () => undefined;
+    jest.mocked(syncNotifications).mockReturnValueOnce(new Promise((resolve) => (finish = () => resolve())));
+    renderRouter('./app', { initialUrl: '/settings' });
+    fireEvent.press(deleteRow());
+    fireEvent.press(confirmButton());
+    const busy = await screen.findByRole('button', { name: en['settings.deleting'] });
+    expect(busy).toBeDisabled();
+    expect(deleteRow()).toBeDisabled();
+    expect(screen.getByRole('button', { name: en['settings.deleteCancel'] })).toBeDisabled();
+    finish();
+    expect(await screen.findByRole('button', { name: en['welcome.getStarted'] })).toBeOnTheScreen();
   });
 
   it('starts at Welcome again on the next launch', async () => {

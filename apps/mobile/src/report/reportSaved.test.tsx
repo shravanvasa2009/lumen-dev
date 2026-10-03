@@ -9,12 +9,14 @@ import { makeReading } from '@/testing/reading';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import * as storedReadings from '@/store/readings';
 import { saveTestReading } from '@/testing/savedReading';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'light',
 }));
+jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').mockFileSystem);
 jest.mock('expo-print', () => ({ printToFileAsync: jest.fn() }));
 jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn(), shareAsync: jest.fn() }));
 
@@ -29,6 +31,8 @@ const YESTERDAY = new Date(2026, 8, 30, 12, 0).getTime();
 
 const pageCount = (html: string) => html.match(/<section class="page">/g)?.length ?? 0;
 const sharedHtml = () => (printToFile.mock.calls[0]?.[0] as { html: string }).html;
+
+afterEach(() => jest.restoreAllMocks());
 
 beforeEach(async () => {
   await startOnboarded();
@@ -78,6 +82,22 @@ describe('Doctor report for a reading saved on this phone', () => {
     await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledTimes(1));
     expect(pageCount(sharedHtml())).toBe(2);
     expect(sharedHtml().split(en['report.flagHrOne'])).toHaveLength(3);
+  });
+
+  it('keeps Share disabled until the saved readings have loaded, so no flagged page is missed', async () => {
+    const id = await saveTestReading(MORNING, 71);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const realList = storedReadings.listReadings;
+    jest.spyOn(storedReadings, 'listReadings').mockImplementationOnce(async () => {
+      await gate;
+      return realList();
+    });
+    renderRouter('./app', { initialUrl: `/report/${id}` });
+    const share = await screen.findByRole('button', { name: en['report.sharePdf'] });
+    expect(share).toBeDisabled();
+    release();
+    await waitFor(() => expect(screen.getByRole('button', { name: en['report.sharePdf'] })).toBeEnabled());
   });
 
   it('still says "not found" for an id that is neither saved nor a sample', async () => {

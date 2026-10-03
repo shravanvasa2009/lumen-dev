@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import { printToFileAsync } from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
@@ -22,10 +23,11 @@ export function ReportView({ id }: { id: string | undefined }) {
   const { t, i18n } = useTranslation();
   const { spacing } = useTheme();
   const [sharing, setSharing] = useState<'idle' | 'busy' | 'failed'>('idle');
-  const { reading, dayReadings } = useReportReading(id);
+  const { reading, dayReadings, dayReady } = useReportReading(id);
 
   async function sharePdf(shown: FixtureReading) {
     setSharing('busy');
+    let pdf: File | null = null;
     try {
       const html = buildReportHtml({
         t,
@@ -35,6 +37,7 @@ export function ReportView({ id }: { id: string | undefined }) {
         demo: shown.sample,
       });
       const { uri } = await printToFileAsync({ html });
+      pdf = new File(uri);
       if (!(await Sharing.isAvailableAsync())) {
         setSharing('failed');
         return;
@@ -43,6 +46,13 @@ export function ReportView({ id }: { id: string | undefined }) {
       setSharing('idle');
     } catch {
       setSharing('failed');
+    } finally {
+      // PRIV-1: the PDF holds health values, so it does not stay in the cache once the share sheet closes.
+      try {
+        if (pdf?.exists) pdf.delete();
+      } catch {
+        setSharing('failed');
+      }
     }
   }
 
@@ -54,7 +64,7 @@ export function ReportView({ id }: { id: string | undefined }) {
           {reading ? (
             <Button
               label={sharing === 'busy' ? t('report.sharing') : t('report.sharePdf')}
-              disabled={sharing === 'busy'}
+              disabled={sharing === 'busy' || !dayReady}
               onPress={() => void sharePdf(reading)}
             />
           ) : null}

@@ -26,12 +26,13 @@ type SettingsRow = {
   href?: Href;
   onPress?: () => void;
   expanded?: boolean;
+  busy?: boolean;
 };
 
 type DeleteStep = 'idle' | 'confirming' | 'deleting' | 'failed';
 
 export default function SettingsScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { appearance } = usePreferences();
   const rating = useStoredRating();
@@ -78,6 +79,7 @@ export default function SettingsScreen() {
     {
       title: t('settings.delete'),
       expanded: deleteStep !== 'idle',
+      busy: deleteStep === 'deleting',
       onPress: () => setDeleteStep(deleteStep === 'idle' ? 'confirming' : 'idle'),
     },
     { title: t('settings.about') },
@@ -96,7 +98,7 @@ export default function SettingsScreen() {
   async function deleteEverything() {
     setDeleteStep('deleting');
     try {
-      await deleteAllData();
+      await deleteAllData(i18n.language);
     } catch {
       setDeleteStep('failed');
       return;
@@ -106,7 +108,7 @@ export default function SettingsScreen() {
 
   // A row with no destination is a feature that does not exist yet, so it shows "Coming soon" and does nothing.
   function renderRows(rows: readonly SettingsRow[]) {
-    return rows.map(({ title, value, href, onPress, expanded }, index) => {
+    return rows.map(({ title, value, href, onPress, expanded, busy }, index) => {
       const opens = href !== undefined || onPress !== undefined;
       const shownValue = value ?? (opens ? undefined : t('settings.comingSoon'));
       return (
@@ -115,7 +117,7 @@ export default function SettingsScreen() {
           title={title}
           last={index === rows.length - 1}
           chevron={href !== undefined}
-          disabled={!opens}
+          disabled={!opens || busy}
           expanded={expanded}
           trailing={shownValue ? <AppText tone="textDim">{shownValue}</AppText> : undefined}
           onPress={onPress ?? (href === undefined ? undefined : () => router.push(href))}

@@ -1,17 +1,26 @@
 import { Tabs } from 'expo-router';
+import { Easing } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { CareTabButton } from '@/components/CareTabButton';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
+import { motion, useReduceMotion } from '@/theme/motion';
 
 export default function TabsLayout() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        animation: reduceMotion ? 'none' : 'fade',
+        // Bottom tabs run on React Native's Animated, so the 200 ms ease-out token is spelled with its Easing.
+        transitionSpec: {
+          animation: 'timing',
+          config: { duration: motion.durationMs, easing: Easing.out(Easing.cubic) },
+        },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textDim,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },

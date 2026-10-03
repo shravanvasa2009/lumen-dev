@@ -111,15 +111,16 @@ const DICROTIC_S: Record<string, (scale: number) => number | null> = {
   stiffLateSystolic: () => null,
 };
 
-// Timing finer than a quarter cycle of the morphology band's upper edge (8 Hz: 31 ms) does not survive the
-// band, so the notch must lie within this of the constructed one.
+// A heuristic tolerance, not a derivation: a quarter cycle of the morphology band's 8 Hz upper edge (31 ms),
+// about the finest timing the band keeps. The e-wave errors the red team found were 40–70 samples.
 const NOTCH_TOLERANCE_S = 1 / (4 * DSP_CONFIG.dsp6.morphologyBandHz[1]!);
 
 // The notch known from how the pulse is built, on the noiseless raw train before any filtering (independent
-// of the code under test, which works on the band-passed ensemble): between the systolic peak and the
-// dicrotic component's centre, the train's minimum if it dips there (Dawber class 1–2, with the diastolic
-// peak after it), else the shoulder where its slope comes closest to 0 (class 3). Null without a dicrotic
-// component (class 4). Times are from the raw systolic peak, at 0.1 ms steps.
+// of the code under test, which works on the band-passed ensemble): the first local minimum after the
+// systolic peak that a local maximum (the diastolic peak) follows, both within 0.6 of the period after the
+// peak, before the next beat's foot (Dawber class 1–2). Without one, the shoulder before the dicrotic
+// component's centre where the slope comes closest to 0 (class 3). Null without a dicrotic component
+// (class 4). Times are from the raw systolic peak, at 0.1 ms steps.
 type ConstructedNotch = { notchS: number; diastolicS: number | null; periodS: number };
 function constructedNotch(
   pulse: Pulse,
@@ -134,18 +135,18 @@ function constructedNotch(
   const stepS = 1e-4;
   const steps = (fromS: number, toS: number) =>
     Array.from({ length: Math.round((toS - fromS) / stepS) + 1 }, (_, i) => fromS + i * stepS);
-  const highest = (times: number[], value: (tS: number) => number) =>
-    times.reduce((best, tS) => (value(tS) > value(best) ? tS : best));
-  const peakS = highest(steps(-0.1, dicroticS), train);
-  const between = steps(peakS, dicroticS);
-  const lowestS = highest(between, (tS) => -train(tS));
-  if (lowestS > peakS + stepS && lowestS < dicroticS - stepS) {
-    const diastolicS = highest(steps(lowestS, lowestS + 0.4 * periodS), train);
-    return { notchS: lowestS - peakS, diastolicS: diastolicS - peakS, periodS };
-  }
+  const peakS = steps(-0.1, dicroticS).reduce((best, tS) => (train(tS) > train(best) ? tS : best));
+  const after = steps(peakS + stepS, peakS + 0.6 * periodS);
+  const notchS = after.find((tS) => train(tS - stepS) > train(tS) && train(tS) <= train(tS + stepS));
+  const diastolicS =
+    notchS === undefined
+      ? undefined
+      : after.find((tS) => tS > notchS && train(tS - stepS) < train(tS) && train(tS) >= train(tS + stepS));
+  if (notchS !== undefined && diastolicS !== undefined)
+    return { notchS: notchS - peakS, diastolicS: diastolicS - peakS, periodS };
   const slope = (tS: number) => (train(tS + stepS) - train(tS - stepS)) / (2 * stepS);
-  const shoulderS = between.find(
-    (tS) => tS > peakS + 0.01 && slope(tS) > slope(tS - stepS) && slope(tS) >= slope(tS + stepS),
+  const shoulderS = steps(peakS + 0.01, dicroticS).find(
+    (tS) => slope(tS) > slope(tS - stepS) && slope(tS) >= slope(tS + stepS),
   );
   return shoulderS === undefined ? null : { notchS: shoulderS - peakS, diastolicS: null, periodS };
 }
@@ -197,43 +198,11 @@ function cameraPhysiology(name: string, bpm: number, fps: number) {
 
 describe('red team: ML-6 notch features on realistic finger pulses, against the constructed notch', () => {
   // Through the camera path with 0.02% frame noise and ±1 ms jitter (synthetic-suite cameraCapture, seed 3),
-  // 30 regular beats or more. Each case gave a physiologically impossible feature 4, 5, 6 or 12 when the
-  // notch was the e-wave; the comment gives what was observed then (visible notch = the band's minimum).
-  it.each([
-    // e after the diastolic peak: diastolic peak 0, area ratio −0.10 (e 180, visible notch 111).
-    ['adult', 72, 60],
-    ['adult', 90, 60], // e 203 vs notch 126: diastolic peak 0, area ratio −0.07
-    ['adult', 60, 120], // e 160 vs notch 100: diastolic peak 0, area ratio −0.13
-    ['older', 45, 60], // e 118 vs notch 76: diastolic peak 0
-    ['older', 60, 60], // e 140 vs notch 89: diastolic peak 0, area ratio −0.01
-    ['older', 72, 60], // e 156 vs notch 100: diastolic peak 0, area ratio −0.02
-    ['older', 90, 60], // e 182 vs notch 115: diastolic peak 0, area ratio −0.04
-    ['older', 110, 60], // e 200 vs notch 134: diastolic peak 0, area ratio −0.04
-    ['deepNotch', 45, 60], // e 149 vs notch 81: notch height −0.05, area ratio −0.46
-    ['deepNotch', 60, 60], // e 181 vs notch 99: notch height −0.08, area ratio −0.30
-    ['deepNotch', 72, 60], // e 200 vs notch 112: notch height −0.07, area ratio −0.20
-    ['deepNotch', 72, 120], // e 201 vs notch 112: notch height −0.08, area ratio −0.21
-    ['noNotch', 90, 60], // no notch; e 153: area ratio −0.02
-    ['noNotch', 110, 60], // no notch; e 189: area ratio −0.06
-    ['noNotch', 130, 60], // no notch; e 187: area ratio −0.05
-    ['stiffLateSystolic', 130, 60], // late systolic peak 118; e 165: area ratio −0.02
-  ])(
-    '%s pulse at %i bpm, %i fps: notch on the constructed notch, before the diastolic peak, positive area',
-    (name, bpm, fps) => {
-      expect(cameraPhysiology(name, bpm, fps)).toEqual(POSSIBLE);
-    },
-  );
-
+  // 30 regular beats or more. With the notch at the e-wave, 16 of these runs gave impossible values:
+  // adult 60–90 bpm and older 45–110 bpm had the e-wave 40–70 samples after the visible notch (diastolic
+  // peak 0, area ratio down to −0.13); deepNotch 45–72 bpm had notch heights to −0.08 and area ratios to
+  // −0.46; noNotch 90–130 bpm and stiffLateSystolic 130 bpm had negative area ratios.
   it('sweeps 6 pulses × 45–150 bpm × 60/120/240 fps; only the listed band-limited cases miss', () => {
-    // Each miss is a limit of the spec's 0.5–8 Hz morphology band, not of the notch rule (ADR 0059):
-    // - young 45–72 bpm: no ensemble beat, DSP-7/8 counts the dicrotic wave as a beat (backlog);
-    // - older 45 bpm at 120 fps and 60 bpm at 240 fps: the 0.5 Hz high-pass tilts the class-3 plateau, so
-    //   the band's minimum sits 4–8 samples before the raw shoulder at every rate up to 110 bpm; these
-    //   two reach the tolerance (6 and 8 samples) by a fraction of a sample;
-    // - older ≥ 130 bpm: the band leaves no minimum at the class-3 shoulder, so the upward-bend fallback
-    //   lands about 20 samples before it, with diastolic peak 0;
-    // - deepNotch 150 bpm: the notch-to-diastolic-peak gap (about 28 ms) is under the band's resolution,
-    //   so the notch is lost and the diastolic peak reads 0.
     const misses: string[] = [];
     for (const name of Object.keys(PULSES))
       for (const bpm of [45, 60, 72, 90, 110, 130, 150])
@@ -341,7 +310,13 @@ describe('red team: ML-6 HR/HRV summary gates and degenerate beats', () => {
   });
 });
 
-// Pinned by the sweep above; each group is explained there.
+// The sweep's misses. None is a wrong notch: every notch lies within the tolerance of the constructed one.
+// - young 45–72 bpm: no ensemble beat; DSP-7/8 counts the dicrotic wave as a beat (Track C backlog).
+// - older 130–150 bpm and deepNotch 150 bpm: the raw pulse's diastolic peak comes 29–31 ms after its notch
+//   (older 130 bpm: notch 96.4 ms, diastolic peak 127.4 ms after the systolic peak; resolved at 32.5 ms,
+//   older 110 bpm). That is under what the spec's 0.5–8 Hz morphology band resolves, so the band-passed
+//   beat only decays there and the diastolic peak height reads 0. A band limit, not a notch-rule error
+//   (ADR 0059).
 const KNOWN_MISSES = [
   'young 45 60: no shape',
   'young 45 120: no shape',
@@ -352,14 +327,12 @@ const KNOWN_MISSES = [
   'young 72 60: no shape',
   'young 72 120: no shape',
   'young 72 240: no shape',
-  'older 45 120: notchOnConstructedNotch',
-  'older 60 240: notchOnConstructedNotch',
-  'older 130 60: notchOnConstructedNotch',
-  'older 130 120: notchOnConstructedNotch',
-  'older 130 240: notchOnConstructedNotch',
-  'older 150 60: notchOnConstructedNotch',
-  'older 150 120: notchOnConstructedNotch',
-  'older 150 240: notchOnConstructedNotch',
+  'older 130 60: diastolicPeakAsConstructed',
+  'older 130 120: diastolicPeakAsConstructed',
+  'older 130 240: diastolicPeakAsConstructed',
+  'older 150 60: diastolicPeakAsConstructed',
+  'older 150 120: diastolicPeakAsConstructed',
+  'older 150 240: diastolicPeakAsConstructed',
   'deepNotch 150 60: diastolicPeakAsConstructed',
   'deepNotch 150 120: diastolicPeakAsConstructed',
   'deepNotch 150 240: diastolicPeakAsConstructed',

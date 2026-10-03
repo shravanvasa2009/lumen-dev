@@ -61,59 +61,51 @@ def _shape_of(band, onsets: list[int], capture_fps: float = 60) -> PulseShape | 
     return ensemble_beat(band, onsets, [True] * len(onsets), capture_fps)
 
 
-# Timing finer than a quarter cycle of the morphology band's upper edge (8 Hz: 31 ms) does not survive the
-# band, so the notch must lie within this of the constructed one (as the TS file).
+# A heuristic tolerance, not a derivation: a quarter cycle of the morphology band's 8 Hz upper edge (31 ms),
+# about the finest timing the band keeps (as the TS file).
 NOTCH_TOLERANCE_S = 1 / (4 * DSP_CONFIG["dsp6"]["morphologyBandHz"][1])
 
 
-def _constructed_shoulder_s(pulse, bpm: float, dicrotic_s: float) -> tuple[float, bool]:
+def _constructed_notch_s(pulse, bpm: float) -> tuple[float, float] | None:
     # The notch known from how the pulse is built, on the noiseless raw train before any filtering, as the
-    # TS constructedNotch: between the systolic peak and the dicrotic centre, (time from the peak, True) at
-    # the train's minimum if it dips there, else (time, False) at the shoulder where its slope comes
-    # closest to 0. 0.1 ms steps.
+    # TS constructedNotch: (notch, diastolic peak) in s after the systolic peak, for the first local minimum
+    # after the peak that a local maximum follows, both within 0.6 of the period. 0.1 ms steps.
     period_s = 60 / bpm
     step_s = 1e-4
 
     def train(t_s: float) -> float:
         return sum(pulse(t_s - n * period_s) for n in range(-2, 3))
 
-    def steps(from_s: float, to_s: float) -> list[float]:
-        return [from_s + i * step_s for i in range(round((to_s - from_s) / step_s) + 1)]
-
-    peak_s = max(steps(-0.1, dicrotic_s), key=train)
-    between = steps(peak_s, dicrotic_s)
-    lowest_s = min(between, key=train)
-    if peak_s + step_s < lowest_s < dicrotic_s - step_s:
-        return lowest_s - peak_s, True
-
-    def slope(t_s: float) -> float:
-        return (train(t_s + step_s) - train(t_s - step_s)) / (2 * step_s)
-
-    shoulder_s = next(
-        t_s
-        for t_s in between
-        if t_s > peak_s + 0.01 and slope(t_s - step_s) < slope(t_s) >= slope(t_s + step_s)
+    peak_s = max((-0.1 + i * step_s for i in range(round(0.5 / step_s) + 1)), key=train)
+    after = [peak_s + i * step_s for i in range(1, round(0.6 * period_s / step_s) + 1)]
+    notch_s = next((t for t in after if train(t - step_s) > train(t) <= train(t + step_s)), None)
+    if notch_s is None:
+        return None
+    diastolic_s = next(
+        (t for t in after if t > notch_s and train(t - step_s) < train(t) >= train(t + step_s)), None
     )
-    return shoulder_s - peak_s, False
+    return None if diastolic_s is None else (notch_s - peak_s, diastolic_s - peak_s)
 
 
-def test_older_pulse_at_72_bpm_has_its_notch_on_the_constructed_shoulder():
+def test_older_pulse_at_72_bpm_has_its_notch_and_diastolic_peak_where_built():
     # Observed with the e-wave notch: e-wave 176 after the band's minimum 119; diastolic peak height 0.
-    # The raw older pulse has no minimum (Dawber class 3), so the reference is its shoulder.
     shape = _shape_of(*_morphology_train(OLDER, 72))
     features = shape_features(shape)
     assert features[3] is not None
-    shoulder_s, dips = _constructed_shoulder_s(OLDER, 72, 0.147 + 0.05)
-    assert not dips
+    constructed = _constructed_notch_s(OLDER, 72)
+    assert constructed is not None
+    notch_s, diastolic_s = constructed
     samples, lead = DSP_CONFIG["dsp14"]["beatSamples"], DSP_CONFIG["dsp14"]["leadFraction"]
     period_s = 60 / 72
     notch = (features[3] + lead) * samples
     peak = (features[0] + lead) * samples
     checks = {
-        "notch_on_constructed_notch": abs(notch - peak - shoulder_s / period_s * samples)
+        "notch_on_constructed_notch": abs(notch - peak - notch_s / period_s * samples)
         <= NOTCH_TOLERANCE_S / period_s * samples,
+        "notch_before_diastolic_peak": notch < peak + diastolic_s / period_s * samples,
         "notch_height_in_unit_range": 0 <= features[4] <= 1,
-        "diastolic_peak_not_below_notch": features[5] == 0 or features[5] >= features[4],
+        "diastolic_peak_found": features[5] > 0,
+        "diastolic_peak_not_below_notch": features[5] >= features[4],
         "positive_area_ratio": features[11] > 0,
     }
     assert checks == dict.fromkeys(checks, True)

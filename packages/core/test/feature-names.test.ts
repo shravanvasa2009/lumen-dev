@@ -40,6 +40,13 @@ describe('ML-3 rhythm feature names', () => {
     }
   });
 
+  it('are the same list as ml/lumen_dsp/rhythm.py RHYTHM_FEATURE_NAMES', () => {
+    const source = fs.readFileSync(path.join(repo, 'ml/lumen_dsp/rhythm.py'), 'utf8');
+    const tuple = /^RHYTHM_FEATURE_NAMES = \(\n([\s\S]*?)\n\)/m.exec(source);
+    expect(tuple).not.toBeNull();
+    expect([...tuple![1]!.matchAll(/"(\w+)"/g)].map((match) => match[1])).toEqual([...RHYTHM_FEATURE_NAMES]);
+  });
+
   it('ml/train/rhythm_windows.py FEATURE_NAMES is a prefix of them', () => {
     // There is no shared file for the names, so the Python tuple is read from its source.
     const source = fs.readFileSync(path.join(repo, 'ml/train/rhythm_windows.py'), 'utf8');

@@ -217,8 +217,20 @@ describe('logistic rhythm rule on the full rhythm vector (v1 entry, v1 + v2 feat
     );
   });
 
+  it('reads featureOrder by index, so holes or an own some() cannot pass it', () => {
+    const holed = [...RHYTHM_FEATURE_NAMES.slice(0, 4)];
+    delete holed[0];
+    expect(() => logisticRhythmOutputs(toyEntry({ featureOrder: holed }), [HAND_WINDOW])).toThrow(
+      /featureOrder/,
+    );
+    const lying = Object.assign(['w', 'x', 'y', 'z'], { some: () => false, every: () => true });
+    expect(() => logisticRhythmOutputs(toyEntry({ featureOrder: lying }), [HAND_WINDOW])).toThrow(
+      /featureOrder/,
+    );
+  });
+
   it('refuses an entry wider than the features core computes', () => {
     const entry = toyEntry({ inputs: { features: [1, RHYTHM_FEATURE_NAMES.length + 1] } });
-    expect(() => logisticRhythmOutputs(entry, [HAND_WINDOW])).toThrow();
+    expect(() => logisticRhythmOutputs(entry, [HAND_WINDOW])).toThrow(/core computes/);
   });
 });

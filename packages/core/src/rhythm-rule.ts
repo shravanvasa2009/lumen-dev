@@ -165,11 +165,11 @@ export function logisticRhythmOutputs(
       `the entry asks for ${featureCount} features; core computes ${RHYTHM_FEATURE_NAMES.length}`,
     );
   const expectedOrder = RHYTHM_FEATURE_NAMES.slice(0, featureCount);
+  // A copy, read by index: the entry's own array could have holes or its own methods.
+  const order = entry.featureOrder === undefined ? undefined : copyOf(entry.featureOrder);
   if (
-    entry.featureOrder !== undefined &&
-    (!Array.isArray(entry.featureOrder) ||
-      entry.featureOrder.length !== featureCount ||
-      entry.featureOrder.some((name, i) => name !== expectedOrder[i]))
+    order !== undefined &&
+    (order === null || order.length !== featureCount || !expectedOrder.every((name, i) => order[i] === name))
   )
     throw new Error(`the entry's featureOrder must be ${JSON.stringify(expectedOrder)}`);
   // Only the entry's own width or core's full width: any other length is an upstream fault. Every value must

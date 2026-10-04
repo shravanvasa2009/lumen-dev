@@ -11,17 +11,18 @@ from sklearn.model_selection import StratifiedKFold
 
 from datasets import registry
 from datasets.splits import ensure_not_external
-from datasets.vitaldb_cases import eligible_cases, load_split
+from datasets.vitaldb_cases import eligible_cases, ensure_dev_only, load_split
 from export.specs import RUNS_DIR
 from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES
 from nets.diabetes_net import HR_SUMMARY_NAMES
 from train.ada_risk import ada_risk
+from train.diabetes import ALWAYS_EMPTY
 
 # ADR 0087: the questionnaire alone vs questionnaire + pulse, on development data only (VitalDB dev split; the
 # locked holdout is never read). VitalDB has age, sex, BMI and hypertension but not family history or physical
 # activity, so the score here is PARTIAL (those two scored "no"); the app asks every item. Dev controls with
 # pulse features are matched on sex and age decade (select_dev_cases), removing most age and sex points.
-PULSE_COLUMNS = [*SHAPE_FEATURE_NAMES, *(name for name in HR_SUMMARY_NAMES if name != "sdnnMs")]
+PULSE_COLUMNS = [*SHAPE_FEATURE_NAMES, *(name for name in HR_SUMMARY_NAMES if name not in ALWAYS_EMPTY)]
 FOLDS, REPEATS, SEED = 5, 5, 20261004
 METRICS_FILE = "diabetes-questionnaire.json"
 
@@ -91,8 +92,7 @@ def stacked(points: np.ndarray, pulse: np.ndarray, labels: np.ndarray, seed: int
 def evaluate(clinical: pd.DataFrame, segments: pd.DataFrame, split: dict) -> dict:
     dev = eligible_cases(clinical)
     dev = dev[dev["subjectid"].isin(set(split["dev"]))].drop_duplicates("subjectid").set_index("subjectid")
-    if set(dev.index) & set(split["holdout"]):
-        raise ValueError("holdout subjects in the development table")
+    ensure_dev_only(dev.index, split)
     dev["points"] = partial_points(dev.reset_index()).to_numpy()
     dev = dev[dev["points"].notna()]
     population = {

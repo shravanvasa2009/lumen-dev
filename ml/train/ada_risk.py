@@ -28,7 +28,7 @@ def ada_risk(
     physically_active: bool,
     bmi: float,
 ) -> AdaRisk | None:
-    """Bang 2009 diabetes risk points and the ≥ 5 flag; None under age 20, where it was never validated."""
+    # None under age 20: the score was never validated there.
     if not 0 <= age_years <= 130:
         raise ValueError(f"age_years must be 0-130, got {age_years}")
     if not 10.0 <= bmi <= 100.0:

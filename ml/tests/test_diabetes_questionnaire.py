@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from eval import diabetes_questionnaire
 from eval.diabetes_questionnaire import partial_points, stacked
 
 
@@ -29,10 +30,21 @@ def test_vitaldb_text_ages_and_missing_values():
     assert points[0] == 3.0 and all(np.isnan(value) for value in points[1:])
 
 
-def test_stacking_is_out_of_fold():
+def test_stacking_never_scores_a_subject_with_a_model_fitted_on_it(monkeypatch):
+    fitted_rows: list[set[float]] = []
+
+    class SpyLogistic(diabetes_questionnaire.LogisticRegression):
+        def fit(self, features, labels):
+            fitted_rows.append(set(features[:, 1].tolist()))
+            return super().fit(features, labels)
+
+        def predict_proba(self, features):
+            assert not set(features[:, 1].tolist()) & fitted_rows[-1]
+            return super().predict_proba(features)
+
+    monkeypatch.setattr(diabetes_questionnaire, "LogisticRegression", SpyLogistic)
     rng = np.random.default_rng(0)
     labels = np.repeat([0, 1], 50)
-    points = labels + rng.normal(0, 0.1, 100)
-    pulse = rng.normal(size=100)
-    scores = stacked(points, pulse, labels, seed=1)
-    assert scores.shape == (100,) and scores[labels == 1].mean() > scores[labels == 0].mean()
+    # Unique pulse values identify each subject's row in the fit and predict calls.
+    scores = stacked(labels + rng.normal(0, 0.1, 100), rng.permutation(100) / 100.0, labels, seed=1)
+    assert scores.shape == (100,) and len(fitted_rows) == diabetes_questionnaire.FOLDS

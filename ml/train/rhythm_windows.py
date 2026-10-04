@@ -58,6 +58,13 @@ JITTER_SD_RANGE_MS = (0.0, 40.0)
 RSA_PROBABILITY = 0.5
 RSA_AMPLITUDE_RANGE = (0.03, 0.15)
 RSA_BREATHING_HZ_RANGE = (0.15, 0.4)
+# ADR 0085: with RSA alone, rhythm v2 showed synthetic bigeminy at short/long 0.72-0.82 as AF (up to 58%;
+# v1 0%): the training data holds little regular ectopy at those ratios. A sinus training reading becomes,
+# with ECTOPY_PROBABILITY, bigeminy or trigeminy: every 2nd or 3rd interval × U(ECTOPY_SHORT_RANGE), then a
+# pause from non-compensatory to fully compensatory; its early beats are flagged premature, its label "other".
+ECTOPY_PROBABILITY = 0.25
+ECTOPY_SHORT_RANGE = (0.6, 0.9)
+ECTOPY_PERIODS = (2, 3)
 
 _SIZE = DSP_CONFIG["dsp15"]["windowIntervals"]
 _STEP = DSP_CONFIG["dsp15"]["windowStep"]
@@ -140,7 +147,25 @@ def _with_rsa(reading: Reading, rng: np.random.Generator) -> np.ndarray:
     return intervals_ms * (1.0 + amplitude * np.sin(2 * np.pi * breathing_hz * starts_s + phase))
 
 
-def _augmented(reading: Reading, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+def _with_ectopy(reading: Reading, rng: np.random.Generator) -> Reading:
+    if reading.label != "sinus" or rng.random() >= ECTOPY_PROBABILITY:
+        return reading
+    intervals_ms = np.asarray(reading.intervals_ms, dtype=float).copy()
+    beat_premature = np.asarray(reading.beat_premature, dtype=bool).copy()
+    period = int(rng.choice(ECTOPY_PERIODS))
+    short = rng.uniform(*ECTOPY_SHORT_RANGE)
+    # 0: a non-compensatory pause (the next interval keeps its length); 1: full (the pair sums to 2 RR).
+    compensation = rng.uniform(0.0, 1.0)
+    for i in range(int(rng.integers(period)), len(intervals_ms) - 1, period):
+        intervals_ms[i] *= short
+        intervals_ms[i + 1] *= 1.0 + compensation * (1.0 - short)
+        # Interval i ends at beat i + 1, the early one.
+        beat_premature[i + 1] = True
+    return Reading(reading.subject, "other", intervals_ms, beat_premature)
+
+
+def _augmented(reading: Reading, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray, str]:
+    reading = _with_ectopy(reading, rng)
     augmented = augment_intervals(
         _with_rsa(reading, rng),
         reading.beat_premature[1:],
@@ -148,7 +173,11 @@ def _augmented(reading: Reading, rng: np.random.Generator) -> tuple[np.ndarray, 
         jitter_sd_ms=rng.uniform(*JITTER_SD_RANGE_MS),
     )
     # augment_intervals never drops the first beat, so its flag carries over unchanged.
-    return augmented.intervals_ms, np.concatenate([reading.beat_premature[:1], augmented.premature])
+    return (
+        augmented.intervals_ms,
+        np.concatenate([reading.beat_premature[:1], augmented.premature]),
+        reading.label,
+    )
 
 
 def _windows(intervals_ms: np.ndarray, beat_premature: np.ndarray) -> list[RhythmWindow]:
@@ -188,13 +217,13 @@ def build_window_set(
         reading = readings[index]
         # One generator per reading keeps each reading's augmentation independent of which others
         # were kept, so changing the cap does not reshuffle every draw.
-        intervals_ms, beats = (
+        intervals_ms, beats, label = (
             _augmented(reading, np.random.default_rng([seed, index]))
             if augment
-            else (reading.intervals_ms, reading.beat_premature)
+            else (reading.intervals_ms, reading.beat_premature, reading.label)
         )
         for window in _windows(intervals_ms, beats):
-            rows.append((*window_inputs(window), LABELS.index(reading.label), reading.subject, index))
+            rows.append((*window_inputs(window), LABELS.index(label), reading.subject, index))
     if not rows:
         raise ValueError(f"no {split} windows: no reading has {_SIZE} usable intervals")
     intervals, mask, features, labels, subjects, reading_ids = zip(*rows, strict=True)

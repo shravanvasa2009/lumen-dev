@@ -247,3 +247,35 @@ def test_rsa_modulates_non_af_readings_within_the_breathing_ranges(label):
         # 96 s of 0.8 s beats holds at least 14 breaths, so the swing reaches most of A.
         assert np.max(np.abs(ratio - 1.0)) >= 0.9 * low
     assert abs(changed / 200 - windows_module.RSA_PROBABILITY) < 0.1
+
+
+@pytest.mark.parametrize("label", ["af", "other"])
+def test_ectopy_only_turns_sinus_readings_into_other(label):
+    reading = windows_module.Reading("mitdb:100", label, np.full(120, 800.0), np.zeros(121, dtype=bool))
+    for seed in range(20):
+        assert windows_module._with_ectopy(reading, np.random.default_rng(seed)) is reading
+
+
+def test_ectopy_makes_regular_short_long_pairs_labelled_other():
+    # ADR 0085: every 2nd or 3rd interval is short, the next one a pause, and the early beat is flagged.
+    reading = windows_module.Reading("mitdb:100", "sinus", np.full(120, 800.0), np.zeros(121, dtype=bool))
+    low, high = windows_module.ECTOPY_SHORT_RANGE
+    changed = 0
+    for seed in range(200):
+        ectopic = windows_module._with_ectopy(reading, np.random.default_rng(seed))
+        if ectopic is reading:
+            continue
+        changed += 1
+        assert ectopic.label == "other"
+        short = np.flatnonzero(ectopic.intervals_ms < 800.0)
+        assert len(short) >= 120 // 3 - 1
+        assert (
+            np.all(np.diff(short) == np.diff(short)[0]) and np.diff(short)[0] in windows_module.ECTOPY_PERIODS
+        )
+        assert np.all(
+            (ectopic.intervals_ms[short] >= low * 800.0) & (ectopic.intervals_ms[short] <= high * 800.0)
+        )
+        # The pause never exceeds full compensation: the pair sums to at most 2 RR.
+        assert np.all(ectopic.intervals_ms[short] + ectopic.intervals_ms[short + 1] <= 1600.0 + 1e-9)
+        assert np.array_equal(np.flatnonzero(ectopic.beat_premature), short + 1)
+    assert abs(changed / 200 - windows_module.ECTOPY_PROBABILITY) < 0.1

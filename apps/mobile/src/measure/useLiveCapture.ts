@@ -22,6 +22,9 @@ import { keepCapture, keepLiveCapture, liveCaptureChanged } from './keptCapture'
 
 // The live waveform card shows the last 6 s (spec §12).
 const WAVEFORM_WINDOW_NS = 6e9;
+// Spec §9.2 (Locks) and §4.2 step 3: with the finger on the phone, auto-exposure settles for 1 s, then
+// exposure, white balance and focus are locked. Native adds its own short wait before steering (DSP-5).
+const EXPOSURE_SETTLE_MS = 1000;
 
 type LivePhase =
   // The capture module is not linked (Jest, Expo Go).
@@ -103,8 +106,35 @@ export function useLiveCapture(
     const threshold = sqiThreshold();
     let scoredEndS: number | null = null;
     let scoring = false;
+    // Only a torch capture is locked; ambient mode (spec §4.4) has its own exposure plan.
+    let lockWanted = false;
+    let lockTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const cancelLock = () => {
+      if (lockTimer) clearTimeout(lockTimer);
+      lockTimer = null;
+    };
+
+    // Every exposure change greys out the next second (DSP-5), so a capture left on auto-exposure may never
+    // count clean seconds. The lock is asked for once; a finger lifted during the settle restarts it.
+    const lockAfterSettle = (status: CaptureStatus) => {
+      if (!started || !lockWanted) return;
+      if (!status.fingerCovered) {
+        cancelLock();
+        return;
+      }
+      lockTimer ??= setTimeout(() => {
+        lockTimer = null;
+        lockWanted = false;
+        capture
+          .lockExposure()
+          .catch((error: unknown) => console.warn(`Exposure did not lock: ${reasonOf(error)}`));
+      }, EXPOSURE_SETTLE_MS);
+    };
 
     const stopCamera = () => {
+      cancelLock();
+      lockWanted = false;
       subscriptions.forEach((subscription) => subscription.remove());
       subscriptions = [];
       if (started)
@@ -202,6 +232,7 @@ export function useLiveCapture(
           capture.addListener('samples', onSamples),
           capture.addListener('status', (status) => {
             session?.pushStatus(status);
+            lockAfterSettle(status);
             if (keptFrames) liveCaptureChanged();
             setLive((previous) => ({ ...previous, status }));
           }),
@@ -220,6 +251,7 @@ export function useLiveCapture(
         if (lens) {
           captureFps = activeFps;
           lensId = lens.id;
+          lockWanted = true;
           session = createLiveSession({
             captureFps,
             sqiThreshold: threshold ?? 0,

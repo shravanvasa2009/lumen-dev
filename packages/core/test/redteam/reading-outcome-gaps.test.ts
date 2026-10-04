@@ -248,7 +248,7 @@ describe('red team: live count and saved analysis with frame gaps (100 ms batche
     const capture = captureAt(fromNs([...run30(0, 50), ...run30(110, 154.1)]), pulse);
     const saved = savedFrom(replay(capture, { score: () => 0.9 }));
     expect(saved.cleanSeconds).toBeCloseTo(90.1, 6);
-    expect(readingOutcome(saved)).toEqual({ kind: 'reading' });
+    expect(readingOutcome(saved)).toEqual({ kind: 'reading', urgent: null });
     const shortCapture = captureAt(fromNs([...run30(0, 50), ...run30(110, 153.9)]), pulse);
     const short = savedFrom(replay(shortCapture, { score: () => 0.9 }));
     expect(inconclusive(readingOutcome(short)).reasons).toEqual(['tooFewCleanSeconds']);

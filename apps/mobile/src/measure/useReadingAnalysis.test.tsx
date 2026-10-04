@@ -96,6 +96,7 @@ const refusal: InconclusiveOutcome = {
   lostSeconds: { motion: 20, pressure: 0, coverage: 0, coldHands: 0 },
   otherLostSeconds: 0,
   causes: ['motion'],
+  urgent: null,
 };
 
 describe('a capture the analysis refuses', () => {

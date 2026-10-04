@@ -83,6 +83,10 @@ export interface ReadingAnalysis {
   rhythmFeatures: number[][]; // per window, RHYTHM_FEATURE_NAMES order (v1 8 + v2 7): the rhythm model input
   enoughRhythmIntervals: boolean;
   pulseShape: PulseShape | null; // DSP-14 averaged beat (readingShape): diabetes-net's beat input
+  // The emergency view for the §10.1 rule (ADR 0076): intervals and rejected spans without SQI-Net's spans
+  // and without ADR 0077's frame-floor windows (owner, "242 A"); null when it has neither, where they are
+  // the reading's own.
+  withoutSqiNet: { intervals: BeatInterval[]; rejectedSpans: RejectedSpan[] } | null;
 }
 
 // A run of failing frames spans from its first frame to the next frame (the last frame ends the reading).
@@ -128,7 +132,8 @@ function exposureSpans(timebase: Timebase): RejectedSpan[] {
   return spans;
 }
 
-function callerSpans(context: ReadingContext, startNs: number): RejectedSpan[] {
+// The accelerometer and cold-hands spans, and SQI-Net's rejected windows kept apart.
+function callerSpans(context: ReadingContext, startNs: number) {
   const seconds = (tNs: number) => (tNs - startNs) / 1e9;
   const fromNs = (spans: NsSpan[], reason: RejectionReason) =>
     spans.map((span): RejectedSpan => ({ startS: seconds(span.startNs), endS: seconds(span.endNs), reason }));
@@ -143,23 +148,21 @@ function callerSpans(context: ReadingContext, startNs: number): RejectedSpan[] {
       endS: seconds(window.endNs),
       reason: 'quality',
     }));
-  return [...motion, ...coldHands, ...quality];
+  return { sensors: [...motion, ...coldHands], sqiNet: quality };
 }
 
 // ADR 0023 flat windows (at the live session's once-per-second checks) and ADR 0057 flat runs, found
-// from the frames, so they are rejected whether or not SQI-Net ran and match the live screen.
-function frameQualitySpans(
-  timebase: Timebase,
-  samples: Sample[],
-  stats: FrameStat[],
-  modelRan: boolean,
-): RejectedSpan[] {
+// from the frames, so they are rejected whether or not SQI-Net ran and match the live screen. Windows
+// SQI-Net could not score are rejected only when it ran, so they are also listed as unscored. Windows
+// under ADR 0077's frame floor are also listed as sparse, for the emergency view.
+function frameQualitySpans(timebase: Timebase, samples: Sample[], stats: FrameStat[], modelRan: boolean) {
   const covered = Uint8Array.from(samples, (sample, i) =>
     frameProblem(sample, stats[i]!) === 'coverage' ? 0 : 1,
   );
   const windowS = DSP_CONFIG.dsp3.modelWindowS;
   const spans: RejectedSpan[] = [];
   const unscored: RejectedSpan[] = [];
+  const sparse: RejectedSpan[] = [];
   const flatRuns = new FlatRuns();
   let nextTickS = DSP_CONFIG.live.sqiEveryS;
   let formedEndS: number | null = null;
@@ -168,14 +171,18 @@ function frameQualitySpans(
     if (tS < nextTickS) return;
     nextTickS = nextModelTickS(tS);
     const window = modelWindowAt(timebase.tS, timebase.r, covered, i + 1);
-    if (window && !window.input)
-      spans.push({ startS: window.endS - windowS, endS: window.endS, reason: 'quality' });
+    if (window && !window.input) {
+      const span: RejectedSpan = { startS: window.endS - windowS, endS: window.endS, reason: 'quality' };
+      spans.push(span);
+      if (window.sparse && !window.flat) sparse.push(span);
+    }
     const missing = window ? null : unscoredSpan(timebase.tS, i + 1, formedEndS);
     if (missing) unscored.push(missing);
     if (window) formedEndS = window.endS;
   });
+  const rejectedUnscored = modelRan ? unscored : [];
   // In LiveSession's order, so equal starts sort alike.
-  return [...spans, ...(modelRan ? unscored : []), ...flatRuns.spans()];
+  return { all: [...spans, ...rejectedUnscored, ...flatRuns.spans()], unscored: rejectedUnscored, sparse };
 }
 
 function lostSecondsOf(spans: RejectedSpan[], durationS: number): LostSeconds {
@@ -209,15 +216,17 @@ function morphologyBand(segment: ResampledSegment, rateHz: number): ResampledSeg
 interface BeatSegment {
   beats: MeasuredBeat[];
   shape: ResampledSegment; // DSP-6 morphology band at 256 Hz
+  beatsWithoutSqiNet: MeasuredBeat[] | null; // classed in the emergency view's spans; null without one
 }
 
 // DSP-2 to DSP-9 per segment, then the DSP-10/13 per-beat values. Segments shorter than dsp7.minSegmentS
-// are not searched for beats.
+// are not searched for beats. DSP-9 classes the same detected beats again against spansWithoutSqiNet.
 function beatSegments(
   timebase: Timebase,
   samples: Sample[],
   stats: FrameStat[],
   spans: RejectedSpan[],
+  spansWithoutSqiNet: RejectedSpan[] | null,
 ): BeatSegment[] {
   const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
   const { primary } = fingerSignals(timebase);
@@ -244,7 +253,15 @@ function beatSegments(
     })!;
     const shape = morphologyBand(raw, shapeRateHz);
     const detected = detectBeats(morphologyBand(model, modelRateHz), shape);
-    return [{ beats: measureBeats(detected, classifyBeats(detected, shape, spans), raw), shape }];
+    const measured = (against: RejectedSpan[]) =>
+      measureBeats(detected, classifyBeats(detected, shape, against), raw);
+    return [
+      {
+        beats: measured(spans),
+        shape,
+        beatsWithoutSqiNet: spansWithoutSqiNet && measured(spansWithoutSqiNet),
+      },
+    ];
   });
 }
 
@@ -362,11 +379,15 @@ export function analyzeReading(
 ): ReadingAnalysis {
   const timebase = buildTimebase(capture.samples, capture.stats);
   const durationS = timebase.tS[timebase.tS.length - 1]!;
-  const otherSpans = [
-    ...exposureSpans(timebase),
-    ...callerSpans(context, timebase.startNs),
-    ...frameQualitySpans(timebase, capture.samples, capture.stats, context.sqi !== null),
-  ];
+  const modelRan = context.sqi !== null;
+  const caller = callerSpans(context, timebase.startNs);
+  const frameQuality = frameQualitySpans(timebase, capture.samples, capture.stats, modelRan);
+  const otherSpans = [...exposureSpans(timebase), ...caller.sensors, ...caller.sqiNet, ...frameQuality.all];
+  // The §10.1 emergency view leaves out SQI-Net's spans (ADR 0076 item 2) and the frame-floor windows
+  // (owner, "242 A"), so neither an AI output nor the frame floor can raise or hide the trigger.
+  const notInEmergencySpans = new Set([...caller.sqiNet, ...frameQuality.unscored, ...frameQuality.sparse]);
+  const emergencyView = modelRan || frameQuality.sparse.length > 0;
+  const inEmergencyView = (span: RejectedSpan) => !notInEmergencySpans.has(span);
   const byStart = (x: RejectedSpan, y: RejectedSpan) => x.startS - y.startS;
   // Frame gaps count against clean seconds only, last in LiveSession's order (frameGapSpan).
   const gapSpans = Array.from(timebase.tS.subarray(1), (tS, i) => frameGapSpan(timebase.tS[i]!, tS)).filter(
@@ -384,7 +405,13 @@ export function analyzeReading(
     byStart,
   );
 
-  const bands = beatSegments(timebase, capture.samples, capture.stats, signalSpans);
+  const bands = beatSegments(
+    timebase,
+    capture.samples,
+    capture.stats,
+    signalSpans,
+    emergencyView ? signalSpans.filter(inEmergencyView) : null,
+  );
   const segments = bands.map((segment) => segment.beats);
   const bySegment = intervalsBySegment(segments, timebase.startNs);
   const { intervalsS, spansArtifact, atypicalBeats } = rhythmInputs(segments);
@@ -395,7 +422,7 @@ export function analyzeReading(
     context,
     startNs: timebase.startNs,
     durationS,
-    sqiAvailable: context.sqi !== null,
+    sqiAvailable: modelRan,
     rejectedSpans,
     cleanSeconds: clean,
     lostSeconds: lostSecondsOf(rejectedSpans, durationS),
@@ -409,5 +436,14 @@ export function analyzeReading(
     rhythmFeatures: windows.map((window) => [...rhythmFeatureVector(window), ...rhythmV2Features(window)]),
     enoughRhythmIntervals: hasEnoughUsableIntervals(spansArtifact),
     pulseShape: readingShape(bands, context.captureFps),
+    withoutSqiNet: emergencyView
+      ? {
+          intervals: intervalsBySegment(
+            bands.map((band) => band.beatsWithoutSqiNet ?? band.beats),
+            timebase.startNs,
+          ).flat(),
+          rejectedSpans: rejectedSpans.filter(inEmergencyView),
+        }
+      : null,
   };
 }

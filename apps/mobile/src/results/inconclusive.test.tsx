@@ -43,6 +43,7 @@ describe('inconclusive screen', () => {
       lostSeconds: { motion: 0, pressure: 0, coverage: 39.98333333333333, coldHands: 0 },
       otherLostSeconds: 0,
       causes: ['coverage'],
+      urgent: null,
     });
     renderRouter('./app', { initialUrl: '/measure/inconclusive?mode=full' });
     expect(screen.getByText('We got 12 clean seconds. Most of the lost time was light.')).toBeOnTheScreen();

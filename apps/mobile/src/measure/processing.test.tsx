@@ -174,6 +174,7 @@ describe('processing screen', () => {
       lostSeconds: { motion: 0, pressure: 0, coverage: 12, coldHands: 0 },
       otherLostSeconds: 0,
       causes: ['coverage'],
+      urgent: null,
     };
     mockAnalysis = { phase: 'inconclusive', progress: midway, outcome };
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });

@@ -88,6 +88,12 @@ describe('what each rating tier locks, and why (spec 05 5.2)', () => {
     expect(text(why('full', 'afib', noFlash)!)).toBe(en['mode.lockedFlash']);
   });
 
+  it('a flash-less phone at 30 fps says the flash, not the frame rate, as the mode picker does', () => {
+    const noFlash30 = phone('limited', { ambient: true, fps60: false });
+    expect(why('full', 'hrv', noFlash30)).toBe('flash');
+    expect(why('deep', 'hrv', noFlash30)).toBe('flash');
+  });
+
   it('keeps AFib a check Limited owns, though the Full Scan holding it is locked (owner decision b)', () => {
     expect(why('full', 'afib', phone('limited'))).toBe('basic');
   });

@@ -90,8 +90,8 @@ function cleanSecondsFor(check: CheckId, mode: PlanMode): number | null {
 }
 
 // Spec 05 5.2: Limited is a score of 25 to 49, or a flash that does not reach the finger. HRV and the diabetes
-// pattern need 60 fps AND a Full rating, so a Limited or Basic phone is told what it actually lacks: the frame
-// rate first, then the flash, then the rating itself.
+// pattern need 60 fps AND a Full rating, so a Limited or Basic phone is told what it actually lacks: the flash
+// first (it defines Limited, and the mode lock in rating/modeLock.ts says it first), then the frame rate, then the rating.
 function lockFor(check: CheckId, mode: PlanMode, phone: PlanPhone): LockWhy | null {
   const { tier, ambient, fps60 } = phone;
   if (tier === 'unrated') return null;
@@ -103,8 +103,8 @@ function lockFor(check: CheckId, mode: PlanMode, phone: PlanPhone): LockWhy | nu
   const notEnough: LockWhy = ambient ? 'flash' : 'basic';
   if (!checkOpen) {
     if (!NEEDS_60_FPS.has(check)) return notEnough;
-    if (!fps60) return 'fps60';
-    return ambient ? 'flash' : 'full';
+    if (ambient) return 'flash';
+    return fps60 ? 'full' : 'fps60';
   }
   return unlocks.includes(MODE_RATING_ROW[mode]) ? null : notEnough;
 }

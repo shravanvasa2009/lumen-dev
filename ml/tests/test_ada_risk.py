@@ -58,3 +58,24 @@ def test_under_20_has_no_score_because_it_was_never_validated(age):
 def test_impossible_answers_are_refused(field, value):
     with pytest.raises(ValueError):
         score(**{field: value})
+
+
+@pytest.mark.parametrize("field", ["male", "family_history", "hypertension", "physically_active"])
+@pytest.mark.parametrize("value", [0, 1, 2, "yes", None])
+def test_yes_no_answers_must_be_booleans(field, value):
+    # male=2 would otherwise score two points; 0/1 from storage must be converted on purpose, not silently.
+    with pytest.raises(TypeError):
+        score(**{field: value})
+
+
+@pytest.mark.parametrize("field", ["age_years", "bmi"])
+@pytest.mark.parametrize("value", ["45", None, True])
+def test_age_and_bmi_must_be_numbers(field, value):
+    with pytest.raises(TypeError):
+        score(**{field: value})
+
+
+@pytest.mark.parametrize("field", ["age_years", "bmi"])
+def test_nan_age_or_bmi_is_refused(field):
+    with pytest.raises(ValueError):
+        score(**{field: float("nan")})

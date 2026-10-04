@@ -10,6 +10,7 @@ import torch
 from export.provenance import SEEDED_INPUTS, TOLERANCE, entry_problems, sha256_of
 from export.specs import MODELS_DIR, RUNS_DIR, SPECS, ModelSpec, inside_models_dir, release_specs
 from export.to_onnx import SourceModel, source_model
+from nets.rhythm_net import FEATURES
 
 Batch = dict[str, np.ndarray]
 
@@ -30,7 +31,7 @@ def _rhythm_batch(rng: np.random.Generator, count: int) -> Batch:
     return {
         "intervals": intervals.astype(np.float32),
         "mask": mask,
-        "features": rng.normal(0.0, 2.0, size=(count, 8)).astype(np.float32),
+        "features": rng.normal(0.0, 2.0, size=(count, FEATURES)).astype(np.float32),
     }
 
 
@@ -70,7 +71,7 @@ def seeded_inputs(spec: ModelSpec, count: int = SEEDED_INPUTS, seed: int = 0) ->
 def edge_cases(spec: ModelSpec) -> list[Batch]:
     if "intervals" in spec.inputs:
         regular = np.full((1, 64), 0.8, dtype=np.float32)
-        features = np.zeros((1, 8), dtype=np.float32)
+        features = np.zeros((1, FEATURES), dtype=np.float32)
         tail_masked = (np.arange(64) < 10).astype(np.float32)[None]
         garbage = regular.copy()
         garbage[0, 10:] = np.nan

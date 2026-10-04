@@ -2,7 +2,12 @@ import { DSP_CONFIG } from './config';
 
 // Timestamps are whole ns, so a gap within half a ns of the limit equals it. A difference of two times in
 // seconds carries rounding up to ~1e-13 s (10-minute captures), which would split some 150 ms gaps.
-const HALF_NS_S = 0.5e-9;
+export const HALF_NS_S = 0.5e-9;
+
+// DSP-2: frames further apart than maxGapS are never interpolated across.
+export function isFrameGap(previousS: number, nextS: number): boolean {
+  return nextS - previousS > DSP_CONFIG.dsp2.maxGapS + HALF_NS_S;
+}
 
 export interface ResampledSegment {
   firstIndex: number; // sample k is at (firstIndex + k) / rate seconds from capture start
@@ -71,7 +76,7 @@ export function resampleCubic(tS: Float64Array, values: Float64Array, rateHz: nu
   const segments: ResampledSegment[] = [];
   let segmentStart = 0;
   for (let i = 1; i <= tS.length; i++) {
-    const endsSegment = i === tS.length || tS[i]! - tS[i - 1]! > DSP_CONFIG.dsp2.maxGapS + HALF_NS_S;
+    const endsSegment = i === tS.length || isFrameGap(tS[i - 1]!, tS[i]!);
     if (!endsSegment) continue;
     // A lone frame between two long gaps cannot carry a spline and is left out.
     if (i - segmentStart >= 2) {

@@ -27,6 +27,7 @@ export type {
   RhythmMetric,
   RmssdMetric,
 } from './results';
+export { adaRisk, type AdaAnswers, type AdaRisk } from './ada-risk';
 export { DSP_CONFIG } from './config';
 export { buildTimebase, type Timebase } from './timebase';
 export { resampleCubic, type ResampledSegment } from './resample';
@@ -88,6 +89,13 @@ export {
   type Profile,
   type RhythmOutputs,
 } from './reading-result';
+export {
+  readingOutcome,
+  type InconclusiveOutcome,
+  type InconclusiveReason,
+  type LostCause,
+  type ReadingOutcome,
+} from './reading-outcome';
 export { createLiveSession, type LiveSessionConfig } from './live';
 export { SHAPE_FEATURE_NAMES, shapeFeatures } from './shape-features';
 export { HR_SUMMARY_NAMES, hrSummary } from './reading-metrics';

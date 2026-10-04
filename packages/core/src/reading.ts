@@ -9,12 +9,20 @@ import { fingerSignals } from './finger-signal';
 import { FlatRuns, modelWindowAt, nextModelTickS, unscoredSpan } from './model-window';
 import { ensembleBeat, type PulseShape } from './pulse-shape';
 import type { RejectedSpan, RejectionReason } from './live-session';
-import { cleanSeconds, heartRate, measureBeats, perfusionIndex, type MeasuredBeat } from './reading-metrics';
+import {
+  cleanSeconds,
+  frameGapSpan,
+  heartRate,
+  measureBeats,
+  perfusionIndex,
+  type MeasuredBeat,
+} from './reading-metrics';
 import { resampleCubic, type ResampledSegment } from './resample';
 import type { LostSeconds, RhythmClass } from './results';
 import {
   hasEnoughUsableIntervals,
   rhythmFeatureVector,
+  rhythmV2Features,
   rhythmWindows,
   type RhythmWindow,
 } from './rhythm-features';
@@ -72,7 +80,7 @@ export interface ReadingAnalysis {
   breathing: BreathingRate | null;
   normalizedRmssd: number | null; // over accepted intervals, for §10.1 fast regular rhythm
   rhythmWindows: RhythmWindow[];
-  rhythmFeatures: number[][]; // rhythmFeatureVector per window: the Rhythm-Net / LightGBM input
+  rhythmFeatures: number[][]; // per window, RHYTHM_FEATURE_NAMES order (v1 8 + v2 7): the rhythm model input
   enoughRhythmIntervals: boolean;
   pulseShape: PulseShape | null; // DSP-14 averaged beat (readingShape): diabetes-net's beat input
 }
@@ -154,6 +162,7 @@ function frameQualitySpans(
   const unscored: RejectedSpan[] = [];
   const flatRuns = new FlatRuns();
   let nextTickS = DSP_CONFIG.live.sqiEveryS;
+  let formedEndS: number | null = null;
   timebase.tS.forEach((tS, i) => {
     flatRuns.add(tS, timebase.r[i]!, covered[i] === 1);
     if (tS < nextTickS) return;
@@ -161,8 +170,9 @@ function frameQualitySpans(
     const window = modelWindowAt(timebase.tS, timebase.r, covered, i + 1);
     if (window && !window.input)
       spans.push({ startS: window.endS - windowS, endS: window.endS, reason: 'quality' });
-    const missing = window ? null : unscoredSpan(timebase.tS, i + 1);
+    const missing = window ? null : unscoredSpan(timebase.tS, i + 1, formedEndS);
     if (missing) unscored.push(missing);
+    if (window) formedEndS = window.endS;
   });
   // In LiveSession's order, so equal starts sort alike.
   return [...spans, ...(modelRan ? unscored : []), ...flatRuns.spans()];
@@ -203,12 +213,20 @@ interface BeatSegment {
 
 // DSP-2 to DSP-9 per segment, then the DSP-10/13 per-beat values. Segments shorter than dsp7.minSegmentS
 // are not searched for beats.
-function beatSegments(timebase: Timebase, samples: Sample[], spans: RejectedSpan[]): BeatSegment[] {
+function beatSegments(
+  timebase: Timebase,
+  samples: Sample[],
+  stats: FrameStat[],
+  spans: RejectedSpan[],
+): BeatSegment[] {
   const { modelRateHz, shapeRateHz } = DSP_CONFIG.dsp2;
   const { primary } = fingerSignals(timebase);
-  // A broken frame (already a coverage span) is left out as if dropped: DSP-2 splines across it when the
-  // frames either side are within its gap limit, and splits there otherwise.
-  const kept = samples.flatMap((sample, i) => (validChannels(sample) ? [i] : []));
+  // An uncovered frame holds no finger signal (DSP-3), only ambient light or a broken value, and left in
+  // it is a step that swamps DSP-7 over the whole segment (red team PR #171 round 3). It is left out as if
+  // dropped, as the SQI-Net window does (ADR 0057): DSP-2 splines across it when the frames either side
+  // are within its gap limit, and splits there otherwise. Its coverage span still makes a beat there an
+  // artifact (DSP-9 lost contact). Clipped frames are covered and stay.
+  const kept = samples.flatMap((sample, i) => (frameProblem(sample, stats[i]!) === 'coverage' ? [] : [i]));
   const keptS = Float64Array.from(kept, (i) => timebase.tS[i]!);
   const keptSignal = Float64Array.from(kept, (i) => primary[i]!);
   const models = resampleCubic(keptS, keptSignal, modelRateHz);
@@ -350,9 +368,14 @@ export function analyzeReading(
     ...frameQualitySpans(timebase, capture.samples, capture.stats, context.sqi !== null),
   ];
   const byStart = (x: RejectedSpan, y: RejectedSpan) => x.startS - y.startS;
+  // Frame gaps count against clean seconds only, last in LiveSession's order (frameGapSpan).
+  const gapSpans = Array.from(timebase.tS.subarray(1), (tS, i) => frameGapSpan(timebase.tS[i]!, tS)).filter(
+    (span) => span !== null,
+  );
   const rejectedSpans = [
     ...contactSpans(timebase, capture.samples, capture.stats, false),
     ...otherSpans,
+    ...gapSpans,
   ].sort(byStart);
   const clean = cleanSeconds(0, durationS, rejectedSpans);
   // A broken frame keeps its coverage span for clean seconds, but beats are classified as if it were
@@ -361,7 +384,7 @@ export function analyzeReading(
     byStart,
   );
 
-  const bands = beatSegments(timebase, capture.samples, signalSpans);
+  const bands = beatSegments(timebase, capture.samples, capture.stats, signalSpans);
   const segments = bands.map((segment) => segment.beats);
   const bySegment = intervalsBySegment(segments, timebase.startNs);
   const { intervalsS, spansArtifact, atypicalBeats } = rhythmInputs(segments);
@@ -383,7 +406,7 @@ export function analyzeReading(
     breathing: breathingRate(segments, clean),
     normalizedRmssd: normalizedRmssdOf(bySegment),
     rhythmWindows: windows,
-    rhythmFeatures: windows.map(rhythmFeatureVector),
+    rhythmFeatures: windows.map((window) => [...rhythmFeatureVector(window), ...rhythmV2Features(window)]),
     enoughRhythmIntervals: hasEnoughUsableIntervals(spansArtifact),
     pulseShape: readingShape(bands, context.captureFps),
   };

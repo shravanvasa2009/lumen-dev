@@ -23,7 +23,12 @@ from lumen_dsp.beat_classes import classify_beats
 from lumen_dsp.beats import detect_beats
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.metrics import MeasuredBeat, hr_summary, measure_beats
-from lumen_dsp.rhythm import has_enough_usable_intervals, rhythm_feature_vector, rhythm_windows
+from lumen_dsp.rhythm import (
+    has_enough_usable_intervals,
+    rhythm_feature_vector,
+    rhythm_v2_features,
+    rhythm_windows,
+)
 from lumen_dsp.shape import PulseShape, ensemble_beat
 from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES, shape_features
 from nets.diabetes_net import HR_SUMMARY_NAMES
@@ -148,9 +153,11 @@ def reading_rhythm(
         or not has_enough_usable_intervals(spans_artifact)
     ):
         return NO_RHYTHM_CARD
-    # The app passes rhythmFeatureVector as computed, atypical fraction included; the model was trained
-    # with that feature held constant and never splits on it.
-    probs = window_probs(rhythm_model, [rhythm_feature_vector(window) for window in windows])
+    # The app passes rhythmFeatureVector as computed, atypical fraction included, then rhythmV2Features
+    # (ADR 0079); the model was trained with the atypical fraction held constant and never splits on it.
+    probs = window_probs(
+        rhythm_model, [rhythm_feature_vector(window) + rhythm_v2_features(window) for window in windows]
+    )
     # Summed in window order in double precision and then divided, as rhythmCall does.
     mean = []
     for column in range(len(RHYTHM_CLASSES)):

@@ -17,7 +17,7 @@ import evidence from '../../assets/evidence.json';
 import { classifyRhythm, scoreDiabetesInput } from '../ml/runtime';
 import { storedReadingTier } from '../store/deviceRating';
 import { loadProfile } from '../store/profile';
-import { type AnalysisProgress, pendingProgress } from './analysisProgress';
+import { type AnalysisProgress, type CheckOutputs, pendingProgress } from './analysisProgress';
 import type { KeptCapture } from './keptCapture';
 import type { MeasureMode } from './mode';
 
@@ -91,7 +91,8 @@ async function diabetesOutputs(
 const step = (
   steps: Partial<AnalysisProgress['steps']>,
   counts: Pick<AnalysisProgress, 'beats' | 'rejectedBeats'>,
-): AnalysisProgress => ({ steps: { ...pendingProgress.steps, ...steps }, ...counts });
+  outputs: CheckOutputs | null = null,
+): AnalysisProgress => ({ steps: { ...pendingProgress.steps, ...steps }, ...counts, outputs });
 
 // ADR 0041 / 0050: analyzeReading, then the rhythm model, then the decision rules and evidence labels.
 // Each step is reported when the work behind it has finished; breathing is computed inside analyzeReading,
@@ -117,8 +118,7 @@ export async function analyzeKeptCapture(
 
   report(step({ beats: 'active' }, noCounts));
   await letScreenDraw();
-  // The capture screen may still be appending frames, so the analysis works on a snapshot.
-  const analysis = analyzeReading({ samples: [...capture.samples], stats: [...capture.stats] }, context);
+  const analysis = analyzeReading({ samples: capture.samples, stats: capture.stats }, context);
   const detected = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');
   const counts = {
     beats: detected.length,
@@ -135,6 +135,11 @@ export async function analyzeKeptCapture(
   await letScreenDraw();
   const reading = buildReadingResult(analysis, models, evidence, profile, []);
 
-  const finished = step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'done' }, counts);
+  const { rhythm: rhythmMetric, rmssd, diabetes } = reading.metrics;
+  const finished = step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'done' }, counts, {
+    afib: rhythmMetric !== null,
+    hrv: rmssd !== null,
+    diabetes: diabetes !== null,
+  });
   return { readingId: `reading-${recordedMs}`, recordedMs, context, models, reading, progress: finished };
 }

@@ -114,8 +114,10 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
         </Card>
 
         <SectionCaption text={t('why.seeBeats')} />
-        <SectionCaption text={t('why.intervals')} />
         <Card>
+          <AppText variant="caption" tone="textDim">
+            {t('why.intervals')}
+          </AppText>
           <Tachogram intervalsMs={reading.intervalsMs} color={seriesColor} />
         </Card>
 

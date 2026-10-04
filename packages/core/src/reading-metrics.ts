@@ -3,7 +3,7 @@ import { DSP_CONFIG } from './config';
 import { dcLevel } from './finger-signal';
 import type { ClassifiedBeat, RejectedSpan } from './live-session';
 import { median } from './median';
-import type { ResampledSegment } from './resample';
+import { isFrameGap, type ResampledSegment } from './resample';
 import type { ReadingRhythm } from './results';
 
 // Readings arrive as one beat list per DSP-2 segment (classifyBeats output); no interval ever spans two
@@ -22,6 +22,13 @@ export interface Hrv {
   sdnnMs: number | null;
   pnn50: number | null; // fraction of successive differences over 50 ms
   nnIntervals: number; // NN intervals left after the 20% filter
+}
+
+// ADR 0072: time with no frames holds no signal, so a DSP-2 gap is not clean. It is a quality span: it has
+// no §7 coaching cause, so it names no tip. Only clean seconds see it; beats are classified without it, as a
+// dropped frame does not make a beat an artifact (ADR 0057).
+export function frameGapSpan(previousS: number, nextS: number): RejectedSpan | null {
+  return isFrameGap(previousS, nextS) ? { startS: previousS, endS: nextS, reason: 'quality' } : null;
 }
 
 /** Clean seconds: time in [startS, endS] not covered by any rejected span (overlaps counted once). */
@@ -73,9 +80,14 @@ function beatPairs<T extends ClassifiedBeat>(segment: T[]): [T, T][] {
   return beats.slice(1).map((beat, i) => [beats[i]!, beat]);
 }
 
-/** DSP-11: heart rate in bpm, 60 / the median interval between consecutive non-artifact beats. */
+/**
+ * DSP-11: heart rate in bpm, 60 / the median interval between consecutive non-artifact beats. DSP-11's 15 s
+ * also binds the accepted intervals: a median of a few intervals in a long clean reading is not a rate
+ * measured over 15 s (red team PR #171 round 3, ADR 0080).
+ */
 export function heartRate(segments: ClassifiedBeat[][], cleanS: number): number | null {
-  if (!(cleanS >= DSP_CONFIG.dsp11.minCleanS)) return null;
+  const { minCleanS } = DSP_CONFIG.dsp11;
+  if (!(cleanS >= minCleanS)) return null;
   const intervalsS = segments.flatMap((segment) =>
     beatPairs(segment)
       .filter(([from, to]) => from.beatClass !== 'artifact' && to.beatClass !== 'artifact')
@@ -83,7 +95,9 @@ export function heartRate(segments: ClassifiedBeat[][], cleanS: number): number 
       // Two beats at the same or reversed times are one beat found twice, not a cardiac cycle.
       .filter((intervalS) => intervalS > 0),
   );
-  return intervalsS.length > 0 ? 60 / median(intervalsS) : null;
+  let spannedS = 0;
+  for (const intervalS of intervalsS) spannedS += intervalS;
+  return spannedS >= minCleanS ? 60 / median(intervalsS) : null;
 }
 
 // Runs of adjacent NN intervals: normal → normal, the second not ending a long pause. Anything else ends
@@ -170,7 +184,7 @@ export function hrv(
 }
 
 // The order of hrSummary's output: diabetes-net's [1, 4] input, named as in its manifest featureOrder.hrSummary.
-export const HR_SUMMARY_NAMES = ['hrBpm', 'rmssdMs', 'sdnnMs', 'pnn50'] as const;
+export const HR_SUMMARY_NAMES = Object.freeze(['hrBpm', 'rmssdMs', 'sdnnMs', 'pnn50'] as const);
 
 // Null values get the model's training median, not a core fill.
 /** ML-6: diabetes-net's HR/HRV summary, in HR_SUMMARY_NAMES order, by DSP-11 and DSP-12. */

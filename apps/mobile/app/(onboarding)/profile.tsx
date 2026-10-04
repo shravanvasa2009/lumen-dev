@@ -1,31 +1,29 @@
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
-import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
+import { BasicsFields } from '@/profile/BasicsFields';
+import { basicsAcceptable } from '@/profile/diabetesRisk';
 import { isValidPhone, useDoctorPhone } from '@/profile/doctorPhone';
+import { useRiskDraft } from '@/profile/useRiskDraft';
 import { SectionLabel } from '@/settings/SectionLabel';
-import { Segmented } from '@/settings/Segmented';
 import { Toggle } from '@/settings/Toggle';
 import { type HealthNote, loadProfile, saveHealthNote } from '@/store/profile';
 import { useTheme } from '@/theme';
 
-// Spec §8.2 step 3: the tutorial passes once an age of 13 or more is entered.
-const MIN_AGE = 13;
-
-type Sex = 'female' | 'male' | 'preferNot';
-
 export default function ProfileScreen() {
   const { t } = useTranslation();
   const { colors, spacing, radius, control } = useTheme();
-  const [ageText, setAgeText] = useState('');
+  const router = useRouter();
+  const risk = useRiskDraft('basics');
   const { phone, problem: phoneProblem, setPhone } = useDoctorPhone();
   const [phoneText, setPhoneText] = useState(phone ?? '');
-  const [sex, setSex] = useState<Sex | null>(null);
   const [notes, setNotes] = useState<Record<HealthNote, boolean>>({
     betaBlocker: false,
     pacemaker: false,
@@ -54,8 +52,6 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (phone !== null) setPhoneText((typed) => (typed === '' ? phone : typed));
   }, [phone]);
-  const ageEntered = ageText !== '';
-  const ageValid = ageEntered && Number(ageText) >= MIN_AGE;
   const phoneInvalid = phoneText.trim() !== '' && !isValidPhone(phoneText.trim());
   const noteRows: readonly { note: HealthNote; title: string }[] = [
     { note: 'betaBlocker', title: t('profile.betaBlocker') },
@@ -76,48 +72,27 @@ export default function ProfileScreen() {
     setSaveFailed(false);
     saveHealthNote(note, value).catch(() => setSaveFailed(true));
   }
+  // The basics are stored before the next set opens; if that fails the person stays here and is told.
+  async function saveBasicsAndOpenNextSet() {
+    if (await risk.persist()) router.push('/diabetes-risk');
+  }
   return (
     <OnboardingStep
       step={2}
+      eyebrow={t('dr.stepOf', { a: 1, b: 2 })}
       title={t('profile.title')}
       subtitle={t('profile.subtitle')}
-      footer={<NavButton label={t('common.continue')} href="/phone-check" disabled={!ageValid} />}
+      footer={
+        <Button
+          label={t('common.next')}
+          disabled={!basicsAcceptable(risk.draft)}
+          onPress={() => void saveBasicsAndOpenNextSet()}
+        />
+      }
     >
       <View style={{ gap: spacing.sm }}>
         <SectionLabel>{t('profile.basics')}</SectionLabel>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.sm,
-            minHeight: control.primaryButtonHeight,
-            paddingHorizontal: spacing.lg,
-            borderRadius: radius.card,
-            borderWidth: 1,
-            borderColor: colors.line,
-            backgroundColor: colors.surface2,
-          }}
-        >
-          <AppText tone="textDim">{t('profile.age')}</AppText>
-          <AppText variant="caption" tone="textFaint">
-            {t('profile.ageMin')}
-          </AppText>
-          <TextInput
-            accessibilityLabel={t('profile.age')}
-            placeholder={t('profile.agePlaceholder')}
-            placeholderTextColor={colors.textFaint}
-            keyboardType="number-pad"
-            maxLength={3}
-            value={ageText}
-            onChangeText={(text) => setAgeText(text.replace(/\D/g, ''))}
-            style={{ flex: 1, textAlign: 'right', fontSize: 16, color: colors.text }}
-          />
-        </View>
-        {ageEntered && !ageValid ? (
-          <AppText variant="caption" tone="textDim" accessibilityRole="alert">
-            {t('profile.ageTooYoung')}
-          </AppText>
-        ) : null}
+        {risk.loaded ? <BasicsFields draft={risk.draft} change={risk.change} /> : null}
         <View
           style={{
             flexDirection: 'row',
@@ -155,16 +130,6 @@ export default function ProfileScreen() {
             {t('profile.doctorPhoneInvalid')}
           </AppText>
         ) : null}
-        <Segmented
-          label={t('profile.sex')}
-          selected={sex}
-          onSelect={setSex}
-          options={[
-            { value: 'female', label: t('profile.female') },
-            { value: 'male', label: t('profile.male') },
-            { value: 'preferNot', label: t('profile.preferNot') },
-          ]}
-        />
       </View>
       <View style={{ gap: spacing.sm }}>
         <SectionLabel>{t('profile.healthNotes')}</SectionLabel>
@@ -183,12 +148,12 @@ export default function ProfileScreen() {
         <AppText variant="caption" tone="textDim">
           {t('profile.note')}
         </AppText>
-        {loadFailed ? (
+        {loadFailed || risk.loadFailed ? (
           <AppText variant="caption" tone="textDim" accessibilityRole="alert">
             {t('profile.loadFailed')}
           </AppText>
         ) : null}
-        {saveFailed ? (
+        {saveFailed || risk.saveFailed ? (
           <AppText variant="caption" tone="textDim" accessibilityRole="alert">
             {t('profile.saveFailed')}
           </AppText>

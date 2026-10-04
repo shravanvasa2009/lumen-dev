@@ -5,8 +5,9 @@ import type { BeatInterval, ReadingAnalysis } from './reading';
 import { cleanSeconds } from './reading-metrics';
 
 // §10.1 Emergency screen, the heart-rate parts (ADR 0076). Only rule-based beats and spans are used
-// (DSP-4/DSP-5/DSP-9, DSP-11): the rule reads the SQI-free intervals and spans when SQI-Net ran, so no AI
-// output can raise or suppress either field.
+// (DSP-4/DSP-5/DSP-9, DSP-11): the rule reads the reading's emergency view (withoutSqiNet), so no AI
+// output can raise or suppress either field, and ADR 0077's frame floor does not hide a fast pulse (owner,
+// "242 A").
 export interface UrgentHeartRate {
   // HR > 150 bpm sustained 60 s at rest: the Emergency screen on its own.
   fastSustained: boolean;
@@ -94,17 +95,21 @@ function sustainedFast(intervals: CleanInterval[]): boolean {
   return false;
 }
 
-// DSP-11's HR without SQI-Net (red team v2 N3): 60 / the median accepted interval once the SQI-free spans
-// leave ≥ minCleanS clean seconds, as heartRate gives with sqi null; an interval bridging a beat found
-// twice is not accepted, as in intervals. With no SQI-Net run it is the reading's HR.
+// DSP-11's HR in the emergency view (red team v2 N3): 60 / the median accepted interval once its spans
+// leave ≥ minCleanS clean seconds and its accepted intervals add up to minCleanS (ADR 0080), as heartRate
+// gives; an interval bridging a beat found twice is not accepted, as in intervals. Without a view (no
+// SQI-Net run, no frame-floor window) it is the reading's HR.
 function heartRateWithoutSqiNet(analysis: ReadingAnalysis): number | null {
   if (!analysis.withoutSqiNet) return analysis.heartRateBpm;
   const { intervals, rejectedSpans } = analysis.withoutSqiNet;
-  if (!(cleanSeconds(0, analysis.durationS, rejectedSpans) >= DSP_CONFIG.dsp11.minCleanS)) return null;
+  const { minCleanS } = DSP_CONFIG.dsp11;
+  if (!(cleanSeconds(0, analysis.durationS, rejectedSpans) >= minCleanS)) return null;
   const acceptedMs = intervals.flatMap((interval) =>
     interval.accepted && interval.ibiMs > 0 ? [interval.ibiMs] : [],
   );
-  return acceptedMs.length > 0 ? 60000 / median(acceptedMs) : null;
+  let spannedMs = 0;
+  for (const ibiMs of acceptedMs) spannedMs += ibiMs;
+  return spannedMs >= minCleanS * 1000 ? 60000 / median(acceptedMs) : null;
 }
 
 /** §10.1 Emergency screen heart-rate triggers; null when neither holds. */

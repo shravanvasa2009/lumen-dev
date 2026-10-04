@@ -83,8 +83,9 @@ export interface ReadingAnalysis {
   rhythmFeatures: number[][]; // per window, RHYTHM_FEATURE_NAMES order (v1 8 + v2 7): the rhythm model input
   enoughRhythmIntervals: boolean;
   pulseShape: PulseShape | null; // DSP-14 averaged beat (readingShape): diabetes-net's beat input
-  // The intervals and rejected spans with SQI-Net's spans left out, for the §10.1 emergency rule (ADR
-  // 0076); null when SQI-Net did not run, where they are the same.
+  // The emergency view for the §10.1 rule (ADR 0076): intervals and rejected spans without SQI-Net's spans
+  // and without ADR 0077's frame-floor windows (owner, "242 A"); null when it has neither, where they are
+  // the reading's own.
   withoutSqiNet: { intervals: BeatInterval[]; rejectedSpans: RejectedSpan[] } | null;
 }
 
@@ -152,7 +153,8 @@ function callerSpans(context: ReadingContext, startNs: number) {
 
 // ADR 0023 flat windows (at the live session's once-per-second checks) and ADR 0057 flat runs, found
 // from the frames, so they are rejected whether or not SQI-Net ran and match the live screen. Windows
-// SQI-Net could not score are rejected only when it ran, so they are also listed as unscored.
+// SQI-Net could not score are rejected only when it ran, so they are also listed as unscored. Windows
+// under ADR 0077's frame floor are also listed as sparse, for the emergency view.
 function frameQualitySpans(timebase: Timebase, samples: Sample[], stats: FrameStat[], modelRan: boolean) {
   const covered = Uint8Array.from(samples, (sample, i) =>
     frameProblem(sample, stats[i]!) === 'coverage' ? 0 : 1,
@@ -172,7 +174,7 @@ function frameQualitySpans(timebase: Timebase, samples: Sample[], stats: FrameSt
     if (window && !window.input) {
       const span: RejectedSpan = { startS: window.endS - windowS, endS: window.endS, reason: 'quality' };
       spans.push(span);
-      if (window.sparse) sparse.push(span);
+      if (window.sparse && !window.flat) sparse.push(span);
     }
     const missing = window ? null : unscoredSpan(timebase.tS, i + 1, formedEndS);
     if (missing) unscored.push(missing);
@@ -214,7 +216,7 @@ function morphologyBand(segment: ResampledSegment, rateHz: number): ResampledSeg
 interface BeatSegment {
   beats: MeasuredBeat[];
   shape: ResampledSegment; // DSP-6 morphology band at 256 Hz
-  beatsWithoutSqiNet: MeasuredBeat[] | null; // classed without SQI-Net's spans; null when it did not run
+  beatsWithoutSqiNet: MeasuredBeat[] | null; // classed in the emergency view's spans; null without one
 }
 
 // DSP-2 to DSP-9 per segment, then the DSP-10/13 per-beat values. Segments shorter than dsp7.minSegmentS
@@ -381,9 +383,11 @@ export function analyzeReading(
   const caller = callerSpans(context, timebase.startNs);
   const frameQuality = frameQualitySpans(timebase, capture.samples, capture.stats, modelRan);
   const otherSpans = [...exposureSpans(timebase), ...caller.sensors, ...caller.sqiNet, ...frameQuality.all];
-  const sqiNetSpans = new Set([...caller.sqiNet, ...frameQuality.unscored, ...frameQuality.sparse]);
+  // The §10.1 emergency view leaves out SQI-Net's spans (ADR 0076 item 2) and the frame-floor windows
+  // (owner, "242 A"), so neither an AI output nor the frame floor can raise or hide the trigger.
+  const notInEmergencySpans = new Set([...caller.sqiNet, ...frameQuality.unscored, ...frameQuality.sparse]);
   const emergencyView = modelRan || frameQuality.sparse.length > 0;
-  const notSqiNet = (span: RejectedSpan) => !sqiNetSpans.has(span);
+  const inEmergencyView = (span: RejectedSpan) => !notInEmergencySpans.has(span);
   const byStart = (x: RejectedSpan, y: RejectedSpan) => x.startS - y.startS;
   // Frame gaps count against clean seconds only, last in LiveSession's order (frameGapSpan).
   const gapSpans = Array.from(timebase.tS.subarray(1), (tS, i) => frameGapSpan(timebase.tS[i]!, tS)).filter(
@@ -406,7 +410,7 @@ export function analyzeReading(
     capture.samples,
     capture.stats,
     signalSpans,
-    emergencyView ? signalSpans.filter(notSqiNet) : null,
+    emergencyView ? signalSpans.filter(inEmergencyView) : null,
   );
   const segments = bands.map((segment) => segment.beats);
   const bySegment = intervalsBySegment(segments, timebase.startNs);
@@ -438,7 +442,7 @@ export function analyzeReading(
             bands.map((band) => band.beatsWithoutSqiNet ?? band.beats),
             timebase.startNs,
           ).flat(),
-          rejectedSpans: rejectedSpans.filter(notSqiNet),
+          rejectedSpans: rejectedSpans.filter(inEmergencyView),
         }
       : null,
   };

@@ -154,13 +154,14 @@ function distinctSamples(tS: ArrayLike<number>, i: number, count: number, untilS
 // The SQI-Net window ending at or before frame count − 1 (ADR 0023): 256 points of −R on the 64 Hz grid,
 // splined across uncovered frames within DSP-2's gap limit. input is null when the window is flat, not
 // finite, or under live.minEffectiveFps (ADR 0077, underEffectiveFps): it never reaches the model and
-// counts as rejected. Null when no such window exists.
+// counts as rejected. flat and sparse say which held, so the emergency view can tell the frame floor apart
+// (owner, "242 A"). Null when no such window exists.
 export function modelWindowAt(
   tS: Float64Array,
   red: Float64Array,
   covered: ArrayLike<number>,
   count: number,
-): { endS: number; input: Float32Array | null; sparse: boolean } | null {
+): { endS: number; input: Float32Array | null; flat: boolean; sparse: boolean } | null {
   const { modelRateHz } = DSP_CONFIG.dsp2;
   const samples = DSP_CONFIG.dsp3.modelWindowS * modelRateHz;
   // Two grid steps of slack so the 64 Hz grid holds 256 points ending at or before the newest frame.
@@ -183,7 +184,7 @@ export function modelWindowAt(
   const flat = window.every((value) => value === window[0]);
   const sparse = underEffectiveFps(tS, count, endS);
   const input = !flat && !sparse && values.every(Number.isFinite) ? sqiModelInput(values) : null;
-  return { endS, input, sparse };
+  return { endS, input, flat, sparse };
 }
 
 // ADR 0057: a check with 4 s of reading behind it but no window (bad frames past DSP-2's gap limit)

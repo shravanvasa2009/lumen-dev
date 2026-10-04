@@ -344,3 +344,31 @@ describe('emergencyHeartRate on captures analyzeReading made', () => {
     expect(readingOutcome(analysis)).toEqual({ kind: 'reading', urgent: null });
   });
 });
+
+// Owner ruling "242 A" (ADR 0076): ADR 0077's frame floor refuses the reading but does not hide a fast
+// pulse from the emergency rule.
+describe('emergency view leaves out frame-floor windows', () => {
+  // 30 fps losing every 3rd frame: 20 fps, under live.minEffectiveFps (24).
+  const offsets = regularOffsets(30, 95).filter((_, k) => k % 3 !== 1);
+  const analysis = analyzeReading(
+    captureAt(offsets, (tS) => {
+      const phaseS = (tS + 0.5) % (60 / 170);
+      return { r: 0.62 - 0.004 * Math.exp(-0.5 * ((phaseS - 0.1) / 0.03) ** 2), g: 0.11, b: 0.04 };
+    }),
+    CONTEXT,
+  );
+
+  it('170 bpm at 20 fps: inconclusive, and urgent with fastSustained', () => {
+    const outcome = readingOutcome(analysis);
+    expect(outcome.kind).toBe('inconclusive');
+    expect(outcome.urgent?.fastSustained).toBe(true);
+  });
+
+  it('the view exists with no SQI-Net run, and the floor windows still count against the reading', () => {
+    expect(analysis.sqiAvailable).toBe(false);
+    expect(analysis.withoutSqiNet).not.toBeNull();
+    const quality = analysis.rejectedSpans.filter((span) => span.reason === 'quality');
+    expect(quality.length).toBeGreaterThan(0);
+    expect(analysis.withoutSqiNet!.rejectedSpans.filter((span) => span.reason === 'quality')).toEqual([]);
+  });
+});

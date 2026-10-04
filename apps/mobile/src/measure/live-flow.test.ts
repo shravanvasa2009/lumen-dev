@@ -109,10 +109,15 @@ describe('live capture fed by a LiveSession', () => {
   });
 
   it('keeps the frames and the session spans for the Processing screen', async () => {
-    await replayFor(syntheticRecording(30, [8, 10]), 20);
+    const recording = syntheticRecording(30, [8, 10]);
+    await replayFor(recording, 20);
     const kept = keptCapture();
-    // Replay reports 1e9 / its median frame interval (ADR 0067), which floating point leaves a hair off 60.
-    expect(kept?.captureFps).toBeCloseTo(FPS, 6);
+    // The session gets exactly the rate start() reports; Replay reports 1e9 / the median frame interval (ADR 0067).
+    const gaps = recording.samples.tNs
+      .slice(1)
+      .map((tNs, i) => tNs - recording.samples.tNs[i]!)
+      .sort((a, b) => a - b);
+    expect(kept?.captureFps).toBe(1e9 / gaps[Math.floor(gaps.length / 2)]!);
     expect(kept?.samples.length).toBe(kept?.stats.length);
     expect(kept?.samples.length).toBeGreaterThan(19 * FPS);
     expect(kept?.motionSpans).toEqual([]);

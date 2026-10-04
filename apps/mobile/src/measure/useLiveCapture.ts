@@ -189,9 +189,11 @@ export function useLiveCapture(
       return null;
     };
 
+    // Batches from before start() resolves are not shown either: on Android they can be dark frames from before
+    // the torch was on, and the elapsed time counts from the first frame shown.
     const onSamples = (batch: SampleBatch) => {
       const newest = batch.samples[batch.samples.length - 1];
-      if (!newest) return;
+      if (!started || !newest) return;
       firstNs ??= batch.samples[0]?.tNs ?? newest.tNs;
       const startNs = firstNs;
       recent = [...recent, ...batch.samples.map(({ tNs, r }) => ({ tNs, r }))].filter(

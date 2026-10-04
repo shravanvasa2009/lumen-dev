@@ -299,6 +299,23 @@ describe('useLiveCapture', () => {
     });
   });
 
+  it('shows nothing from batches that arrive before start() resolves', async () => {
+    const fake = new FakeCapture();
+    let release = () => {};
+    fake.startGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(fake.listenerCount('samples')).toBe(1));
+    act(() => fake.emitSamples(batch(90, 92, 0.1)));
+    release();
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    act(() => fake.emitSamples(batch(100, 101, 0.5)));
+    expect(live.current.recentRed).toHaveLength(10);
+    expect(live.current.recentRed[0]).toBe(0.5);
+    expect(live.current.elapsedS).toBeCloseTo(0.9, 6);
+  });
+
   it('reports denied permission without starting the camera', async () => {
     const fake = new FakeCapture();
     fake.permission = DENIED;

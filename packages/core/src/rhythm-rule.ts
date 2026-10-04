@@ -165,8 +165,14 @@ export function logisticRhythmOutputs(
       `the entry asks for ${featureCount} features; core computes ${RHYTHM_FEATURE_NAMES.length}`,
     );
   const expectedOrder = RHYTHM_FEATURE_NAMES.slice(0, featureCount);
-  // A copy, read by index: the entry's own array could have holes or its own methods.
-  const order = entry.featureOrder === undefined ? undefined : copyOf(entry.featureOrder);
+  // Read by length and index only: the entry's own array could have holes, its own methods or its own
+  // iterator, any of which Array.from or some() would trust.
+  const order =
+    entry.featureOrder === undefined
+      ? undefined
+      : Array.isArray(entry.featureOrder)
+        ? Array.from({ length: entry.featureOrder.length }, (_, i) => (entry.featureOrder as unknown[])[i])
+        : null;
   if (
     order !== undefined &&
     (order === null || order.length !== featureCount || !expectedOrder.every((name, i) => order[i] === name))

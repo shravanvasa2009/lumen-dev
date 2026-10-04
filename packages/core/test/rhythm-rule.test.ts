@@ -227,6 +227,13 @@ describe('logistic rhythm rule on the full rhythm vector (v1 entry, v1 + v2 feat
     expect(() => logisticRhythmOutputs(toyEntry({ featureOrder: lying }), [HAND_WINDOW])).toThrow(
       /featureOrder/,
     );
+    const names = RHYTHM_FEATURE_NAMES.slice(0, 4);
+    const iterating = Object.assign(['w', 'x', 'y', 'z'], {
+      [Symbol.iterator]: () => names[Symbol.iterator](),
+    });
+    expect(() => logisticRhythmOutputs(toyEntry({ featureOrder: iterating }), [HAND_WINDOW])).toThrow(
+      /featureOrder/,
+    );
   });
 
   it('refuses an entry wider than the features core computes', () => {

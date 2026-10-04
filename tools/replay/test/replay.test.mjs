@@ -27,13 +27,13 @@ describe('replay on a clean synthetic capture (CLI end to end)', () => {
   let truth;
   let written;
   before(() => {
-    truth = writeSyntheticCapture(folder, { seconds: 70, bpm: 75 });
+    truth = writeSyntheticCapture(folder, { seconds: 95, bpm: 75 });
     const run = spawnSync(process.execPath, [CLI, folder], { encoding: 'utf8' });
     assert.equal(run.status, 0, run.stderr);
     written = JSON.parse(fs.readFileSync(path.join(folder, 'replay-result.json'), 'utf8'));
   });
 
-  it('writes the ReadingResult with coreCommit, configHash, and inconclusive', () => {
+  it('writes the ReadingResult with its outcome, coreCommit, configHash, and inconclusive', () => {
     assert.deepEqual(Object.keys(written), [
       'headlineKey',
       'cleanSeconds',
@@ -43,6 +43,7 @@ describe('replay on a clean synthetic capture (CLI end to end)', () => {
       'experimental',
       'lostSeconds',
       'notChecked',
+      'outcome',
       'coreCommit',
       'configHash',
       'inconclusive',
@@ -53,6 +54,7 @@ describe('replay on a clean synthetic capture (CLI end to end)', () => {
     const bytes = fs.readFileSync(path.join(REPO_ROOT, 'ml', 'lumen_dsp', 'dsp_config.json'));
     assert.equal(written.configHash, `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}`);
     assert.equal(written.inconclusive, false);
+    assert.equal(written.outcome.kind, 'reading');
   });
 
   it('reads the heart rate within 1 bpm, with no model outputs and the repo evidence file', () => {
@@ -85,13 +87,29 @@ describe('replay on a clean synthetic capture (CLI end to end)', () => {
 });
 
 describe('replayFolder', () => {
-  it('marks a capture with no finger as inconclusive', async () => {
+  it('refuses a capture with no finger as the app does: its outcome only, no ReadingResult', async () => {
     const folder = path.join(scratch, 'finger-off');
     writeSyntheticCapture(folder, { seconds: 30, fingerOff: true });
     const { output } = await replayFolder(folder);
-    assert.equal(output.headlineKey, 'result.inconclusive');
+    assert.deepEqual(Object.keys(output), [
+      'outcome',
+      'coreCommit',
+      'configHash',
+      'inconclusive',
+      'rhythmSource',
+    ]);
+    assert.equal(output.outcome.kind, 'inconclusive');
     assert.equal(output.inconclusive, true);
-    assert.equal(output.metrics.hr, null);
+    assert.equal(output.outcome.cleanSeconds < output.outcome.neededCleanSeconds, true);
+  });
+
+  it('refuses a clean capture shorter than its mode needs, and still writes its intervals', async () => {
+    const folder = path.join(scratch, 'too-short');
+    writeSyntheticCapture(folder, { seconds: 20, bpm: 75 });
+    const { output } = await replayFolder(folder);
+    assert.equal(output.outcome.kind, 'inconclusive');
+    assert.equal(output.inconclusive, true);
+    assert.ok(readIntervals(folder).rows.length > 0);
   });
 
   it('infers the capture rate and treats the phone as unrated when meta.json lacks them', async () => {
@@ -104,7 +122,7 @@ describe('replayFolder', () => {
 
   it('without --rhythm-from-label: rhythmSource "none" and no RMSSD', async () => {
     const folder = path.join(scratch, 'no-label-flag');
-    writeSyntheticCapture(folder, { seconds: 90, meta: { labels: { rhythm: 'sinus' } } });
+    writeSyntheticCapture(folder, { seconds: 95, meta: { labels: { rhythm: 'sinus' } } });
     const { output } = await replayFolder(folder);
     assert.equal(output.rhythmSource, 'none');
     assert.equal(output.metrics.rmssd, null);
@@ -112,7 +130,7 @@ describe('replayFolder', () => {
 
   it('with --rhythm-from-label: the label opens the DSP-12 gate, but no rhythm card appears', async () => {
     const folder = path.join(scratch, 'label-flag');
-    writeSyntheticCapture(folder, { seconds: 90, meta: { labels: { rhythm: 'sinus' } } });
+    writeSyntheticCapture(folder, { seconds: 95, meta: { labels: { rhythm: 'sinus' } } });
     const { output } = await replayFolder(folder, { rhythmFromLabel: true });
     assert.equal(output.rhythmSource, 'label');
     assert.ok(output.metrics.rmssd.value >= 0);
@@ -136,7 +154,7 @@ describe('replayFolder', () => {
 
   it('the CLI passes --rhythm-from-label through', () => {
     const folder = path.join(scratch, 'label-cli');
-    writeSyntheticCapture(folder, { seconds: 70, meta: { labels: { rhythm: 'sinus' } } });
+    writeSyntheticCapture(folder, { seconds: 95, meta: { labels: { rhythm: 'sinus' } } });
     const run = spawnSync(process.execPath, [CLI, '--rhythm-from-label', folder], { encoding: 'utf8' });
     assert.equal(run.status, 0, run.stderr);
     const written = JSON.parse(fs.readFileSync(path.join(folder, 'replay-result.json'), 'utf8'));

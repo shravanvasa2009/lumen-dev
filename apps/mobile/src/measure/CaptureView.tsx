@@ -189,7 +189,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             </View>
           ) : null}
 
-          <CheckingRow items={checkingItems(mode, live.cleanSeconds, phone)} dimmed={paused} />
+          <CheckingRow mode={mode} items={checkingItems(mode, live.cleanSeconds, phone)} dimmed={paused} />
         </ScrollView>
       </Screen>
     </StillMotion.Provider>

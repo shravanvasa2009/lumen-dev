@@ -1,6 +1,6 @@
 import { DSP_CONFIG } from '@lumen/core';
 
-import { type PlanPhone, UNRATED_PHONE } from '@/checks/checkPlan';
+import { planPhone, type PlanPhone, UNRATED_PHONE } from '@/checks/checkPlan';
 
 import { checkingItems } from './checkingItems';
 
@@ -64,7 +64,10 @@ describe('checkingItems', () => {
       'hrv:checking',
       'diabetes:checking',
     ]);
-    expect(states(checkingItems('full', 5, UNRATED_PHONE))[2]).toBe('diabetes:checking');
+  });
+
+  it('treats a rating that is still loading as an unrated phone', () => {
+    expect(planPhone(undefined)).toEqual(UNRATED_PHONE);
   });
 
   it('lists no check in a Quick Check, because the rhythm check needs 60 s and Quick is 30 s (ADR 0089)', () => {

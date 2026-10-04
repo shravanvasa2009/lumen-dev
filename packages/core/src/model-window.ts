@@ -87,7 +87,8 @@ function intervalsInSpan(
 // lone interval up to DSP-2's gap limit is splined over as DSP-2 allows, so random drops of 3 frames in a
 // row at 30 fps still pass. Every such span must also hold live.minDistinctSamplesPerS distinct sample times
 // (note 6): Nyquist for the 2nd harmonic of the fastest rate reported, so no arrangement of clustered
-// frames samples the pulse more sparsely than its shape needs.
+// frames samples the pulse more sparsely than its shape needs. No run of sparse sample times may outlast
+// live.maxSparseRunS either (note 7, longSparseRun).
 function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): boolean {
   const {
     minEffectiveFps,
@@ -113,6 +114,25 @@ function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): 
     const last = i + spanFrames - 1;
     if (last >= count || !(tS[last]! <= tS[i]! + subWindowS)) return true;
     if (distinctSamples(tS, i, count, tS[i]! + subWindowS) < minDistinctSamplesPerS * subWindowS) return true;
+  }
+  return longSparseRun(tS, first, count, endS);
+}
+
+// ADR 0077 implementation note 7 (red team PR #171 round 9, M): sample times more than 1 / (2 × the 2nd
+// harmonic of rules.fastRegularBpm's top) apart (68 ms at 220 bpm) leave that harmonic under-sampled. A run
+// of them may last at most live.maxSparseRunS, so a burst of close frames cannot pay for a sparse rest of
+// the second in note 6's count. Sample times as note 6 (distinctSampleS); one shorter spacing ends a run.
+function longSparseRun(tS: ArrayLike<number>, first: number, count: number, endS: number): boolean {
+  const { distinctSampleS, maxSparseRunS } = DSP_CONFIG.live;
+  const nyquistS = 60 / (2 * 2 * DSP_CONFIG.rules.fastRegularBpm[1]!);
+  let lastS = tS[first]!;
+  let runS = 0;
+  for (let k = first + 1; k < count && tS[k]! <= endS; k++) {
+    const spacingS = tS[k]! - lastS;
+    if (spacingS < distinctSampleS - HALF_NS_S) continue;
+    lastS = tS[k]!;
+    runS = spacingS > nyquistS + HALF_NS_S ? runS + spacingS : 0;
+    if (runS > maxSparseRunS + HALF_NS_S) return true;
   }
   return false;
 }

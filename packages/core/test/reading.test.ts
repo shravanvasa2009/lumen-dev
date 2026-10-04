@@ -483,30 +483,59 @@ describe('analyzeReading acquisition spans', () => {
   it('ADR 0077 note 6: 1 s needs live.minDistinctSamplesPerS sample times live.distinctSampleS apart', () => {
     expect(DSP_CONFIG.live.minDistinctSamplesPerS).toBe(15);
     expect(DSP_CONFIG.live.distinctSampleS).toBe(0.012);
-    // On a 0.1 ms grid: a sample every periodSteps plus a copy copyAfterSteps later. A closed 1 s span holds
-    // 15 sample times at a 71 ms period and 14 at 72 ms; the copies keep 28 frames a second, so no other
-    // ADR 0077 rule applies.
-    const sampled = (periodSteps: number, copyAfterSteps: number) =>
+    // On a 0.1 ms grid, frames at the given phases of each period. Two samples a period (+ 1 ms copies for
+    // the frame counts), 52 and 90 ms apart, hold 15 sample times in a closed 1 s span; 54 and 90 ms hold
+    // 14. No spacing is over 90 ms and no sparse run is longer than 90 ms, so only note 6 applies.
+    const sampled = (periodSteps: number, phases: number[]) =>
+      analyze(
+        syntheticReading({
+          fps: 10_000,
+          seconds: 40,
+          dropped: (tS) => !phases.includes(Math.round(tS * 10_000) % periodSteps),
+        }),
+        { captureFps: 30 },
+      );
+    expect(spansOf(sampled(1420, [0, 10, 520, 530]), 'quality')).toEqual([]);
+    expect(spansOf(sampled(1440, [0, 10, 540, 550]), 'quality').length).toBeGreaterThan(0);
+    // A frame 12 ms after a sample is a sample of its own; 11.9 ms after, it is not.
+    expect(spansOf(sampled(1440, [0, 10, 120, 540, 550]), 'quality')).toEqual([]);
+    expect(spansOf(sampled(1440, [0, 10, 119, 540, 550]), 'quality').length).toBeGreaterThan(0);
+    // 120 fps frames are 8.3 ms apart: every 2nd counts, 60 a second.
+    expect(
+      spansOf(analyze(syntheticReading({ fps: 120, seconds: 40 }), { captureFps: 120 }), 'quality'),
+    ).toEqual([]);
+  });
+
+  // Red team PR #171 round 9 (M): a burst of close frames paid note 6's count for a sparse rest of the second.
+  it('ADR 0077 note 7: sample times over 68 ms apart may run for at most live.maxSparseRunS', () => {
+    expect(DSP_CONFIG.live.maxSparseRunS).toBe(0.5);
+    // 30 fps on a 0.1 ms grid (333 steps), except n intervals of 80 ms from 9.99 s.
+    const withRun = (n: number) =>
       analyze(
         syntheticReading({
           fps: 10_000,
           seconds: 40,
           dropped: (tS) => {
-            const phase = Math.round(tS * 10_000) % periodSteps;
-            return phase !== 0 && phase !== copyAfterSteps;
+            const k = Math.round(tS * 10_000) - 99_900;
+            return k >= 0 && k <= 800 * n ? k % 800 !== 0 : (k + 99_900) % 333 !== 0;
           },
         }),
         { captureFps: 30 },
       );
-    expect(spansOf(sampled(710, 10), 'quality')).toEqual([]);
-    expect(spansOf(sampled(720, 10), 'quality').length).toBeGreaterThan(0);
-    // A copy 12 ms later is a sample of its own (28 a second); 11.9 ms later it is not (14).
-    expect(spansOf(sampled(720, 120), 'quality')).toEqual([]);
-    expect(spansOf(sampled(720, 119), 'quality').length).toBeGreaterThan(0);
-    // 120 fps frames are 8.3 ms apart: every 2nd counts, 60 a second.
-    expect(
-      spansOf(analyze(syntheticReading({ fps: 120, seconds: 40 }), { captureFps: 120 }), 'quality'),
-    ).toEqual([]);
+    expect(spansOf(withRun(6), 'quality')).toEqual([]);
+    expect(cleanSeconds(9.99, 10.55, withRun(7).rejectedSpans)).toBe(0);
+    // Even spacing: 68 ms is within the 2nd harmonic's Nyquist spacing; 69 ms is a run with no end.
+    const even = (periodSteps: number) =>
+      analyze(
+        syntheticReading({
+          fps: 10_000,
+          seconds: 40,
+          dropped: (tS) => ![0, 10].includes(Math.round(tS * 10_000) % periodSteps),
+        }),
+        { captureFps: 30 },
+      );
+    expect(spansOf(even(680), 'quality')).toEqual([]);
+    expect(spansOf(even(690), 'quality').length).toBeGreaterThan(0);
   });
 
   it('splits at a dropped 300 ms stretch: no interval spans the gap', () => {

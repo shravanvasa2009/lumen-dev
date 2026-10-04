@@ -240,6 +240,10 @@ export const DSP_CONFIG = {
     // 240 fps it counts every 2nd or 3rd frame (60 or 80 a second), still far above 15.
     distinctSampleS: 0.012,
     minDistinctSamplesPerS: 15,
+    // ADR 0077 implementation note 7 (red team PR #171 round 9, M): the longest run of sample times more than
+    // 68 ms apart. M's runs were 0.65–0.88 s and read 220 bpm as 110; 0.5 s refused all 7 M cases and slowed
+    // none of the ordinary-phone red-team cases (30 fps ±8 ms with up to 5 drops/s, 24/60/120/240 fps).
+    maxSparseRunS: 0.5,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.

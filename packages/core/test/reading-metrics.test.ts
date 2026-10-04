@@ -76,7 +76,7 @@ describe('DSP-11 heart rate', () => {
 
   it('keeps atypical beats and long pauses, and drops both intervals touching an artifact beat', () => {
     // Intervals 0.8 s except two: 0.5 s ending at atypical beat 5, 0.3 s ending at artifact beat 10.
-    const intervalsS = new Array(20).fill(0.8);
+    const intervalsS = new Array(30).fill(0.8);
     intervalsS[4] = 0.5;
     intervalsS[9] = 0.3;
     intervalsS[10] = 0.3;
@@ -106,13 +106,31 @@ describe('DSP-11 heart rate', () => {
     expect(heartRate([beats], NaN)).toBeNull();
     expect(heartRate([beats], 15)).toBeCloseTo(75, 9);
     expect(heartRate([beatsFrom([])], 60)).toBeNull();
-    expect(heartRate([beatsFrom(new Array(5).fill(0.8), { 5: 'artifact' })], 60)).toBeCloseTo(75, 9);
+    expect(heartRate([beatsFrom(new Array(25).fill(0.8), { 25: 'artifact' })], 60)).toBeCloseTo(75, 9);
+  });
+
+  // Red team PR #171 round 3: 35 clean s with one accepted 0.3 s interval read 201 bpm. DSP-11's 15 s is
+  // also the time the accepted intervals behind the median must span (ADR 0080).
+  it('needs 15 s of accepted intervals behind the median, wherever the clean seconds are', () => {
+    expect(heartRate([beatsFrom([0.3])], 35)).toBeNull();
+    expect(heartRate([beatsFrom(new Array(18).fill(0.8))], 60)).toBeNull(); // 14.4 s
+    expect(heartRate([beatsFrom(new Array(19).fill(0.8))], 60)).toBeCloseTo(75, 9); // 15.2 s
+    // Two segments of 7.5 s each, regular at 60 bpm: 15 s together.
+    const first = beatsFrom(new Array(7).fill(1).concat(0.5), {}, [], 1);
+    const second = beatsFrom(new Array(7).fill(1).concat(0.5), {}, [], 20);
+    expect(heartRate([first, second], 60)).toBeCloseTo(60, 9);
+    expect(heartRate([first, second.slice(0, -1)], 60)).toBeNull(); // 14.5 s
+    // Intervals touching an artifact beat do not count toward the 15 s.
+    const withArtifact = beatsFrom(new Array(20).fill(0.8), { 10: 'artifact' }); // 16 s, 14.4 s accepted
+    expect(heartRate([withArtifact], 60)).toBeNull();
   });
 
   it('leaves out zero and negative intervals (a beat detected twice, or out of order)', () => {
     expect(heartRate([beatsFrom([0])], 60)).toBeNull();
-    // Intervals 0.8, 0, −0.1, 0.9: the median of 0.8 and 0.9 is 0.85 (with the other two it would be 0.4).
-    expect(heartRate([beatsFrom([0.8, 0, -0.1, 0.9])], 60)).toBeCloseTo(60 / 0.85, 9);
+    // Ten 0.8 s, then 0 and −0.1, then ten 0.9 s: the median of the positive ones is 0.85 (with the other
+    // two it would be 0.8).
+    const intervalsS = [...new Array(10).fill(0.8), 0, -0.1, ...new Array(10).fill(0.9)];
+    expect(heartRate([beatsFrom(intervalsS)], 60)).toBeCloseTo(60 / 0.85, 9);
   });
 });
 

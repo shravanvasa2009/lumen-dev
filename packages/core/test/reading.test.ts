@@ -1,5 +1,6 @@
 import {
   analyzeReading,
+  cleanSeconds,
   DSP_CONFIG,
   RHYTHM_FEATURE_NAMES,
   type FrameStat,
@@ -212,6 +213,24 @@ describe('analyzeReading acquisition spans', () => {
     expect(analysis.heartRateBpm).toBeCloseTo(analyze(base).heartRateBpm!, 0);
   });
 
+  // Red team PR #171 round 3: lifted frames left in the beat signal swamped DSP-7 over the whole segment.
+  it('DSP-2/DSP-4: uncovered frames are left out of the beat signal, so a 0.5 s lift splits it there', () => {
+    const base = syntheticReading({ seconds: 40 });
+    const analysis = analyze(syntheticReading({ seconds: 40, fingerOff: (tS) => tS >= 20 && tS < 20.5 }));
+    expect(analysis.segments).toHaveLength(2);
+    expect(analysis.segments[0]!.at(-1)!.peakS).toBeLessThan(20);
+    expect(analysis.segments[1]![0]!.peakS).toBeGreaterThan(20.5);
+    expect(analysis.heartRateBpm).toBeCloseTo(analyze(base).heartRateBpm!, 0);
+  });
+
+  it('DSP-2/DSP-9: an uncovered stretch shorter than the gap limit is splined; a beat in it is an artifact', () => {
+    // Frames 20.0–20.1 s uncovered (100 ms < dsp2.maxGapS): one segment, and lost contact (DSP-9).
+    const analysis = analyze(syntheticReading({ seconds: 40, fingerOff: (tS) => tS >= 20 && tS < 20.1 }));
+    expect(analysis.segments).toHaveLength(1);
+    const inside = analysis.segments[0]!.filter((beat) => beat.peakS >= 20 && beat.peakS < 20.1);
+    for (const beat of inside) expect(['artifact', 'not-a-beat']).toContain(beat.beatClass);
+  });
+
   it('DSP-4: clipping over 5% on a covered frame is a clipping span, counted as pressure', () => {
     const analysis = analyze(syntheticReading({ clipped: (tS) => tS >= 40 && tS < 43 }));
     expect(spansOf(analysis, 'clipping')).toHaveLength(1);
@@ -292,7 +311,20 @@ describe('analyzeReading acquisition spans', () => {
     const flat = syntheticReading({ seconds: 15, dropped: (tS) => tS % 3 >= 2.7 });
     const samples = flat.samples.map((sample) => ({ ...sample, r: 0.62 }));
     const analysis = analyzeReading({ samples, stats: flat.stats }, CONTEXT);
-    const runs = spansOf(analysis, 'quality');
+    // Each 300 ms dropout is also a quality span (ADR 0072 frame gap); the flat runs are the others.
+    const seconds = (sample: Sample) => (sample.tNs - CLOCK_START_NS) / 1e9;
+    const gaps = samples
+      .slice(1)
+      .flatMap((sample, i) =>
+        seconds(sample) - seconds(samples[i]!) > DSP_CONFIG.dsp2.maxGapS
+          ? [{ startS: seconds(samples[i]!), endS: seconds(sample), reason: 'quality' }]
+          : [],
+      );
+    expect(gaps).toHaveLength(4);
+    expect(spansOf(analysis, 'quality')).toEqual(expect.arrayContaining(gaps));
+    const flatRuns = (of: ReadingAnalysis) =>
+      spansOf(of, 'quality').filter((span) => !gaps.some((gap) => gap.startS === span.startS));
+    const runs = flatRuns(analysis);
     expect(runs).toHaveLength(5);
     expect(runs[0]).toEqual({
       startS: 0,
@@ -301,7 +333,7 @@ describe('analyzeReading acquisition spans', () => {
     });
     // One changed frame makes a run not flat.
     samples[100]!.r = 0.621;
-    expect(spansOf(analyzeReading({ samples, stats: flat.stats }, CONTEXT), 'quality')).toHaveLength(4);
+    expect(flatRuns(analyzeReading({ samples, stats: flat.stats }, CONTEXT))).toHaveLength(4);
   });
 
   it('ADR 0057: equal red for live.minFlatS inside a longer pulse run is rejected; shorter is not', () => {
@@ -334,16 +366,176 @@ describe('analyzeReading acquisition spans', () => {
     );
   });
 
-  it('ADR 0057: with SQI-Net, a check with no window (bad frames past the gap limit) leaves 4 s not clean', () => {
+  // The check at 20 s still has a window, ending on the 64 Hz grid at or before the last covered frame
+  // (19.983 s at 60 fps), so the seconds before it were scored.
+  const lastWindowEndS = Math.floor((20 - 1 / 60) * 64) / 64;
+
+  it('ADR 0057: with SQI-Net, a check with no window leaves the seconds since the newest window not clean', () => {
     const reading = syntheticReading({ seconds: 30, fingerOff: (tS) => tS >= 20 && tS < 20.5 });
     const withModel = analyze(reading, { sqi: { threshold: 0.5, windows: [] } });
     const without = analyze(reading);
     const unscored = spansOf(withModel, 'quality');
     expect(spansOf(without, 'quality')).toEqual([]);
     expect(unscored.map((span) => span.endS)).toEqual([21, 22, 23, 24]);
-    for (const span of unscored) expect(span.endS - span.startS).toBe(4);
-    // [17, 24] unscored, less the 0.5 s already lost to coverage.
-    expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - 6.5, 9);
+    for (const span of unscored) expect(span.startS).toBe(lastWindowEndS);
+    // [lastWindowEndS, 24] unscored, less the 0.5 s already lost to coverage.
+    expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - (24 - lastWindowEndS - 0.5), 9);
+  });
+
+  it('ADR 0057: after a camera stall only the seconds since the newest window are unscored', () => {
+    const reading = syntheticReading({ seconds: 30, dropped: (tS) => tS > 20 && tS < 20.5 });
+    const withModel = analyze(reading, { sqi: { threshold: 0.5, windows: [] } });
+    const without = analyze(reading);
+    const [gap] = spansOf(without, 'quality');
+    // The frame at 20 s is the last before the stall, and the check there has a window ending on it.
+    expect(gap!.startS).toBe(20);
+    const unscored = spansOf(withModel, 'quality').filter((span) => span.endS > gap!.endS);
+    expect(unscored.map((span) => span.endS)).toEqual([21, 22, 23, 24]);
+    for (const span of unscored) expect(span.startS).toBe(20);
+    expect(withModel.cleanSeconds).toBeCloseTo(without.cleanSeconds - (24 - gap!.endS), 9);
+  });
+
+  // Red team PR #171 round 3: a 0.6 s burst at 120 fps carried 3.4 s at 8 fps past the 96 frames.
+  it('ADR 0077: a model window holding 96 frames is rejected when 1 s of it holds under 16 frames', () => {
+    // 60 fps except 10.5–11.5 s, where every 8th frame is kept (7.5 fps, frames 133 ms apart).
+    const reading = syntheticReading({
+      seconds: 30,
+      dropped: (tS) => tS > 10.5 && tS < 11.5 && Math.round(tS * 60) % 8 !== 0,
+    });
+    const analysis = analyze(reading);
+    expect(spansOf(analysis, 'quality').length).toBeGreaterThan(0);
+    expect(cleanSeconds(10.5, 11.5, analysis.rejectedSpans)).toBe(0);
+    expect(analysis.cleanSeconds).toBeLessThan(analysis.durationS - 4);
+  });
+
+  // Red team PR #171 rounds 5 and 6: runs of frames a few ms apart filled every frame count while the pulse
+  // was sampled about 7 times a second between them.
+  it('ADR 0077: a window is rejected when 1 s of it holds two intervals over live.maxFrameGapS', () => {
+    expect(DSP_CONFIG.live.maxFrameGapS).toBe(0.12);
+    // 240 fps except 10.5–11.5 s, where each 32 steps keep a run of 4: 30 frames, intervals of 29 steps
+    // (120.8 ms) in a row.
+    const reading = syntheticReading({
+      fps: 240,
+      seconds: 30,
+      dropped: (tS) => tS > 10.5 && tS < 11.5 && Math.round(tS * 240) % 32 >= 4,
+    });
+    const analysis = analyze(reading, { captureFps: 240 });
+    expect(cleanSeconds(10.5, 11.5, analysis.rejectedSpans)).toBe(0);
+    expect(analysis.cleanSeconds).toBeLessThan(analysis.durationS - 4);
+  });
+
+  it('ADR 0077: 30 fps dropping 3 frames in a row (133 ms) twice in 1 s is rejected; once per 1 s is not', () => {
+    const dropRuns = (starts: number[]) => (tS: number) => {
+      const k = Math.round(tS * 30);
+      return starts.some((start) => k >= start && k < start + 3);
+    };
+    // Intervals 314–318 and 329–333 (frames): 10.47 s to 11.1 s.
+    const twice = analyze(syntheticReading({ fps: 30, seconds: 30, dropped: dropRuns([315, 330]) }));
+    expect(cleanSeconds(10.4, 11.2, twice.rejectedSpans)).toBe(0);
+    const everySecond = Array.from({ length: 29 }, (_, s) => 30 * (s + 1) + 1);
+    const once = analyze(syntheticReading({ fps: 30, seconds: 30, dropped: dropRuns(everySecond) }));
+    expect(spansOf(once, 'quality')).toEqual([]);
+  });
+
+  it('ADR 0077: intervals of exactly live.maxFrameGapS (25 fps, 2 dropped) are not long', () => {
+    // Two 120 ms intervals 0.4 s apart.
+    const dropped = (tS: number) => [251, 252, 261, 262].includes(Math.round(tS * 25));
+    const reading = syntheticReading({ fps: 25, seconds: 30, dropped });
+    expect(spansOf(analyze(reading, { captureFps: 25 }), 'quality')).toEqual([]);
+  });
+
+  // Red team PR #171 round 7: frames evenly 100–120 ms apart let a pulse's second harmonic alias.
+  it('ADR 0077: a window is rejected when 1 s of it holds 5 intervals over live.sparseIntervalS', () => {
+    expect(DSP_CONFIG.live.sparseIntervalS).toBe(0.09);
+    expect(DSP_CONFIG.live.maxSparseIntervalsPerS).toBe(5);
+    const dropPairs = (starts: number[]) => (tS: number) => {
+      const k = Math.round(tS * 30);
+      return starts.some((start) => k >= start && k < start + 2);
+    };
+    // 100 ms intervals starting at frames 314, 319, 324, 329 and 334: the 5th ends 0.77 s after the 1st.
+    const five = analyze(
+      syntheticReading({ fps: 30, seconds: 30, dropped: dropPairs([315, 320, 325, 330, 335]) }),
+    );
+    expect(cleanSeconds(10.4, 11.2, five.rejectedSpans)).toBe(0);
+    const four = analyze(
+      syntheticReading({ fps: 30, seconds: 30, dropped: dropPairs([315, 320, 325, 330]) }),
+    );
+    expect(spansOf(four, 'quality')).toEqual([]);
+    // A 100 ms interval every 12 frames: any 5 in a row span 51 frames (1.7 s).
+    const everyTwelfth = Array.from({ length: 72 }, (_, k) => 31 + 12 * k);
+    const spread = analyze(syntheticReading({ fps: 30, seconds: 30, dropped: dropPairs(everyTwelfth) }));
+    expect(spansOf(spread, 'quality')).toEqual([]);
+  });
+
+  it('ADR 0077: exactly 24 fps, 240 fps, and 30 fps dropping 1 frame in 5, pass the 1 s floor', () => {
+    expect(DSP_CONFIG.live.minEffectiveFps).toBe(24);
+    expect(DSP_CONFIG.live.minSubWindowFps).toBe(16);
+    expect(DSP_CONFIG.live.subWindowS).toBe(1);
+    for (const reading of [
+      syntheticReading({ fps: 24, seconds: 40 }),
+      syntheticReading({ fps: 240, seconds: 40 }),
+      syntheticReading({ fps: 30, seconds: 40, dropped: (tS) => Math.round(tS * 30) % 5 === 4 }),
+    ])
+      expect(spansOf(analyze(reading), 'quality')).toEqual([]);
+  });
+
+  // Red team PR #171 round 8 (L): sparse intervals under every count rule still aliased a fast pulse.
+  it('ADR 0077 note 6: 1 s needs live.minDistinctSamplesPerS sample times live.distinctSampleS apart', () => {
+    expect(DSP_CONFIG.live.minDistinctSamplesPerS).toBe(15);
+    expect(DSP_CONFIG.live.distinctSampleS).toBe(0.012);
+    // On a 0.1 ms grid, frames at the given phases of each period. Two samples a period (+ 1 ms copies for
+    // the frame counts), 52 and 90 ms apart, hold 15 sample times in a closed 1 s span; 54 and 90 ms hold
+    // 14. No spacing is over 90 ms and no sparse run is longer than 90 ms, so only note 6 applies.
+    const sampled = (periodSteps: number, phases: number[]) =>
+      analyze(
+        syntheticReading({
+          fps: 10_000,
+          seconds: 40,
+          dropped: (tS) => !phases.includes(Math.round(tS * 10_000) % periodSteps),
+        }),
+        { captureFps: 30 },
+      );
+    expect(spansOf(sampled(1420, [0, 10, 520, 530]), 'quality')).toEqual([]);
+    expect(spansOf(sampled(1440, [0, 10, 540, 550]), 'quality').length).toBeGreaterThan(0);
+    // A frame 12 ms after a sample is a sample of its own; 11.9 ms after, it is not.
+    expect(spansOf(sampled(1440, [0, 10, 120, 540, 550]), 'quality')).toEqual([]);
+    expect(spansOf(sampled(1440, [0, 10, 119, 540, 550]), 'quality').length).toBeGreaterThan(0);
+    // 120 fps frames are 8.3 ms apart: every 2nd counts, 60 a second.
+    expect(
+      spansOf(analyze(syntheticReading({ fps: 120, seconds: 40 }), { captureFps: 120 }), 'quality'),
+    ).toEqual([]);
+  });
+
+  // Red team PR #171 round 9 (M): a burst of close frames paid note 6's count for a sparse rest of the second.
+  it('ADR 0077 note 7: sample times over 68 ms apart may run for at most live.maxSparseRunS', () => {
+    expect(DSP_CONFIG.live.maxSparseRunS).toBe(0.5);
+    // 30 fps on a 0.1 ms grid (333 steps), except n intervals of 80 ms from 9.99 s.
+    const withRun = (n: number) =>
+      analyze(
+        syntheticReading({
+          fps: 10_000,
+          seconds: 40,
+          dropped: (tS) => {
+            const k = Math.round(tS * 10_000) - 99_900;
+            return k >= 0 && k <= 800 * n ? k % 800 !== 0 : (k + 99_900) % 333 !== 0;
+          },
+        }),
+        { captureFps: 30 },
+      );
+    expect(spansOf(withRun(6), 'quality')).toEqual([]);
+    expect(cleanSeconds(9.99, 10.55, withRun(7).rejectedSpans)).toBe(0);
+    // Even spacing: 68 ms is within the 2nd harmonic's Nyquist spacing; 69 ms is a run with no end.
+    const even = (periodSteps: number) =>
+      analyze(
+        syntheticReading({
+          fps: 10_000,
+          seconds: 40,
+          dropped: (tS) => ![0, 10].includes(Math.round(tS * 10_000) % periodSteps),
+        }),
+        { captureFps: 30 },
+      );
+    expect(spansOf(even(680), 'quality')).toEqual([]);
+    expect(spansOf(even(690), 'quality').length).toBeGreaterThan(0);
   });
 
   it('splits at a dropped 300 ms stretch: no interval spans the gap', () => {
@@ -357,7 +549,8 @@ describe('analyzeReading acquisition spans', () => {
   });
 
   it('marks nn only for normal → normal intervals without a long pause', () => {
-    const analysis = analyze(syntheticReading({ fingerOff: (tS) => tS >= 30 && tS < 35 }));
+    // Clipped frames stay in the signal, so their beats are artifacts (DSP-9); uncovered ones leave it.
+    const analysis = analyze(syntheticReading({ clipped: (tS) => tS >= 30 && tS < 35 }));
     for (const interval of analysis.intervals) if (interval.nn) expect(interval.accepted).toBe(true);
     expect(analysis.intervals.some((interval) => !interval.accepted)).toBe(true);
   });

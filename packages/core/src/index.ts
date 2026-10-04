@@ -89,6 +89,13 @@ export {
   type Profile,
   type RhythmOutputs,
 } from './reading-result';
+export {
+  readingOutcome,
+  type InconclusiveOutcome,
+  type InconclusiveReason,
+  type LostCause,
+  type ReadingOutcome,
+} from './reading-outcome';
 export { createLiveSession, type LiveSessionConfig } from './live';
 export { SHAPE_FEATURE_NAMES, shapeFeatures } from './shape-features';
 export { HR_SUMMARY_NAMES, hrSummary } from './reading-metrics';

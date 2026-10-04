@@ -4,7 +4,8 @@ from torch import nn
 from nets.blocks import Standardize
 
 INTERVALS = 64
-FEATURES = 8
+# ADR 0079: the 8 DSP-15 features (ADR 0024) and the 7 rhythm v2 features.
+FEATURES = 15
 LABELS = ("sinus", "af", "other")
 
 # Stands in for masked intervals while sorting, so they land after every real interval (seconds or ms).

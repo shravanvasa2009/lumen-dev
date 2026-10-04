@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
@@ -11,14 +11,21 @@ import { Screen } from '@/components/Screen';
 import { evidenceFor } from '@/evidence';
 import { useTheme } from '@/theme';
 
+import { CompactChecks } from './CompactChecks';
 import { DemoBanner } from './DemoBanner';
+import { DiabetesCheckCard } from './DiabetesCheckCard';
 import { ExperimentalCard } from './ExperimentalCard';
 import type { FixtureReading } from './fixtures';
 import { formatClock, formatDay } from './format';
+import { HeadlineCard } from './HeadlineCard';
 import { Icon } from '@/components/Icon';
 import { MetricCard } from './MetricCard';
+import { PotsCard } from './PotsCard';
 import { rhythmWords } from './rhythmWords';
 import { SafetySheet } from './SafetySheet';
+
+const NARROW_WIDTH = 400;
+const LARGE_TEXT_SCALE = 1.3;
 
 function headlineText(t: TFunction, reading: FixtureReading): string {
   const { headlineKey, metrics } = reading.scan;
@@ -52,12 +59,15 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { colors, radius, spacing } = useTheme();
+  // Side by side the labels wrap on a 360 dp phone or at large text, so the buttons stack there instead.
+  const { width, fontScale } = useWindowDimensions();
+  const stackFooter = width < NARROW_WIDTH || fontScale > LARGE_TEXT_SCALE;
   const scan = reading.scan;
   const { hr, rhythm, rmssd, diabetes } = scan.metrics;
   const acuteFlag = Boolean(hr?.flag) || Boolean(rhythm?.flag);
 
   // ADR 0046, §12.5: the amber card needs the flag and a passed accuracy criterion. Without the passed
-  // criterion the estimate sits in Experimental measurements; with it and no flag, nothing is shown.
+  // criterion the estimate gets the quiet Experimental card (ADR 0082); with it and no flag, nothing is shown.
   const diabetesCard = diabetes?.flag === 'pattern' && evidenceFor('diabetes').measured ? diabetes : null;
   const diabetesExperimental = diabetes !== null && !evidenceFor('diabetes').measured;
   const anyFlag = acuteFlag || diabetesCard !== null;
@@ -83,15 +93,15 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   return (
     <Screen
       footer={
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
-          <View style={{ flex: 1 }}>
+        <View testID="results-footer" style={{ flexDirection: stackFooter ? 'column' : 'row', gap: spacing.md }}>
+          <View style={stackFooter ? undefined : { flex: 1 }}>
             <Button
               label={t('results.showWhy')}
               variant="secondary"
               onPress={() => router.push(`/results/${reading.id}/why`)}
             />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={stackFooter ? undefined : { flex: 1 }}>
             <Button label={t('results.share')} onPress={() => router.push(`/report/${reading.id}`)} />
           </View>
         </View>
@@ -113,22 +123,13 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           </Pressable>
         </View>
 
-        <View
-          style={{
-            backgroundColor: headlineTone.fill,
-            borderColor: headlineTone.edge,
-            borderWidth: 1,
-            borderRadius: radius.card,
-            padding: spacing.lg,
-            gap: spacing.xs,
-          }}
-        >
+        <HeadlineCard fill={headlineTone.fill} edge={headlineTone.edge}>
           <AppText variant="title">{headlineText(t, reading)}</AppText>
           {subline ? <AppText>{subline}</AppText> : null}
           <AppText variant="caption" tone="textDim">
             {metaParts.join(' · ')}
           </AppText>
-        </View>
+        </HeadlineCard>
 
         {acuteFlag ? <Button label={t('results.findCare')} onPress={() => router.push('/care')} /> : null}
 
@@ -169,6 +170,8 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
 
         <MetricCard
           title={t('results.heartRhythm')}
+          checkName={t('checks.afib.name')}
+          icon="pulse"
           evidenceMetric="rhythm"
           reading={
             rhythm && {
@@ -178,21 +181,10 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
             }
           }
         />
-        <MetricCard
-          title={t('results.heartRate')}
-          evidenceMetric="hr"
-          reading={
-            hr && {
-              value: t('results.bpm', { value: hr.value }),
-              note: t('results.noteResting'),
-              confidence: hr.confidence,
-              flagged: hr.flag !== null,
-            }
-          }
-        />
         {reading.mode === 'full' ? (
           <MetricCard
             title={t('results.hrv')}
+            icon="bars"
             evidenceMetric="hrv"
             reading={
               rmssd && {
@@ -207,7 +199,25 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           />
         ) : null}
 
-        <ExperimentalCard experimental={scan.experimental} showDiabetes={diabetesExperimental} />
+        {reading.mode !== 'full' ? <CompactChecks /> : null}
+        {diabetesExperimental ? <DiabetesCheckCard /> : null}
+        {reading.mode === 'full' ? <PotsCard /> : null}
+
+        <MetricCard
+          title={t('results.heartRate')}
+          icon="heart"
+          evidenceMetric="hr"
+          reading={
+            hr && {
+              value: t('results.bpm', { value: hr.value }),
+              note: t('results.noteResting'),
+              confidence: hr.confidence,
+              flagged: hr.flag !== null,
+            }
+          }
+        />
+
+        <ExperimentalCard experimental={scan.experimental} />
 
         <AppText tone="textDim">
           {t('result.notChecked')}{' '}

@@ -3,9 +3,33 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from lumen_dsp.config import DSP_CONFIG
+from lumen_dsp.median import median
 
 # Mirrors packages/core/src/rhythm-features.ts with the same loops in the same order on plain Python
-# floats, so both sides produce the same doubles (§10.2 parity).
+# floats, so both sides produce the same doubles (§10.2 parity), except that Python's ** 2 goes through the
+# platform pow(), which is 1 ulp off for a few inputs on Windows (red-team on #192),
+# far inside the 1e-4 check.
+
+
+# packages/core/src/rhythm-features.ts RHYTHM_FEATURE_NAMES: the rhythm model inputs in training order, the 8
+# of rhythm_feature_vector (v1) then the 7 of rhythm_v2_features (v2). A model reads the prefix it names.
+RHYTHM_FEATURE_NAMES = (
+    "normalizedRmssd",
+    "shannonEntropyBits",
+    "turningPointRatio",
+    "sd1S",
+    "sd2S",
+    "pnn50",
+    "sampleEntropy",
+    "atypicalFraction",
+    "medianAbsDiffNorm",
+    "shortLongPairShare",
+    "rmssdPairsRemovedNorm",
+    "trimmedRmssdNorm",
+    "largeChangeShare",
+    "rrLag1Autocorr",
+    "rrLag2Autocorr",
+)
 
 
 @dataclass(frozen=True)
@@ -157,3 +181,56 @@ def rhythm_feature_vector(window: RhythmWindow) -> list[float]:
 def has_enough_usable_intervals(spans_artifact: Sequence[bool]) -> bool:
     # DSP-15: a reading needs at least 40 intervals that do not span an artifact.
     return sum(1 for spans in spans_artifact if not spans) >= DSP_CONFIG["dsp15"]["minUsableIntervals"]
+
+
+_NEAR_CONSTANT_SD = 1e-9
+
+
+def _pearson(a: list[float], b: list[float]) -> float:
+    # Population form; 0.0 when either side is constant, so the vector stays finite (ADR 0024).
+    mean_a, mean_b = _sum(a) / len(a), _sum(b) / len(b)
+    sd_a, sd_b = _population_sd(a), _population_sd(b)
+    # Below 1e-9 of the mean the spread is rounding left over from subtracting the mean, not rhythm, and its
+    # correlation is noise (red-team on #192: one-ulp alternation read +0.94 for a true −1).
+    if sd_a <= _NEAR_CONSTANT_SD * mean_a or sd_b <= _NEAR_CONSTANT_SD * mean_b:
+        return 0.0
+    covariance = _sum([(a[i] - mean_a) * (b[i] - mean_b) for i in range(len(a))]) / len(a)
+    return covariance / (sd_a * sd_b)
+
+
+def _root_mean_square(values: list[float]) -> float:
+    return math.sqrt(_sum([value * value for value in values]) / len(values))
+
+
+def rhythm_v2_features(window: RhythmWindow) -> list[float]:
+    # DSP-15 rhythm v2 (ADR 0079): 7 irregularity features that an isolated premature beat and its
+    # compensatory pause move far less than AF does.
+    config = DSP_CONFIG["dsp15"]
+    x = window.intervals_s
+    differences = [x[i + 1] - x[i] for i in range(len(x) - 1)]
+    absolute = [abs(difference) for difference in differences]
+    med = median(x)
+
+    pairs = [
+        i
+        for i in range(len(differences))
+        if x[i] < config["prematureShortFactor"] * med and x[i + 1] > config["pauseLongFactor"] * med
+    ]
+    kept = [True] * len(x)
+    for i in pairs:
+        for j in range(max(0, i - 1), min(len(x), i + 3)):
+            kept[j] = False
+    kept_differences = [differences[i] for i in range(len(differences)) if kept[i] and kept[i + 1]]
+    pairs_removed = 0.0 if len(kept_differences) < 2 else _root_mean_square(kept_differences) / med
+
+    trimmed = sorted(absolute)[: max(1, math.floor(config["trimmedDiffShare"] * len(absolute)))]
+    large = sum(1 for value in absolute if value > config["largeChangeFactor"] * med)
+    return [
+        median(absolute) / med,
+        len(pairs) / len(differences),
+        pairs_removed,
+        _root_mean_square(trimmed) / med,
+        large / len(absolute),
+        _pearson(x[:-1], x[1:]),
+        _pearson(x[:-2], x[2:]),
+    ]

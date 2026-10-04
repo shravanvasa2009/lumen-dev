@@ -18,6 +18,7 @@ class LumenWidgetsModule : Module() {
                 widgetView(snapshotJson, displayJson, System.currentTimeMillis())
                 WidgetStore.write(context, snapshotJson, displayJson)
                 refreshWidgets(context)
+                refreshPickerPreviews(context, displayJson)
             }
 
             // Start and update post the same notification on Android. They stay separate calls because iOS

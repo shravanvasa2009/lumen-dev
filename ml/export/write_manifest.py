@@ -39,6 +39,7 @@ from export.specs import (
 from export.to_onnx import source_model
 from eval.external_gate import RESULTS_FILE, read_results
 from eval.external_stats import MAX_GAP_PTS, MIN_CLEAN_WINDOWS_PER_GROUP
+from train.rhythm_windows import FEATURE_NAMES
 from train.sqi import HR_TOLERANCE_BPM
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
@@ -299,14 +300,34 @@ def manifest_entry(
         "card": f"{spec.file_stem}.md",
         **({"rule": rule} if rule else {}),
         # ML-6: the app fills a missing diabetes feature with the dev-train median the model was trained with,
-        # and must feed the features in this order; neither is inside the ONNX file. Diabetes only: rhythm and
-        # SQI metrics also record a featureOrder (a list, for training), which the app never reads.
+        # and must feed the features in this order; neither is inside the ONNX file. SQI metrics also record a
+        # featureOrder (a list, for training), which the app never reads.
         **{
             key: metrics[key]
             for key in ("featureOrder", "fillMedians")
             if spec.family == "diabetes" and metrics and key in metrics
         },
+        # ADR 0079: the app checks a rhythm model's feature names against core's RHYTHM_FEATURE_NAMES and
+        # feeds the prefix they name, so v1 (8) and v2 (15) models both get what they were trained on.
+        **(
+            {"featureOrder": _rhythm_feature_order(spec, metrics)}
+            if spec.family == "rhythm" and metrics
+            else {}
+        ),
     }
+
+
+def _rhythm_feature_order(spec: ModelSpec, metrics: dict) -> list[str]:
+    # train.rhythm_windows.FEATURE_NAMES is the order the windows were built in; a training record that names
+    # another order belongs to other code, so the release stops rather than ship mismatched names.
+    names = list(FEATURE_NAMES)
+    if len(names) != spec.inputs["features"][1]:
+        raise ValueError(f"{spec.name}: {len(names)} feature names for a {spec.inputs['features']} input")
+    recorded = metrics.get("featureOrder")
+    if recorded is not None and list(recorded) != names:
+        raise ValueError(f"{spec.name} was trained on features {recorded}, not {names}")
+    # A flat list, as the app's ML runtime reads it (the diabetes per-input dict is another contract).
+    return names
 
 
 def _table(rows: list[dict]) -> str:

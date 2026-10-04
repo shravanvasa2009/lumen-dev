@@ -12,6 +12,7 @@ from datasets.vitaldb_cases import holdout_case_path
 from eval import external
 from eval.external_gate import ExternalTestRefusedError
 from export.provenance import sha256_of
+from export.specs import SPECS
 from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES
 from nets.diabetes_net import BEAT, HR_SUMMARY_NAMES
 from tests.external_fixtures import THRESHOLDS, write_models
@@ -91,7 +92,7 @@ def write_diabetes_model(path) -> None:
 def models_dir(tmp_path):
     folder = tmp_path / "models"
     write_models(folder)
-    write_diabetes_model(folder / "diabetes-net@1.0.0.onnx")
+    write_diabetes_model(folder / f"{SPECS['diabetes-net'].file_stem}.onnx")
     manifest_path = folder / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     entry = next(entry for entry in manifest["models"] if entry["name"] == "diabetes-net")
@@ -162,7 +163,7 @@ def test_a_model_without_its_fill_values_or_feature_order_is_refused(models_dir,
 
 def test_the_rhythm_label_comes_from_the_shipped_rhythm_lgbm_in_the_release(models_dir):
     entry = shipped_rhythm_entry(models_dir)
-    assert (entry["name"], entry["file"]) == ("rhythm-lgbm", "rhythm-lgbm@1.0.0.onnx")
+    assert (entry["name"], entry["file"]) == ("rhythm-lgbm", f"{SPECS['rhythm-lgbm'].file_stem}.onnx")
     # score_holdout takes the rhythm entry from the release check, so no file is hashed twice.
     assert check_release(diabetes_entry(models_dir), models_dir) == entry
     (models_dir / entry["file"]).write_bytes(b"another model")
@@ -224,7 +225,9 @@ def approved_run(models_dir, data_dir, monkeypatch) -> dict:
     # eval.external's diabetes part on the six-patient holdout, with the real scorer.
     monkeypatch.setattr(external, "load_split", lambda: {"holdout": HOLDOUT, "dev": [1, 2]})
     approval = data_dir / "external-approval.json"
-    approval.write_text(json.dumps({"request": "H-031", "models": ["diabetes-net@1.0.0"]}), encoding="utf-8")
+    approval.write_text(
+        json.dumps({"request": "H-031", "models": [SPECS["diabetes-net"].file_stem]}), encoding="utf-8"
+    )
     return external.run(
         ("diabetes",),
         models_dir=models_dir,

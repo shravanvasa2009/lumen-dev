@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import type { TFunction } from 'i18next';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
@@ -24,6 +24,7 @@ import { MetricCard } from './MetricCard';
 import { PotsCard } from './PotsCard';
 import { rhythmWords } from './rhythmWords';
 import { SafetySheet } from './SafetySheet';
+import { clearSymptomsAsked, symptomsAskedFor } from './symptomsAsked';
 
 const NARROW_WIDTH = 400;
 const LARGE_TEXT_SCALE = 1.3;
@@ -56,13 +57,7 @@ function sublineText(t: TFunction, reading: FixtureReading, anyFlag: boolean): s
   return null;
 }
 
-export function ReadingResults({
-  reading,
-  symptomsAsked = false,
-}: {
-  reading: FixtureReading;
-  symptomsAsked?: boolean;
-}) {
+export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { colors, radius, spacing } = useTheme();
@@ -78,7 +73,8 @@ export function ReadingResults({
   const diabetesCard = diabetes?.flag === 'pattern' && evidenceFor('diabetes').measured ? diabetes : null;
   const anyFlag = acuteFlag || diabetesCard !== null;
   // Processing already asked the question for this reading just now; a reading opened later asks again.
-  const [sheetOpen, setSheetOpen] = useState(anyFlag && !symptomsAsked);
+  const [sheetOpen, setSheetOpen] = useState(anyFlag && !symptomsAskedFor(reading.id));
+  useEffect(() => clearSymptomsAsked(reading.id), [reading.id]);
 
   const subline = sublineText(t, reading, anyFlag);
   const when = t('results.dayAt', {

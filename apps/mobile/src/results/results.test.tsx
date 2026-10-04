@@ -10,6 +10,7 @@ import tokens from '@/theme/tokens.json';
 
 import { readingById } from './fixtures';
 import { formatClock, formatDay } from './format';
+import { markSymptomsAsked } from './symptomsAsked';
 
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -206,10 +207,17 @@ describe.each([
     expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
   });
 
-  it('does not ask again when Processing already asked for this reading, and asks for a later opening', () => {
-    renderRouter('./app', { initialUrl: '/results/demo-hr-flag?symptomsAsked=true' });
+  it('does not ask again when Processing just asked for this reading, but asks when it is reopened', () => {
+    markSymptomsAsked('demo-hr-flag');
+    openResults('demo-hr-flag');
     expect(screen.queryByText(en['safety.question'])).toBeNull();
     act(() => router.push('/results/demo-flag'));
+    act(() => router.push('/results/demo-hr-flag'));
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+  });
+
+  it('cannot be silenced by a link carrying symptomsAsked (SAFE-1)', () => {
+    openResults('demo-hr-flag?symptomsAsked=true');
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
   });
 

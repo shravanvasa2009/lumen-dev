@@ -246,3 +246,29 @@ describe('a failed analysis keeps the urgent flags (SAFE-1)', () => {
     expect(analysis.current).toMatchObject({ urgent: null });
   });
 });
+
+describe('the flags show while the analysis still runs (SAFE-1)', () => {
+  const urgent = { fastSustained: true, slowBelow40: false };
+
+  it('is unknown at first, then known before the analysis resolves', async () => {
+    let finish: (reading: AnalysedReading) => void = () => {};
+    jest.mocked(analyzeKeptCapture).mockImplementation(
+      (_capture, _request, _report, reportUrgent) =>
+        new Promise((resolve) => {
+          reportUrgent(urgent);
+          finish = resolve;
+        }),
+    );
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current).toMatchObject({ phase: 'running', urgent }));
+    finish({ ...analysedReading(), urgent });
+    await waitFor(() => expect(analysis.current.phase).toBe('done'));
+  });
+
+  it('leaves it undefined while the rules have not run', async () => {
+    jest.mocked(analyzeKeptCapture).mockImplementation(() => new Promise(() => {}));
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('running'));
+    expect(analysis.current).toMatchObject({ urgent: undefined });
+  });
+});

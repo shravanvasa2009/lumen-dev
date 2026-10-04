@@ -7,6 +7,7 @@ import { parseMode } from '@/measure/mode';
 import { ProcessingView } from '@/measure/ProcessingView';
 import { useReadingAnalysis } from '@/measure/useReadingAnalysis';
 import { SafetySheet } from '@/results/SafetySheet';
+import { markSymptomsAsked } from '@/results/symptomsAsked';
 
 export default function ProcessingScreen() {
   const router = useRouter();
@@ -18,23 +19,24 @@ export default function ProcessingScreen() {
   });
   const [symptomsAnswered, setSymptomsAnswered] = useState(false);
 
-  // SAFE-1: an urgent rate is only known once the analysis ends, and only this screen routes on it, so the
-  // screen cannot be left until then: no header back, no iOS swipe-back, and the Android back press is eaten.
-  const analysing = analysis.phase === 'running';
+  // SAFE-1 (ADR 0076): the urgent heart-rate flags win over the outcome kind, so a refused capture can still
+  // open Emergency. A sustained fast rate goes straight there; a rate under 40 asks the symptom question first.
+  const urgent =
+    analysis.phase === 'done' || analysis.phase === 'failed' || analysis.phase === 'running'
+      ? analysis.urgent
+      : analysis.phase === 'inconclusive'
+        ? (analysis.outcome?.urgent ?? null)
+        : null;
+
+  // SAFE-1: only this screen routes on an urgent rate, so it cannot be left until the rules have run (urgent
+  // is undefined until then): no header back, no iOS swipe-back, and the Android back press is eaten. After
+  // that the routing below needs no further analysis step, so leaving is harmless.
+  const analysing = analysis.phase === 'running' && urgent === undefined;
   useEffect(() => {
     if (!analysing) return;
     const block = BackHandler.addEventListener('hardwareBackPress', () => true);
     return () => block.remove();
   }, [analysing]);
-
-  // SAFE-1 (ADR 0076): the urgent heart-rate flags win over the outcome kind, so a refused capture can still
-  // open Emergency. A sustained fast rate goes straight there; a rate under 40 asks the symptom question first.
-  const urgent =
-    analysis.phase === 'done' || analysis.phase === 'failed'
-      ? analysis.urgent
-      : analysis.phase === 'inconclusive'
-        ? (analysis.outcome?.urgent ?? null)
-        : null;
   const emergencyNow = urgent?.fastSustained === true;
   const askSymptoms = !emergencyNow && urgent?.slowBelow40 === true && !symptomsAnswered;
   useEffect(() => {
@@ -48,7 +50,8 @@ export default function ProcessingScreen() {
   useEffect(() => {
     if (readingId === null || !mayContinue) return;
     // Results asks the same question for a flagged rate, so it is told this reading was already asked.
-    router.replace(askedHere ? `/results/${readingId}?symptomsAsked=true` : `/results/${readingId}`);
+    if (askedHere) markSymptomsAsked(readingId);
+    router.replace(`/results/${readingId}`);
   }, [readingId, mayContinue, askedHere, router]);
 
   const refused = analysis.phase === 'inconclusive';

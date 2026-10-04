@@ -87,7 +87,7 @@ function Home() {
             {greetings[dayPeriod(now.getHours())]}
           </AppText>
         </View>
-        <View style={{ alignItems: 'center', marginTop: compact ? 0 : -spacing.sm }}>
+        <View style={{ alignItems: 'center' }}>
           <MeasureButton
             label={t('home.measure')}
             modeLabel={modeLabel}

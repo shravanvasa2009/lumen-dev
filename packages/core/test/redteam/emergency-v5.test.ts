@@ -402,15 +402,13 @@ function shortStretchesThenTail(tailS: number): number[] {
 }
 
 describe('red team a88af8a finding R1 (fixed): the emergency HR keeps ADR 0080 floor, so SQI-Net cannot raise slowBelow40', () => {
-  // ADR 0080 (from #171) makes DSP-11's HR null unless its accepted intervals span 15 s. emergency.ts's
-  // heartRateWithoutSqiNet ("as heartRate gives with sqi null") still checks only clean seconds. Here the
-  // windows across the 151 ms gaps never form, so with SQI-Net they are unscored and rejected (ADR 0057);
-  // the SQI-free view drops them and keeps ≈ 88 clean s, but the accepted intervals span only the tail
-  // (4–8 s). With sqi null the same capture gives HR null and no trigger; with SQI-Net (0.9 or 0.1) it
-  // gives slowBelow40 from 2–7 intervals. ADR 0076 item 2: SQI-Net may neither raise nor suppress the
-  // trigger. Under option B too (not a88af8a's). 30–38 bpm at tails of 8, 10 and 13 s all show it; no
-  // false slowBelow40 was found on 45–80 bpm pulses with noise (400 replays), so its effect is a slow
-  // trigger from under 15 s of intervals that the sqi-null path refuses.
+  // ADR 0080 (from #171) makes DSP-11's HR null unless its accepted intervals span 15 s. At a88af8a the
+  // emergency view's HR checked only clean seconds: here the windows across the 151 ms gaps never form, so
+  // with SQI-Net they are unscored and rejected (ADR 0057); the view drops them and keeps ≈ 88 clean s,
+  // but the accepted intervals span only the tail (4–8 s). With sqi null the capture gave HR null and no
+  // trigger; with SQI-Net (0.9 or 0.1) it gave slowBelow40 from 2–7 intervals, against ADR 0076 item 2
+  // (SQI-Net may neither raise nor suppress the trigger). Fixed in 95f3992 (the view's HR keeps the 15 s
+  // floor); these cases guard it. No false slowBelow40 was found on 45–80 bpm pulses with noise (400 replays).
   it.each([
     [8, 35, 0.9],
     [10, 35, 0.9],

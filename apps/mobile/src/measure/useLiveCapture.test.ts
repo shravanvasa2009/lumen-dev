@@ -42,8 +42,11 @@ class FakeCapture implements LumenCaptureModule {
   capabilities = phone;
   startError: Error | null = null;
   startGate: Promise<void> | null = null;
+  // The rate the fake camera reports from start(); null honors the requested rate.
+  reportedFps: number | null = null;
   started: CaptureConfig[] = [];
   stops = 0;
+  locks = 0;
   private readonly listeners: { [E in keyof LumenCaptureEvents]: Set<LumenCaptureEvents[E]> } = {
     samples: new Set(),
     status: new Set(),
@@ -63,15 +66,17 @@ class FakeCapture implements LumenCaptureModule {
     await this.startGate;
     if (this.startError) throw this.startError;
     this.started.push(config);
-    // This fake camera honors any requested rate; with none it runs at 30 fps.
-    return { activeFps: config.targetFps ?? 30 };
+    // Unless told otherwise, this fake camera honors any requested rate; with none it runs at 30 fps.
+    return { activeFps: this.reportedFps ?? config.targetFps ?? 30 };
   }
   async stop() {
     this.stops += 1;
     return { startedNs: 0, stoppedNs: 0, frames: 0, dropped: 0 };
   }
   async setTorch() {}
-  async lockExposure() {}
+  async lockExposure() {
+    this.locks += 1;
+  }
   addListener<E extends keyof LumenCaptureEvents>(e: E, cb: LumenCaptureEvents[E]) {
     this.listeners[e].add(cb);
     return { remove: () => void this.listeners[e].delete(cb) };
@@ -86,6 +91,14 @@ class FakeCapture implements LumenCaptureModule {
     this.listeners.status.forEach((cb) => cb(status));
   }
 }
+
+const statusWith = (fingerCovered: boolean): CaptureStatus => ({
+  fingerCovered,
+  motionRms: 0.01,
+  thermal: 'nominal',
+  fps: 60,
+  droppedFrac: 0,
+});
 
 const batch = (fromS: number, toS: number, red: number): SampleBatch => ({
   samples: Array.from({ length: Math.round((toS - fromS) * 10) }, (_, i) => ({
@@ -147,6 +160,33 @@ describe('useLiveCapture', () => {
     expect(keptCapture()?.captureFps).toBe(60);
   });
 
+  it('gives the session and the kept capture the rate native reports, not the lens maximum', async () => {
+    const fake = new FakeCapture();
+    fake.reportedFps = 30;
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    expect(fake.started[0]?.targetFps).toBe(60);
+    expect(createLiveSession).toHaveBeenLastCalledWith(expect.objectContaining({ captureFps: 30 }));
+
+    const frames = Array.from({ length: 3 }, (_, i) => 100e9 + (i * 1e9) / 30);
+    act(() => {
+      fake.emitSamples({
+        samples: frames.map((tNs) => ({ tNs, r: 0.7, g: 0.1, b: 0.1 })),
+        stats: frames.map((tNs) => ({ tNs, spatialStdR: 0.02, clipFrac: 0, exposureNs: 8e6 })),
+      });
+    });
+    expect(keptCapture()?.captureFps).toBe(30);
+  });
+
+  it('stops the camera and fails when the reported rate is too low for the live filter', async () => {
+    const fake = new FakeCapture();
+    fake.reportedFps = 0;
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('failed'));
+    expect(fake.stops).toBe(1);
+    expect(fake.listenerCount('samples')).toBe(0);
+  });
+
   it('falls back to the first lens with a torch, and to no torch when none has one', async () => {
     const fake = new FakeCapture();
     fake.capabilities = { ...phone, rearLenses: [phone.rearLenses[0]!, phone.rearLenses[1]!] };
@@ -188,6 +228,92 @@ describe('useLiveCapture', () => {
     expect(live.current.recentRed.at(-1)).toBe(0.5 + 39);
     expect(live.current.cleanSeconds).toBeNull();
     expect(live.current.coachingKey).toBeNull();
+  });
+
+  describe('exposure lock (spec §9.2, §4.2 step 3)', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    const running = async (fake: FakeCapture) => {
+      const hook = renderHook(() => useLiveCapture(fake));
+      await act(async () => {});
+      expect(hook.result.current.phase).toBe('running');
+      return hook;
+    };
+    const after = (ms: number) =>
+      act(() => {
+        jest.advanceTimersByTime(ms);
+      });
+
+    it('locks once, 1 s after the finger covers the lens', async () => {
+      const fake = new FakeCapture();
+      await running(fake);
+      act(() => fake.emitStatus(statusWith(false)));
+      await after(2000);
+      expect(fake.locks).toBe(0);
+
+      act(() => fake.emitStatus(statusWith(true)));
+      await after(999);
+      act(() => fake.emitStatus(statusWith(true)));
+      expect(fake.locks).toBe(0);
+      await after(1);
+      expect(fake.locks).toBe(1);
+
+      act(() => fake.emitStatus(statusWith(true)));
+      await after(5000);
+      expect(fake.locks).toBe(1);
+    });
+
+    it('restarts the settle when the finger lifts before it ends', async () => {
+      const fake = new FakeCapture();
+      await running(fake);
+      act(() => fake.emitStatus(statusWith(true)));
+      await after(600);
+      act(() => fake.emitStatus(statusWith(false)));
+      await after(600);
+      act(() => fake.emitStatus(statusWith(true)));
+      await after(600);
+      expect(fake.locks).toBe(0);
+      await after(400);
+      expect(fake.locks).toBe(1);
+    });
+
+    it('never locks a dark capture or a closed screen', async () => {
+      const dark = new FakeCapture();
+      dark.capabilities = {
+        ...phone,
+        rearLenses: [phone.rearLenses[1]!],
+        torch: { available: false, levels: false },
+      };
+      await running(dark);
+      act(() => dark.emitStatus(statusWith(true)));
+      await after(2000);
+      expect(dark.locks).toBe(0);
+
+      const fake = new FakeCapture();
+      const { unmount } = await running(fake);
+      act(() => fake.emitStatus(statusWith(true)));
+      unmount();
+      await after(2000);
+      expect(fake.locks).toBe(0);
+    });
+  });
+
+  it('shows nothing from batches that arrive before start() resolves', async () => {
+    const fake = new FakeCapture();
+    let release = () => {};
+    fake.startGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(fake.listenerCount('samples')).toBe(1));
+    act(() => fake.emitSamples(batch(90, 92, 0.1)));
+    release();
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    act(() => fake.emitSamples(batch(100, 101, 0.5)));
+    expect(live.current.recentRed).toHaveLength(10);
+    expect(live.current.recentRed[0]).toBe(0.5);
+    expect(live.current.elapsedS).toBeCloseTo(0.9, 6);
   });
 
   it('reports denied permission without starting the camera', async () => {

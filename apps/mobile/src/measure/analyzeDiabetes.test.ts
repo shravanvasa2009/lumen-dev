@@ -20,7 +20,8 @@ jest.mock('../ml/runtime', () => ({
 
 jest.setTimeout(60_000);
 
-const SECONDS = 70;
+// Full Scan needs 90 clean seconds (spec 07), so the capture runs longer than the rhythm rules need.
+const SECONDS = 100;
 const BEATS_PER_MIN = 72;
 
 // SYNTHETIC: a smooth steady pulse in red on a covered lens, long enough for rhythm rules and a pulse shape.
@@ -35,6 +36,12 @@ function steadyPulse(fps: number): KeptCapture {
     stats.push({ tNs, spatialStdR: 0.02, clipFrac: 0, exposureNs: 8e6 });
   }
   return { captureFps: fps, lensId: null, samples, stats, motionSpans: [], coldHandsSpans: [], sqi: null };
+}
+
+async function analyse(capture: KeptCapture, mode: 'full' | 'quick') {
+  const analysed = await analyzeKeptCapture(capture, { mode, restTimerDone: true }, () => {});
+  if ('kind' in analysed) throw new Error(`the capture was refused: ${analysed.reasons.join(', ')}`);
+  return analysed;
 }
 
 const modelAnswer: ScoreOutcome = {
@@ -54,7 +61,7 @@ beforeEach(() => {
 
 describe('diabetes model inputs', () => {
   it('gives a Full Scan with a pulse shape to the model in the shapes it takes', async () => {
-    const { models } = await analyzeKeptCapture(steadyPulse(60), { mode: 'full', restTimerDone: true }, () => {});
+    const { models } = await analyse(steadyPulse(60), 'full');
     expect(mockScoreDiabetes).toHaveBeenCalledTimes(1);
     const input = mockScoreDiabetes.mock.calls[0]?.[0] as {
       beat: Float64Array;
@@ -71,19 +78,19 @@ describe('diabetes model inputs', () => {
   });
 
   it('leaves diabetes out when the format has no pulse shape', async () => {
-    const { models } = await analyzeKeptCapture(steadyPulse(30), { mode: 'full', restTimerDone: true }, () => {});
+    const { models } = await analyse(steadyPulse(30), 'full');
     expect(mockScoreDiabetes).not.toHaveBeenCalled();
     expect(models.diabetes).toBeNull();
   });
 
   it('leaves diabetes out when the model gave basic analysis', async () => {
     mockScoreDiabetes.mockResolvedValue({ source: 'basic', value: null, reason: 'no model' });
-    const { models } = await analyzeKeptCapture(steadyPulse(60), { mode: 'full', restTimerDone: true }, () => {});
+    const { models } = await analyse(steadyPulse(60), 'full');
     expect(models.diabetes).toBeNull();
   });
 
   it('does not run the model for a Quick Check', async () => {
-    const { models } = await analyzeKeptCapture(steadyPulse(60), { mode: 'quick', restTimerDone: true }, () => {});
+    const { models } = await analyse(steadyPulse(60), 'quick');
     expect(mockScoreDiabetes).not.toHaveBeenCalled();
     expect(models.diabetes).toBeNull();
   });

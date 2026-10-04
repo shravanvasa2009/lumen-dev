@@ -1,3 +1,4 @@
+import type { InconclusiveOutcome } from '@lumen/core';
 import { renderHook, waitFor } from '@testing-library/react-native';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
@@ -85,6 +86,29 @@ beforeEach(() => {
 afterEach(() => {
   keepCapture(null);
   jest.restoreAllMocks();
+});
+
+const refusal: InconclusiveOutcome = {
+  kind: 'inconclusive',
+  reasons: ['tooFewCleanSeconds'],
+  cleanSeconds: 12,
+  neededCleanSeconds: 90,
+  lostSeconds: { motion: 20, pressure: 0, coverage: 0, coldHands: 0 },
+  otherLostSeconds: 0,
+  causes: ['motion'],
+  urgent: null,
+};
+
+describe('a capture the analysis refuses', () => {
+  it.each([false, true])('saves nothing and re-syncs nothing (demo: %s)', async (demo) => {
+    keepCapture(demo ? { ...newCapture(), demo: true } : newCapture());
+    jest.mocked(analyzeKeptCapture).mockResolvedValue(refusal);
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('inconclusive'));
+    expect(analysis.current).toMatchObject({ outcome: refusal });
+    expect(await listReadings()).toEqual([]);
+    expect(resyncNotifications).not.toHaveBeenCalled();
+  });
 });
 
 describe('saving the analysed reading', () => {

@@ -1,9 +1,11 @@
+import type { InconclusiveOutcome } from '@lumen/core';
 import { renderHook } from '@testing-library/react-native';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
+import { keepCapture } from './keptCapture';
 import { type AnalysisProgress, completedPercent, pendingProgress } from './analysisProgress';
 import type { AnalysisState } from './useReadingAnalysis';
 
@@ -154,8 +156,42 @@ describe('processing screen', () => {
     expect(route.getPathname()).toBe('/results/demo');
   });
 
+  it('replaces itself with Inconclusive when the capture had too little clean signal', () => {
+    keepCapture({
+      captureFps: 60,
+      lensId: null,
+      samples: [],
+      stats: [],
+      motionSpans: [],
+      coldHandsSpans: [],
+      sqi: null,
+    });
+    const outcome: InconclusiveOutcome = {
+      kind: 'inconclusive',
+      reasons: ['tooFewCleanSeconds', 'noHeartRate'],
+      cleanSeconds: 0,
+      neededCleanSeconds: 90,
+      lostSeconds: { motion: 0, pressure: 0, coverage: 12, coldHands: 0 },
+      otherLostSeconds: 0,
+      causes: ['coverage'],
+      urgent: null,
+    };
+    mockAnalysis = { phase: 'inconclusive', progress: midway, outcome };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(route.getPathname()).toBe('/measure/inconclusive');
+    expect(route.getSearchParams()).toEqual({ mode: 'full' });
+    expect(screen.getByRole('header', { name: en['result.inconclusive'] })).toBeOnTheScreen();
+    expect(screen.getByText('We got 0 clean seconds. Most of the lost time was light.')).toBeOnTheScreen();
+    expect(screen.getByText('This check needs at least 90 clean seconds.')).toBeOnTheScreen();
+    expect(screen.getByText('Light 12 s')).toBeOnTheScreen();
+    expect(screen.getByText(en['inconclusive.tipCover'])).toBeOnTheScreen();
+    expect(screen.getByText(en['inconclusive.tipElbows'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['demo.banner'])).toBeNull();
+    keepCapture(null);
+  });
+
   it('opens the Inconclusive screen with the mode when the capture was refused', () => {
-    mockAnalysis = { phase: 'inconclusive', progress: pendingProgress, reason: 'tooShort' };
+    mockAnalysis = { phase: 'inconclusive', progress: pendingProgress, outcome: null };
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
     expect(route.getPathname()).toBe('/measure/inconclusive');
     expect(route.getSearchParams()).toEqual({ mode: 'full' });

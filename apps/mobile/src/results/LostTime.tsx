@@ -7,14 +7,14 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { useTheme } from '@/theme';
 
-export type LostCause = 'movement' | 'pressure' | 'light';
+type LostCause = 'movement' | 'pressure' | 'light';
 
 // Light leaking around the finger is counted as coverage; cold hands have no row in mockup 19.
-export function secondsLost(lost: LostSeconds, cause: LostCause): number {
+function secondsLost(lost: LostSeconds, cause: LostCause): number {
   return { movement: lost.motion, pressure: lost.pressure, light: lost.coverage }[cause];
 }
 
-export const lostCauses: readonly LostCause[] = ['movement', 'pressure', 'light'];
+const lostCauses: readonly LostCause[] = ['movement', 'pressure', 'light'];
 
 // With no reading to explain, the causes are listed without seconds.
 export function LostTime({ lost }: { lost: LostSeconds | null }) {
@@ -53,7 +53,7 @@ export function LostTime({ lost }: { lost: LostSeconds | null }) {
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: shades[cause] }} />
             <AppText variant="caption" tone="textDim">
               {lost
-                ? t('inconclusive.rowSeconds', { label: names[cause], seconds: secondsLost(lost, cause) })
+                ? t('inconclusive.rowSeconds', { label: names[cause], seconds: Math.round(secondsLost(lost, cause)) })
                 : names[cause]}
             </AppText>
           </View>

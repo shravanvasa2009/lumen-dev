@@ -102,18 +102,31 @@ export async function replayFolder(folder, { rhythmFromLabel = false } = {}) {
   const label = rhythmFromLabel ? rhythmLabel(meta) : null;
   const context = contextFromMeta(meta, samples, label);
   const analysis = core.analyzeReading({ samples, stats }, context);
-  const evidence = JSON.parse(
-    fs.readFileSync(path.join(REPO_ROOT, 'docs', 'validation', 'evidence.json'), 'utf8'),
-  );
-  const reading = core.buildReadingResult(analysis, NO_MODELS, evidence, DEFAULT_PROFILE, []);
-  const output = {
-    ...reading,
+  // readingOutcome is the refusal contract (ADR 0072): a refused capture is not a reading, so it gets
+  // no ReadingResult, only its outcome. The app's Inconclusive route is to apply the same contract.
+  const outcome = core.readingOutcome(analysis);
+  const provenance = {
     coreCommit: coreCommit(),
     configHash: configHash(),
-    inconclusive: reading.headlineKey === 'result.inconclusive',
-    // What the DSP-12 gate used for the rhythm class. "model" arrives when replay runs the ONNX rhythm model.
-    rhythmSource: label === null ? 'none' : 'label',
   };
+  // What the DSP-12 gate used for the rhythm class. "model" arrives when replay runs the ONNX rhythm model.
+  const rhythmSource = label === null ? 'none' : 'label';
+  let output;
+  if (outcome.kind === 'inconclusive') {
+    output = { outcome, ...provenance, inconclusive: true, rhythmSource };
+  } else {
+    const evidence = JSON.parse(
+      fs.readFileSync(path.join(REPO_ROOT, 'docs', 'validation', 'evidence.json'), 'utf8'),
+    );
+    const reading = core.buildReadingResult(analysis, NO_MODELS, evidence, DEFAULT_PROFILE, []);
+    output = {
+      ...reading,
+      outcome,
+      ...provenance,
+      inconclusive: reading.headlineKey === 'result.inconclusive',
+      rhythmSource,
+    };
+  }
   fs.writeFileSync(path.join(folder, 'replay-result.json'), `${JSON.stringify(output, null, 2)}\n`);
   fs.writeFileSync(path.join(folder, 'replay-intervals.csv'), intervalsCsv(analysis.intervals));
   return { output, context };

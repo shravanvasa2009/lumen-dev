@@ -44,6 +44,12 @@ const pointsFor = (value: number, table: readonly (readonly [number, number])[])
 /** ADR 0087: Bang 2009 diabetes risk points; null under age 20, where the score was never validated. */
 export function adaRisk(answers: AdaAnswers): AdaRisk | null {
   const { ageYears, bmi } = answers;
+  // Answers may come back untyped from storage: refuse them as Python's TypeError does, never score NaN.
+  if (typeof ageYears !== 'number' || typeof bmi !== 'number')
+    throw new TypeError(`ageYears and bmi must be numbers, got ${typeof ageYears} and ${typeof bmi}`);
+  for (const item of ['male', 'familyHistory', 'hypertension', 'physicallyActive'] as const)
+    if (typeof answers[item] !== 'boolean')
+      throw new TypeError(`${item} must be true or false, got ${answers[item]}`);
   // Negated so NaN is refused, as Python's chained comparison refuses it.
   if (!(ageYears >= 0 && ageYears <= 130)) throw new RangeError(`ageYears must be 0-130, got ${ageYears}`);
   if (!(bmi >= 10 && bmi <= 100)) throw new RangeError(`bmi must be 10-100 kg/m², got ${bmi}`);

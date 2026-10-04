@@ -95,8 +95,13 @@ export function FixTechniqueView({ mode, cause }: FixTechniqueViewProps) {
 function lessonVisual(t: TFunction, cause: FixCause | null): ReactNode {
   switch (cause) {
     case 'motion':
+    case null:
       return (
-        <SeatedIllustration phoneLabel={t('howToSit.labelPhone')} elbowLabel={t('howToSit.labelElbow')} />
+        <SeatedIllustration
+          phoneLabel={t('howToSit.labelPhone')}
+          elbowLabel={t('howToSit.labelElbow')}
+          pressInset={{ lensLabel: t('placement.lens'), flashLabel: t('placement.flash') }}
+        />
       );
     case 'coverage':
       return <PhoneBackIllustration lensLabel={t('placement.lens')} flashLabel={t('placement.flash')} />;

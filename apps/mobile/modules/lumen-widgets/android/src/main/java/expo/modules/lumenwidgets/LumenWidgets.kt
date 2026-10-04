@@ -435,8 +435,6 @@ internal fun fallbackView(context: Context): WidgetView {
     )
 }
 
-// Exact: the layout is drawn for the cell the launcher really gives, so it fills a large cell and still fits
-// a 2x2 on a 360 dp phone.
 // The in-app gallery's sample reading (app/settings/widgets/index.tsx; the res picker strings hold the same).
 private const val SAMPLE_BPM = 64
 private const val SAMPLE_STREAK_DAYS = 5
@@ -461,6 +459,8 @@ internal fun sampleView(context: Context, nowMs: Long): WidgetView? {
     return widgetView(snapshot.toString(), displayJson, nowMs)
 }
 
+// Exact: the layout is drawn for the cell the launcher really gives, so it fills a large cell and still fits
+// a 2x2 on a 360 dp phone.
 class SmallWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 

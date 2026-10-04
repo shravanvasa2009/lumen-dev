@@ -9,14 +9,27 @@ type ScreenProps = {
   // Headerless screens have no native header, so the status-bar inset must come from here.
   headerless?: boolean;
   footer?: ReactNode;
+  // Tab screens that need the room: the tab bar already sits below, so the bottom inset and padding go.
+  tight?: boolean;
 };
 
-export function Screen({ children, headerless = false, footer }: ScreenProps) {
+export function Screen({ children, headerless = false, footer, tight = false }: ScreenProps) {
   const { colors, spacing } = useTheme();
   return (
     <SafeAreaView
-      edges={headerless ? ['top', 'left', 'right', 'bottom'] : ['left', 'right', 'bottom']}
-      style={[styles.screen, { backgroundColor: colors.bg, padding: spacing.screen }]}
+      edges={
+        headerless
+          ? ['top', 'left', 'right', ...(tight ? [] : (['bottom'] as const))]
+          : ['left', 'right', 'bottom']
+      }
+      style={[
+        styles.screen,
+        {
+          backgroundColor: colors.bg,
+          padding: spacing.screen,
+          ...(tight ? { paddingTop: spacing.sm, paddingBottom: 0 } : null),
+        },
+      ]}
     >
       <View style={styles.body}>{children}</View>
       {footer ? <View style={{ paddingTop: spacing.lg, gap: spacing.md }}>{footer}</View> : null}

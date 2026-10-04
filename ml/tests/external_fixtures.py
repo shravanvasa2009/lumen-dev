@@ -15,6 +15,8 @@ from datasets import download, registry
 from datasets.vitaldb_cases import holdout_case_path, load_split
 from eval.external_gate import ExternalTestRefusedError
 from export.provenance import sha256_of
+from export.specs import SPECS
+from nets.rhythm_net import FEATURES
 
 FS = 125.0
 SECONDS = 240.0
@@ -104,10 +106,10 @@ def _save(nodes, inputs, output, initializers, path: Path) -> None:
 
 def _rhythm_model(path: Path, with_sequence: bool) -> None:
     # P(AF) rises with normalized RMSSD (feature 0): softmax over [sinus, af, other].
-    weights = np.zeros((8, 3), dtype=np.float32)
+    weights = np.zeros((FEATURES, 3), dtype=np.float32)
     weights[0, 1] = 20.0
     bias = np.array([0.0, -2.0, -5.0], dtype=np.float32)
-    inputs = [helper.make_tensor_value_info("features", TensorProto.FLOAT, [None, 8])]
+    inputs = [helper.make_tensor_value_info("features", TensorProto.FLOAT, [None, FEATURES])]
     if with_sequence:
         inputs = [
             helper.make_tensor_value_info("intervals", TensorProto.FLOAT, [None, 64]),
@@ -142,18 +144,18 @@ def _sqi_model(path: Path) -> None:
 
 def write_models(models_dir: Path) -> dict:
     models_dir.mkdir(parents=True, exist_ok=True)
-    _rhythm_model(models_dir / "rhythm-lgbm@1.0.0.onnx", with_sequence=False)
-    _rhythm_model(models_dir / "rhythm-net@1.0.0.onnx", with_sequence=True)
-    _sqi_model(models_dir / "sqi-finger@1.0.0.onnx")
+    _rhythm_model(models_dir / f"{SPECS['rhythm-lgbm'].file_stem}.onnx", with_sequence=False)
+    _rhythm_model(models_dir / f"{SPECS['rhythm-net'].file_stem}.onnx", with_sequence=True)
+    _sqi_model(models_dir / f"{SPECS['sqi-finger'].file_stem}.onnx")
     # The diabetes part reads precomputed scores; only the file's sha256 is checked here.
-    _sqi_model(models_dir / "diabetes-net@1.0.0.onnx")
+    _sqi_model(models_dir / f"{SPECS['diabetes-net'].file_stem}.onnx")
     rows = [
-        ("rhythm-lgbm", "rhythm", True, {"features": [1, 8]}, "af", 0.6, "mimic-perform-af"),
+        ("rhythm-lgbm", "rhythm", True, {"features": [1, FEATURES]}, "af", 0.6, "mimic-perform-af"),
         (
             "rhythm-net",
             "rhythm",
             False,
-            {"intervals": [1, 64], "mask": [1, 64], "features": [1, 8]},
+            {"intervals": [1, 64], "mask": [1, 64], "features": [1, FEATURES]},
             "af",
             0.6,
             "mimic-perform-af",
@@ -166,9 +168,10 @@ def write_models(models_dir: Path) -> dict:
             "name": name,
             "family": family,
             "ships": ships,
-            "version": "1.0.0",
-            "file": f"{name}@1.0.0.onnx",
-            "sha256": sha256_of(models_dir / f"{name}@1.0.0.onnx"),
+            # The release's own versions (export.specs), as write_manifest records them.
+            "version": SPECS[name].version,
+            "file": f"{SPECS[name].file_stem}.onnx",
+            "sha256": sha256_of(models_dir / f"{SPECS[name].file_stem}.onnx"),
             "inputs": inputs,
             "labels": ["sinus", "af", "other"] if family == "rhythm" else [key],
             "threshold": {key: THRESHOLDS[name]},

@@ -11,6 +11,7 @@ from export.specs import SPECS
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES, shape_features
 from nets.diabetes_net import HR_SUMMARY_NAMES
+from nets.rhythm_net import FEATURES
 from tests.test_train_diabetes import write_inputs
 from tests.test_vitaldb_pleth import write_vital
 from tests.training_artifacts import fit_baseline, save_trained
@@ -34,7 +35,7 @@ def constant_model(sinus: int, af: int, other: int, sha: str) -> ShippedRhythm:
     # A real classifier whose window probabilities are the class shares it was fitted on, whatever the
     # features, so a test picks the reading's rhythm label.
     labels = [0] * sinus + [1] * af + [2] * other
-    classifier = DummyClassifier(strategy="prior").fit(np.zeros((len(labels), 8)), labels)
+    classifier = DummyClassifier(strategy="prior").fit(np.zeros((len(labels), FEATURES)), labels)
     return ShippedRhythm(classifier, sha, DSP_CONFIG["rules"]["uncertainBelowTopProb"])
 
 

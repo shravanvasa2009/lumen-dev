@@ -241,7 +241,9 @@ def test_metrics_files_pass_provenance_and_record_the_fill_and_rule(trained):
         expected = list(SHAPE_FEATURE_NAMES) + (list(HR_SUMMARY_NAMES) if name == "diabetes-net" else [])
         assert list(metrics["fillMedians"]) == expected
         assert metrics["fillMedians"] == pytest.approx({column: medians[column] for column in expected})
-    assert (runs_dir / "diabetes-net@1.0.0.train.log").read_text(encoding="utf-8").count("epoch") > 1
+    assert (runs_dir / f"{SPECS['diabetes-net'].file_stem}.train.log").read_text(encoding="utf-8").count(
+        "epoch"
+    ) > 1
 
 
 def test_the_network_standardizes_with_dev_train_statistics(trained):

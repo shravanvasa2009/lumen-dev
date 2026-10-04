@@ -9,11 +9,12 @@ from datasets.augment import augment_intervals
 from datasets.build_intervals import MAX_INTERVAL_S, MIN_INTERVAL_S
 from datasets.splits import Split
 from lumen_dsp.config import DSP_CONFIG
-from lumen_dsp.rhythm import RhythmWindow, rhythm_feature_vector, rhythm_windows
-from nets.rhythm_net import INTERVALS, LABELS
+from lumen_dsp.rhythm import RhythmWindow, rhythm_feature_vector, rhythm_v2_features, rhythm_windows
+from nets.rhythm_net import FEATURES, INTERVALS, LABELS
 
-# The order of lumen_dsp.rhythm.rhythm_feature_vector (ADR 0024), which the app's rhythmFeatureVector
-# matches; the ADR 0020 addendum records it as the Rhythm-Net `features` input.
+# The order of lumen_dsp.rhythm.rhythm_feature_vector (ADR 0024) followed by rhythm_v2_features (ADR 0079),
+# which core's RHYTHM_FEATURE_NAMES and its rhythmFeatureVector / rhythmV2Features match. ADR 0079 makes
+# the concatenation the `features` input of every rhythm model (it extends ADR 0020's [N, 8]).
 FEATURE_NAMES = (
     "normalizedRmssd",
     "shannonEntropyBits",
@@ -23,7 +24,15 @@ FEATURE_NAMES = (
     "pnn50",
     "sampleEntropy",
     "atypicalFraction",
+    "medianAbsDiffNorm",
+    "shortLongPairShare",
+    "rmssdPairsRemovedNorm",
+    "trimmedRmssdNorm",
+    "largeChangeShare",
+    "rrLag1Autocorr",
+    "rrLag2Autocorr",
 )
+assert len(FEATURE_NAMES) == FEATURES
 ATYPICAL_INDEX = FEATURE_NAMES.index("atypicalFraction")
 # v1 neutralizes the atypical-beat fraction (decision of 2026-10-01). Training flags come from ECG
 # premature-beat annotations, about 0% in sinus, but the app's PPG DSP-9 marks 31-42% of beats atypical
@@ -57,7 +66,7 @@ class Reading(NamedTuple):
 class WindowSet(NamedTuple):
     intervals: np.ndarray  # [N, 64] float32 seconds, ADR 0020 layout
     mask: np.ndarray  # [N, 64] float32
-    features: np.ndarray  # [N, 8] float32, FEATURE_NAMES order
+    features: np.ndarray  # [N, FEATURES] float32, FEATURE_NAMES order
     labels: np.ndarray  # [N] int64 index into LABELS
     subjects: np.ndarray  # [N] str
     readings: np.ndarray  # [N] int64, unique within one WindowSet
@@ -137,7 +146,7 @@ def window_inputs(window: RhythmWindow) -> tuple[np.ndarray, np.ndarray, np.ndar
     mask = np.zeros(INTERVALS, dtype=np.float32)
     intervals[: len(window.intervals_s)] = window.intervals_s
     mask[: len(window.intervals_s)] = 1.0
-    features = np.asarray(rhythm_feature_vector(window), dtype=np.float32)
+    features = np.asarray(rhythm_feature_vector(window) + rhythm_v2_features(window), dtype=np.float32)
     features[ATYPICAL_INDEX] = NEUTRAL_ATYPICAL_FRACTION
     return intervals, mask, features
 

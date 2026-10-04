@@ -2,6 +2,7 @@ import {
   analyzeReading,
   cleanSeconds,
   DSP_CONFIG,
+  RHYTHM_FEATURE_NAMES,
   type FrameStat,
   type ReadingAnalysis,
   type ReadingContext,
@@ -130,7 +131,9 @@ describe('analyzeReading on a clean 90 s capture', () => {
     expect(analysis.enoughRhythmIntervals).toBe(true);
     expect(analysis.rhythmWindows.length).toBeGreaterThan(0);
     expect(analysis.rhythmFeatures).toHaveLength(analysis.rhythmWindows.length);
-    expect(analysis.rhythmFeatures.every((vector) => vector.length === 8)).toBe(true);
+    expect(analysis.rhythmFeatures.every((vector) => vector.length === RHYTHM_FEATURE_NAMES.length)).toBe(
+      true,
+    );
     expect(analysis.normalizedRmssd).toBeGreaterThan(0);
     expect(analysis.normalizedRmssd).toBeLessThan(0.1);
   });

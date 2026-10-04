@@ -53,6 +53,17 @@ class PickFpsRangeTest {
     }
 }
 
+class HardwareLevelNameTest {
+    @Test
+    fun namesEveryLevelAndAMissingKey() {
+        assertEquals("LEGACY", hardwareLevelName(INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY))
+        assertEquals("LIMITED", hardwareLevelName(INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED))
+        assertEquals("FULL", hardwareLevelName(INFO_SUPPORTED_HARDWARE_LEVEL_FULL))
+        assertEquals("unknown", hardwareLevelName(null))
+        assertEquals("level 9", hardwareLevelName(9))
+    }
+}
+
 // Spec §5.1 counts a fixed-focus lens like a focus lock (ADR 0058 item 5).
 class FocusTest {
     private val autofocus = intArrayOf(CONTROL_AF_MODE_AUTO, CONTROL_AF_MODE_CONTINUOUS_PICTURE)

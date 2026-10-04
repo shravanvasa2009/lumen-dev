@@ -85,6 +85,18 @@ fun focusHolds(afModes: IntArray, fixedFocus: Boolean, minimumFocusDistance: Flo
                 hardwareLevel != CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY
         )
 
+// For the release-build log line that tells which camera path a phone runs on.
+fun hardwareLevelName(level: Int?): String =
+    when (level) {
+        null -> "unknown"
+        CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
+        CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
+        CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
+        CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL_3"
+        CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL -> "EXTERNAL"
+        else -> "level $level"
+    }
+
 // Lens ids: "<cameraId>" for a camera the OS lists directly, "<cameraId>:<physicalId>" for a physical lens
 // behind a logical rear camera (spec §4.2 step 1). Logical multi-cameras themselves are never listed
 // (ADR 0029: physical rear lenses only).

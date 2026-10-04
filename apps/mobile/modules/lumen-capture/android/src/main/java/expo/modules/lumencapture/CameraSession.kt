@@ -209,6 +209,7 @@ class CameraSession(
         startedNs = frameClockNs()
         val bound = cameraProvider.bindToLifecycle(owner, selector, useCase)
         camera = bound
+        logBound()
         bound.cameraInfo.cameraState.observe(owner, cameraStateObserver)
         provider = cameraProvider
         analysis = useCase
@@ -219,6 +220,19 @@ class CameraSession(
         events.postDelayed(::emitBatch, BATCH_MS)
         events.postDelayed(::emitStatus, STATUS_MS)
         if (settings.labEvents) events.postDelayed(::emitLab, LAB_MS)
+    }
+
+    // Logcat in release builds too, so a first run on a new phone shows which camera path it took. Camera
+    // settings only; never a health value (CAP-3 keeps frames native, and no reading is computed here).
+    private fun logBound() {
+        val manual = if (lens.manualExposure != null) "on" else "off"
+        val clock = if (lens.realtimeTimestamps) "realtime" else "unknown"
+        Log.i(
+            TAG,
+            "Camera bound: lens ${lens.id} (${lens.kind}), cameraId ${lens.cameraId}, physicalId ${lens.physicalId ?: "none"}, " +
+                "fps range ${settings.fps.lower}-${settings.fps.upper}, manual exposure $manual, " +
+                "hardware level ${hardwareLevelName(lens.hardwareLevel)}, timestamps $clock",
+        )
     }
 
     // Main thread. The last samples batch goes out before this returns, so stop() loses no frame (as in Swift).
@@ -269,10 +283,13 @@ class CameraSession(
     }
 
     private fun reduceAndCount(image: ImageProxy) {
-        if (firstFrameRealtimeNs == null) firstFrameRealtimeNs = SystemClock.elapsedRealtimeNanos()
         image.use {
             val workStart = System.nanoTime()
             val plane = it.planes[0]
+            if (firstFrameRealtimeNs == null) {
+                firstFrameRealtimeNs = SystemClock.elapsedRealtimeNanos()
+                Log.i(TAG, "First frame: ${it.width}x${it.height}, rowStride ${plane.rowStride}, pixelStride ${plane.pixelStride}")
+            }
             val numbers = reduceRgbaFrame(plane.buffer, it.width, it.height, plane.rowStride, plane.pixelStride)
             val workNs = System.nanoTime() - workStart
             val tNs = it.imageInfo.timestamp
@@ -533,9 +550,11 @@ class CameraSession(
         val control = active.cameraControl
         val cameraInfo = active.cameraInfo
         if (!cameraInfo.hasFlashUnit()) {
+            Log.i(TAG, "Torch: the camera reports no flash unit")
             return done(if (level > 0) UnsupportedOperationException("this lens has no torch") else null)
         }
         control.enableTorch(level > 0).whenDone { failure ->
+            Log.i(TAG, "Torch ${if (level > 0) "on" else "off"}: ${failure?.let { "failed, $it" } ?: "ok"}")
             if (failure != null || level <= 0 || !cameraInfo.isTorchStrengthSupported) {
                 if (failure == null) torchLevel = if (level > 0) 1.0 else 0.0
                 return@whenDone done(failure)
@@ -543,6 +562,7 @@ class CameraSession(
             val maxLevel = cameraInfo.maxTorchStrengthLevel
             val strength = (level * maxLevel).roundToInt().coerceIn(1, maxLevel)
             control.setTorchStrengthLevel(strength).whenDone { strengthFailure ->
+                Log.i(TAG, "Torch strength $strength of $maxLevel: ${strengthFailure?.let { "failed, $it" } ?: "ok"}")
                 if (strengthFailure == null) torchLevel = strength.toDouble() / maxLevel
                 done(strengthFailure)
             }

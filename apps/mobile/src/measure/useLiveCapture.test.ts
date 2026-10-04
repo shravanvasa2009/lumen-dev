@@ -351,6 +351,39 @@ describe('useLiveCapture', () => {
     listen.mockRestore();
   });
 
+  it('leaves the denied state as soon as the foreground check finds the permission granted', async () => {
+    let appStateChanged: (state: AppStateStatus) => void = () => {};
+    const listen = jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+      appStateChanged = listener;
+      return { remove: jest.fn() };
+    });
+    const fake = new FakeCapture();
+    fake.permission = DENIED;
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('denied'));
+
+    let release = () => {};
+    fake.startGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    fake.permission = GRANTED;
+    await act(async () => appStateChanged('active'));
+    expect(live.current.phase).toBe('starting');
+
+    release();
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    listen.mockRestore();
+  });
+
+  it('listens for the app returning to the foreground only while the permission is denied', async () => {
+    const listen = jest.spyOn(AppState, 'addEventListener');
+    const fake = new FakeCapture();
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    expect(listen.mock.calls.filter(([event]) => event === 'change')).toEqual([]);
+    listen.mockRestore();
+  });
+
   it('reports a start failure with its reason', async () => {
     const fake = new FakeCapture();
     fake.startError = new Error('camera busy');

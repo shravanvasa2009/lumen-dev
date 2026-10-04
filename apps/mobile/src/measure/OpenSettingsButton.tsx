@@ -5,7 +5,7 @@ import { Button } from '@/components/Button';
 
 import type { LiveCapture } from './useLiveCapture';
 
-// Shown under the denied caption: the system will not ask again, so Settings is the only way to turn the camera on.
+// Shown under the denied caption: the system may not ask again, so Settings is the only way to turn the camera on.
 export function OpenSettingsButton({ live }: { live: LiveCapture }) {
   const { t } = useTranslation();
   if (live.phase !== 'denied') return null;

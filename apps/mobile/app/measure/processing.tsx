@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
+import { handOverInconclusive } from '@/measure/inconclusiveHandoff';
 import { parseMode } from '@/measure/mode';
 import { ProcessingView } from '@/measure/ProcessingView';
 import { useReadingAnalysis } from '@/measure/useReadingAnalysis';
@@ -20,10 +21,12 @@ export default function ProcessingScreen() {
   }, [readingId, router]);
 
   const refused = analysis.phase === 'inconclusive';
-  // The Inconclusive route takes the mode only; it has no parameter for the reason yet.
+  const outcome = analysis.phase === 'inconclusive' ? analysis.outcome : null;
   useEffect(() => {
-    if (refused) router.replace(`/measure/inconclusive?mode=${mode}`);
-  }, [refused, router, mode]);
+    if (!refused) return;
+    handOverInconclusive(outcome);
+    router.replace(`/measure/inconclusive?mode=${mode}`);
+  }, [refused, outcome, mode, router]);
 
   return <ProcessingView analysis={analysis} mode={mode} />;
 }

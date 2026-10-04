@@ -224,12 +224,23 @@ describe('reading analysis of a kept capture', () => {
 
   it('refuses a capture too short to measure without saving it, not as a failure', async () => {
     const refused = await refusalFor([{ tNs: 1e12, r: 0.7 }]);
-    expect(refused).toMatchObject({ phase: 'inconclusive', reason: 'tooShort' });
+    expect(refused).toMatchObject({ phase: 'inconclusive', outcome: null });
+  });
+
+  it('refuses a capture with no finger on the lens and hands over its numbers', async () => {
+    const frames = Array.from({ length: 40 * FPS }, (_, i) => ({ tNs: 1e12 + i * FRAME_NS, r: 0.05 }));
+    const refused = await refusalFor(frames);
+    expect(refused).toMatchObject({
+      phase: 'inconclusive',
+      outcome: { kind: 'inconclusive', cleanSeconds: 0, neededCleanSeconds: 30 },
+    });
   });
 
   it('still analyses and saves a capture with a few NaN frames, which are just not clean', async () => {
     jest.useRealTimers();
-    const frames = Array.from({ length: 1200 }, (_, i) => 1e12 + i * FRAME_NS);
+    // A Quick Check needs 30 clean seconds (spec 07), so the capture runs 35 s.
+    const captureS = 35;
+    const frames = Array.from({ length: captureS * FPS }, (_, i) => 1e12 + i * FRAME_NS);
     keepCapture({
       captureFps: FPS,
       lensId: null,
@@ -249,6 +260,6 @@ describe('reading analysis of a kept capture', () => {
     if (analysis.current.phase !== 'done') throw new Error('analysis did not finish');
     const saved = await storedReadingById(analysis.current.readingId);
     if (!saved) throw new Error('the reading was not saved');
-    expect(saved.outcome.cleanSeconds).toBeLessThan(20);
+    expect(saved.outcome.cleanSeconds).toBeLessThan(captureS);
   });
 });

@@ -5,13 +5,15 @@ import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { useTheme } from '@/theme';
 import { easeOut, motion, reduceMotionMode, StillMotion, useReduceMotion } from '@/theme/motion';
 
+// Spoken label of the dimmed area; a tap there, or Android Back, dismisses the sheet. A sheet given neither is
+// answered only by its own buttons (SafetySheet, ADR 0093).
 type BottomSheetProps = {
   visible: boolean;
-  onDismiss: () => void;
-  // Spoken label of the dimmed area; a tap there dismisses the sheet.
-  dismissLabel: string;
   children: ReactNode;
-};
+} & ({ onDismiss: () => void; dismissLabel: string } | { onDismiss?: undefined; dismissLabel?: undefined });
+
+// Android needs an onRequestClose handler on a Modal; this one keeps the sheet open.
+function keepOpen() {}
 
 // The in-app modal sheet. The Modal itself does not animate (the OS would pick its own duration); the dimmed
 // area fades in and the panel slides up on the UI thread, both at the 200 ms token. Under Reduce Motion they
@@ -22,12 +24,7 @@ export function BottomSheet({ visible, onDismiss, dismissLabel, children }: Bott
   const reduceMotion = useReduceMotion();
   const onCaptureScreen = useContext(StillMotion);
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onDismiss}
-    >
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss ?? keepOpen}>
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Animated.View
           testID="sheet-scrim"
@@ -47,7 +44,12 @@ export function BottomSheet({ visible, onDismiss, dismissLabel, children }: Bott
             backgroundColor: colors.scrim,
           }}
         >
-          <Pressable accessibilityLabel={dismissLabel} onPress={onDismiss} style={{ flex: 1 }} />
+          <Pressable
+            accessible={onDismiss !== undefined}
+            accessibilityLabel={dismissLabel}
+            onPress={onDismiss}
+            style={{ flex: 1 }}
+          />
         </Animated.View>
         <Animated.View
           testID="sheet-panel"

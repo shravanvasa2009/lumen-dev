@@ -2,7 +2,7 @@ import type { InconclusiveOutcome, UrgentHeartRate } from '@lumen/core';
 import { renderHook } from '@testing-library/react-native';
 import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import { router } from 'expo-router';
-import { BackHandler } from 'react-native';
+import { BackHandler, Modal } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -277,11 +277,21 @@ describe('urgent heart rates (SAFE-1, ADR 0076)', () => {
     expect(screen.queryByText(en['safety.question'])).toBeNull();
   });
 
-  it('dismissing the question with the scrim continues like No', () => {
+  // ADR 0093: this replaces "dismissing the question with the scrim continues like No", a ruled change.
+  it('keeps the question open when the scrim is tapped, and goes nowhere', () => {
     mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo', urgent: slow };
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
-    fireEvent.press(screen.getByLabelText(en['safety.dismiss']));
-    expect(route.getPathname()).toBe('/results/demo');
+    fireEvent.press(screen.getByTestId('sheet-scrim'));
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    expect(route.getPathname()).toBe('/measure/processing');
+  });
+
+  it('keeps the question open on Android Back, and goes nowhere', () => {
+    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo', urgent: slow };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    act(() => screen.UNSAFE_getByType(Modal).props.onRequestClose());
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    expect(route.getPathname()).toBe('/measure/processing');
   });
 
   describe('when the analysis failed after the outcome', () => {
@@ -445,6 +455,22 @@ describe('urgent flags known while the analysis still runs (SAFE-1)', () => {
     fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
     expect(route.getPathname()).toBe('/results/demo-hr-flag');
     expect(screen.queryByText(en['safety.question'])).toBeNull();
+  });
+
+  it('opens Results once, with no second question, when No came before the reading was ready', () => {
+    mockAnalysis = running(slow);
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    const replace = jest.spyOn(router, 'replace');
+    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    expect(replace).not.toHaveBeenCalled();
+    expect(route.getPathname()).toBe('/measure/processing');
+    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo-hr-flag', urgent: slow };
+    act(() => router.setParams({ mode: 'quick' }));
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith('/results/demo-hr-flag');
+    expect(route.getPathname()).toBe('/results/demo-hr-flag');
+    expect(screen.queryByText(en['safety.question'])).toBeNull();
+    replace.mockRestore();
   });
 
   describe('leaving', () => {

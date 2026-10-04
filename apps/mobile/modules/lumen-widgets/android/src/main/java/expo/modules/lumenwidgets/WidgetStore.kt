@@ -42,8 +42,8 @@ object WidgetStore {
     }
 
     private fun previewKey(context: Context, displayJson: String): String {
-        val installedAt = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
-        return "$installedAt|$displayJson"
+        val updatedAt = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+        return "$updatedAt|$displayJson"
     }
 
     // null until the app has published once (a widget added before the app ever ran), or while the stored

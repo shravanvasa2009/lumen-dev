@@ -51,6 +51,13 @@ class PickerPreviewTest {
         assertEquals(true, WidgetStore.previewNeedsUpdate(context, testDisplayWithChecks(null)))
     }
 
+    // An older version's copy can be unreadable after an update; start-up re-sets previews from it.
+    @Test
+    fun skipsTheSampleWhenTheStoredCopyCannotBeRead() {
+        WidgetStore.write(context, testSnapshot(), "{\"v\":0}")
+        assertNull(sampleView(context, TEST_READING_MS))
+    }
+
     @Test
     fun asksAgainAfterAnAppUpdateDropsThePreviews() {
         val display = testDisplayWithChecks()

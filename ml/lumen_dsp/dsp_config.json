@@ -95,7 +95,11 @@
     "pnnThresholdS": 0.05,
     "sampleEntropyM": 2,
     "sampleEntropyR": 0.2,
-    "minUsableIntervals": 40
+    "minUsableIntervals": 40,
+    "prematureShortFactor": 0.85,
+    "pauseLongFactor": 1.1,
+    "trimmedDiffShare": 0.8,
+    "largeChangeFactor": 0.1
   },
   "dsp16": {
     "minAgeYears": 13,

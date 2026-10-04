@@ -1,4 +1,4 @@
-import { renderRouter, screen, waitFor } from 'expo-router/testing-library';
+import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { processColor } from 'react-native';
 
 import en from '@/i18n/en.json';
@@ -30,11 +30,11 @@ function openWhy(id: string) {
   renderRouter('./app', { initialUrl: `/results/${id}/why` });
 }
 
-// The interval chart is the only path on the screen (react-native-svg draws a Polyline as a Path); its stroke is the series colour.
+// The interval chart holds the only path (react-native-svg draws a Polyline as a Path); its stroke is the series colour.
+// The Learn more chevron is also a path, so the search stays inside the chart.
 function lineStrokes() {
-  return screen.UNSAFE_root.findAll((node) => String(node.type) === 'RNSVGPath').map(
-    (line) => line.props.stroke?.payload,
-  );
+  const chart = screen.getByLabelText(/^Line chart of \d+ beat-to-beat intervals$/);
+  return chart.findAll((node) => String(node.type) === 'RNSVGPath').map((line) => line.props.stroke?.payload);
 }
 
 preloadAppRoutes();
@@ -52,6 +52,7 @@ describe.each([
     openWhy('demo-flag');
     expect(screen.getByRole('header', { name: en['why.titleIrregular'] })).toBeOnTheScreen();
     expect(screen.getByText(en['why.intervals'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['why.learnMore'] }));
     expect(screen.getByText(en['why.poincare'])).toBeOnTheScreen();
     expect(screen.getByText(en['why.yours'])).toBeOnTheScreen();
     expect(screen.getByText(en['why.typical'])).toBeOnTheScreen();
@@ -61,6 +62,36 @@ describe.each([
       screen.getByText('0.7 per minute · frequent extra beats can also look irregular'),
     ).toBeOnTheScreen();
     expect(lineStrokes()).toEqual([processColor(colors.flag)]);
+  });
+
+  it('puts the plain sentence and badges before the charts', () => {
+    openWhy('demo-flag');
+    const order = JSON.stringify(screen.toJSON());
+    const at = (text: string) => order.indexOf(text);
+    expect(at(en['why.explainIrregular'])).toBeGreaterThan(-1);
+    expect(at(en['why.explainIrregular'])).toBeLessThan(at(en['why.intervals']));
+    expect(at(en['evidence.experimental'])).toBeLessThan(at(en['why.intervals']));
+    expect(at(en['results.accuracy'])).toBeLessThan(at(en['why.intervals']));
+  });
+
+  it('folds the Poincare plots under a collapsed Learn more button that expands and collapses', () => {
+    openWhy('demo-flag');
+    const toggle = () => screen.getByRole('button', { name: en['why.learnMore'] });
+    expect(toggle().props.accessibilityState).toMatchObject({ expanded: false });
+    expect(screen.getByText(en['why.poincare'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['why.yours'])).toBeNull();
+    fireEvent.press(toggle());
+    expect(toggle().props.accessibilityState).toMatchObject({ expanded: true });
+    expect(screen.getByText(en['why.yours'])).toBeOnTheScreen();
+    fireEvent.press(toggle());
+    expect(screen.queryByText(en['why.yours'])).toBeNull();
+  });
+
+  it('captions the sentence and the chart and ends with the not-a-diagnosis line', () => {
+    openWhy('demo-flag');
+    expect(screen.getByText(en['why.plainWords'])).toBeOnTheScreen();
+    expect(screen.getByText(en['why.seeBeats'])).toBeOnTheScreen();
+    expect(screen.getByText(en['prototype.banner'])).toBeOnTheScreen();
   });
 
   it('does not invent an irregularity score', () => {

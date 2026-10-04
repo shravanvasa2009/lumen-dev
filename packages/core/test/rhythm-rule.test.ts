@@ -1,4 +1,4 @@
-import { DSP_CONFIG, logisticRhythmOutputs } from '../src';
+import { DSP_CONFIG, logisticRhythmOutputs, RHYTHM_FEATURE_NAMES } from '../src';
 import fixture from './fixtures/rhythm-logistic.json';
 
 const ABSTAIN = DSP_CONFIG.rules.uncertainBelowTopProb;
@@ -185,5 +185,59 @@ describe('logistic rhythm rule validation', () => {
       intercepts: [-1.7e308, -1.7e308, -1.7e308],
     });
     expect(() => logisticRhythmOutputs(toyEntry({ rule: sunk }), [[-1.7e308, 0, 0, 0]])).toThrow(/overflow/);
+  });
+});
+
+describe('logistic rhythm rule on the full rhythm vector (v1 entry, v1 + v2 features)', () => {
+  const wide = (window: number[]) => [
+    ...window,
+    ...new Array<number>(RHYTHM_FEATURE_NAMES.length - window.length).fill(7),
+  ];
+
+  it("reads only the entry's prefix of core's full-width vector", () => {
+    const { windowProbs } = logisticRhythmOutputs(toyEntry(), [wide(HAND_WINDOW)]);
+    expectClose(windowProbs[0]!, HAND_PROBS, 1e-15);
+  });
+
+  it('still refuses a non-finite value past the prefix', () => {
+    const window = wide(HAND_WINDOW);
+    window[RHYTHM_FEATURE_NAMES.length - 1] = Number.NaN;
+    expect(() => logisticRhythmOutputs(toyEntry(), [window])).toThrow(/feature vector/);
+  });
+
+  it('checks featureOrder, when the entry lists it, against core names in order', () => {
+    const names = RHYTHM_FEATURE_NAMES.slice(0, 4);
+    expect(() => logisticRhythmOutputs(toyEntry({ featureOrder: names }), [HAND_WINDOW])).not.toThrow();
+    const swapped = [names[1], names[0], names[2], names[3]];
+    expect(() => logisticRhythmOutputs(toyEntry({ featureOrder: swapped }), [HAND_WINDOW])).toThrow(
+      /featureOrder/,
+    );
+    expect(() => logisticRhythmOutputs(toyEntry({ featureOrder: names.slice(0, 3) }), [HAND_WINDOW])).toThrow(
+      /featureOrder/,
+    );
+  });
+
+  it('reads featureOrder by index, so holes or an own some() cannot pass it', () => {
+    const holed = [...RHYTHM_FEATURE_NAMES.slice(0, 4)];
+    delete holed[0];
+    expect(() => logisticRhythmOutputs(toyEntry({ featureOrder: holed }), [HAND_WINDOW])).toThrow(
+      /featureOrder/,
+    );
+    const lying = Object.assign(['w', 'x', 'y', 'z'], { some: () => false, every: () => true });
+    expect(() => logisticRhythmOutputs(toyEntry({ featureOrder: lying }), [HAND_WINDOW])).toThrow(
+      /featureOrder/,
+    );
+    const names = RHYTHM_FEATURE_NAMES.slice(0, 4);
+    const iterating = Object.assign(['w', 'x', 'y', 'z'], {
+      [Symbol.iterator]: () => names[Symbol.iterator](),
+    });
+    expect(() => logisticRhythmOutputs(toyEntry({ featureOrder: iterating }), [HAND_WINDOW])).toThrow(
+      /featureOrder/,
+    );
+  });
+
+  it('refuses an entry wider than the features core computes', () => {
+    const entry = toyEntry({ inputs: { features: [1, RHYTHM_FEATURE_NAMES.length + 1] } });
+    expect(() => logisticRhythmOutputs(entry, [HAND_WINDOW])).toThrow(/core computes/);
   });
 });

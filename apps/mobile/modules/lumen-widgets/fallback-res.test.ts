@@ -5,6 +5,9 @@ import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import lockscreen from '@/i18n/lockscreen.json';
 import tokens from '@/theme/tokens.json';
+import i18next from 'i18next';
+import '@/i18n';
+import { lockTextLines } from '@/settings/lockText';
 import { PALETTE_KEYS } from '@/widgets/publish';
 
 // The Android widget's fallback (before the app first publishes) keeps copies of tokens and copy in its
@@ -45,6 +48,11 @@ describe('Android widget fallback resources', () => {
   });
 });
 
+// The gallery's sample reading (app/settings/widgets/index.tsx).
+const SAMPLE_BPM = 64;
+const SAMPLE_STREAK_DAYS = 5;
+const SAMPLE_HOURS_AGO = 2;
+
 const REMOTE_VIEWS_TAGS = new Set(['FrameLayout', 'LinearLayout', 'ImageView', 'TextView', 'include']);
 
 describe('Android widget picker', () => {
@@ -71,6 +79,37 @@ describe('Android widget picker', () => {
     expect(Object.keys(english)).toEqual([
       'lumen_widget_small_description',
       'lumen_widget_medium_description',
+      'lumen_widget_sample_status',
+      'lumen_widget_sample_last_check',
+      'lumen_widget_sample_bpm',
+      'lumen_widget_sample_bpm_unit',
+      'lumen_widget_sample_status_streak',
+      'lumen_widget_check_afib',
+      'lumen_widget_check_pots',
+      'lumen_widget_check_hrv',
+      'lumen_widget_check_diabetes',
     ]);
+  });
+
+  // The same sample reading as the in-app gallery (app/settings/widgets/index.tsx), so the picker, the gallery and
+  // mockup 32 show one look.
+  it.each([
+    ['values', 'en', lockscreen.en, en],
+    ['values-es', 'es', lockscreen.es, es],
+  ] as const)('draws the gallery sample reading in %s', (folder, language, lock, appCopy) => {
+    const t = i18next.getFixedT(language);
+    const { status } = lockTextLines(lock['widget.lock.upToDate']);
+    const streak = t('widgets.streak', { days: SAMPLE_STREAK_DAYS });
+    expect(resourceValues(`${folder}/lumen_widget_picker_strings.xml`, 'string')).toMatchObject({
+      lumen_widget_sample_status: status,
+      lumen_widget_sample_last_check: t('widgets.lastCheck', { hours: SAMPLE_HOURS_AGO }),
+      lumen_widget_sample_bpm: String(SAMPLE_BPM),
+      lumen_widget_sample_bpm_unit: appCopy['widgets.bpm'],
+      lumen_widget_sample_status_streak: `${status} · ${streak}`,
+      lumen_widget_check_afib: appCopy['widgets.checkAfib'],
+      lumen_widget_check_pots: appCopy['widgets.checkPots'],
+      lumen_widget_check_hrv: appCopy['widgets.checkHrv'],
+      lumen_widget_check_diabetes: appCopy['widgets.checkDiabetes'],
+    });
   });
 });

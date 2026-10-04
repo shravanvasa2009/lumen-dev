@@ -7,7 +7,7 @@ const HEIGHT = 32;
 const PADDING = 2;
 
 // Scaled to its own min and max: it shows the shape of the trend, not absolute size.
-export function Sparkline({ points }: { points: readonly number[] }) {
+export function Sparkline({ points, height = HEIGHT }: { points: readonly number[]; height?: number }) {
   const { colors } = useTheme();
   if (points.length < 2) return null;
   const low = Math.min(...points);
@@ -22,7 +22,7 @@ export function Sparkline({ points }: { points: readonly number[] }) {
   return (
     <Svg
       width="100%"
-      height={HEIGHT}
+      height={height}
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       preserveAspectRatio="none"
       accessibilityElementsHidden

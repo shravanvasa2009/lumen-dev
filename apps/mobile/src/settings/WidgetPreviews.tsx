@@ -1,7 +1,11 @@
+import type { TFunction } from 'i18next';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { Icon, type IconName } from '@/components/Icon';
+import { evidenceFor } from '@/evidence';
 import { useTheme } from '@/theme';
 import tokens from '@/theme/tokens.json';
 
@@ -16,15 +20,20 @@ const LOCK_CIRCLE_SIZE = 64;
 const PILL_MIN_HEIGHT = 40;
 const BUTTON_COLUMN_WIDTH = 132;
 const LOCK_DOT_SIZE = 10;
-// Android home-screen cells: 2x2 is about 110 dp and 4x2 about 250 x 110 dp (res/xml/lumen_widget_*.xml).
-const ANDROID_SMALL_WIDTH = 110;
-const ANDROID_WIDGET_MIN_HEIGHT = 110;
-// Track F's Glance WidgetBody (modules/lumen-widgets/android/.../LumenWidgets.kt), in dp.
-const ANDROID_RADIUS = 20;
-const ANDROID_PADDING = 12;
-const ANDROID_PILL_PADDING_V = 8;
-const ANDROID_PILL_GAP = 8;
-const ANDROID_UNIT_GAP = 4;
+const SMALL_CHECK_ICON_SIZE = 11;
+const MEDIUM_CHECK_ICON_SIZE = 12;
+const CHECK_NAME_SIZE = 12;
+const CHECK_TAG_SIZE = 9;
+const CHECK_GAP = 8;
+
+// Same order and shapes as the real widgets: AFib, POTS, HRV, Diabetes.
+// Each name is a literal key so the i18n check can see it.
+const CHECKS = [
+  { icon: 'pulse', name: (t: TFunction) => t('widgets.checkAfib') },
+  { icon: 'standing', name: (t: TFunction) => t('widgets.checkPots') },
+  { icon: 'bars', name: (t: TFunction) => t('widgets.checkHrv') },
+  { icon: 'drop', name: (t: TFunction) => t('widgets.checkDiabetes') },
+] as const satisfies readonly { icon: IconName; name: (t: TFunction) => string }[];
 
 function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
   const { colors, radius, spacing } = useTheme();
@@ -77,7 +86,14 @@ export function SmallWidgetPreview({ status, detail, action }: SmallWidgetProps)
   return (
     <WidgetFrame width={SMALL_SIZE}>
       <View style={styles.spread}>
-        <LumenMark size={SMALL_MARK_SIZE} color={colors.accent} />
+        <View style={[styles.logoRow, { gap: spacing.sm }]}>
+          <LumenMark size={SMALL_MARK_SIZE} color={colors.accent} />
+          <View style={[styles.logoRow, { gap: spacing.xs }]}>
+            {CHECKS.map(({ icon }) => (
+              <Icon key={icon} name={icon} size={SMALL_CHECK_ICON_SIZE} color={colors.textDim} />
+            ))}
+          </View>
+        </View>
         <View style={[styles.dot, { backgroundColor: colors.accent, marginTop: spacing.xs }]} />
       </View>
       <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
@@ -93,7 +109,8 @@ export function SmallWidgetPreview({ status, detail, action }: SmallWidgetProps)
 
 type MediumWidgetProps = {
   name: string;
-  reading: string;
+  // Null leaves the reading row out, as the Android widget does when values are hidden.
+  reading: string | null;
   unit: string;
   status: string;
   checkNow: string;
@@ -111,12 +128,14 @@ export function MediumWidgetPreview({ name, reading, unit, status, checkNow, ful
             <AppText tone="textDim">{name}</AppText>
           </View>
           <View style={styles.mediumReading}>
-            <View style={[styles.readingRow, { gap: spacing.sm }]}>
-              <AppText variant="display">{reading}</AppText>
-              <AppText variant="headline" tone="textDim">
-                {unit}
-              </AppText>
-            </View>
+            {reading === null ? null : (
+              <View style={[styles.readingRow, { gap: spacing.sm }]}>
+                <AppText variant="display">{reading}</AppText>
+                <AppText variant="headline" tone="textDim">
+                  {unit}
+                </AppText>
+              </View>
+            )}
             <AppText tone="textDim">{status}</AppText>
           </View>
         </View>
@@ -125,117 +144,53 @@ export function MediumWidgetPreview({ name, reading, unit, status, checkNow, ful
           <PreviewPill label={fullScan} filled={false} />
         </View>
       </View>
+      <FourChecksRow />
     </WidgetFrame>
   );
 }
 
-function AndroidFrame({ children, width }: { children: ReactNode; width?: number }) {
-  const { colors } = useTheme();
+// The Diabetes tag is the evidence label's word and shows only while that label is Experimental (EVID-1).
+function FourChecksRow() {
+  const { t } = useTranslation();
+  const { colors, radius, spacing } = useTheme();
+  const tagged = evidenceFor('diabetes').label === 'experimental';
   return (
-    <View
-      style={{
-        width,
-        minHeight: ANDROID_WIDGET_MIN_HEIGHT,
-        padding: ANDROID_PADDING,
-        borderRadius: ANDROID_RADIUS,
-        backgroundColor: colors.surface,
-      }}
-    >
-      {children}
-    </View>
-  );
-}
-
-function AndroidPill({ label, secondary }: { label: string; secondary?: boolean }) {
-  const { colors } = useTheme();
-  return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: 'center',
-        paddingVertical: ANDROID_PILL_PADDING_V,
-        borderRadius: ANDROID_RADIUS,
-        backgroundColor: secondary ? colors.line : colors.accentFill,
-      }}
-    >
-      <AppText
-        style={{
-          color: secondary ? colors.text : colors.onAccentFill,
-          fontSize: 14,
-          lineHeight: 20,
-          fontWeight: '500',
-        }}
-      >
-        {label}
-      </AppText>
-    </View>
-  );
-}
-
-type AndroidSmallProps = { name: string; status: string; lastCheck: string; checkNow: string };
-
-export function AndroidSmallWidgetPreview({ name, status, lastCheck, checkNow }: AndroidSmallProps) {
-  const { colors } = useTheme();
-  return (
-    <AndroidFrame width={ANDROID_SMALL_WIDTH}>
-      <AppText style={[styles.androidName, { color: colors.accentFill }]}>{name}</AppText>
-      <AppText style={styles.androidStatus}>{status}</AppText>
-      <AppText tone="textDim" style={styles.androidDetail}>
-        {lastCheck}
-      </AppText>
-      <View style={styles.androidPillSpace}>
-        <View style={styles.androidPillRow}>
-          <AndroidPill label={checkNow} />
-        </View>
+    <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+      <View style={{ height: 1, backgroundColor: colors.line }} />
+      <View style={[styles.logoRow, { gap: CHECK_GAP }]}>
+        {CHECKS.map(({ icon, name }) => (
+          <View key={icon} style={[styles.logoRow, { gap: spacing.xs }]}>
+            <Icon name={icon} size={MEDIUM_CHECK_ICON_SIZE} color={colors.accent} />
+            <AppText
+              style={{ fontSize: CHECK_NAME_SIZE, lineHeight: CHECK_NAME_SIZE + 4, fontWeight: '500' }}
+            >
+              {name(t)}
+            </AppText>
+          </View>
+        ))}
+        {tagged ? (
+          <View
+            style={{
+              paddingHorizontal: spacing.xs + 2,
+              paddingVertical: 1,
+              borderRadius: radius.pill,
+              backgroundColor: colors.badgeExperimentalBg,
+            }}
+          >
+            <AppText
+              style={{
+                color: colors.badgeExperimentalFg,
+                fontSize: CHECK_TAG_SIZE,
+                lineHeight: CHECK_TAG_SIZE + 4,
+                fontWeight: '600',
+              }}
+            >
+              {t('evidence.experimental')}
+            </AppText>
+          </View>
+        ) : null}
       </View>
-    </AndroidFrame>
-  );
-}
-
-type AndroidMediumProps = AndroidSmallProps & {
-  // Null when values are hidden: like F's widget, the whole reading row is left out rather than shown as a dash.
-  reading: string | null;
-  unit: string;
-  streak: string;
-  fullScan: string;
-};
-
-export function AndroidMediumWidgetPreview({
-  name,
-  reading,
-  unit,
-  status,
-  lastCheck,
-  streak,
-  checkNow,
-  fullScan,
-}: AndroidMediumProps) {
-  const { colors } = useTheme();
-  return (
-    <AndroidFrame>
-      <AppText style={[styles.androidName, { color: colors.accentFill }]}>{name}</AppText>
-      {reading === null ? null : (
-        <View style={styles.readingRow}>
-          <AppText style={styles.androidReading}>{reading}</AppText>
-          <AppText tone="textDim" style={[styles.androidUnit, { marginLeft: ANDROID_UNIT_GAP }]}>
-            {unit}
-          </AppText>
-        </View>
-      )}
-      <AppText style={styles.androidStatus}>{status}</AppText>
-      <AppText tone="textDim" style={styles.androidDetail}>
-        {lastCheck}
-      </AppText>
-      <AppText tone="textDim" style={styles.androidDetail}>
-        {streak}
-      </AppText>
-      <View style={styles.androidPillSpace}>
-        <View style={[styles.androidPillRow, { gap: ANDROID_PILL_GAP }]}>
-          <AndroidPill label={checkNow} />
-          <AndroidPill label={fullScan} secondary />
-        </View>
-      </View>
-    </AndroidFrame>
+    </View>
   );
 }
 
@@ -283,13 +238,6 @@ const styles = StyleSheet.create({
   spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   logoRow: { flexDirection: 'row', alignItems: 'center' },
   readingRow: { flexDirection: 'row', alignItems: 'baseline' },
-  androidName: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
-  androidReading: { fontSize: 34, lineHeight: 40, fontWeight: '700' },
-  androidUnit: { fontSize: 14, lineHeight: 20 },
-  androidStatus: { fontSize: 15, lineHeight: 20, fontWeight: '500' },
-  androidDetail: { fontSize: 12, lineHeight: 16 },
-  androidPillSpace: { flexGrow: 1, justifyContent: 'flex-end', paddingTop: ANDROID_PILL_GAP },
-  androidPillRow: { flexDirection: 'row' },
   dot: { width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2 },
   lockCircle: {
     width: LOCK_CIRCLE_SIZE,

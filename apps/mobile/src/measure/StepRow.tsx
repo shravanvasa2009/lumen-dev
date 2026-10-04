@@ -3,7 +3,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
-import { Icon } from '@/components/Icon';
+import { Icon, type IconName } from '@/components/Icon';
 import { useTheme } from '@/theme';
 import { easeOut, motion, reduceMotionMode, useReduceMotion } from '@/theme/motion';
 
@@ -50,11 +50,13 @@ type StepRowProps = {
   stateLabel: string;
   // Right-aligned note, such as the rejected-beat count.
   note?: string;
+  // The check this step feeds, shown as a small tag after the label.
+  tag?: { icon: IconName; name: string };
   last: boolean;
 };
 
-export function StepRow({ label, state, stateLabel, note, last }: StepRowProps) {
-  const { colors, spacing } = useTheme();
+export function StepRow({ label, state, stateLabel, note, tag, last }: StepRowProps) {
+  const { colors, radius, spacing } = useTheme();
   return (
     <View
       accessible
@@ -64,7 +66,7 @@ export function StepRow({ label, state, stateLabel, note, last }: StepRowProps) 
         alignItems: 'center',
         gap: spacing.lg,
         paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.lg,
+        paddingVertical: spacing.md,
         borderBottomWidth: last ? 0 : 1,
         borderBottomColor: colors.line,
       }}
@@ -74,6 +76,24 @@ export function StepRow({ label, state, stateLabel, note, last }: StepRowProps) 
         {label}
       </AppText>
       {note ? <AppText tone="textDim">{note}</AppText> : null}
+      {tag ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.xs,
+            paddingHorizontal: spacing.sm,
+            paddingVertical: spacing.xs,
+            borderRadius: radius.pill,
+            backgroundColor: colors.surface2,
+          }}
+        >
+          <Icon name={tag.icon} size={14} color={colors.accent} />
+          <AppText variant="caption" tone="accent">
+            {tag.name}
+          </AppText>
+        </View>
+      ) : null}
     </View>
   );
 }

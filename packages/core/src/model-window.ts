@@ -85,7 +85,9 @@ function intervalsInSpan(
 // The interval tests stop clumps of frames standing in for samples of a fast pulse: a run of long
 // intervals is a stretch sampled too sparsely for the pulse (note 4) or its harmonics (note 5), while one
 // lone interval up to DSP-2's gap limit is splined over as DSP-2 allows, so random drops of 3 frames in a
-// row at 30 fps still pass.
+// row at 30 fps still pass. Every such span must also hold live.minDistinctSamplesPerS distinct sample times
+// (note 6): Nyquist for the 2nd harmonic of the fastest rate reported, so no arrangement of clustered
+// frames samples the pulse more sparsely than its shape needs.
 function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): boolean {
   const {
     minEffectiveFps,
@@ -94,6 +96,7 @@ function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): 
     maxFrameGapS,
     sparseIntervalS,
     maxSparseIntervalsPerS,
+    minDistinctSamplesPerS,
   } = DSP_CONFIG.live;
   const startS = endS - DSP_CONFIG.dsp3.modelWindowS;
   let first = count;
@@ -109,8 +112,23 @@ function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): 
   for (let i = first; i < count && tS[i]! + subWindowS <= endS; i++) {
     const last = i + spanFrames - 1;
     if (last >= count || !(tS[last]! <= tS[i]! + subWindowS)) return true;
+    if (distinctSamples(tS, i, count, tS[i]! + subWindowS) < minDistinctSamplesPerS * subWindowS) return true;
   }
   return false;
+}
+
+// Sample times in [tS[i], untilS]: a frame counts only live.distinctSampleS or more after the last counted
+// one (with DSP-2's half-ns allowance), so frames delivered in a cluster sample the pulse once (note 6).
+function distinctSamples(tS: ArrayLike<number>, i: number, count: number, untilS: number): number {
+  const { distinctSampleS } = DSP_CONFIG.live;
+  let samples = 1;
+  let lastS = tS[i]!;
+  for (let k = i + 1; k < count && tS[k]! <= untilS + HALF_NS_S; k++) {
+    if (tS[k]! - lastS < distinctSampleS - HALF_NS_S) continue;
+    samples++;
+    lastS = tS[k]!;
+  }
+  return samples;
 }
 
 // The SQI-Net window ending at or before frame count − 1 (ADR 0023): 256 points of −R on the 64 Hz grid,

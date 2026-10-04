@@ -233,6 +233,12 @@ export const DSP_CONFIG = {
     // 8 s, while 5 slowed none measured and refused every round 7 case.
     sparseIntervalS: 0.09,
     maxSparseIntervalsPerS: 5,
+    // ADR 0077 implementation note 6 (red team PR #171 round 8): every subWindowS span also needs
+    // minDistinctSamplesPerS sample times at least distinctSampleS apart. The 2nd harmonic of 220 bpm is
+    // 7.33 Hz, whose Nyquist rate is 14.7 samples a second. 12 ms merges frames delivered in a clump but is
+    // under every real camera's spacing at 30–240 fps, including 30 fps frames arriving in uneven pairs.
+    distinctSampleS: 0.012,
+    minDistinctSamplesPerS: 15,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.

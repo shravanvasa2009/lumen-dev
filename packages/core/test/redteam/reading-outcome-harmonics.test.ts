@@ -234,13 +234,19 @@ describe('red team K: every interval within 0.12 s, a fast pulse aliases through
   it.each([
     ['30 fps', framesS(0, 40, 30)],
     ['even 62.5 ms + 1 copy', clusters(40, [61.5], 1)],
-    ['even 90 ms + 2 copies', clusters(40, [88], 2)],
   ])('control: %s reads 150–220 bpm with a second harmonic of 0.5', (_, offsetsS) => {
     for (const bpm of [150, 180, 200, 210, 220]) {
       const { analysis } = replay(offsetsS, harmonicPulse(bpm, 0.5), 30);
       expect(readingOutcome(analysis).kind).toBe('reading');
       expect(Math.abs(analysis.heartRateBpm! - bpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
     }
+  });
+
+  // ADR 0077 note 6: 90 ms clumps hold about 11 distinct sample times a second, under the Nyquist rate of
+  // 220 bpm's 2nd harmonic (15), so they are refused whatever they would read.
+  it('even 90 ms + 2 copies is refused (note 6)', () => {
+    const { analysis } = replay(clusters(40, [88], 2), harmonicPulse(220, 0.5), 30);
+    expect(readingOutcome(analysis).kind).toBe('inconclusive');
   });
 });
 

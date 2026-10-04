@@ -479,6 +479,36 @@ describe('analyzeReading acquisition spans', () => {
       expect(spansOf(analyze(reading), 'quality')).toEqual([]);
   });
 
+  // Red team PR #171 round 8 (L): sparse intervals under every count rule still aliased a fast pulse.
+  it('ADR 0077 note 6: 1 s needs live.minDistinctSamplesPerS sample times live.distinctSampleS apart', () => {
+    expect(DSP_CONFIG.live.minDistinctSamplesPerS).toBe(15);
+    expect(DSP_CONFIG.live.distinctSampleS).toBe(0.012);
+    // On a 0.1 ms grid: a sample every periodSteps plus a copy copyAfterSteps later. A closed 1 s span holds
+    // 15 sample times at a 71 ms period and 14 at 72 ms; the copies keep 28 frames a second, so no other
+    // ADR 0077 rule applies.
+    const sampled = (periodSteps: number, copyAfterSteps: number) =>
+      analyze(
+        syntheticReading({
+          fps: 10_000,
+          seconds: 40,
+          dropped: (tS) => {
+            const phase = Math.round(tS * 10_000) % periodSteps;
+            return phase !== 0 && phase !== copyAfterSteps;
+          },
+        }),
+        { captureFps: 30 },
+      );
+    expect(spansOf(sampled(710, 10), 'quality')).toEqual([]);
+    expect(spansOf(sampled(720, 10), 'quality').length).toBeGreaterThan(0);
+    // A copy 12 ms later is a sample of its own (28 a second); 11.9 ms later it is not (14).
+    expect(spansOf(sampled(720, 120), 'quality')).toEqual([]);
+    expect(spansOf(sampled(720, 119), 'quality').length).toBeGreaterThan(0);
+    // 120 fps frames are 8.3 ms apart: every 2nd counts, 60 a second.
+    expect(
+      spansOf(analyze(syntheticReading({ fps: 120, seconds: 40 }), { captureFps: 120 }), 'quality'),
+    ).toEqual([]);
+  });
+
   it('splits at a dropped 300 ms stretch: no interval spans the gap', () => {
     const analysis = analyze(syntheticReading({ dropped: (tS) => tS > 45 && tS < 45.3 }));
     expect(analysis.segments).toHaveLength(2);

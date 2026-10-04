@@ -19,7 +19,6 @@ import { beatTimes, beatTrain, type Channels } from './attacks';
 // is within 5 bpm of its pulse (ANSI/AAMI EC13) or the capture is refused; live and saved agree; ordinary
 // phones finish each mode. SQI is a fixed 0.9 stand-in for the model; a still finger; batches of 3
 // frames; no 8-bit rounding, so every error comes from frame timing.
-// model; a still finger; batches of 3 frames; no 8-bit rounding, so every error comes from frame timing.
 
 const CONTEXT: ReadingContext = {
   captureFps: 30,
@@ -95,11 +94,6 @@ function replay(
     analysis: analyzeReading(saved, { ...CONTEXT, captureFps, mode, ...spans }),
     liveCleanS: cleanSeconds(0, lastS, session.rejectedSpans),
   };
-}
-
-function expectAccurateOrRefused(analysis: ReadingAnalysis, trueBpm: number): void {
-  if (readingOutcome(analysis).kind !== 'reading') return;
-  expect(Math.abs(analysis.heartRateBpm! - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
 }
 
 // Fewest frames in any closed span of spanS that starts on a frame, as the 96-frame and 1 s counts.
@@ -211,14 +205,14 @@ describe('red team L: 4 intervals over 0.09 s per 1 s, a fast pulse aliases thro
     ['spread', 119, 90, 2, 220, 0.5, 0.25],
     ['in a row', 120, 89, 3, 200, 0.5, 0.25],
   ])(
-    'four %s %i ms + %i ms, %i copies, %i bpm, harmonics %f / %f: right or refused',
+    'four %s %i ms + %i ms, %i copies, %i bpm, harmonics %f / %f: refused (note 6)',
     (arrangement, longMs, shortMs, copies, bpm, second, third) => {
       const pattern = arrangement === 'spread' ? fourLongSpread : fourLongInARow;
       const offsetsS = clusters(40, pattern(longMs, shortMs, copies), copies);
       expectEveryFloorPasses(offsetsS);
       const { analysis, liveCleanS } = replay(offsetsS, harmonicPulse(bpm, second, third), 30);
       expect(liveCleanS).toBeCloseTo(analysis.cleanSeconds, 9);
-      expectAccurateOrRefused(analysis, bpm);
+      expect(readingOutcome(analysis).kind).toBe('inconclusive');
     },
   );
 

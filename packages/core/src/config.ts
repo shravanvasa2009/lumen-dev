@@ -235,8 +235,9 @@ export const DSP_CONFIG = {
     maxSparseIntervalsPerS: 5,
     // ADR 0077 implementation note 6 (red team PR #171 round 8): every subWindowS span also needs
     // minDistinctSamplesPerS sample times at least distinctSampleS apart. The 2nd harmonic of 220 bpm is
-    // 7.33 Hz, whose Nyquist rate is 14.7 samples a second. 12 ms merges frames delivered in a clump but is
-    // under every real camera's spacing at 30–240 fps, including 30 fps frames arriving in uneven pairs.
+    // 7.33 Hz, whose Nyquist rate is 14.7 samples a second. 12 ms merges frames delivered in a clump; it is
+    // under the frame spacing at 30–60 fps, including 30 fps frames arriving in uneven pairs, and at 120 and
+    // 240 fps it counts every 2nd or 3rd frame (60 or 80 a second), still far above 15.
     distinctSampleS: 0.012,
     minDistinctSamplesPerS: 15,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes

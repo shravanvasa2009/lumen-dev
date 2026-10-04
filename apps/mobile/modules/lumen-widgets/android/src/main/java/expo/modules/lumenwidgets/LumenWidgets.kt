@@ -458,7 +458,14 @@ internal fun sampleView(context: Context, nowMs: Long): WidgetView? {
             .put("hideValues", false)
             .put("streakDays", SAMPLE_STREAK_DAYS)
             .put("theme", "system")
-    return widgetView(snapshot.toString(), displayJson, nowMs)
+    return try {
+        widgetView(snapshot.toString(), displayJson, nowMs)
+    } catch (error: Exception) {
+        // A copy stored by an older version can be unreadable after an update; the preview falls back to the
+        // empty state until the next publish replaces it.
+        Log.w("LumenWidgets", "Stored widget copy could not be read for the picker preview", error)
+        null
+    }
 }
 
 // Exact: the layout is drawn for the cell the launcher really gives, so it fills a large cell and still fits
@@ -522,6 +529,6 @@ suspend fun refreshPickerPreviews(context: Context, displayJson: String) {
     ) {
         WidgetStore.markPreviewed(context, displayJson)
     } else {
-        Log.w("LumenWidgets", "Picker preview update refused (results $small, $medium); retried on the next publish")
+        Log.w("LumenWidgets", "Picker preview update refused (results $small, $medium); retried on the next publish or app start")
     }
 }

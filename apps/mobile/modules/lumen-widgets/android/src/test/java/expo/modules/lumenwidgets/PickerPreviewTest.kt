@@ -7,6 +7,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 // The generated picker preview (Android 15+) draws the gallery's sample reading with the published copy.
@@ -48,5 +49,20 @@ class PickerPreviewTest {
         WidgetStore.markPreviewed(context, display)
         assertEquals(false, WidgetStore.previewNeedsUpdate(context, display))
         assertEquals(true, WidgetStore.previewNeedsUpdate(context, testDisplayWithChecks(null)))
+    }
+
+    // An older version's copy can be unreadable after an update; start-up re-sets previews from it.
+    @Test
+    fun skipsTheSampleWhenTheStoredCopyCannotBeRead() {
+        WidgetStore.write(context, testSnapshot(), "{\"v\":0}")
+        assertNull(sampleView(context, TEST_READING_MS))
+    }
+
+    @Test
+    fun asksAgainAfterAnAppUpdateDropsThePreviews() {
+        val display = testDisplayWithChecks()
+        WidgetStore.markPreviewed(context, display)
+        shadowOf(context.packageManager).getInternalMutablePackageInfo(context.packageName).lastUpdateTime += 60_000L
+        assertEquals(true, WidgetStore.previewNeedsUpdate(context, display))
     }
 }

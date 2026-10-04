@@ -1,7 +1,7 @@
 import { DSP_CONFIG } from './config';
 import { sqiModelInput } from './finger-signal';
 import type { RejectedSpan } from './live-session';
-import { resampleCubic } from './resample';
+import { HALF_NS_S, isFrameGap, resampleCubic } from './resample';
 
 // Shared by LiveSession and analyzeReading, so the live screen and the saved result reject the same flat
 // windows (ADR 0023, ADR 0057).
@@ -26,7 +26,7 @@ export function usableFrom(
   if (first > 0) first--; // one frame before fromS, so a spline covers fromS itself
   for (let i = first; i < count; i++) {
     if (!covered[i]) return null;
-    if (i > first && tS[i]! - tS[i - 1]! > DSP_CONFIG.dsp2.maxGapS) return null;
+    if (i > first && isFrameGap(tS[i - 1]!, tS[i]!)) return null;
   }
   return first;
 }
@@ -44,7 +44,7 @@ function windowFrames(
   let laterS = tS[count - 1]!;
   for (let i = count - 1; i >= 0; i--) {
     if (!covered[i]) continue;
-    if (laterS - tS[i]! > DSP_CONFIG.dsp2.maxGapS) return null;
+    if (isFrameGap(tS[i]!, laterS)) return null;
     kept.push(i);
     laterS = tS[i]!;
     // One frame before fromS, so a spline covers fromS itself; the first frame when the window starts there.
@@ -53,9 +53,42 @@ function windowFrames(
   return null;
 }
 
+// ADR 0077: under live.minEffectiveFps when frames [0, count) delivered in [endS − dsp3.modelWindowS, endS],
+// covered or not, number fewer than minEffectiveFps × the window; when any span of live.subWindowS that
+// starts on one of them and ends inside the window holds fewer than live.minSubWindowFps × that span, ends
+// included as in the window count; or when one such span holds two intervals between neighbouring frames
+// longer than live.maxFrameGapS (implementation note 4). The 1 s count stops a fast burst paying for a
+// sparse rest of the window. The interval test stops clumps of frames standing in for samples of a fast
+// pulse: a run of long intervals is a stretch sampled too sparsely, while one lone interval up to DSP-2's
+// gap limit is splined over as DSP-2 allows, so random drops of 3 frames in a row at 30 fps still pass.
+function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): boolean {
+  const { minEffectiveFps, minSubWindowFps, subWindowS, maxFrameGapS } = DSP_CONFIG.live;
+  const startS = endS - DSP_CONFIG.dsp3.modelWindowS;
+  let first = count;
+  let frames = 0;
+  for (let i = count - 1; i >= 0 && tS[i]! >= startS; i--) {
+    first = i;
+    if (tS[i]! <= endS) frames++;
+  }
+  if (frames < minEffectiveFps * DSP_CONFIG.dsp3.modelWindowS) return true;
+  let longIntervalStartS = -Infinity;
+  for (let i = first + 1; i < count && tS[i]! <= endS; i++) {
+    if (tS[i]! - tS[i - 1]! <= maxFrameGapS + HALF_NS_S) continue;
+    if (tS[i]! - longIntervalStartS <= subWindowS + HALF_NS_S) return true;
+    longIntervalStartS = tS[i - 1]!;
+  }
+  const spanFrames = Math.ceil(minSubWindowFps * subWindowS);
+  for (let i = first; i < count && tS[i]! + subWindowS <= endS; i++) {
+    const last = i + spanFrames - 1;
+    if (last >= count || !(tS[last]! <= tS[i]! + subWindowS)) return true;
+  }
+  return false;
+}
+
 // The SQI-Net window ending at or before frame count − 1 (ADR 0023): 256 points of −R on the 64 Hz grid,
-// splined across uncovered frames within DSP-2's gap limit. input is null when the window is flat or not
-// finite: it never reaches the model and counts as rejected. Null when no such window exists.
+// splined across uncovered frames within DSP-2's gap limit. input is null when the window is flat, not
+// finite, or under live.minEffectiveFps (ADR 0077, underEffectiveFps): it never reaches the model and
+// counts as rejected. Null when no such window exists.
 export function modelWindowAt(
   tS: Float64Array,
   red: Float64Array,
@@ -82,17 +115,25 @@ export function modelWindowAt(
   // Flatness is judged on the frames: a spline through equal values can round to tiny wiggles that
   // z-scoring would blow up into noise.
   const flat = window.every((value) => value === window[0]);
-  const input = !flat && values.every(Number.isFinite) ? sqiModelInput(values) : null;
+  const sparse = underEffectiveFps(tS, count, endS);
+  const input = !flat && !sparse && values.every(Number.isFinite) ? sqiModelInput(values) : null;
   return { endS, input };
 }
 
 // ADR 0057: a check with 4 s of reading behind it but no window (bad frames past DSP-2's gap limit)
-// leaves those 4 s unscored. Once SQI-Net runs, they count as not clean.
-export function unscoredSpan(tS: ArrayLike<number>, count: number): RejectedSpan | null {
+// leaves unscored everything since the end of the newest window that formed (sinceS), or since the first
+// frame if none has: those seconds are in no window. Seconds inside a formed window stay outside it, so a
+// stall after the countdown completes cannot take back counted seconds. Once SQI-Net runs, the span is
+// not clean.
+export function unscoredSpan(
+  tS: ArrayLike<number>,
+  count: number,
+  sinceS: number | null,
+): RejectedSpan | null {
   const tickS = tS[count - 1]!;
-  const windowS = DSP_CONFIG.dsp3.modelWindowS;
-  if (tickS - tS[0]! < windowS) return null;
-  return { startS: tickS - windowS, endS: tickS, reason: 'quality' };
+  if (tickS - tS[0]! < DSP_CONFIG.dsp3.modelWindowS) return null;
+  const startS = sinceS ?? tS[0]!;
+  return startS < tickS ? { startS, endS: tickS, reason: 'quality' } : null;
 }
 
 // ADR 0057: constant red holds no pulse. A covered, gap-free run of frames whose red never changes is
@@ -109,7 +150,7 @@ export class FlatRuns {
   private red = 0;
 
   add(tS: number, red: number, covered: boolean): void {
-    const continues = covered && this.runStartS !== null && tS - this.lastS <= DSP_CONFIG.dsp2.maxGapS;
+    const continues = covered && this.runStartS !== null && !isFrameGap(this.lastS, tS);
     if (continues && red === this.red) {
       this.lastS = tS;
       return;

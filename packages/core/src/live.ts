@@ -5,7 +5,7 @@ import { butterBandpass, CausalFilter, type SosSection } from './filters';
 import type { CoachingKey, LiveSession, RejectedSpan, SqiWindow } from './live-session';
 import { FlatRuns, modelWindowAt, nextModelTickS, unscoredSpan, usableFrom } from './model-window';
 import type { NsSpan, SqiScores } from './reading';
-import { cleanSeconds as cleanTime } from './reading-metrics';
+import { cleanSeconds as cleanTime, frameGapSpan } from './reading-metrics';
 
 export interface LiveSessionConfig {
   captureFps: number; // the capture format's frame rate; sizes the buffers and designs the live filter
@@ -94,11 +94,13 @@ class Session implements LiveSession {
   private readonly flatRuns = new FlatRuns();
   // Checks with no window (ADR 0057); rejected only once SQI-Net has run, as analyzeReading does with sqi.
   private readonly unscored: RejectedSpan[] = [];
+  private formedEndS: number | null = null; // end of the newest window, sent to SQI-Net or rejected
+  private readonly gaps: RejectedSpan[] = []; // DSP-2 frame gaps: not clean (ADR 0072)
   private openContact: OpenSpan | null = null;
   private openMotionNs: number | null = null;
   private openColdHandsNs: number | null = null;
-  // Every setSqi score; endS on the 64 Hz grid. Flat windows are not here: analyzeReading finds them in the
-  // frames, as tick does.
+  // Every setSqi score; endS on the 64 Hz grid. Flat and sparse windows are not here: analyzeReading finds
+  // them in the frames, as tick does.
   private readonly scores: { endS: number; pClean: number }[] = [];
   private modelRan = false;
 
@@ -155,9 +157,10 @@ class Session implements LiveSession {
     this.startNs ??= sample.tNs;
     // DSP-1: seconds from the first frame, subtracted in ns first.
     const tS = (sample.tNs - this.startNs) / 1e9;
-    const gap = this.count > 0 && tS - this.latestS > DSP_CONFIG.dsp2.maxGapS;
+    const gapSpan = this.count > 0 ? frameGapSpan(this.latestS, tS) : null;
+    if (gapSpan) this.gaps.push(gapSpan);
     // The causal filter assumes evenly spaced frames; after a DSP-2 gap it restarts in steady state.
-    if (this.filter === null || gap) this.filter = new CausalFilter(this.sos);
+    if (this.filter === null || gapSpan) this.filter = new CausalFilter(this.sos);
     // A broken frame (NaN, or a channel outside 0..1) would leave the filter state NaN or ringing. It is a
     // coverage frame (DSP-4), so the waveform holds its last value and the filter restarts after it.
     const valid = validChannels(sample);
@@ -202,7 +205,9 @@ class Session implements LiveSession {
   pushStatus(status: CaptureStatus): void {
     // Statuses carry no timestamp; each applies at the newest frame.
     if (this.count === 0) return;
-    const moving = status.motionRms > DSP_CONFIG.live.motionRmsThreshold;
+    // A non-finite reading is not evidence of stillness, so it counts as moving.
+    const { motionRms } = status;
+    const moving = !Number.isFinite(motionRms) || motionRms > DSP_CONFIG.live.motionRmsThreshold;
     if (moving && this.openMotionNs === null) this.openMotionNs = this.lastNs;
     if (!moving && this.openMotionNs !== null) {
       this.motion.push({ startNs: this.openMotionNs, endNs: this.lastNs });
@@ -234,8 +239,9 @@ class Session implements LiveSession {
     const window = modelWindowAt(this.tS, this.red, this.covered, this.count);
     this.latestWindow = window?.input ? { endS: window.endS, input: window.input } : null;
     if (window && !window.input) this.rejectWindow(window.endS);
-    const unscored = window ? null : unscoredSpan(this.tS, this.count);
+    const unscored = window ? null : unscoredSpan(this.tS, this.count, this.formedEndS);
     if (unscored) this.unscored.push(unscored);
+    if (window) this.formedEndS = window.endS;
 
     const { coldHandsAfterS, perfusionWindowS } = DSP_CONFIG.live;
     const from =
@@ -296,6 +302,7 @@ class Session implements LiveSession {
       ...this.quality,
       ...(this.modelRan ? this.unscored : []),
       ...this.flatRuns.spans(),
+      ...this.gaps,
     ].sort((x, y) => x.startS - y.startS);
   }
 

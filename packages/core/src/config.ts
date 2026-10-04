@@ -107,7 +107,7 @@ export const DSP_CONFIG = {
     minCleanS: 30, // §6.2 "Signal strength (perfusion index)"
   },
   dsp11: {
-    minCleanS: 15, // §6.2 "Heart rate"
+    minCleanS: 15, // §6.2 "Heart rate"; the accepted intervals behind the median must span this too (ADR 0080)
   },
   dsp12: {
     // The caller passes the capture format's frame rate (ADR 0040): a measured median frame interval at
@@ -169,6 +169,9 @@ export const DSP_CONFIG = {
     slowRestingBpm: 50, // HR below this
     slowRestingAdjustedBpm: 40, // for athletes and people on a beta-blocker
     fastRestingBpm: 100, // HR above this
+    // §12 Modes "Duration" in clean seconds: §7's countdown counts only these, and a reading short of its
+    // mode's target ends inconclusive. Deep HRV's "5 min" is SDNN's §6.2 floor (ADR 0072).
+    modeMinCleanS: { quick: 30, full: 90, deep: 300 },
     restingMinCleanS: 30, // slow/fast resting and fast regular rhythm
     fastRegularBpm: [130, 220],
     fastRegularMaxNormalizedRmssd: 0.03, // strictly below
@@ -205,6 +208,22 @@ export const DSP_CONFIG = {
     // edge of the HR band, so it holds no beat. A pulse of at least half an 8-bit step changes red at least
     // twice a period, so its longest equal stretch is under half a period (1 s at 30 bpm).
     minFlatS: 2,
+    // ADR 0077 (owner, option C): a model window (dsp3.modelWindowS) holding fewer frames than this many
+    // per second is rejected as quality. §5.1's hard-fail floor: a rear camera that can't reach 24 fps.
+    minEffectiveFps: 24,
+    // ADR 0077 implementation note (red team PR #171 rounds 3 and 4): every subWindowS span that starts on
+    // a frame of a model window and ends inside it must also hold minSubWindowFps × subWindowS frames, so
+    // a fast burst cannot carry a sparse rest of the window. 16 frames/s is the Nyquist rate for the 8 Hz
+    // top of DSP-6's 0.5–8 Hz morphology band (ADR 0077 option D); 24 per 1 s refused random drops at a
+    // 26 fps mean. Only tightens the owner's floor.
+    minSubWindowFps: 16,
+    subWindowS: 1,
+    // ADR 0077 implementation note 4 (red team PR #171 rounds 5 and 6): a model window with two frames in a
+    // row more than this far apart is rejected, so no stretch is sampled too sparsely for the fastest rate
+    // reported. rules.fastRegularBpm tops out at 220 bpm (3.67 Hz); 1 / (2.2 × 3.67 Hz) ≈ 0.124 s, rounded
+    // down for timing jitter. Under DSP-2's 0.15 s split; a 30 fps phone dropping 2 frames in a row
+    // (100 ms) passes, 3 in a row (133 ms) does not.
+    maxFrameGapS: 0.12,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.

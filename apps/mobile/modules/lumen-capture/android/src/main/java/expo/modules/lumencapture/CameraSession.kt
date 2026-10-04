@@ -95,9 +95,9 @@ private const val ANALYZER_DRAIN_MS = 100L
 private const val EVENT_DRAIN_MS = 50L
 private const val FAILURE_LOG_EVERY = 100
 
-// MAIN's first-device order (2026-10-04): start() fails when the camera has not delivered a frame and set the
-// torch within 3 s of bind, instead of leaving the JS promise waiting on a stuck camera.
-private const val START_TIMEOUT_MS = 3000L
+// start() fails when the camera has not delivered a frame and set the torch within this time of bind, instead of
+// leaving the JS promise waiting on a stuck camera. 5 s, not 3: budget HALs can take 2-3 s to open plus the torch.
+private const val START_TIMEOUT_MS = 5000L
 
 // One running capture: CameraX ImageAnalysis on a rear lens with Camera2 interop for frame rate,
 // stabilization, exposure and locks (spec §9.2). Frames are reduced to numbers on the analyzer thread and

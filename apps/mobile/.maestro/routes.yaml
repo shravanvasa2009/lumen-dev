@@ -70,6 +70,8 @@ name: Every route opens
 - assertVisible: 'Results'
 - openLink: lumen://results/demo-flag
 - assertVisible: 'Quick safety check'
+- openLink: lumen://results/demo/diabetes
+- assertVisible: 'Diabetes risk'
 - openLink: lumen://results/demo/why
 - assertVisible: 'Why .regular.\?'
 - openLink: lumen://results/demo-flag/why

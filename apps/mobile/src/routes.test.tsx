@@ -57,6 +57,7 @@ const routes: readonly Route[] = [
   { file: 'measure/capture', url: '/measure/capture?mode=quick', title: 'mode.quick', place: 'body' },
   { file: 'measure/processing', url: '/measure/processing', title: 'processing.title', place: 'body' },
   { file: 'results/[id]/index', url: '/results/demo', title: 'results.title', place: 'body' },
+  { file: 'results/[id]/diabetes', url: '/results/demo/diabetes', title: 'dr.rowTitle', place: 'nav' },
   { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.titleRegular', place: 'body' },
   { file: 'measure/inconclusive', url: '/measure/inconclusive', title: 'result.inconclusive', place: 'body' },
   { file: 'emergency', url: '/emergency', title: 'emergency.title', place: 'body' },
@@ -135,8 +136,8 @@ describe('route list', () => {
     );
   });
 
-  it('lists the 34 screens of the inventory, the Care tab and the two question screens (ADRs 0054, 0065, 0090)', () => {
-    expect(routes).toHaveLength(37);
+  it('lists the 34 screens of the inventory, the Care tab, the two question screens and the diabetes result (ADRs 0054, 0065, 0090)', () => {
+    expect(routes).toHaveLength(38);
   });
 });
 

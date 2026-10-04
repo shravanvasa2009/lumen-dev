@@ -2,13 +2,12 @@ import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon, type IconName } from '@/components/Icon';
 import { useTheme } from '@/theme';
 
-type CompactRowProps = { icon: IconName; name: string; where: string; diabetesBadge?: boolean };
+type CompactRowProps = { icon: IconName; name: string; where: string };
 
-function CompactRow({ icon, name, where, diabetesBadge = false }: CompactRowProps) {
+function CompactRow({ icon, name, where }: CompactRowProps) {
   const { colors, radius, spacing } = useTheme();
   return (
     <View
@@ -26,7 +25,6 @@ function CompactRow({ icon, name, where, diabetesBadge = false }: CompactRowProp
     >
       <Icon name={icon} size={20} color={colors.accent} />
       <AppText variant="headline">{name}</AppText>
-      {diabetesBadge ? <EvidenceBadge metric="diabetes" /> : null}
       <AppText tone="textDim" style={{ flex: 1, textAlign: 'right' }}>
         {where}
       </AppText>
@@ -34,13 +32,13 @@ function CompactRow({ icon, name, where, diabetesBadge = false }: CompactRowProp
   );
 }
 
-// A Quick Check covers rhythm and heart rate only; the other three checks show where they run.
+// A Quick Check covers rhythm and heart rate only; HRV and POTS show where they run. The diabetes risk
+// row sits below, because the questionnaire does not need a scan.
 export function CompactChecks() {
   const { t } = useTranslation();
   return (
     <>
       <CompactRow icon="bars" name={t('checks.hrv.name')} where={t('mode.full')} />
-      <CompactRow icon="drop" name={t('checks.diabetes.name')} where={t('mode.full')} diabetesBadge />
       <CompactRow icon="standing" name={t('checks.pots.name')} where={t('checks.from.standing')} />
     </>
   );

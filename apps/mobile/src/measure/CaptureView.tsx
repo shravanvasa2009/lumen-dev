@@ -1,8 +1,8 @@
-import type { RatingMode } from '@lumen/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, View } from 'react-native';
 
+import type { PlanPhone } from '@/checks/checkPlan';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -30,13 +30,12 @@ const NO_VALUE = '—';
 type CaptureViewProps = {
   mode: MeasureMode;
   live: LiveCapture;
-  // What the phone's rating unlocks; null before the phone is rated.
-  unlocks?: readonly RatingMode[] | null;
+  phone: PlanPhone;
   onCancel: () => void;
   onStop: () => void;
 };
 
-export function CaptureView({ mode, live, unlocks, onCancel, onStop }: CaptureViewProps) {
+export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureViewProps) {
   const { t } = useTranslation();
   const { colors, spacing, radius, control } = useTheme();
   const [tipsOpen, setTipsOpen] = useState(false);
@@ -190,7 +189,7 @@ export function CaptureView({ mode, live, unlocks, onCancel, onStop }: CaptureVi
             </View>
           ) : null}
 
-          <CheckingRow items={checkingItems(mode, live.cleanSeconds, unlocks)} dimmed={paused} />
+          <CheckingRow items={checkingItems(mode, live.cleanSeconds, phone)} dimmed={paused} />
         </ScrollView>
       </Screen>
     </StillMotion.Provider>

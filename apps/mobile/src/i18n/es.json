@@ -912,6 +912,7 @@
   "results.potsLabel": "Patrón de frecuencia cardíaca",
   "common.close": "Cerrar",
   "checks.checking": "Revisando",
+  "checks.quickHeartRateOnly": "Revisión rápida: solo frecuencia cardíaca",
   "checks.state.ready": "Listo",
   "checks.state.working": "Revisando",
   "checks.state.unavailable": "No en este teléfono",

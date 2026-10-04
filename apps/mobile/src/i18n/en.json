@@ -912,6 +912,7 @@
   "results.potsLabel": "Heart-rate pattern",
   "common.close": "Close",
   "checks.checking": "Checking",
+  "checks.quickHeartRateOnly": "Quick Check: heart rate only",
   "checks.state.ready": "Ready",
   "checks.state.working": "Checking",
   "checks.state.unavailable": "Not on this phone",

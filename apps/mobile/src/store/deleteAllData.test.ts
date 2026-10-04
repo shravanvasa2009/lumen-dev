@@ -154,6 +154,7 @@ describe('deleteAllData', () => {
     const demoId = keepDemoReading(
       {
         readingId: 'unused',
+        urgent: null,
         recordedMs: 5,
         context: {
           captureFps: 30,

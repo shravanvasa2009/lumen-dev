@@ -13,6 +13,7 @@ import {
   type ReadingResult,
   readingRhythm,
   type RhythmOutputs,
+  type UrgentHeartRate,
 } from '@lumen/core';
 
 import evidence from '../../assets/evidence.json';
@@ -32,6 +33,8 @@ export type AnalysedReading = {
   models: ModelOutputs;
   reading: ReadingResult;
   progress: AnalysisProgress;
+  // ADR 0076: the emergency heart-rate rules ran on this capture; Processing routes on it, never on the model.
+  urgent: UrgentHeartRate | null;
 };
 
 // One turn of the event loop, so the screen draws a step as active before the next blocking step starts.
@@ -146,5 +149,13 @@ export async function analyzeKeptCapture(
     hrv: rmssd !== null,
     diabetes: diabetes !== null,
   });
-  return { readingId: `reading-${recordedMs}`, recordedMs, context, models, reading, progress: finished };
+  return {
+    readingId: `reading-${recordedMs}`,
+    recordedMs,
+    context,
+    models,
+    reading,
+    progress: finished,
+    urgent: outcome.urgent,
+  };
 }

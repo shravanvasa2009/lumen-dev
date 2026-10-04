@@ -55,6 +55,7 @@ function analysedReading(): AnalysedReading {
     models: { rhythm: null, diabetes: null },
     reading: makeReading(TAKEN_AT, 64, 48).outcome,
     progress: finishedProgress,
+    urgent: null,
   };
 }
 
@@ -190,5 +191,25 @@ describe('updating the widgets', () => {
     );
     expect(analysis.current.phase).toBe('done');
     expect(await listReadings()).toHaveLength(1);
+  });
+});
+
+describe('urgent heart rates (SAFE-1)', () => {
+  const urgent = { fastSustained: true, slowBelow40: false };
+
+  it('hands the flags of a reading on and still saves the reading', async () => {
+    jest.mocked(analyzeKeptCapture).mockResolvedValue({ ...analysedReading(), urgent });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('done'));
+    expect(analysis.current).toMatchObject({ urgent });
+    expect(await listReadings()).toHaveLength(1);
+  });
+
+  it('hands the flags of a refused capture on and saves nothing', async () => {
+    jest.mocked(analyzeKeptCapture).mockResolvedValue({ ...refusal, urgent });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('inconclusive'));
+    expect(analysis.current).toMatchObject({ outcome: { urgent } });
+    expect(await listReadings()).toEqual([]);
   });
 });

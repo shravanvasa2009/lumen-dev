@@ -1,4 +1,4 @@
-import type { InconclusiveOutcome } from '@lumen/core';
+import type { InconclusiveOutcome, UrgentHeartRate } from '@lumen/core';
 import { renderHook } from '@testing-library/react-native';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
@@ -151,7 +151,7 @@ describe('processing screen', () => {
       ...midway,
       steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
     };
-    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo' };
+    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo', urgent: null };
     const route = renderRouter('./app', { initialUrl: '/measure/processing' });
     expect(route.getPathname()).toBe('/results/demo');
   });
@@ -195,5 +195,83 @@ describe('processing screen', () => {
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
     expect(route.getPathname()).toBe('/measure/inconclusive');
     expect(route.getSearchParams()).toEqual({ mode: 'full' });
+  });
+});
+
+describe('urgent heart rates (SAFE-1, ADR 0076)', () => {
+  const finished: AnalysisProgress = {
+    ...midway,
+    steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
+  };
+  const refusalWith = (urgent: UrgentHeartRate | null): InconclusiveOutcome => ({
+    kind: 'inconclusive',
+    reasons: ['tooFewCleanSeconds'],
+    cleanSeconds: 60,
+    neededCleanSeconds: 90,
+    lostSeconds: { motion: 0, pressure: 0, coverage: 0, coldHands: 0 },
+    otherLostSeconds: 0,
+    causes: [],
+    urgent,
+  });
+  const fast: UrgentHeartRate = { fastSustained: true, slowBelow40: false };
+  const slow: UrgentHeartRate = { fastSustained: false, slowBelow40: true };
+
+  afterEach(() => keepCapture(null));
+
+  it('opens Emergency directly for a reading with a sustained fast rate', () => {
+    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo', urgent: fast };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(route.getPathname()).toBe('/emergency');
+    expect(screen.getByRole('button', { name: en['emergency.call'] })).toBeOnTheScreen();
+  });
+
+  it('opens Emergency directly for a refused capture with a sustained fast rate', () => {
+    mockAnalysis = { phase: 'inconclusive', progress: midway, outcome: refusalWith(fast) };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(route.getPathname()).toBe('/emergency');
+  });
+
+  it('opens Emergency directly when both flags are set', () => {
+    mockAnalysis = {
+      phase: 'done',
+      progress: finished,
+      readingId: 'demo',
+      urgent: { fastSustained: true, slowBelow40: true },
+    };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(route.getPathname()).toBe('/emergency');
+    expect(screen.queryByText(en['safety.question'])).toBeNull();
+  });
+
+  it('asks the symptom question for a rate under 40, and Yes opens Emergency', () => {
+    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo', urgent: slow };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(route.getPathname()).toBe('/measure/processing');
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
+    expect(route.getPathname()).toBe('/emergency');
+  });
+
+  it('continues to the result when the answer is No', () => {
+    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo', urgent: slow };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    expect(route.getPathname()).toBe('/results/demo');
+  });
+
+  it('asks the symptom question for a refused capture too, and No continues to Inconclusive', () => {
+    mockAnalysis = { phase: 'inconclusive', progress: midway, outcome: refusalWith(slow) };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    expect(route.getPathname()).toBe('/measure/processing');
+    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    expect(route.getPathname()).toBe('/measure/inconclusive');
+  });
+
+  it('shows no Emergency and no question when urgent is null', () => {
+    mockAnalysis = { phase: 'inconclusive', progress: midway, outcome: refusalWith(null) };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(route.getPathname()).toBe('/measure/inconclusive');
+    expect(screen.queryByText(en['safety.question'])).toBeNull();
   });
 });

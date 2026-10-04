@@ -112,6 +112,7 @@ describe('Doctor report for a Demo reading', () => {
     const id = keepDemoReading(
       {
         readingId: 'unused',
+        urgent: null,
         recordedMs: MORNING,
         context: {
           captureFps: 60,

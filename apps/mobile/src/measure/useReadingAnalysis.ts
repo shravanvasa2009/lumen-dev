@@ -1,4 +1,4 @@
-import type { InconclusiveOutcome } from '@lumen/core';
+import type { InconclusiveOutcome, UrgentHeartRate } from '@lumen/core';
 import { useEffect, useState } from 'react';
 
 import { keepDemoReading } from '@/demo/demoReadings';
@@ -16,7 +16,7 @@ import { DEFAULT_MODE } from './mode';
 export type AnalysisState =
   | { phase: 'unavailable' }
   | { phase: 'running'; progress: AnalysisProgress }
-  | { phase: 'done'; progress: AnalysisProgress; readingId: string }
+  | { phase: 'done'; progress: AnalysisProgress; readingId: string; urgent: UrgentHeartRate | null }
   // A refused capture is not a reading: nothing is saved and Processing opens the Inconclusive screen. The
   // outcome is null for a capture too short to analyse, which has no numbers to show.
   | { phase: 'inconclusive'; progress: AnalysisProgress; outcome: InconclusiveOutcome | null }
@@ -27,7 +27,7 @@ const DEFAULT_REQUEST: AnalysisRequest = { mode: DEFAULT_MODE, restTimerDone: fa
 
 type Tracker = { latest: AnalysisProgress; listeners: Set<(progress: AnalysisProgress) => void> };
 type Finished =
-  | { kind: 'reading'; readingId: string; progress: AnalysisProgress }
+  | { kind: 'reading'; readingId: string; progress: AnalysisProgress; urgent: UrgentHeartRate | null }
   | { kind: 'inconclusive'; outcome: InconclusiveOutcome | null };
 type Run = { tracker: Tracker; outcome: Promise<Finished> };
 
@@ -50,9 +50,9 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
   }).then(async (analysed): Promise<Finished> => {
     // Only a refusal has a kind; an analysed reading is told apart by lacking one.
     if ('kind' in analysed) return { kind: 'inconclusive', outcome: analysed };
-    const { readingId, recordedMs, context, models, reading, progress } = analysed;
+    const { readingId, recordedMs, context, models, reading, progress, urgent } = analysed;
     // §8.5: a Demo reading is shown from memory and never reaches the readings table.
-    if (capture.demo) return { kind: 'reading', readingId: keepDemoReading(analysed, mode), progress };
+    if (capture.demo) return { kind: 'reading', readingId: keepDemoReading(analysed, mode), progress, urgent };
     await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
     // Spec §9.6: the widgets show the new reading. They publish after the reminders are re-planned, so the
     // widget's next check time is current. The reading is already saved, so a failed widget write is reported
@@ -63,7 +63,7 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
         console.warn(`Widget update failed: ${reason}`);
       }),
     );
-    return { kind: 'reading', readingId, progress };
+    return { kind: 'reading', readingId, progress, urgent };
   });
   outcome.catch(() => runs.delete(capture));
   const run = { tracker, outcome };
@@ -96,7 +96,12 @@ export function useReadingAnalysis(request: AnalysisRequest = DEFAULT_REQUEST): 
         if (!active) return;
         if (finished.kind === 'inconclusive')
           setState({ phase: 'inconclusive', progress: run.tracker.latest, outcome: finished.outcome });
-        else setState({ phase: 'done', progress: finished.progress, readingId: finished.readingId });
+        else setState({
+            phase: 'done',
+            progress: finished.progress,
+            readingId: finished.readingId,
+            urgent: finished.urgent,
+          });
       },
       (error: unknown) => {
         const reason = error instanceof Error ? error.message : String(error);

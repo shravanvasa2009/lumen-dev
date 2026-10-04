@@ -29,6 +29,8 @@ export function CheckingRow({ items, dimmed = false }: { items: readonly Checkin
     unavailable: t('checks.state.unavailable'),
     off: t('checks.state.off'),
   };
+  // A mode that runs no check (Quick Check) says so in one line instead of listing four "Not in this scan" rows.
+  const runsNoCheck = items.every(({ state }) => state === 'off');
   return (
     <View
       style={{
@@ -44,69 +46,73 @@ export function CheckingRow({ items, dimmed = false }: { items: readonly Checkin
       <AppText variant="caption" tone="textDim" style={{ textTransform: 'uppercase', fontWeight: '600' }}>
         {t('checks.checking')}
       </AppText>
-      <View
-        style={{
-          flexDirection: compact ? 'column' : 'row',
-          gap: compact ? spacing.xs : spacing.md,
-          alignItems: compact ? 'stretch' : 'flex-start',
-        }}
-      >
-        {items.map(({ id, state }) => {
-          const lit = state === 'ready' && !dimmed;
-          const quiet = state === 'off' || state === 'unavailable';
-          const tone = lit ? colors.accent : colors.textDim;
-          const label = id === 'pots' ? t('checks.pots.standingNote') : `${names[id]}, ${words[state]}`;
-          const stateWord = (
-            <AppText variant="caption" tone="textDim">
-              {words[state]}
-            </AppText>
-          );
-          const word =
-            id !== 'diabetes' || quiet ? (
-              stateWord
-            ) : state === 'checking' ? (
-              <EvidenceBadge metric="diabetes" />
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-                {stateWord}
+      {runsNoCheck ? (
+        <AppText tone="textDim">{t('checks.quickHeartRateOnly')}</AppText>
+      ) : (
+        <View
+          style={{
+            flexDirection: compact ? 'column' : 'row',
+            gap: compact ? spacing.xs : spacing.md,
+            alignItems: compact ? 'stretch' : 'flex-start',
+          }}
+        >
+          {items.map(({ id, state }) => {
+            const lit = state === 'ready' && !dimmed;
+            const quiet = state === 'off' || state === 'unavailable';
+            const tone = lit ? colors.accent : colors.textDim;
+            const label = id === 'pots' ? t('checks.pots.standingNote') : `${names[id]}, ${words[state]}`;
+            const stateWord = (
+              <AppText variant="caption" tone="textDim">
+                {words[state]}
+              </AppText>
+            );
+            const word =
+              id !== 'diabetes' || quiet ? (
+                stateWord
+              ) : state === 'checking' ? (
                 <EvidenceBadge metric="diabetes" />
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                  {stateWord}
+                  <EvidenceBadge metric="diabetes" />
+                </View>
+              );
+            return (
+              <View
+                key={id}
+                accessible
+                accessibilityLabel={label}
+                style={{
+                  flex: compact ? undefined : 1,
+                  flexDirection: compact ? 'row' : 'column',
+                  alignItems: compact ? 'center' : 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: spacing.xs,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                  {quiet ? (
+                    <AppText tone="textDim" style={{ width: 16, textAlign: 'center' }}>
+                      –
+                    </AppText>
+                  ) : (
+                    <Icon name={state === 'ready' ? 'check' : 'clock'} size={16} color={tone} />
+                  )}
+                  <AppText
+                    style={{
+                      fontWeight: '600',
+                      color: quiet || dimmed ? colors.textDim : lit ? colors.accent : colors.text,
+                    }}
+                  >
+                    {names[id]}
+                  </AppText>
+                </View>
+                {word}
               </View>
             );
-          return (
-            <View
-              key={id}
-              accessible
-              accessibilityLabel={label}
-              style={{
-                flex: compact ? undefined : 1,
-                flexDirection: compact ? 'row' : 'column',
-                alignItems: compact ? 'center' : 'flex-start',
-                justifyContent: 'space-between',
-                gap: spacing.xs,
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-                {quiet ? (
-                  <AppText tone="textDim" style={{ width: 16, textAlign: 'center' }}>
-                    –
-                  </AppText>
-                ) : (
-                  <Icon name={state === 'ready' ? 'check' : 'clock'} size={16} color={tone} />
-                )}
-                <AppText
-                  style={{
-                    fontWeight: '600',
-                    color: quiet || dimmed ? colors.textDim : lit ? colors.accent : colors.text,
-                  }}
-                >
-                  {names[id]}
-                </AppText>
-              </View>
-              {word}
-            </View>
-          );
-        })}
-      </View>
+          })}
+        </View>
+      )}
     </View>
   );
 }

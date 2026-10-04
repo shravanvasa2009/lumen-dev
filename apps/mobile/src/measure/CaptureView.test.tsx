@@ -1,8 +1,8 @@
-import { tierUnlocks } from '@lumen/core';
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 
 import { ScrollView } from 'react-native';
 
+import type { PlanPhone } from '@/checks/checkPlan';
 import en from '@/i18n/en.json';
 
 import { CaptureView } from './CaptureView';
@@ -29,10 +29,13 @@ const base: LiveCapture = {
   rejectedSpans: [],
 };
 
+const FULL_PHONE: PlanPhone = { tier: 'full', ambient: false, fps60: true };
+const BASIC_PHONE: PlanPhone = { tier: 'basic', ambient: false, fps60: false };
+
 const show = (
   live: Partial<LiveCapture>,
   mode: 'quick' | 'full' = 'quick',
-  unlocks: ReturnType<typeof tierUnlocks> | null = null,
+  phone: PlanPhone = FULL_PHONE,
 ) => {
   const onCancel = jest.fn();
   const onStop = jest.fn();
@@ -40,7 +43,7 @@ const show = (
     <CaptureView
       mode={mode}
       live={{ ...base, ...live }}
-      unlocks={unlocks}
+      phone={phone}
       onCancel={onCancel}
       onStop={onStop}
     />,
@@ -125,7 +128,7 @@ describe('CaptureView', () => {
     };
 
     it('shows the Checking caption with every Full Scan check pending at 20 clean seconds', () => {
-      show({ cleanSeconds: 20 }, 'full', tierUnlocks('full'));
+      show({ cleanSeconds: 20 }, 'full');
       expect(screen.getAllByText(en['checks.checking'])[0]).toBeOnTheScreen();
       expect(item(en['checks.afib.name'])).toHaveAccessibleName(`AFib, ${en['checks.state.working']}`);
       expect(within(item(en['checks.afib.name'])).getByText(en['checks.state.working'])).toBeOnTheScreen();
@@ -133,7 +136,7 @@ describe('CaptureView', () => {
     });
 
     it('marks AFib and HRV ready at 60 clean seconds and Diabetes still checking', () => {
-      show({ cleanSeconds: 60 }, 'full', tierUnlocks('full'));
+      show({ cleanSeconds: 60 }, 'full');
       expect(item(en['checks.afib.name'])).toHaveAccessibleName(`AFib, ${en['checks.state.ready']}`);
       expect(item(en['checks.hrv.name'])).toHaveAccessibleName(`HRV, ${en['checks.state.ready']}`);
       expect(item(en['checks.diabetes.name'])).toHaveAccessibleName(
@@ -142,20 +145,20 @@ describe('CaptureView', () => {
     });
 
     it('tags a pending Diabetes Experimental from the evidence reader', () => {
-      show({ cleanSeconds: 20 }, 'full', tierUnlocks('full'));
+      show({ cleanSeconds: 20 }, 'full');
       const diabetes = within(item(en['checks.diabetes.name']));
       expect(diabetes.getByText(en['evidence.experimental'])).toBeOnTheScreen();
     });
 
     it('marks Diabetes ready at 90 clean seconds, still tagged Experimental', () => {
-      show({ cleanSeconds: 90 }, 'full', tierUnlocks('full'));
+      show({ cleanSeconds: 90 }, 'full');
       const diabetes = within(item(en['checks.diabetes.name']));
       expect(diabetes.getByText(en['checks.state.ready'])).toBeOnTheScreen();
       expect(diabetes.getByText(en['evidence.experimental'])).toBeOnTheScreen();
     });
 
     it('shows Diabetes as unavailable on a phone that cannot run it', () => {
-      show({ cleanSeconds: 90 }, 'full', tierUnlocks('basic'));
+      show({ cleanSeconds: 90 }, 'full', BASIC_PHONE);
       expect(item(en['checks.diabetes.name'])).toHaveAccessibleName(
         `Diabetes, ${en['checks.state.unavailable']}`,
       );
@@ -163,36 +166,35 @@ describe('CaptureView', () => {
     });
 
     it('shows POTS as a quiet cell that never lights and points to the Standing test', () => {
-      show({ cleanSeconds: 90 }, 'full', tierUnlocks('full'));
+      show({ cleanSeconds: 90 }, 'full');
       const pots = within(screen.getByLabelText(en['checks.pots.standingNote']));
       expect(pots.getByText(en['checks.state.off'])).toBeOnTheScreen();
       expect(pots.queryByText(en['checks.state.ready'])).toBeNull();
     });
 
-    it('lists every check in the Quick Check as not in this scan', () => {
-      show({ cleanSeconds: 45 }, 'quick', tierUnlocks('full'));
-      expect(item(en['checks.afib.name'])).toHaveAccessibleName(`AFib, ${en['checks.state.off']}`);
+    it('shows one line in the Quick Check instead of four Not in this scan rows', () => {
+      show({ cleanSeconds: 45 }, 'quick', FULL_PHONE);
+      expect(screen.getByText(en['checks.quickHeartRateOnly'])).toBeOnTheScreen();
+      expect(screen.getAllByText(en['checks.checking'])[0]).toBeOnTheScreen();
+      expect(screen.queryByText(en['checks.state.off'])).toBeNull();
       expect(screen.queryByText(en['checks.state.ready'])).toBeNull();
-      for (const name of ['HRV', 'Diabetes']) {
-        expect(item(name)).toHaveAccessibleName(`${name}, ${en['checks.state.off']}`);
-      }
-      expect(screen.getAllByText(en['checks.state.off'])).toHaveLength(4);
+      expect(screen.queryByLabelText(/^(AFib|HRV|Diabetes),/)).toBeNull();
     });
 
     it('greys a ready check while the coaching message is showing', () => {
-      show({ cleanSeconds: 60 }, 'full', tierUnlocks('full'));
+      show({ cleanSeconds: 60 }, 'full');
       const lit = afibColour();
       screen.unmount();
-      show({ cleanSeconds: 60, coachingKey: 'coach.lighter' }, 'full', tierUnlocks('full'));
+      show({ cleanSeconds: 60, coachingKey: 'coach.lighter' }, 'full');
       expect(screen.getByRole('alert')).toHaveTextContent(en['coach.lighter']);
       expect(afibColour()).not.toBe(lit);
     });
 
     it('changes only colour and icon between states, with no transform, opacity or transition', () => {
-      const pending = render(<CheckingRow items={checkingItems('full', 10, null)} />);
+      const pending = render(<CheckingRow items={checkingItems('full', 10, FULL_PHONE)} />);
       const pendingTree = JSON.stringify(pending.toJSON());
       pending.unmount();
-      const ready = render(<CheckingRow items={checkingItems('full', 90, null)} />);
+      const ready = render(<CheckingRow items={checkingItems('full', 90, FULL_PHONE)} />);
       const readyTree = JSON.stringify(ready.toJSON());
       expect(readyTree).not.toBe(pendingTree);
       for (const tree of [pendingTree, readyTree]) {
@@ -201,7 +203,7 @@ describe('CaptureView', () => {
     });
 
     it('keeps Stop in the screen footer, outside the scrolling content', () => {
-      show({ cleanSeconds: 10 }, 'full', tierUnlocks('full'));
+      show({ cleanSeconds: 10 }, 'full');
       const scroll = screen.UNSAFE_getByType(ScrollView);
       expect(within(scroll).queryByRole('button', { name: en['capture.stop'] })).toBeNull();
       expect(screen.getByRole('button', { name: en['capture.stop'] })).toBeOnTheScreen();

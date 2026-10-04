@@ -206,6 +206,13 @@ describe.each([
     expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
   });
 
+  it('does not ask again when Processing already asked for this reading, and asks for a later opening', () => {
+    renderRouter('./app', { initialUrl: '/results/demo-hr-flag?symptomsAsked=true' });
+    expect(screen.queryByText(en['safety.question'])).toBeNull();
+    act(() => router.push('/results/demo-flag'));
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+  });
+
   it('labels every fixture reading as demo data, and the irregular one as synthetic (§8.5)', () => {
     openResults('demo');
     expect(screen.getByText(en['demo.banner'])).toBeOnTheScreen();

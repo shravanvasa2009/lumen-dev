@@ -56,7 +56,13 @@ function sublineText(t: TFunction, reading: FixtureReading, anyFlag: boolean): s
   return null;
 }
 
-export function ReadingResults({ reading }: { reading: FixtureReading }) {
+export function ReadingResults({
+  reading,
+  symptomsAsked = false,
+}: {
+  reading: FixtureReading;
+  symptomsAsked?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { colors, radius, spacing } = useTheme();
@@ -71,7 +77,8 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   // criterion the estimate gets the quiet Experimental card (ADR 0082); with it and no flag, nothing is shown.
   const diabetesCard = diabetes?.flag === 'pattern' && evidenceFor('diabetes').measured ? diabetes : null;
   const anyFlag = acuteFlag || diabetesCard !== null;
-  const [sheetOpen, setSheetOpen] = useState(anyFlag);
+  // Processing already asked the question for this reading just now; a reading opened later asks again.
+  const [sheetOpen, setSheetOpen] = useState(anyFlag && !symptomsAsked);
 
   const subline = sublineText(t, reading, anyFlag);
   const when = t('results.dayAt', {

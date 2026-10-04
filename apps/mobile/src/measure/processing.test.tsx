@@ -1,6 +1,7 @@
 import type { InconclusiveOutcome, UrgentHeartRate } from '@lumen/core';
 import { renderHook } from '@testing-library/react-native';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { BackHandler } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -319,5 +320,67 @@ describe('urgent heart rates (SAFE-1, ADR 0076)', () => {
       expect(screen.queryByText(en['safety.question'])).toBeNull();
       expect(screen.getByText(en['processing.failed'])).toBeOnTheScreen();
     });
+  });
+});
+
+describe('leaving Processing during the analysis (SAFE-1)', () => {
+  let backHandlers: Parameters<typeof BackHandler.addEventListener>[1][];
+  const backPressEaten = () => backHandlers.some((handler) => handler(undefined as never) === true);
+
+  beforeEach(() => {
+    backHandlers = [];
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+      backHandlers.push(handler);
+      return { remove: () => (backHandlers = backHandlers.filter((other) => other !== handler)) };
+    });
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('eats the Android back press while the analysis runs', () => {
+    mockAnalysis = { phase: 'running', progress: midway };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(backPressEaten()).toBe(true);
+    expect(route.getPathname()).toBe('/measure/processing');
+  });
+
+  it('lets the back press through once the analysis has failed', () => {
+    mockAnalysis = { phase: 'failed', progress: midway, reason: 'disk full', urgent: null };
+    renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(backPressEaten()).toBe(false);
+  });
+
+  it('lets the back press through when there is nothing to analyse', () => {
+    mockAnalysis = { phase: 'unavailable' };
+    renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(backPressEaten()).toBe(false);
+  });
+});
+
+describe('the symptom question is asked once per reading', () => {
+  const finished: AnalysisProgress = {
+    ...midway,
+    steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
+  };
+
+  it('does not ask again on Results after No on Processing', () => {
+    mockAnalysis = {
+      phase: 'done',
+      progress: finished,
+      readingId: 'demo-hr-flag',
+      urgent: { fastSustained: false, slowBelow40: true },
+    };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    expect(route.getPathname()).toBe('/results/demo-hr-flag');
+    expect(screen.queryByText(en['safety.question'])).toBeNull();
+  });
+
+  it('passes nothing on when no question was asked, so Results asks for a flagged reading', () => {
+    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo-hr-flag', urgent: null };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(route.getPathname()).toBe('/results/demo-hr-flag');
+    expect(route.getSearchParams()).toEqual({ id: 'demo-hr-flag' });
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
   });
 });

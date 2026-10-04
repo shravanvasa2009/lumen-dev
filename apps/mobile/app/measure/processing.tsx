@@ -1,5 +1,6 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { BackHandler } from 'react-native';
 
 import { handOverInconclusive } from '@/measure/inconclusiveHandoff';
 import { parseMode } from '@/measure/mode';
@@ -17,6 +18,15 @@ export default function ProcessingScreen() {
   });
   const [symptomsAnswered, setSymptomsAnswered] = useState(false);
 
+  // SAFE-1: an urgent rate is only known once the analysis ends, and only this screen routes on it, so the
+  // screen cannot be left until then: no header back, no iOS swipe-back, and the Android back press is eaten.
+  const analysing = analysis.phase === 'running';
+  useEffect(() => {
+    if (!analysing) return;
+    const block = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => block.remove();
+  }, [analysing]);
+
   // SAFE-1 (ADR 0076): the urgent heart-rate flags win over the outcome kind, so a refused capture can still
   // open Emergency. A sustained fast rate goes straight there; a rate under 40 asks the symptom question first.
   const urgent =
@@ -32,11 +42,14 @@ export default function ProcessingScreen() {
   }, [emergencyNow, router]);
 
   const mayContinue = !emergencyNow && !askSymptoms;
+  const askedHere = urgent?.slowBelow40 === true && symptomsAnswered;
 
   const readingId = analysis.phase === 'done' ? analysis.readingId : null;
   useEffect(() => {
-    if (readingId !== null && mayContinue) router.replace(`/results/${readingId}`);
-  }, [readingId, mayContinue, router]);
+    if (readingId === null || !mayContinue) return;
+    // Results asks the same question for a flagged rate, so it is told this reading was already asked.
+    router.replace(askedHere ? `/results/${readingId}?symptomsAsked=true` : `/results/${readingId}`);
+  }, [readingId, mayContinue, askedHere, router]);
 
   const refused = analysis.phase === 'inconclusive';
   const outcome = analysis.phase === 'inconclusive' ? analysis.outcome : null;
@@ -48,6 +61,7 @@ export default function ProcessingScreen() {
 
   return (
     <>
+      <Stack.Screen options={{ headerBackVisible: !analysing, gestureEnabled: !analysing }} />
       <ProcessingView analysis={analysis} mode={mode} />
       <SafetySheet
         visible={askSymptoms}

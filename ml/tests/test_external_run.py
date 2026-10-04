@@ -8,6 +8,7 @@ from datasets.vitaldb_cases import holdout_case_path, load_split
 from eval import external
 from eval.external_gate import ExternalTestRefusedError
 from eval.external_mimic import DspNotMergedError
+from export.specs import SPECS
 from tests.external_fixtures import (
     THRESHOLDS,
     UNSCORED,
@@ -19,7 +20,8 @@ from tests.external_fixtures import (
     write_models,
 )
 
-ALL_MODELS = ["rhythm-lgbm@1.0.0", "rhythm-net@1.0.0", "sqi-finger@1.0.0", "diabetes-net@1.0.0"]
+ALL_MODELS = [SPECS[name].file_stem for name in ("rhythm-lgbm", "rhythm-net", "sqi-finger", "diabetes-net")]
+DIABETES = SPECS["diabetes-net"].file_stem
 
 
 @pytest.fixture(autouse=True)
@@ -124,7 +126,7 @@ def test_a_scorer_without_its_release_check_is_refused_before_the_start(setup, m
 
 def test_a_release_the_scorer_refuses_stops_before_the_ledger_records_a_start(setup, monkeypatch):
     approve(setup)
-    calls = install_fake_scorer(monkeypatch, release_problem="diabetes-net@1.0.0 has no fillMedians")
+    calls = install_fake_scorer(monkeypatch, release_problem=f"{DIABETES} has no fillMedians")
     with pytest.raises(ExternalTestRefusedError, match="no fillMedians"):
         run(setup, parts=("diabetes",))
     assert not setup["results_path"].exists()
@@ -186,7 +188,7 @@ def test_full_run_writes_what_m3_reads_then_refuses_a_second_run(setup, monkeypa
 
     rhythm = results["rhythm"]
     assert (rhythm["afSubjects"], rhythm["nonAfSubjects"]) == (2, 2)
-    assert rhythm["model"] == "rhythm-lgbm@1.0.0"
+    assert rhythm["model"] == SPECS["rhythm-lgbm"].file_stem
     assert rhythm["sensitivity"] == 1.0 and rhythm["specificity"] == 1.0
     assert rhythm["outcome"] == "shipped-meets-floor"
     # ADR 0031: Rhythm-Net is reported as the ablation and is never eligible for the ML-1 fallback.
@@ -228,9 +230,9 @@ def test_parts_run_separately_and_each_version_only_once(setup, monkeypatch):
     approve(setup)
     run(setup, parts=("diabetes",))
     results = run(setup, parts=("rhythm",))
-    assert {entry["model"] for entry in results["runs"]} == {"diabetes-net@1.0.0", *ALL_MODELS[:2]}
+    assert {entry["model"] for entry in results["runs"]} == {DIABETES, *ALL_MODELS[:2]}
     assert "diabetes" in results and "rhythm" in results and "sqi" not in results
-    with pytest.raises(ExternalTestRefusedError, match="diabetes-net@1.0.0 was already"):
+    with pytest.raises(ExternalTestRefusedError, match=f"{DIABETES} was already"):
         run(setup, parts=("diabetes",))
 
 

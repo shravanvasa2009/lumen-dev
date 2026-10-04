@@ -1,15 +1,15 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import i18n from 'i18next';
+import { Dimensions } from 'react-native';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
+import { evidenceFor } from '@/evidence';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import { startOnboarded } from '@/testing/onboarded';
-import { makeReading } from '@/testing/reading';
 
-import { LatestResultCard } from './LatestResultCard';
 import { MetricTile } from './MetricTile';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -22,9 +22,10 @@ fixClockAtMorning();
 preloadAppRoutes();
 
 describe('Home', () => {
+  let route: ReturnType<typeof renderRouter>;
   beforeEach(async () => {
     await startOnboarded();
-    renderRouter('./app', { initialUrl: '/' });
+    route = renderRouter('./app', { initialUrl: '/' });
     await screen.findByRole('header', { name: en['home.greetingMorning'] });
   });
 
@@ -40,18 +41,14 @@ describe('Home', () => {
   });
 
   it('shows empty states, not numbers, while no readings are stored', () => {
-    expect(screen.getByText(en['home.noReadings'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['home.noReadings'])).toHaveLength(3);
+    expect(screen.getByText(en['checks.status.potsNone'])).toBeOnTheScreen();
     expect(screen.getAllByText(en['home.noValue'])).toHaveLength(3);
     for (const key of ['home.restingHr', 'home.hrv', 'home.breathing'] as const)
-      expect(screen.getByText(en[key])).toBeOnTheScreen();
+      expect(screen.getAllByText(en[key]).length).toBeGreaterThan(0);
   });
 
   it.each([
-    [
-      'the latest result',
-      () => screen.getByRole('button', { name: new RegExp(`^${en['home.latestResult']}`) }),
-      'results.title',
-    ],
     ['follow-up', () => screen.getByRole('button', { name: en['home.followUp'] }), 'followUp.title'],
     [
       'a metric tile',
@@ -61,6 +58,39 @@ describe('Home', () => {
   ] as const)('reaches %s from Home', (_name, control, title) => {
     fireEvent.press(control());
     expect(screen.getByRole('header', { name: en[title] })).toBeOnTheScreen();
+  });
+
+  it('shows the four checks, each with a Scan button labelled by its name', () => {
+    for (const name of ['afib', 'hrv', 'diabetes', 'pots'] as const) {
+      const label = en[`checks.${name}.name`];
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+      expect(screen.getByRole('button', { name: `Scan for ${label}` })).toBeOnTheScreen();
+    }
+  });
+
+  it('takes the evidence badge of AFib, HRV and Diabetes from the evidence file, and none for POTS', () => {
+    const words = {
+      checked: en['evidence.checked'],
+      'public-data': en['evidence.publicData'],
+      experimental: en['evidence.experimental'],
+    };
+    const expected = (['rhythm', 'hrv', 'diabetes'] as const).map(
+      (metric) => words[evidenceFor(metric).label],
+    );
+    expect(screen.getAllByTestId('evidence-badge').map((badge) => badge.props.accessibilityLabel)).toEqual(
+      expected,
+    );
+  });
+
+  it.each([
+    ['AFib', '/measure/precheck'],
+    ['HRV', '/measure/precheck'],
+    ['Diabetes', '/measure/precheck'],
+    ['POTS', '/measure/standing-test'],
+  ])('starts the right check from the %s Scan button', (name, path) => {
+    fireEvent.press(screen.getByRole('button', { name: `Scan for ${name}` }));
+    expect(route.getPathname()).toBe(path);
+    if (path === '/measure/precheck') expect(route.getSearchParams()).toEqual({ mode: 'full' });
   });
 
   it('reaches the mode list from Change mode', () => {
@@ -79,6 +109,25 @@ describe('Home', () => {
   });
 });
 
+describe('Home on a 360 x 640 phone', () => {
+  const regular = Dimensions.get('window');
+  beforeEach(async () => {
+    Dimensions.set({ window: { width: 360, height: 640, scale: 3, fontScale: 1 } });
+    await startOnboarded();
+    renderRouter('./app', { initialUrl: '/' });
+    await screen.findByRole('header', { name: en['home.greetingMorning'] });
+  });
+  afterEach(() => Dimensions.set({ window: regular }));
+
+  it('drops the date line and keeps Measure, Change mode, four Scan buttons and the tiles', () => {
+    expect(screen.queryByText('Thursday, Oct 1')).toBeNull();
+    expect(screen.getByRole('button', { name: en['home.measure'] })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: en['home.changeMode'] })).toBeOnTheScreen();
+    expect(screen.getAllByRole('button', { name: /^Scan for / })).toHaveLength(4);
+    expect(screen.getByRole('button', { name: new RegExp(`^${en['home.restingHr']}:`) })).toBeOnTheScreen();
+  });
+});
+
 describe('Home in Spanish', () => {
   beforeAll(() => i18n.changeLanguage('es'));
   afterAll(() => i18n.changeLanguage('en'));
@@ -92,14 +141,6 @@ describe('Home in Spanish', () => {
 });
 
 describe('Home with stored readings', () => {
-  it('shows the newest reading and the rounded latest value on each tile', () => {
-    const now = new Date(2026, 9, 1, 9, 0);
-    const newest = makeReading(new Date(2026, 9, 1, 7, 42).getTime(), 64.4, 48.2);
-    renderRouter({ index: () => <LatestResultCard reading={newest} now={now} /> });
-    expect(screen.getByText('Today, 7:42 AM')).toBeOnTheScreen();
-    expect(screen.getByText('Regular rhythm, 64 bpm.')).toBeOnTheScreen();
-  });
-
   it('draws the latest value and a trend line on a tile', () => {
     renderRouter({ index: () => <MetricTile label="Resting HR" unit="bpm" points={[70, 66, 64.4]} /> });
     expect(screen.getByText('64')).toBeOnTheScreen();

@@ -1,10 +1,13 @@
 import { router } from 'expo-router';
+import { render } from '@testing-library/react-native';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 import { Dimensions, Linking, Platform, ScrollView, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { expectNavTitle, focusedNavHeader, sheetScreenProps } from '@/testing/navHeader';
 import { lockscreenStrings } from '@/i18n/lockscreen';
+import { LockCirclePreview, LockRectanglePreview } from '@/settings/WidgetPreviews';
+import { lockTextLines } from '@/settings/lockText';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { startOnboarded } from '@/testing/onboarded';
 import { setPreference } from '@/theme/preferences';
@@ -90,6 +93,26 @@ describe('Your phone', () => {
     fireEvent.press(screen.getByRole('button', { name: en['phoneRating.retest'] }));
     expect(screen.getByRole('header', { name: en['phoneCheck.title'] })).toBeOnTheScreen();
   });
+
+  it('holds the single re-test button in the not-tested card, above the measures', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/phone' });
+    expect(screen.getAllByRole('button', { name: en['phoneRating.retest'] })).toHaveLength(1);
+    expect(screen.getByText(en['phoneRating.notTestedBody'])).toBeOnTheScreen();
+    expect(screen.queryAllByTestId('rating-bar')).toHaveLength(0);
+    expect(screen.getByTestId('not-tested-tile')).toBeOnTheScreen();
+    expect(screen.getByText(en['phoneRating.tip'])).toBeOnTheScreen();
+  });
+
+  it('lists the four measures with a dash for each score and no bars until tested', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/phone' });
+    expect(screen.getByRole('header', { name: en['phoneRating.measures'] })).toBeOnTheScreen();
+    for (const key of ['frameRate', 'coupling', 'lock', 'timing'] as const) {
+      expect(screen.getByText(en[`phoneRating.${key}`])).toBeOnTheScreen();
+    }
+    for (const max of [30, 35, 15, 20]) {
+      expect(screen.getByText(`—/${max}`)).toBeOnTheScreen();
+    }
+  });
 });
 
 // __DEV__ is a constant to the compiler but a plain global at run time, so a test can switch it.
@@ -160,6 +183,10 @@ describe('Widget gallery', () => {
   const stepKeys = (prefix: string, count: number) =>
     Array.from({ length: count }, (_, index) => `${prefix}${index + 1}` as keyof typeof en);
 
+  const stepsToggleName = (steps: number) => en['widgets.stepsTitleCount'].replace('{{steps}}', String(steps));
+  const expandSteps = (steps?: number, name = stepsToggleName(steps ?? 0)) =>
+    fireEvent.press(screen.getByRole('button', { name }));
+
   it('on iPhone shows the home and lock-screen previews with their steps', () => {
     Platform.OS = 'ios';
     renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
@@ -169,6 +196,8 @@ describe('Widget gallery', () => {
     expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
     expect(screen.getByText('64')).toBeOnTheScreen();
     expect(screen.getByText(en['widgets.buttons'])).toBeOnTheScreen();
+    expandSteps(5);
+    expandSteps(undefined, en['widgets.stepsTitleLock']);
     for (const [prefix, count] of [
       ['widgets.iphoneHomeStep', 5],
       ['widgets.iphoneLockStep', 4],
@@ -191,6 +220,7 @@ describe('Widget gallery', () => {
     expect(screen.getByText(en['mode.full'])).toBeOnTheScreen();
     expect(screen.getByText('64')).toBeOnTheScreen();
     expect(screen.getByText(en['widgets.buttons'])).toBeOnTheScreen();
+    expandSteps(4);
     stepKeys('widgets.androidStep', 4).forEach((key, index) => {
       expect(screen.getByLabelText(`${index + 1}. ${en[key]}`)).toBeOnTheScreen();
     });
@@ -216,10 +246,41 @@ describe('Widget gallery', () => {
     expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
   });
 
-  it('on iPhone headings the two step lists differently', () => {
+  it('on iPhone titles the two step lists differently', () => {
     renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
-    expect(screen.getByRole('header', { name: en['widgets.stepsTitle'] })).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: en['widgets.stepsTitleLock'] })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: stepsToggleName(5) })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: en['widgets.stepsTitleLock'] })).toBeOnTheScreen();
+  });
+
+  it('keeps the How to add steps collapsed until the button is pressed, and says so', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    const toggle = () => screen.getByRole('button', { name: stepsToggleName(5) });
+    expect(toggle().props.accessibilityState).toEqual({ expanded: false });
+    expect(screen.queryByLabelText(`1. ${en['widgets.iphoneHomeStep1']}`)).toBeNull();
+    fireEvent.press(toggle());
+    expect(toggle().props.accessibilityState).toEqual({ expanded: true });
+    expect(screen.getByLabelText(`1. ${en['widgets.iphoneHomeStep1']}`)).toBeOnTheScreen();
+    fireEvent.press(toggle());
+    expect(screen.queryByLabelText(`1. ${en['widgets.iphoneHomeStep1']}`)).toBeNull();
+  });
+
+  it('shows the short how-to beside the small widget', () => {
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.getByText(en['widgets.howToLead'])).toBeOnTheScreen();
+    expect(screen.getByText(en['widgets.buttons'])).toBeOnTheScreen();
+  });
+
+  it.each(['en', 'es'])('draws only the %s lock-screen words and no health values on the lock previews', (language) => {
+    const lock = lockscreenStrings(language);
+    const lines = lockTextLines(lock['widget.lock.checkAgain']);
+    render(
+      <>
+        <LockCirclePreview />
+        <LockRectanglePreview name={lines.name} status={lines.status} />
+      </>,
+    );
+    expect(screen.queryAllByText(/\S/).map((node) => node.props.children)).toEqual([lines.name, lines.status]);
+    expect(screen.queryAllByText(/\d|bpm|AFib|PSVT|POTS|diabet/i)).toHaveLength(0);
   });
 
   it('opens the lock-screen previews', () => {

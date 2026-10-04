@@ -14,6 +14,7 @@ import { lockTextLines } from '@/settings/lockText';
 import { saveReading } from '@/store/readings';
 import { setPreference } from '@/theme/preferences';
 
+import * as evidence from '@/evidence';
 import { LumenWidgets } from '../../modules/lumen-widgets/src';
 import { publishWidgets } from './publish';
 import type { WidgetSnapshot, WidgetStatus } from './snapshot';
@@ -72,6 +73,31 @@ beforeEach(() => {
   emptyMockDatabases();
   memoryFiles.clear();
   publishSnapshot().mockClear();
+});
+
+function publishedDisplay(): { checks: string[]; diabetesTag: string | null } {
+  const calls = publishSnapshot().mock.calls;
+  return JSON.parse(calls[calls.length - 1]![1]);
+}
+
+describe('the four checks on the medium widget', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('names AFib, POTS, HRV and Diabetes in the app language', async () => {
+    await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
+    expect(publishedDisplay().checks).toEqual(['AFib', 'POTS', 'HRV', 'Diabetes']);
+  });
+
+  // EVID-1: the tag is the evidence label's word, never written into the widget.
+  it.each([
+    ['experimental', 'Experimental'],
+    ['checked', null],
+  ] as const)('tags Diabetes only while its evidence label is Experimental (%s)', async (label, tag) => {
+    const real = evidence.evidenceFor('diabetes');
+    jest.spyOn(evidence, 'evidenceFor').mockReturnValue({ ...real, label });
+    await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
+    expect(publishedDisplay().diabetesTag).toBe(tag);
+  });
 });
 
 describe('publishing the widgets', () => {
@@ -143,7 +169,7 @@ type PublishedDisplay = {
   nextCheck: string;
 };
 
-async function publishedDisplay(language: string): Promise<PublishedDisplay> {
+async function publishedLockDisplay(language: string): Promise<PublishedDisplay> {
   await i18next.changeLanguage(language);
   await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
   const calls = publishSnapshot().mock.calls;
@@ -165,7 +191,7 @@ describe('the lock-screen copy the widgets receive (WID-1, WID-2)', () => {
   afterAll(() => i18next.changeLanguage('en'));
 
   it.each(['en', 'es'])('builds the name and statuses only from lockscreen.json (%s)', async (language) => {
-    const display = await publishedDisplay(language);
+    const display = await publishedLockDisplay(language);
     const screened = screenedParts(language);
     for (const part of [display.name, ...STATUSES.map((status) => display.status[status])]) {
       expect({ part, screened: screened.has(part) }).toEqual({ part, screened: true });
@@ -173,7 +199,7 @@ describe('the lock-screen copy the widgets receive (WID-1, WID-2)', () => {
   });
 
   it.each(['en', 'es'])('says the same thing inline as on the rectangular widget (%s)', async (language) => {
-    const display = await publishedDisplay(language);
+    const display = await publishedLockDisplay(language);
     for (const status of STATUSES) {
       expect({ status, lines: lockTextLines(display.inline[status]) }).toEqual({
         status,
@@ -183,7 +209,7 @@ describe('the lock-screen copy the widgets receive (WID-1, WID-2)', () => {
   });
 
   it('passes the next-check template and the language through for Swift to fill in', async () => {
-    const display = await publishedDisplay('es');
+    const display = await publishedLockDisplay('es');
     expect(display.nextCheck).toBe(lockscreenStrings('es')['widget.lock.nextCheck']);
     expect(display.nextCheck).toContain('{{time}}');
     expect(display.language).toBe('es');

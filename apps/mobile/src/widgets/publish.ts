@@ -1,5 +1,6 @@
 import i18next from 'i18next';
 
+import { evidenceFor } from '@/evidence';
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { loadScheduleRecord } from '@/notifications/record';
 import { followUpAnsweredAt } from '@/profile/followUp';
@@ -16,7 +17,8 @@ type WidgetPreferences = { appearance: Appearance; hideWidgetValues: boolean };
 type Palette = Record<(typeof PALETTE_KEYS)[number], string>;
 
 // The token colors the native widgets draw with, so tokens.json stays their only source. accent tints the mark
-// and the up-to-date dot; flag and criticalText color the check-again and see-doctor dots.
+// and the up-to-date dot; flag and criticalText color the check-again and see-doctor dots; the badge pair colors
+// the Diabetes Experimental tag.
 export const PALETTE_KEYS = [
   'surface',
   'line',
@@ -28,6 +30,8 @@ export const PALETTE_KEYS = [
   'onAccentFill',
   'flag',
   'criticalText',
+  'badgeExperimentalFg',
+  'badgeExperimentalBg',
 ] as const;
 
 function paletteOf(colors: typeof tokens.light): Palette {
@@ -73,6 +77,16 @@ function widgetDisplay(language: string) {
     checkNow: t('widgets.checkNow'),
     fullScan: t('mode.full'),
     empty: { title: lock['widget.empty.title'], body: lock['widget.empty.body'] },
+    // The four checks the medium widget lists (owner, 2026-10-03, proposal A; ADR 0083). Home screen only: the lock
+    // screen and notifications never name a condition (WID-2). The Diabetes tag is the evidence label's word
+    // (EVID-1), shown only while that label is Experimental.
+    checks: [
+      t('widgets.checkAfib'),
+      t('widgets.checkPots'),
+      t('widgets.checkHrv'),
+      t('widgets.checkDiabetes'),
+    ],
+    diabetesTag: evidenceFor('diabetes').label === 'experimental' ? t('evidence.experimental') : null,
     palette: { light: paletteOf(tokens.light), dark: paletteOf(tokens.dark) },
   };
 }

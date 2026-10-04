@@ -3,10 +3,15 @@ export type StepState = 'done' | 'active' | 'pending';
 
 // What the analysis reports about itself: the state of each step, and the beat counts once the beats
 // are cleaned. The counts are null until then; nothing here is estimated.
+// `outputs` says which checks produced a real result. It stays null until the reading is built, so a check
+// is never shown as ready from a step that merely finished.
+export type CheckOutputs = { afib: boolean; hrv: boolean; diabetes: boolean };
+
 export type AnalysisProgress = {
   steps: Record<AnalysisStepId, StepState>;
   beats: number | null;
   rejectedBeats: number | null;
+  outputs: CheckOutputs | null;
 };
 
 export const STEP_ORDER: readonly AnalysisStepId[] = ['beats', 'rhythm', 'breathing', 'baseline'];
@@ -15,6 +20,7 @@ export const pendingProgress: AnalysisProgress = {
   steps: { beats: 'pending', rhythm: 'pending', breathing: 'pending', baseline: 'pending' },
   beats: null,
   rejectedBeats: null,
+  outputs: null,
 };
 
 // The ring shows how many of the steps have finished, so it only moves when the analysis does.

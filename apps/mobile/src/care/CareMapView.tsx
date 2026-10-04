@@ -27,9 +27,12 @@ const LOADING_TIMEOUT_MS = 20_000;
 const LEGEND_PIN_BOX = 16;
 const LEGEND_PIN_SCALE = 0.55;
 
-type PinProps = { shape: 'clinic' | 'doctor' | 'you' };
+type PinProps = { shape: 'clinic' | 'regular' | 'doctor' | 'you' };
 
-// Clinic: filled teal disc with a cross. Doctor: blue ring with a dot. You: small ringed dot.
+// Low-cost clinic: filled teal disc with a cross. Regular clinic: dark rounded square with a light cross, so
+// shape and color both differ (not color alone). Doctor: blue ring with a dot. You: small ringed dot. The
+// regular pin uses the plot-panel pair, which is the same in both themes, because the map style is light in
+// both themes (ADR 0054).
 function Pin({ shape }: PinProps) {
   const { colors } = useTheme();
   if (shape === 'you') {
@@ -58,21 +61,31 @@ function Pin({ shape }: PinProps) {
       </View>
     );
   }
+  const regular = shape === 'regular';
+  const cross = regular ? colors.onPlot : colors.onAccentFill;
   return (
     <View
+      testID={`care-pin-${shape}`}
       style={[
         styles.pin,
-        { backgroundColor: colors.accentFill, borderColor: colors.surface, borderWidth: 2 },
+        regular
+          ? {
+              backgroundColor: colors.plotPanel,
+              borderColor: colors.surface,
+              borderWidth: 2,
+              borderRadius: 7,
+            }
+          : { backgroundColor: colors.accentFill, borderColor: colors.surface, borderWidth: 2 },
       ]}
     >
-      <View style={{ width: 14, height: 4, borderRadius: 2, backgroundColor: colors.onAccentFill }} />
+      <View style={{ width: 14, height: 4, borderRadius: 2, backgroundColor: cross }} />
       <View
         style={{
           position: 'absolute',
           width: 4,
           height: 14,
           borderRadius: 2,
-          backgroundColor: colors.onAccentFill,
+          backgroundColor: cross,
         }}
       />
     </View>
@@ -162,6 +175,9 @@ export function CareMapView({
   const mapHeight = Math.min(MAP_MAX_HEIGHT, Math.round(windowHeight * MAP_WINDOW_SHARE));
   const legend: LegendEntry[] = [
     { shape: 'clinic', label: t('careMap.legendClinic') },
+    ...(clinics.some((clinic) => clinic.kind === 'regular')
+      ? [{ shape: 'regular' as const, label: t('careMap.legendRegular') }]
+      : []),
     ...(doctors.length > 0 ? [{ shape: 'doctor' as const, label: t('careMap.legendDoctor') }] : []),
     ...(you ? [{ shape: 'you' as const, label: t('careMap.legendYou') }] : []),
   ];
@@ -221,7 +237,7 @@ export function CareMapView({
             }}
           >
             <View style={{ opacity: selectedId === null || selectedId === clinic.id ? 1 : 0.6 }}>
-              <Pin shape="clinic" />
+              <Pin shape={clinic.kind === 'regular' ? 'regular' : 'clinic'} />
             </View>
           </Marker>
         ))}

@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
+import { checkCell, planPhone } from '@/checks/checkPlan';
 import en from '@/i18n/en.json';
 import { type KeptCapture, keepCapture } from '@/measure/keptCapture';
 import { resyncNotifications } from '@/settings/applyPrefs';
@@ -139,6 +140,9 @@ describe('the rating from the probe and practice', () => {
     expect(screen.getByText(en['tier.full'])).toBeOnTheScreen();
     expect(screen.getByText(en['ratingMode.deepHrv'])).toBeOnTheScreen();
     expect(screen.getByText(en['ratingMode.fullScan'])).toBeOnTheScreen();
+    expect(screen.getByText(en['rating.checksHere'])).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['checks.diabetes.name']}: ${en['checks.diabetes.what']}`)).toBeOnTheScreen();
+    expect(screen.queryByText(en['mode.locked60fps'])).toBeNull();
 
     const stored = await loadDeviceRating();
     expect(stored).toMatchObject({
@@ -167,6 +171,8 @@ describe('the rating from the probe and practice', () => {
     expect(screen.getByText('20/20')).toBeOnTheScreen();
     expect(screen.queryByText(en['phoneRating.notTested'])).toBeNull();
     expect(screen.getByLabelText('94, Full')).toBeOnTheScreen();
+    expect(screen.getAllByTestId('rating-bar')).toHaveLength(4);
+    expect(screen.queryByTestId('not-tested-tile')).toBeNull();
   });
 
   it('says the phone is not rated yet when neither the probe nor a stored rating gives one', async () => {
@@ -225,6 +231,8 @@ describe('the rating from the probe and practice', () => {
     jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText('84')).toBeOnTheScreen();
     expect(screen.getByText(en['tier.basic'])).toBeOnTheScreen();
+    // Basic phones keep AFib and POTS but lock HRV and Diabetes.
+    expect(screen.getAllByText(en['mode.locked60fps'])).toHaveLength(2);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('not in the probe'));
     warn.mockRestore();
   });
@@ -321,10 +329,42 @@ describe('mode picker gating', () => {
     expect(screen.queryByText(en['mode.locked60fps'])).toBeNull();
   });
 
+  it('gives every locked check on a flash-less Limited phone the flash reason', async () => {
+    await storeRating(noFlashPhone, { ...practiceOf(60), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
+    expect((await loadDeviceRating())?.tier).toBe('limited');
+    renderRouter('./app', { initialUrl: '/rating' });
+    for (const name of ['checks.hrv.name', 'checks.diabetes.name', 'checks.pots.name', 'checks.afib.name'] as const) {
+      expect(await screen.findByLabelText(`${en[name]}: ${en['mode.lockedFlash']}`)).toBeOnTheScreen();
+    }
+  });
+
+  it('opens POTS on a Basic phone and gives HRV and Diabetes the 60 fps reason', async () => {
+    await storeRating(thirtyFpsPhone, practiceOf(30));
+    renderRouter('./app', { initialUrl: '/rating' });
+    expect(await screen.findByLabelText(`${en['checks.pots.name']}: ${en['checks.pots.whatShort']}`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['checks.afib.name']}: ${en['checks.afib.what']}`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['checks.hrv.name']}: ${en['mode.locked60fps']}`)).toBeOnTheScreen();
+  });
+
   it('gives a flash-less Limited phone the flash reason on every locked mode', async () => {
     await storeRating(noFlashPhone, { ...practiceOf(60), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
     renderRouter('./app', { initialUrl: '/measure/mode' });
     expect(await screen.findAllByText(en['mode.lockedFlash'])).toHaveLength(3);
+  });
+
+  it('shows a flash-less phone at 30 fps the same reason as the checks table (flash, not the frame rate)', async () => {
+    const slowNoFlash: Capabilities = {
+      ...noFlashPhone,
+      rearLenses: [{ id: 'main', kind: 'wide', maxFps: 30, torchUsable: false }],
+    };
+    await storeRating(slowNoFlash, { ...practiceOf(30), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
+    const stored = await loadDeviceRating();
+    expect(stored?.ambient).toBe(true);
+    const cell = checkCell('deep', 'hrv', planPhone(stored));
+    expect(cell).toEqual({ state: 'locked', why: 'flash' });
+    renderRouter('./app', { initialUrl: '/measure/mode' });
+    expect(await screen.findAllByText(en['mode.lockedFlash'])).toHaveLength(3);
+    expect(screen.queryByText(en['mode.locked60fps'])).toBeNull();
   });
 
   it('leaves a flash-less Limited phone with Quick Check only, and still lists the other modes', async () => {

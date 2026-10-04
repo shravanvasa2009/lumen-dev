@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Spec 12.5 / mockup 32. 30 minutes is the shortest refresh Android allows; it keeps "Last check" current. -->
+<!-- Spec 12.5 / mockup 32. The picker shows previewLayout and description on Android 12 to 14; on 15+ it shows the
+     generated preview (LumenWidgets.kt providePreview) and the description:
+     https://developer.android.com/develop/ui/views/appwidgets/enhance
+     30 minutes is the shortest refresh Android allows; it keeps "Last check" current. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="110dp"
@@ -8,4 +11,6 @@
     android:resizeMode="none"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/glance_default_loading_layout"
-    android:widgetCategory="home_screen" />
+    android:widgetCategory="home_screen"
+    android:description="@string/lumen_widget_medium_description"
+    android:previewLayout="@layout/lumen_widget_preview_medium" />

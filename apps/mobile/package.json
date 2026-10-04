@@ -8,6 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "build:clinics": "node scripts/build-clinics.mjs",
+    "build:clinics-osm": "node scripts/build-regular-clinics.mjs",
     "test": "jest --passWithNoTests",
     "test:routes": "jest src/routes.test.tsx",
     "test:evidence": "jest src/evidence",

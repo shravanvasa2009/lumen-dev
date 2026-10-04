@@ -33,6 +33,7 @@ const finishedProgress = {
   steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
   beats: 90,
   rejectedBeats: 2,
+  outputs: null,
 } as const;
 
 function analysedReading(): AnalysedReading {
@@ -59,8 +60,9 @@ function analysedReading(): AnalysedReading {
 const newCapture = (): KeptCapture => ({
   captureFps: 60,
   lensId: null,
-  samples: [],
-  stats: [],
+  // Two finite frames: fewer is refused before the mocked analysis runs.
+  samples: [1e12, 1e12 + 1e7].map((tNs) => ({ tNs, r: 0.7, g: 0.1, b: 0.1 })),
+  stats: [1e12, 1e12 + 1e7].map((tNs) => ({ tNs, spatialStdR: 0.02, clipFrac: 0, exposureNs: 8e6 })),
   motionSpans: [],
   coldHandsSpans: [],
   sqi: null,

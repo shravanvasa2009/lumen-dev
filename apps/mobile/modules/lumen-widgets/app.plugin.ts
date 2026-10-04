@@ -3,6 +3,7 @@ import {
   createRunOncePlugin,
   withAndroidManifest,
   withInfoPlist,
+  withStringsXml,
   type ConfigPlugin,
 } from 'expo/config-plugins';
 
@@ -51,11 +52,22 @@ const withWidgetInfoPlist: ConfigPlugin = (config) =>
     return plistConfig;
   });
 
+// The picker's medium preview names the app beside the mark. A library layout can't reach the app's label, so the
+// module ships an empty lumen_widget_preview_name and the app's strings.xml overrides it with the app's name, which
+// keeps a rename in one place (spec §2).
 const withLumenWidgetsOnce: ConfigPlugin = (config) => {
-  config = withWidgetInfoPlist(config);
-  return withAndroidManifest(config, (manifestConfig) => {
+  const withReceivers = withAndroidManifest(withWidgetInfoPlist(config), (manifestConfig) => {
     manifestConfig.modResults = addWidgetReceivers(manifestConfig.modResults);
     return manifestConfig;
+  });
+  return withStringsXml(withReceivers, (stringsConfig) => {
+    const name = AndroidConfig.Resources.buildResourceItem({
+      name: 'lumen_widget_preview_name',
+      value: stringsConfig.name,
+      translatable: false,
+    });
+    stringsConfig.modResults = AndroidConfig.Strings.setStringItem([name], stringsConfig.modResults);
+    return stringsConfig;
   });
 };
 

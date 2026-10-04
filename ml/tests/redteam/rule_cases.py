@@ -3,6 +3,7 @@ import math
 from decimal import Decimal, localcontext
 from pathlib import Path
 
+from lumen_dsp.rhythm import RHYTHM_FEATURE_NAMES
 from lumen_dsp.rhythm_rule import RULE_METHOD
 
 # Adversarial inputs for the §11.1 logistic rule, shared with packages/core/test/redteam/rhythm-rule.test.ts
@@ -18,6 +19,9 @@ FIXTURE_RULE_PATH = REPO / "packages" / "core" / "test" / "fixtures" / "rhythm-l
 
 TOY_FEATURES = 4
 DSP15_FEATURES = 8
+# Core's full width since ADR 0079: the 8 DSP-15 features then the 7 rhythm v2 features.
+CORE_FEATURES = len(RHYTHM_FEATURE_NAMES)
+V2_FEATURES = CORE_FEATURES - DSP15_FEATURES
 LARGEST_SAFE_INTEGER = 2**53
 # Logits [0, ln 2, ln 3] -> [1, 2, 3] / 6; features 1 and 3 are not read.
 HAND_WINDOW = [math.log(2), 99.0, math.log(3), -99.0]
@@ -223,6 +227,70 @@ def cases():
             "every logit overflows to −∞",
             toy_rule(coefficients=[[1.0, 0.0]] * 3, intercepts=[-1.7e308] * 3),
             [[-1.7e308, 0.0, 0.0, 0.0]],
+        ),
+        *width_cases(),
+    ]
+
+
+def width_cases():
+    # ADR 0079: rules ship 15 wide, and a v1 (8-wide) entry reads the prefix of core's 15-wide vector.
+    fixture = fixture_rule()
+    at_mean = [*fixture["mean"], 0.0, 0.0, 0.0, 0.0, 0.0]
+    v2_extremes = [1e308 * (-1) ** k for k in range(V2_FEATURES)]
+    v2_reader = toy_rule(features=["medianAbsDiffNorm", "rrLag2Autocorr"], featureIndices=[8, 14])
+    return [
+        probs_case(
+            "fixture rule at its shipped width 15, features alternating ±1e300",
+            fixture,
+            [[1e300 * (-1) ** k for k in range(CORE_FEATURES)]],
+            CORE_FEATURES,
+        ),
+        probs_case(
+            "fixture rule at width 15, v1 columns at the mean, v2 columns ±1e308",
+            fixture,
+            [[*at_mean, *v2_extremes]],
+            CORE_FEATURES,
+        ),
+        probs_case(
+            "v1 entry (8 wide) reads the prefix of a 15-wide vector with v2 columns ±1e308",
+            fixture,
+            [[*at_mean, *v2_extremes]],
+            DSP15_FEATURES,
+        ),
+        probs_case(
+            "v1 entry (8 wide) scores an 8-wide and a 15-wide window in one call",
+            fixture,
+            [[1.0] * DSP15_FEATURES, [1.0] * DSP15_FEATURES + [-5.0] * V2_FEATURES],
+            DSP15_FEATURES,
+        ),
+        probs_case(
+            "a rule that reads only v2 columns 8 and 14",
+            v2_reader,
+            [[99.0] * DSP15_FEATURES + [0.7, 0, 0, 0, 0, 0, 1.3]],
+            CORE_FEATURES,
+        ),
+        refuse_case(
+            "a v1 entry (8 wide) indexing v2 column 8",
+            toy_rule(featureIndices=[0, 8]),
+            [[0.0] * CORE_FEATURES],
+            DSP15_FEATURES,
+        ),
+        refuse_case(
+            "index 15 at width 15", toy_rule(featureIndices=[0, 15]), [[0.0] * CORE_FEATURES], CORE_FEATURES
+        ),
+        refuse_case("an entry wider than core (16)", toy_rule(), [[0.0] * 16], CORE_FEATURES + 1),
+        refuse_case("an 8-wide vector for a 15-wide entry", fixture, [[0.0] * DSP15_FEATURES], CORE_FEATURES),
+        refuse_case("a 9-wide vector for a v1 entry", fixture, [[0.0] * 9], DSP15_FEATURES),
+        refuse_case("a 14-wide vector for a v1 entry", fixture, [[0.0] * 14], DSP15_FEATURES),
+        refuse_case("a 16-wide vector for a 15-wide entry", fixture, [[0.0] * 16], CORE_FEATURES),
+        refuse_case(
+            "a 15-wide window then a 9-wide one for a v1 entry",
+            fixture,
+            [[0.0] * CORE_FEATURES, [0.0] * 9],
+            DSP15_FEATURES,
+        ),
+        finite_or_refuse_case(
+            "fixture rule at width 15, every feature 1e308", fixture, [[1e308] * CORE_FEATURES], CORE_FEATURES
         ),
     ]
 

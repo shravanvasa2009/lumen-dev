@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { RouteShell } from '@/components/RouteShell';
+import { LessonTemplateView } from '@/learn/LessonTemplateView';
 import { lessons } from '@/learn/lessons';
-import { RhythmFigures } from '@/learn/RhythmFigures';
 
 export default function LessonScreen() {
   const { t } = useTranslation();
@@ -19,10 +19,7 @@ export default function LessonScreen() {
           <AppText tone="textDim">{lesson.illustration(t)}</AppText>
         </Card>
       ) : null}
-      {lesson.body(t).map((paragraph) => (
-        <AppText key={paragraph}>{paragraph}</AppText>
-      ))}
-      {lesson.showsRhythmFigures ? <RhythmFigures /> : null}
+      <LessonTemplateView lesson={lesson} template={lesson.template} />
     </RouteShell>
   );
 }

@@ -24,6 +24,9 @@ import { useCareLocation } from './useCareLocation';
 type DoctorNotice = 'searchBusy' | 'searchFailed' | 'mapsFailed';
 type SearchedPlace = { coordinates: Coordinates; label: string };
 
+// ODbL 4.3 asks for this notice wherever the regular clinics are shown (ADR 0078).
+const OSM_COPYRIGHT_URL = 'https://www.openstreetmap.org/copyright';
+
 // Five digits is a whole ZIP code, so the map moves without waiting for Search.
 const COMPLETE_ZIP = /^\d{5}$/;
 
@@ -223,6 +226,14 @@ export function CareMapScreen() {
               ))}
               <AppText variant="caption" tone="textDim">
                 {t('careMap.source')}
+              </AppText>
+              <AppText
+                variant="caption"
+                tone="textDim"
+                accessibilityRole="link"
+                onPress={() => void opensOk(OSM_COPYRIGHT_URL)}
+              >
+                {t('careMap.sourceOsm')}
               </AppText>
             </>
           ) : null}

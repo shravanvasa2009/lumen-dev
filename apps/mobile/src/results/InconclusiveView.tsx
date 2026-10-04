@@ -3,11 +3,12 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Pressable, View } from 'react-native';
 
+import type { InconclusiveOutcome, LostCause } from '@lumen/core';
+
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
-import type { InconclusiveOutcome, LostCause } from '@lumen/core';
 
 import { dominantCause, type FixCause } from '@/fix/causes';
 import type { MeasureMode } from '@/measure/mode';
@@ -62,7 +63,9 @@ export function InconclusiveView({ reading, outcome, mode }: InconclusiveViewPro
   const lost = outcome?.lostSeconds ?? reading?.scan.lostSeconds ?? null;
   const cause: FixCause | null = outcome ? (outcome.causes[0] ?? null) : lost ? dominantCause(lost) : null;
   const tips = tipsFor(t, outcome?.causes ?? []);
-  const seconds = outcome?.cleanSeconds ?? reading?.scan.cleanSeconds ?? null;
+  // Whole seconds, as the capture screen counts them; core's count is fractional.
+  const measured = outcome?.cleanSeconds ?? reading?.scan.cleanSeconds ?? null;
+  const seconds = measured === null ? null : Math.floor(measured);
   const biggest = outcome ? (outcome.causes[0] ?? null) : cause;
   const fixHref = `/measure/fix-technique?mode=${mode}${cause ? `&cause=${cause}` : ''}` as const;
   return (

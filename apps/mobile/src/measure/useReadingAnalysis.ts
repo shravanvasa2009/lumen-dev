@@ -48,6 +48,7 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
     tracker.latest = progress;
     for (const listener of tracker.listeners) listener(progress);
   }).then(async (analysed): Promise<Finished> => {
+    // Only a refusal has a kind; an analysed reading is told apart by lacking one.
     if ('kind' in analysed) return { kind: 'inconclusive', outcome: analysed };
     const { readingId, recordedMs, context, models, reading, progress } = analysed;
     // §8.5: a Demo reading is shown from memory and never reaches the readings table.

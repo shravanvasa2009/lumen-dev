@@ -53,7 +53,7 @@ export function LostTime({ lost }: { lost: LostSeconds | null }) {
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: shades[cause] }} />
             <AppText variant="caption" tone="textDim">
               {lost
-                ? t('inconclusive.rowSeconds', { label: names[cause], seconds: secondsLost(lost, cause) })
+                ? t('inconclusive.rowSeconds', { label: names[cause], seconds: Math.round(secondsLost(lost, cause)) })
                 : names[cause]}
             </AppText>
           </View>

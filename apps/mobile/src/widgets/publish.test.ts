@@ -1,20 +1,23 @@
 import { waitFor } from '@testing-library/react-native';
+import i18next from 'i18next';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import '@/i18n';
+import { lockscreenStrings } from '@/i18n/lockscreen';
 import { memoryFiles, mockFileSystem } from '@/testing/memoryFiles';
 import { makeReading } from '@/testing/reading';
 import type { PlannedNotification } from '@/notifications/plan';
 import { saveScheduleRecord } from '@/notifications/record';
 import { type FollowUpAnswer, saveFollowUpAnswer } from '@/profile/followUp';
 import type { MeasureMode } from '@/measure/mode';
+import { lockTextLines } from '@/settings/lockText';
 import { saveReading } from '@/store/readings';
 import { setPreference } from '@/theme/preferences';
 
 import * as evidence from '@/evidence';
 import { LumenWidgets } from '../../modules/lumen-widgets/src';
 import { publishWidgets } from './publish';
-import type { WidgetSnapshot } from './snapshot';
+import type { WidgetSnapshot, WidgetStatus } from './snapshot';
 
 jest.mock('expo-file-system', () => mockFileSystem);
 jest.mock('../../modules/lumen-widgets/src', () => ({
@@ -153,5 +156,62 @@ describe('publishing the widgets', () => {
     setPreference('appearance', 'system');
     await waitFor(() => expect(publishSnapshot()).toHaveBeenCalledTimes(2));
     warn.mockRestore();
+  });
+});
+
+const STATUSES: WidgetStatus[] = ['regular', 'check-again', 'see-doctor', 'inconclusive'];
+
+type PublishedDisplay = {
+  language: string;
+  name: string;
+  status: Record<WidgetStatus, string>;
+  inline: Record<WidgetStatus, string>;
+  nextCheck: string;
+};
+
+async function publishedLockDisplay(language: string): Promise<PublishedDisplay> {
+  await i18next.changeLanguage(language);
+  await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
+  const calls = publishSnapshot().mock.calls;
+  return JSON.parse(calls[calls.length - 1]![1]) as PublishedDisplay;
+}
+
+// A lock-screen part is a whole lockscreen.json string or one side of a "Lumen · Status" string, so
+// check-notification-copy.mjs has already screened it (WID-2).
+function screenedParts(language: string): Set<string> {
+  return new Set(
+    Object.values(lockscreenStrings(language)).flatMap((text) => {
+      const { name, status } = lockTextLines(text);
+      return [text, name, status];
+    }),
+  );
+}
+
+describe('the lock-screen copy the widgets receive (WID-1, WID-2)', () => {
+  afterAll(() => i18next.changeLanguage('en'));
+
+  it.each(['en', 'es'])('builds the name and statuses only from lockscreen.json (%s)', async (language) => {
+    const display = await publishedLockDisplay(language);
+    const screened = screenedParts(language);
+    for (const part of [display.name, ...STATUSES.map((status) => display.status[status])]) {
+      expect({ part, screened: screened.has(part) }).toEqual({ part, screened: true });
+    }
+  });
+
+  it.each(['en', 'es'])('says the same thing inline as on the rectangular widget (%s)', async (language) => {
+    const display = await publishedLockDisplay(language);
+    for (const status of STATUSES) {
+      expect({ status, lines: lockTextLines(display.inline[status]) }).toEqual({
+        status,
+        lines: { name: display.name, status: display.status[status] },
+      });
+    }
+  });
+
+  it('passes the next-check template and the language through for Swift to fill in', async () => {
+    const display = await publishedLockDisplay('es');
+    expect(display.nextCheck).toBe(lockscreenStrings('es')['widget.lock.nextCheck']);
+    expect(display.nextCheck).toContain('{{time}}');
+    expect(display.language).toBe('es');
   });
 });

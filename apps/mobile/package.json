@@ -16,6 +16,7 @@
     "test:widgets": "jest src/widgets"
   },
   "dependencies": {
+    "@bacons/apple-targets": "5.0.0",
     "@lumen/core": "0.1.0",
     "@maplibre/maplibre-react-native": "11.4.1",
     "expo": "57.0.26",

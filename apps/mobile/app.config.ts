@@ -34,6 +34,10 @@ if (personalTeam) {
     iosSigning.appleTeamId = teamId;
   }
 }
+// The app and its widget extension share the widget snapshot through this App Group (ADR 0005). It follows
+// the bundle ID, so a personal-team build gets its own group. @bacons/apple-targets copies it to the widget
+// target (targets/widget), and the lumen-widgets plugin writes it into Info.plist for the Swift code.
+const appGroup = `group.${iosSigning.bundleIdentifier}`;
 const capturePlugin = './modules/lumen-capture/app.plugin';
 // Lab mode's chest-strap reference (spec §9.5, ADR 0039). The H10 is found by its Heart Rate service, not by
 // location, and is only used in the foreground.
@@ -72,7 +76,12 @@ const config: ExpoConfig = {
   owner: 'lumen-capp-team',
   version: '0.1.0',
   orientation: 'portrait',
-  ios: { ...brand.ios, ...iosSigning, supportsTablet: false },
+  ios: {
+    ...brand.ios,
+    ...iosSigning,
+    supportsTablet: false,
+    entitlements: { 'com.apple.security.application-groups': [appGroup] },
+  },
   // Spanish iOS prompt: lumen-capture adds its camera string to this same locale (Expo writes it to es.lproj).
   locales: { es: { ios: { NSLocationWhenInUseUsageDescription: locationPurposeEs } } },
   android: {
@@ -90,7 +99,10 @@ const config: ExpoConfig = {
     locationPlugin,
     '@maplibre/maplibre-react-native',
     personalTeam ? [capturePlugin, { personalTeam: true }] : capturePlugin,
-    // The Android home-screen widget receivers (spec §12.5, ADR 0005).
+    // Builds every folder under targets/ as an Apple target: the widget extension and its Live Activity UI.
+    '@bacons/apple-targets',
+    // The widget module: App Group snapshot on iOS, the home-screen widget receivers on Android (spec §12.5,
+    // ADR 0005).
     './modules/lumen-widgets/app.plugin',
   ],
   // No over-the-air updates. Readings make no network requests (PRIV-1); only the optional Care map loads

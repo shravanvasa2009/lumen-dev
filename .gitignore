@@ -12,6 +12,8 @@ coverage/
 # modules/*/android, which hold hand-written native code, stay tracked.
 /apps/mobile/ios/
 /apps/mobile/android/
+# @bacons/apple-targets writes each target's image assets from expo-target.config.json at prebuild.
+/apps/mobile/targets/*/Assets.xcassets/
 
 # Secrets and signing material
 .env

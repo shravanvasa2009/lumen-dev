@@ -13,6 +13,7 @@ import {
   type ReadingResult,
   readingRhythm,
   type RhythmOutputs,
+  type UrgentHeartRate,
 } from '@lumen/core';
 
 import evidence from '../../assets/evidence.json';
@@ -32,6 +33,8 @@ export type AnalysedReading = {
   models: ModelOutputs;
   reading: ReadingResult;
   progress: AnalysisProgress;
+  // ADR 0076: the emergency heart-rate rules ran on this capture; Processing routes on it, never on the model.
+  urgent: UrgentHeartRate | null;
 };
 
 // One turn of the event loop, so the screen draws a step as active before the next blocking step starts.
@@ -60,7 +63,9 @@ async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs |
     if (sinus === undefined || af === undefined || other === undefined || typeof cut !== 'number')
       throw new Error('the rhythm model must score sinus, af and other and give an af threshold');
     if (!isProbabilityRow([sinus, af, other])) {
-      console.warn('rhythm model returned a row that is not a probability row; the reading has no rhythm card');
+      console.warn(
+        'rhythm model returned a row that is not a probability row; the reading has no rhythm card',
+      );
       return null;
     }
     windowProbs.push([sinus, af, other]);
@@ -103,6 +108,7 @@ export async function analyzeKeptCapture(
   capture: KeptCapture,
   request: AnalysisRequest,
   report: (progress: AnalysisProgress) => void,
+  reportUrgent: (urgent: UrgentHeartRate | null) => void,
 ): Promise<AnalysedReading | InconclusiveOutcome> {
   const recordedMs = Date.now();
   const context: ReadingContext = {
@@ -123,6 +129,8 @@ export async function analyzeKeptCapture(
   const analysis = analyzeReading({ samples: capture.samples, stats: capture.stats }, context);
   // Spec 07: too little clean signal is not a reading, so nothing past this point runs for it.
   const outcome = readingOutcome(analysis);
+  // Before any step that can throw (profile, model, save): a later failure must not hide an emergency.
+  reportUrgent(outcome.urgent);
   if (outcome.kind === 'inconclusive') return outcome;
   const detected = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');
   const counts = {
@@ -146,5 +154,13 @@ export async function analyzeKeptCapture(
     hrv: rmssd !== null,
     diabetes: diabetes !== null,
   });
-  return { readingId: `reading-${recordedMs}`, recordedMs, context, models, reading, progress: finished };
+  return {
+    readingId: `reading-${recordedMs}`,
+    recordedMs,
+    context,
+    models,
+    reading,
+    progress: finished,
+    urgent: outcome.urgent,
+  };
 }

@@ -8,7 +8,9 @@ import { Icon } from '@/components/Icon';
 import { PressableScale } from '@/components/PressableScale';
 import { useTheme } from '@/theme';
 
-type SafetySheetProps = { visible: boolean; onDismiss: () => void };
+// A caller that must replace its own screen with the emergency screen (Processing) passes onYes; the Results
+// screen stays underneath and takes the default push.
+type SafetySheetProps = { visible: boolean; onDismiss: () => void; onYes?: () => void };
 
 // Answer buttons are well above the 44 dp minimum so the question can be answered at a glance.
 const ANSWER_HEIGHT = 72;
@@ -16,11 +18,15 @@ const ANSWER_HEIGHT = 72;
 // SAFE-1: shown when any flag fires (heart rate, rhythm, or the diabetes pattern card, §12.5).
 // Yes opens emergency guidance at once; No or a tap outside closes it. Yes uses the amber flag tokens,
 // because red belongs to the emergency screen alone.
-export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
+export function SafetySheet({ visible, onDismiss, onYes }: SafetySheetProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors, radius, spacing } = useTheme();
   const openEmergency = () => {
+    if (onYes !== undefined) {
+      onYes();
+      return;
+    }
     onDismiss();
     router.push('/emergency');
   };

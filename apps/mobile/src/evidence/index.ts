@@ -4,7 +4,8 @@ import bundledEvidence from '../../assets/evidence.json';
 
 export const evidenceMetrics = ['hr', 'rhythm', 'hrv', 'resp', 'diabetes', 'extraBeats'] as const;
 export type EvidenceMetric = (typeof evidenceMetrics)[number];
-// The questionnaire has its own entry but no accuracy-screen row, so it stays out of evidenceMetrics.
+// The questionnaire has no evidence.json entry yet, so it reads as Experimental, and it has no
+// accuracy-screen row, so it stays out of evidenceMetrics.
 export type EvidenceKey = EvidenceMetric | 'questionnaire';
 
 export type MetricEvidence = {

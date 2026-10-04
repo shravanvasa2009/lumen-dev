@@ -10,7 +10,7 @@ import { RouteShell } from '@/components/RouteShell';
 import { BasicsFields } from '@/profile/BasicsFields';
 import { basicsAcceptable, bmiOf } from '@/profile/diabetesRisk';
 import { DiabetesRiskForm } from '@/profile/DiabetesRiskForm';
-import { scoreDraft } from '@/profile/riskScore';
+import { bmiShown, scoreDraft } from '@/profile/riskScore';
 import { useRiskDraft } from '@/profile/useRiskDraft';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
@@ -46,10 +46,7 @@ export default function SettingsProfileScreen() {
     { title: t('profile.weight'), shown: draft.weightKg === null ? notAnswered : `${draft.weightKg} kg` },
     {
       title: t('profile.bmi'),
-      shown:
-        heightCm !== null && weightKg !== null
-          ? (Math.round(bmiOf(heightCm, weightKg) * 10) / 10).toFixed(1)
-          : notAnswered,
+      shown: heightCm !== null && weightKg !== null ? bmiShown(bmiOf(heightCm, weightKg)) : notAnswered,
     },
   ];
   const questionRows = [

@@ -1,17 +1,18 @@
 import * as core from '@lumen/core';
+import i18next from 'i18next';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 import { Dimensions, ScrollView } from 'react-native';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
+import { evidenceFor } from '@/evidence';
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
-import { evidenceFor } from '@/evidence';
 import { EMPTY_RISK_DRAFT, type RiskDraft } from '@/profile/diabetesRisk';
-import { saveRiskDraft } from '@/store/profile';
+import * as profileStore from '@/store/profile';
 import { expectNavTitle } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import { saveTestReading } from '@/testing/savedReading';
 import tokens from '@/theme/tokens.json';
-import i18next from 'i18next';
 
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -21,6 +22,10 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 jest.mock('@lumen/core', () => {
   const actual = jest.requireActual<typeof import('@lumen/core')>('@lumen/core');
   return { ...actual, adaRisk: jest.fn(actual.adaRisk) };
+});
+jest.mock('@/store/profile', () => {
+  const actual = jest.requireActual<typeof import('@/store/profile')>('@/store/profile');
+  return { ...actual, loadRiskDraft: jest.fn(actual.loadRiskDraft) };
 });
 
 preloadAppRoutes();
@@ -45,10 +50,14 @@ const lower: RiskDraft = {
   physicallyActive: true,
 };
 
-async function openResultsWith(draft: RiskDraft) {
-  await saveRiskDraft(draft);
-  renderRouter('./app', { initialUrl: '/results/demo' });
+// A reading taken on this phone (not a sample), with no pulse estimate in it.
+async function openOwnReading(draft: RiskDraft, suffix: '' | '/diabetes') {
+  await profileStore.saveRiskDraft(draft);
+  const id = await saveTestReading(Date.UTC(2026, 9, 1), 64);
+  renderRouter('./app', { initialUrl: `/results/${id}${suffix}` });
 }
+const openRow = (draft: RiskDraft) => openOwnReading(draft, '');
+const openDetail = (draft: RiskDraft) => openOwnReading(draft, '/diabetes');
 
 const pointsOnScreen = (word = 'points?') =>
   screen
@@ -61,9 +70,64 @@ beforeEach(() => {
   jest.mocked(core.adaRisk).mockClear();
 });
 
-describe('diabetes result card', () => {
+describe('Diabetes risk row on Results', () => {
+  it('shows higher risk in amber with the score and no table, with no pulse estimate in the reading', async () => {
+    await openRow(higher);
+    const word = await screen.findByText(en['dr.result.higher']);
+    expect(JSON.stringify(word.props.style)).toContain(tokens.light.flag);
+    expect(screen.getByText('Risk score 5')).toBeOnTheScreen();
+    expect(screen.getByText(en['dr.rowTitle'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['dr.howItAdds'], { exact: false })).not.toBeOnTheScreen();
+    expect(screen.queryByText(en['dr.pulseExtra'])).not.toBeOnTheScreen();
+  });
+
+  it('shows lower risk in neutral text', async () => {
+    await openRow(lower);
+    const word = await screen.findByText(en['dr.result.lower']);
+    expect(JSON.stringify(word.props.style)).not.toContain(tokens.light.flag);
+    expect(screen.getByText('Risk score 0')).toBeOnTheScreen();
+  });
+
+  it('shows no number under 20', async () => {
+    await openRow({ ...higher, ageYears: 15 });
+    await screen.findByText(en['dr.noScore']);
+    expect(screen.queryByText(/Risk score \d/)).not.toBeOnTheScreen();
+  });
+
+  it('asks for all answers when they are incomplete, and never calls adaRisk', async () => {
+    await openRow(EMPTY_RISK_DRAFT);
+    await screen.findByText(en['dr.notReady']);
+    expect(core.adaRisk).not.toHaveBeenCalled();
+  });
+
+  it('says the answers could not be loaded, not that they are missing', async () => {
+    jest.mocked(profileStore.loadRiskDraft).mockRejectedValueOnce(new Error('disk'));
+    await openRow(higher);
+    await screen.findByText(en['profile.loadFailed']);
+    expect(screen.queryByText(en['dr.notReady'])).not.toBeOnTheScreen();
+    expect(core.adaRisk).not.toHaveBeenCalled();
+  });
+
+  it('opens the detail screen', async () => {
+    await openRow(higher);
+    fireEvent.press(await screen.findByRole('button', { name: new RegExp(en['dr.rowTitle']) }));
+    expectNavTitle(en['dr.rowTitle']);
+    await screen.findByRole('header', { name: en['dr.result.higher'] });
+  });
+
+  it('does not show the saved answers on a demo reading', async () => {
+    await profileStore.saveRiskDraft(higher);
+    renderRouter('./app', { initialUrl: '/results/demo' });
+    await screen.findByText(en['dr.demoRow']);
+    expect(screen.queryByText(en['dr.result.higher'])).not.toBeOnTheScreen();
+    expect(screen.queryByText(/Risk score \d/)).not.toBeOnTheScreen();
+    expect(core.adaRisk).not.toHaveBeenCalled();
+  });
+});
+
+describe('diabetes result detail screen', () => {
   it('shows higher risk in amber with the score and the table that adds up to it', async () => {
-    await openResultsWith(higher);
+    await openDetail(higher);
     const title = await screen.findByRole('header', { name: en['dr.result.higher'] });
     expect(title.props.style).toEqual(
       expect.arrayContaining([expect.objectContaining({ color: tokens.light.flag })]),
@@ -73,8 +137,9 @@ describe('diabetes result card', () => {
       screen.getByText(`${en['dr.score'].replace('{{points}}', '5')} · ${en['dr.cutoff']}`),
     ).toBeOnTheScreen();
     expect(screen.getByText(en['dr.howItAdds'], { exact: false })).toBeOnTheScreen();
-    expect(screen.getByText('Age 50–59')).toBeOnTheScreen();
-    expect(screen.getByText('BMI 29.1 (25 to under 30)')).toBeOnTheScreen();
+    expect(screen.getByText('Age 52')).toBeOnTheScreen();
+    expect(screen.getByText('BMI 29.1')).toBeOnTheScreen();
+    expect(screen.getByText(en['dr.row.sex.female'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.gdmShort'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.notScored'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.screeningNote'], { exact: false })).toBeOnTheScreen();
@@ -85,7 +150,7 @@ describe('diabetes result card', () => {
   });
 
   it('shows lower risk in neutral text, and a negative row still sums to the score', async () => {
-    await openResultsWith(lower);
+    await openDetail(lower);
     const title = await screen.findByRole('header', { name: en['dr.result.lower'] });
     expect(JSON.stringify(title.props.style)).not.toContain(tokens.light.flag);
     expect(screen.getByText(en['dr.result.lowerSub'])).toBeOnTheScreen();
@@ -96,7 +161,7 @@ describe('diabetes result card', () => {
   });
 
   it('says no risk score under 20, with no number and no table', async () => {
-    await openResultsWith({ ...higher, ageYears: 15 });
+    await openDetail({ ...higher, ageYears: 15 });
     await screen.findByRole('header', { name: en['dr.noScore'] });
     expect(screen.getByText(en['dr.under20'])).toBeOnTheScreen();
     expect(screen.queryByText(/Risk score \d/)).not.toBeOnTheScreen();
@@ -111,7 +176,7 @@ describe('diabetes result card', () => {
   ])(
     'asks for all answers when they are %s, links to Profile and never calls adaRisk',
     async (_name, draft) => {
-      await openResultsWith(draft);
+      await openDetail(draft);
       await screen.findByRole('header', { name: en['dr.notReady'] });
       expect(screen.queryByText(/Risk score \d/)).not.toBeOnTheScreen();
       expect(screen.queryByText(en['dr.howItAdds'], { exact: false })).not.toBeOnTheScreen();
@@ -122,25 +187,34 @@ describe('diabetes result card', () => {
     },
   );
 
+  it('says the answers could not be loaded, with no score and no link', async () => {
+    jest.mocked(profileStore.loadRiskDraft).mockRejectedValueOnce(new Error('disk'));
+    await openDetail(higher);
+    await screen.findByRole('header', { name: en['profile.loadFailed'] });
+    expect(screen.queryByText(en['dr.notReady'])).not.toBeOnTheScreen();
+    expect(screen.queryByText(/Risk score \d/)).not.toBeOnTheScreen();
+    expect(core.adaRisk).not.toHaveBeenCalled();
+  });
+
   it('says the score is a minimum when sex was not given, and counts no sex point', async () => {
-    await openResultsWith({ ...higher, sex: 'preferNot', gestationalDiabetes: null });
+    await openDetail({ ...higher, sex: 'preferNot', gestationalDiabetes: null });
     await screen.findByText(en['dr.minimum']);
-    expect(screen.getByText('Sex: not counted')).toBeOnTheScreen();
+    expect(screen.getByText(en['dr.row.sex.notCounted'])).toBeOnTheScreen();
     expect(screen.queryByText(en['dr.gdmShort'])).not.toBeOnTheScreen();
   });
 
   it('opens Settings > Profile from Edit answers', async () => {
-    await openResultsWith(higher);
+    await openDetail(higher);
     fireEvent.press(await screen.findByRole('button', { name: `${en['dr.edit']} ›` }));
     expectNavTitle(en['profile.settingsTitle']);
     await screen.findByText(en['dr.family']);
   });
 
   it('tags the questionnaire Experimental from the evidence reader, with no accuracy number', async () => {
-    await openResultsWith(higher);
+    await openDetail(higher);
     await screen.findByRole('header', { name: en['dr.result.higher'] });
     const badges = screen.getAllByTestId('evidence-badge');
-    expect(badges.length).toBeGreaterThanOrEqual(2);
+    expect(badges.length).toBeGreaterThanOrEqual(1);
     for (const badge of badges) expect(badge.props.accessibilityLabel).toBe(en['evidence.experimental']);
     expect(screen.queryByText(/%|AUC|accuracy \d/i)).not.toBeOnTheScreen();
   });
@@ -149,22 +223,12 @@ describe('diabetes result card', () => {
     expect(evidenceFor('questionnaire')).toEqual({ label: 'experimental', measured: false });
   });
 
-  it('shows the pulse pattern as an Experimental extra with no number', async () => {
-    await openResultsWith(higher);
-    await screen.findByRole('header', { name: en['dr.result.higher'] });
-    const extra = within(screen.getByTestId('pulse-extra'));
-    expect(extra.getByText(en['dr.pulseExtra'])).toBeOnTheScreen();
-    expect(extra.getByText(en['results.pulsePattern'])).toBeOnTheScreen();
-    expect(extra.getByText(`${en['dm.experimental']} ${en['dr.notInScore']}`)).toBeOnTheScreen();
-    expect(extra.queryByText(/\d/)).not.toBeOnTheScreen();
-  });
-
   it.each([
     ['light', tokens.light],
     ['dark', tokens.dark],
   ] as const)('uses no red token in the %s theme', async (scheme, colors) => {
     mockScheme = scheme;
-    await openResultsWith(higher);
+    await openDetail(higher);
     await screen.findByRole('header', { name: en['dr.result.higher'] });
     const drawn = JSON.stringify(screen.toJSON()).toLowerCase();
     for (const red of [colors.criticalText, colors.criticalFill, colors.emergencyBg, colors.pulse])
@@ -175,28 +239,63 @@ describe('diabetes result card', () => {
   it('reads in Spanish with the same structure', async () => {
     await i18next.changeLanguage('es');
     try {
-      await openResultsWith(higher);
+      await openDetail(higher);
       await screen.findByRole('header', { name: es['dr.result.higher'] });
       expect(screen.getByText(es['dr.result.higherSub'])).toBeOnTheScreen();
       expect(screen.getByText(es['dr.howItAdds'], { exact: false })).toBeOnTheScreen();
-      expect(screen.getByText(es['dr.pulseExtra'])).toBeOnTheScreen();
+      expect(screen.getByText('Edad 52')).toBeOnTheScreen();
       expect(pointsOnScreen('puntos?').reduce((sum, item) => sum + item, 0)).toBe(5);
     } finally {
       await act(() => i18next.changeLanguage('en'));
     }
   });
 
-  it('fits a 360 by 640 phone: the results scroll and the card is reachable', async () => {
+  it('fits a 360 by 640 phone: the screen scrolls and Edit answers is reachable', async () => {
     const originalWindow = Dimensions.get('window');
     act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
     try {
-      await openResultsWith(higher);
+      await openDetail(higher);
       await screen.findByRole('header', { name: en['dr.result.higher'] });
       expect(screen.UNSAFE_getByType(ScrollView)).toBeTruthy();
       expect(screen.getByRole('button', { name: `${en['dr.edit']} ›` })).toBeOnTheScreen();
     } finally {
       act(() => Dimensions.set({ window: originalWindow }));
     }
+  });
+});
+
+describe('pulse pattern extra on the detail screen', () => {
+  beforeEach(async () => {
+    await profileStore.saveRiskDraft(higher);
+    renderRouter('./app', { initialUrl: '/results/demo/diabetes' });
+  });
+
+  it('is an Experimental extra with no number, and a demo does not read the saved answers', async () => {
+    const extra = within(await screen.findByTestId('pulse-extra'));
+    expect(extra.getByText(en['dr.pulseExtra'])).toBeOnTheScreen();
+    expect(extra.getByText(en['results.pulsePattern'])).toBeOnTheScreen();
+    expect(extra.getByText(`${en['dm.experimental']} ${en['dr.notInScore']}`)).toBeOnTheScreen();
+    expect(extra.queryByText(/\d/)).not.toBeOnTheScreen();
+    expect(screen.getByText(en['dr.demoRow'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['dr.result.higher'])).not.toBeOnTheScreen();
+    expect(core.adaRisk).not.toHaveBeenCalled();
+  });
+
+  it('keeps the pill from the evidence reader and explains Experimental on tap', async () => {
+    const pill = await screen.findByRole('button', { name: en['results.whatExperimentalMeans'] });
+    expect(within(pill).getByTestId('evidence-badge').props.accessibilityLabel).toBe(
+      en['evidence.experimental'],
+    );
+    fireEvent.press(pill);
+    expect(screen.getByText(en['evidence.experimental.explain'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['common.gotIt'] }));
+    expect(screen.queryByText(en['evidence.experimental.explain'])).not.toBeOnTheScreen();
+  });
+
+  it('is never flagged and shows no accuracy number', async () => {
+    await screen.findByTestId('pulse-extra');
+    expect(screen.queryByText(en['dm.flag.title'])).not.toBeOnTheScreen();
+    expect(screen.queryByText(/%|AUC/)).not.toBeOnTheScreen();
   });
 });
 

@@ -8,32 +8,32 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { ListRow } from '@/components/ListRow';
-import { useStoredRiskScore, type RiskScore } from '@/profile/riskScore';
+import { bmiShown, useStoredRiskScore, type RiskScore } from '@/profile/riskScore';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
 
 type Scored = Extract<RiskScore, { kind: 'scored' }>;
 
-// Age and body mass index are worded by their point value: the points come from adaRisk, so the labels
-// never repeat its cut-offs.
+// The label shows the person's own value; the points come from adaRisk's breakdown and nowhere else.
 function breakdownRows(t: TFunction, score: Scored): { label: string; points: number }[] {
   const { answers, risk, sexNotGiven } = score;
   const { breakdown } = risk;
   const yesNo = (answer: boolean) => (answer ? t('common.yes') : t('common.no'));
-  const sexLabel = sexNotGiven ? 'notCounted' : answers.male ? 'male' : 'female';
+  const sexLabel = sexNotGiven
+    ? t('dr.row.sex.notCounted')
+    : answers.male
+      ? t('dr.row.sex.male')
+      : t('dr.row.sex.female');
   return [
-    { label: t(`dr.row.age.${breakdown.age}`), points: breakdown.age },
-    { label: t(`dr.row.sex.${sexLabel}`), points: breakdown.sex },
+    { label: t('dr.row.age', { age: answers.ageYears }), points: breakdown.age },
+    { label: sexLabel, points: breakdown.sex },
     { label: t('dr.row.family', { answer: yesNo(answers.familyHistory) }), points: breakdown.familyHistory },
     { label: t('dr.row.bp', { answer: yesNo(answers.hypertension) }), points: breakdown.hypertension },
     {
       label: t('dr.row.active', { answer: yesNo(answers.physicallyActive) }),
       points: breakdown.physicallyActive,
     },
-    {
-      label: t(`dr.row.bmi.${breakdown.bmi}`, { bmi: (Math.round(answers.bmi * 10) / 10).toFixed(1) }),
-      points: breakdown.bmi,
-    },
+    { label: t('dr.row.bmi', { bmi: bmiShown(answers.bmi) }), points: breakdown.bmi },
   ];
 }
 
@@ -47,20 +47,19 @@ export function DiabetesRiskCard() {
   if (score === null) return null;
 
   const flagged = score.kind === 'scored' && score.risk.flagged;
-  const title =
+  const headings = {
+    scored: { title: flagged ? t('dr.result.higher') : t('dr.result.lower'), line: undefined },
+    under20: { title: t('dr.noScore'), line: t('dr.under20') },
+    notReady: { title: t('dr.notReady'), line: undefined },
+    loadFailed: { title: t('profile.loadFailed'), line: undefined },
+  } as const;
+  const { title } = headings[score.kind];
+  const line =
     score.kind === 'scored'
       ? flagged
-        ? t('dr.result.higher')
-        : t('dr.result.lower')
-      : score.kind === 'under20'
-        ? t('dr.noScore')
-        : t('dr.notReady');
-  const lines =
-    score.kind === 'scored'
-      ? [flagged ? t('dr.result.higherSub') : t('dr.result.lowerSub')]
-      : score.kind === 'under20'
-        ? [t('dr.under20')]
-        : [];
+        ? t('dr.result.higherSub')
+        : t('dr.result.lowerSub')
+      : headings[score.kind].line;
   const editRoute = '/settings/profile';
   return (
     <View style={{ gap: spacing.md }}>
@@ -80,9 +79,7 @@ export function DiabetesRiskCard() {
         >
           {title}
         </AppText>
-        {lines.map((line) => (
-          <AppText key={line}>{line}</AppText>
-        ))}
+        {line ? <AppText>{line}</AppText> : null}
         {score.kind === 'scored' ? (
           <AppText variant="caption" tone="textDim">
             {[t('dr.score', { points: score.risk.points }), t('dr.cutoff')].join(' · ')}
@@ -95,7 +92,7 @@ export function DiabetesRiskCard() {
         ) : null}
       </View>
 
-      {score.kind === 'notReady' ? (
+      {score.kind === 'loadFailed' ? null : score.kind === 'notReady' ? (
         <Button variant="link" label={t('dr.notReadyLink')} onPress={() => router.push(editRoute)} />
       ) : (
         <>

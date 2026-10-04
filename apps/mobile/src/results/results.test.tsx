@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
-import { act, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { StyleSheet } from 'react-native';
-import type { ReactTestInstance } from 'react-test-renderer';
 
 import en from '@/i18n/en.json';
 import diabetes from '@/i18n/diabetes.json';
@@ -90,38 +89,19 @@ describe.each([
     expect(screen.queryByText(/Today/)).toBeNull();
   });
 
-  it('shows the diabetes estimate as its own Experimental card until the evidence file passes it (ADR 0082)', () => {
+  it('shows the Diabetes risk as a compact row, with the pulse pattern left to its detail screen (ADR 0082)', () => {
     openResults('demo');
     expect(screen.queryByText(en['dm.flag.body'])).toBeNull();
-    expect(screen.getByText(en['dr.pulseExtra'])).toBeOnTheScreen();
-    expect(screen.getByText(en['results.pulsePattern'])).toBeOnTheScreen();
-    expect(screen.getByText(`${en['dm.experimental']} ${en['dr.notInScore']}`)).toBeOnTheScreen();
+    expect(screen.getByText(en['dr.rowTitle'])).toBeOnTheScreen();
+    expect(screen.getByText(en['dr.demoRow'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['dr.pulseExtra'])).toBeNull();
+    expect(screen.queryByText(en['results.pulsePattern'])).toBeNull();
     expect(screen.getByText('Experimental measurements (2)')).toBeOnTheScreen();
     expect(screen.getByText(en['results.sublineUsual'])).toBeOnTheScreen();
     expect(screen.queryByText(en['safety.title'])).toBeNull();
   });
 
-  it('keeps the diabetes card outside the collapsed Experimental section, with a pill from the evidence file', () => {
-    openResults('demo');
-    const card = screen.getByText(en['results.pulsePattern']);
-    expect(card).toBeOnTheScreen();
-    expect(screen.queryByText(en['results.notHealthMeasurement'])).toBeNull();
-    const pill = screen.getByRole('button', { name: en['results.whatExperimentalMeans'] });
-    expect(within(pill).getByTestId('evidence-badge').props.accessibilityLabel).toBe(
-      en['evidence.experimental'],
-    );
-  });
-
-  it('explains Experimental in one sentence when the pill is tapped, and closes on Got it', () => {
-    openResults('demo');
-    expect(screen.queryByText(en['evidence.experimental.explain'])).toBeNull();
-    fireEvent.press(screen.getByRole('button', { name: en['results.whatExperimentalMeans'] }));
-    expect(screen.getByText(en['evidence.experimental.explain'])).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['common.gotIt'] }));
-    expect(screen.queryByText(en['evidence.experimental.explain'])).toBeNull();
-  });
-
-  it('never flags the diabetes card while it is Experimental, and shows no accuracy number on it', () => {
+  it('never flags the diabetes row while the pulse model is Experimental, and shows no accuracy number', () => {
     openResults('demo');
     expect(screen.queryByText(en['results.flag'])).toBeNull();
     expect(screen.queryByText(en['dm.flag.title'])).toBeNull();
@@ -146,25 +126,14 @@ describe.each([
     expect(screen.getByRole('header', { name: en['standing.title'] })).toBeOnTheScreen();
   });
 
-  it('lists HRV, Diabetes and POTS as compact rows on a Quick Check', () => {
+  it('lists HRV and POTS as compact rows and the Diabetes risk row on a Quick Check', () => {
     openResults('demo-flag');
     expect(screen.getByText(en['checks.hrv.name'])).toBeOnTheScreen();
-    expect(screen.getByText(en['checks.diabetes.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['dr.rowTitle'])).toBeOnTheScreen();
     expect(screen.getByText(en['checks.pots.name'])).toBeOnTheScreen();
     expect(screen.getByText(en['checks.from.standing'])).toBeOnTheScreen();
-    expect(screen.getAllByText(en['mode.full']).length).toBe(2);
+    expect(screen.getAllByText(en['mode.full']).length).toBe(1);
     expect(screen.queryByText(en['results.notThisScan'])).toBeNull();
-  });
-
-  it('shows the pill, the explanation, the research line and the accuracy link in the tag sheet', () => {
-    openResults('demo');
-    const badgesBefore = screen.getAllByTestId('evidence-badge').length;
-    fireEvent.press(screen.getByRole('button', { name: en['results.whatExperimentalMeans'] }));
-    expect(screen.getAllByTestId('evidence-badge').length).toBe(badgesBefore + 1);
-    expect(screen.getAllByText(en['dm.experimental'], { exact: false }).length).toBe(2);
-    fireEvent.press(screen.getAllByText(`${en['results.accuracy']} ›`).at(-1) as ReactTestInstance);
-    expect(screen.queryByText(en['evidence.experimental.explain'])).toBeNull();
-    expect(screen.getByText(en['accuracy.heartRate'])).toBeOnTheScreen();
   });
 
   it('lets card headers shrink', () => {

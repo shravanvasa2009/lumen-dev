@@ -13,8 +13,7 @@ import { useTheme } from '@/theme';
 
 import { CompactChecks } from './CompactChecks';
 import { DemoBanner } from './DemoBanner';
-import { DiabetesCheckCard } from './DiabetesCheckCard';
-import { DiabetesRiskCard } from './DiabetesRiskCard';
+import { DiabetesRiskRow } from './DiabetesRiskRow';
 import { ExperimentalCard } from './ExperimentalCard';
 import type { FixtureReading } from './fixtures';
 import { formatClock, formatDay } from './format';
@@ -70,7 +69,6 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   // ADR 0046, §12.5: the amber card needs the flag and a passed accuracy criterion. Without the passed
   // criterion the estimate gets the quiet Experimental card (ADR 0082); with it and no flag, nothing is shown.
   const diabetesCard = diabetes?.flag === 'pattern' && evidenceFor('diabetes').measured ? diabetes : null;
-  const diabetesExperimental = diabetes !== null && !evidenceFor('diabetes').measured;
   const anyFlag = acuteFlag || diabetesCard !== null;
   const [sheetOpen, setSheetOpen] = useState(anyFlag);
 
@@ -204,8 +202,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
         ) : null}
 
         {reading.mode !== 'full' ? <CompactChecks /> : null}
-        {reading.mode === 'full' || diabetesExperimental ? <DiabetesRiskCard /> : null}
-        {diabetesExperimental ? <DiabetesCheckCard /> : null}
+        <DiabetesRiskRow readingId={reading.id} sample={reading.sample} />
         {reading.mode === 'full' ? <PotsCard /> : null}
 
         <MetricCard

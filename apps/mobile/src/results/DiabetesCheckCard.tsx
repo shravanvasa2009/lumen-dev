@@ -12,6 +12,12 @@ import { evidenceFor } from '@/evidence';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
 
+import type { FixtureReading } from './fixtures';
+
+// ML-6: the pulse extra shows only while the diabetes model is Experimental and the reading has an estimate.
+export const showsPulseExtra = (reading: FixtureReading) =>
+  reading.scan.metrics.diabetes !== null && !evidenceFor('diabetes').measured;
+
 // ADR 0082, 0090: while its model is Experimental the pulse pattern is an extra under the questionnaire
 // result, with no number. It is never flagged, and the pill comes from the evidence reader; tapping it
 // explains the label in one sentence.

@@ -9,6 +9,7 @@ import { assessRisk, type RiskDraft } from './diabetesRisk';
 
 export type RiskScore =
   | { kind: 'notReady' }
+  | { kind: 'loadFailed' }
   | { kind: 'under20' }
   | {
       kind: 'scored';
@@ -18,6 +19,8 @@ export type RiskScore =
       // The pregnancy question is asked of Female only and never scored; the card lists it when answered.
       pregnancyAnswered: boolean;
     };
+
+export const bmiShown = (bmi: number) => (Math.round(bmi * 10) / 10).toFixed(1);
 
 // adaRisk is called only for a ready assessment: untyped or half-filled answers would give NaN points.
 export function scoreDraft(draft: RiskDraft): RiskScore {
@@ -45,9 +48,9 @@ export function useStoredRiskScore(): RiskScore | null {
         (stored) => {
           if (active) setScore(scoreDraft(stored));
         },
-        // Unreadable answers cannot give a score, so the card asks for them again.
+        // Handled by saying so on the card; asking for the answers again would be untrue.
         () => {
-          if (active) setScore({ kind: 'notReady' });
+          if (active) setScore({ kind: 'loadFailed' });
         },
       );
       return () => {

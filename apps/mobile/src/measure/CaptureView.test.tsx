@@ -169,14 +169,14 @@ describe('CaptureView', () => {
       expect(pots.queryByText(en['checks.state.ready'])).toBeNull();
     });
 
-    it('lists the Quick Check as AFib checking with HRV, Diabetes and POTS not in this scan', () => {
+    it('lists every check in the Quick Check as not in this scan', () => {
       show({ cleanSeconds: 45 }, 'quick', tierUnlocks('full'));
-      expect(item(en['checks.afib.name'])).toHaveAccessibleName(`AFib, ${en['checks.state.working']}`);
+      expect(item(en['checks.afib.name'])).toHaveAccessibleName(`AFib, ${en['checks.state.off']}`);
       expect(screen.queryByText(en['checks.state.ready'])).toBeNull();
       for (const name of ['HRV', 'Diabetes']) {
         expect(item(name)).toHaveAccessibleName(`${name}, ${en['checks.state.off']}`);
       }
-      expect(screen.getAllByText(en['checks.state.off'])).toHaveLength(3);
+      expect(screen.getAllByText(en['checks.state.off'])).toHaveLength(4);
     });
 
     it('greys a ready check while the coaching message is showing', () => {

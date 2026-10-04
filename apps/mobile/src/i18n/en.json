@@ -333,7 +333,7 @@
   "mode.full": "Full Scan",
   "mode.fullBody": "Rate, rhythm, HRV, breathing + experimental pulse shape",
   "mode.quick": "Quick Check",
-  "mode.quickBody": "Heart rate and rhythm",
+  "mode.quickBody": "Heart rate",
   "mode.standing": "Standing Heart-Rate Test",
   "mode.standingBody": "How much your heart rate rises when you stand up",
   "mode.deep": "Deep HRV",

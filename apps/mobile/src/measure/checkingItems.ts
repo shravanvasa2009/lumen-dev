@@ -1,6 +1,6 @@
 import { DSP_CONFIG, type RatingMode } from '@lumen/core';
 
-import { cleanSecondsNeeded, type MeasureMode } from './mode';
+import type { MeasureMode } from './mode';
 
 type CheckId = 'afib' | 'hrv' | 'diabetes' | 'pots';
 // 'off' is a check this mode never runs, shown as "Not in this scan".
@@ -20,29 +20,27 @@ const REQUIRED_UNLOCK = { afib: 'rhythmFlags', hrv: 'hrv', diabetes: 'diabetes' 
   RatingMode
 >;
 
-// Quick Check runs the rhythm check only; POTS is the Standing test and never a capture-screen check (spec 12).
+// Quick Check runs no check: its rhythm check needs 60 s but Quick is 30 s (owner decision, 2026-10-04, ADR 0089).
+// POTS is the Standing test and never a capture-screen check (spec 12).
 const CHECKS_IN_MODE: Record<MeasureMode, readonly CheckId[]> = {
-  quick: ['afib'],
+  quick: [],
   full: ['afib', 'hrv', 'diabetes'],
 };
 
 const ALL_CHECKS: readonly CheckId[] = ['afib', 'hrv', 'diabetes', 'pots'];
 
-// A check lights once the session's clean seconds reach its threshold. A threshold longer than the mode
-// (Quick's 30 s against the 60 s rhythm rule) is never reached, so that check keeps reading Checking: no
-// result exists below the threshold. A phone not yet rated keeps every check open, as the mode list does.
+// A check lights once the session's clean seconds reach its threshold. A phone not yet rated keeps every
+// check open, as the mode list does.
 export function checkingItems(
   mode: MeasureMode,
   cleanSeconds: number | null,
   unlocks: readonly RatingMode[] | null | undefined,
 ): CheckingItem[] {
   const running = CHECKS_IN_MODE[mode];
-  const total = cleanSecondsNeeded(mode);
   return ALL_CHECKS.map((id): CheckingItem => {
     if (id === 'pots' || !running.includes(id)) return { id, state: 'off' };
     if (unlocks && !unlocks.includes(REQUIRED_UNLOCK[id])) return { id, state: 'unavailable' };
     const needed = CLEAN_SECONDS_NEEDED[id];
-    const reachable = needed <= total;
-    return { id, state: reachable && cleanSeconds !== null && cleanSeconds >= needed ? 'ready' : 'checking' };
+    return { id, state: cleanSeconds !== null && cleanSeconds >= needed ? 'ready' : 'checking' };
   });
 }

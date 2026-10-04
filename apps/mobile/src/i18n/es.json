@@ -333,7 +333,7 @@
   "mode.full": "Escaneo completo",
   "mode.fullBody": "Frecuencia, ritmo, VFC, respiración y forma del pulso (experimental)",
   "mode.quick": "Revisión rápida",
-  "mode.quickBody": "Frecuencia cardíaca y ritmo",
+  "mode.quickBody": "Frecuencia cardíaca",
   "mode.standing": "Prueba de frecuencia cardíaca de pie",
   "mode.standingBody": "Cuánto sube tu frecuencia cardíaca al ponerte de pie",
   "mode.deep": "VFC profunda",

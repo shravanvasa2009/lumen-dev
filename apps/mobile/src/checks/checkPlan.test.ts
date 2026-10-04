@@ -94,7 +94,11 @@ describe('what each rating tier locks, and why (spec 05 5.2)', () => {
     expect(why('deep', 'hrv', noFlash30)).toBe('flash');
   });
 
-  it('keeps AFib a check Limited owns, though the Full Scan holding it is locked (owner decision b)', () => {
+  // Spec 05 5.2 lists a no-flags rhythm check for Limited, but Quick is 30 s and the rhythm check needs 60 s (ADR 0089).
+  it('leaves AFib locked on a Limited phone in every mode, since no mode gives it 60 s (MAIN ruling, 2026-10-04)', () => {
+    for (const mode of ['quick', 'full'] as const) {
+      expect(state(mode, 'afib', phone('limited'))).not.toBe('runs');
+    }
     expect(why('full', 'afib', phone('limited'))).toBe('basic');
   });
 

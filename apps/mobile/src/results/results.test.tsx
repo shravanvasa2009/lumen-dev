@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
-import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
 import { StyleSheet } from 'react-native';
+import type { ReactTestInstance } from 'react-test-renderer';
 
 import en from '@/i18n/en.json';
 import diabetes from '@/i18n/diabetes.json';
@@ -15,6 +16,12 @@ let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => mockScheme,
+}));
+
+const mockWindow = { width: 412, fontScale: 1 };
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({ width: mockWindow.width, height: 900, scale: 2.6, fontScale: mockWindow.fontScale }),
 }));
 
 const mockEvidence = { diabetesPassed: false };
@@ -54,6 +61,8 @@ describe.each([
 ] as const)('results in the %s theme', (scheme, colors) => {
   beforeEach(() => {
     mockScheme = scheme;
+    mockWindow.width = 412;
+    mockWindow.fontScale = 1;
     mockEvidence.diabetesPassed = false;
     mockDemo.withoutPattern = false;
   });
@@ -78,14 +87,108 @@ describe.each([
     expect(screen.queryByText(/Today/)).toBeNull();
   });
 
-  it('keeps the diabetes estimate in Experimental measurements until the evidence file passes it', () => {
+  it('shows the diabetes estimate as its own Experimental card until the evidence file passes it (ADR 0082)', () => {
     openResults('demo');
     expect(screen.queryByText(en['dm.flag.body'])).toBeNull();
-    expect(screen.getByText(en['dm.flag.title'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.diabetes.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.pulsePattern'])).toBeOnTheScreen();
     expect(screen.getByText(en['dm.experimental'])).toBeOnTheScreen();
-    expect(screen.getByText('Experimental measurements (3)')).toBeOnTheScreen();
+    expect(screen.getByText('Experimental measurements (2)')).toBeOnTheScreen();
     expect(screen.getByText(en['results.sublineUsual'])).toBeOnTheScreen();
     expect(screen.queryByText(en['safety.title'])).toBeNull();
+  });
+
+  it('keeps the diabetes card outside the collapsed Experimental section, with a pill from the evidence file', () => {
+    openResults('demo');
+    const card = screen.getByText(en['results.pulsePattern']);
+    expect(card).toBeOnTheScreen();
+    expect(screen.queryByText(en['results.notHealthMeasurement'])).toBeNull();
+    const pill = screen.getByRole('button', { name: en['results.whatExperimentalMeans'] });
+    expect(within(pill).getByTestId('evidence-badge').props.accessibilityLabel).toBe(en['evidence.experimental']);
+  });
+
+  it('explains Experimental in one sentence when the pill is tapped, and closes on Got it', () => {
+    openResults('demo');
+    expect(screen.queryByText(en['evidence.experimental.explain'])).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: en['results.whatExperimentalMeans'] }));
+    expect(screen.getByText(en['evidence.experimental.explain'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['common.gotIt'] }));
+    expect(screen.queryByText(en['evidence.experimental.explain'])).toBeNull();
+  });
+
+  it('never flags the diabetes card while it is Experimental, and shows no accuracy number on it', () => {
+    openResults('demo');
+    expect(screen.queryByText(en['results.flag'])).toBeNull();
+    expect(screen.queryByText(en['dm.flag.title'])).toBeNull();
+    expect(screen.queryByText(/%|AUC/)).toBeNull();
+  });
+
+  it('draws the headline card with a gradient fill', () => {
+    openResults('demo');
+    fireEvent(screen.getByTestId('headline-card'), 'layout', {
+      nativeEvent: { layout: { width: 320, height: 120 } },
+    });
+    const drawn = JSON.stringify(screen.toJSON());
+    expect(drawn.includes('RNSVGLinearGradient')).toBe(true);
+    expect(drawn.includes('"width":320')).toBe(true);
+  });
+
+  it('says POTS is not part of a Full Scan and links to the Standing test (ADR 0082)', () => {
+    openResults('demo');
+    expect(screen.getByText(en['checks.pots.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.notThisScan'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByText(en['results.takeStanding']));
+    expect(screen.getByRole('header', { name: en['standing.title'] })).toBeOnTheScreen();
+  });
+
+  it('lists HRV, Diabetes and POTS as compact rows on a Quick Check', () => {
+    openResults('demo-flag');
+    expect(screen.getByText(en['checks.hrv.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.diabetes.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.pots.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.from.standing'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['mode.full']).length).toBe(2);
+    expect(screen.queryByText(en['results.notThisScan'])).toBeNull();
+  });
+
+  it('shows the pill, the explanation, the research line and the accuracy link in the tag sheet', () => {
+    openResults('demo');
+    const badgesBefore = screen.getAllByTestId('evidence-badge').length;
+    fireEvent.press(screen.getByRole('button', { name: en['results.whatExperimentalMeans'] }));
+    expect(screen.getAllByTestId('evidence-badge').length).toBe(badgesBefore + 1);
+    expect(screen.getAllByText(en['dm.experimental']).length).toBe(2);
+    fireEvent.press(screen.getAllByText(`${en['results.accuracy']} ›`).at(-1) as ReactTestInstance);
+    expect(screen.queryByText(en['evidence.experimental.explain'])).toBeNull();
+    expect(screen.getByText(en['accuracy.heartRate'])).toBeOnTheScreen();
+  });
+
+  it('lets card headers shrink', () => {
+    openResults('demo');
+    const heading = screen.getByText(en['results.heartRhythm']);
+    expect(StyleSheet.flatten(heading.props.style).flexShrink).toBe(1);
+  });
+
+  it('stacks the footer buttons on a narrow phone or at large text, and keeps one row otherwise', () => {
+    const footerDirection = () =>
+      StyleSheet.flatten(screen.getByTestId('results-footer').props.style).flexDirection;
+    mockWindow.width = 360;
+    mockWindow.fontScale = 1;
+    openResults('demo');
+    expect(footerDirection()).toBe('column');
+    expect(screen.getByRole('button', { name: en['results.showWhy'] })).toBeOnTheScreen();
+    screen.unmount();
+    mockWindow.width = 412;
+    openResults('demo');
+    expect(footerDirection()).toBe('row');
+    screen.unmount();
+    mockWindow.fontScale = 1.6;
+    openResults('demo');
+    expect(footerDirection()).toBe('column');
+  });
+
+  it('names the AFib check on the rhythm card', () => {
+    openResults('demo');
+    expect(screen.getByText(en['checks.afib.name'])).toBeOnTheScreen();
   });
 
   it('shows the amber diabetes card once the evidence file passes the diabetes metric', () => {
@@ -97,6 +200,7 @@ describe.each([
     expect(screen.queryByText(en['dm.experimental'])).toBeNull();
     expect(screen.getByText(en['results.sublineFollowUp'])).toBeOnTheScreen();
     expect(screen.getByText('Experimental measurements (2)')).toBeOnTheScreen();
+    expect(screen.queryByText(en['results.pulsePattern'])).toBeNull();
     expect(JSON.stringify(screen.toJSON()).includes(colors.flagBg)).toBe(true);
   });
 
@@ -170,6 +274,23 @@ describe.each([
     expect(screen.queryByText(en['safety.title'])).toBeNull();
   });
 
+  it('lays the safety question out large, in amber, and Yes still opens emergency at once (SAFE-1)', () => {
+    openResults('demo-flag');
+    const yes = screen.getByRole('button', { name: en['safety.yes'] });
+    const no = screen.getByRole('button', { name: en['safety.no'] });
+    for (const answer of [yes, no]) {
+      expect(StyleSheet.flatten(answer.props.style).minHeight).toBeGreaterThanOrEqual(72);
+    }
+    expect(StyleSheet.flatten(yes.props.style)).toMatchObject({
+      backgroundColor: colors.flagBg,
+      borderColor: colors.flag,
+    });
+    expect(screen.getByRole('header', { name: en['safety.title'] })).toBeOnTheScreen();
+    fireEvent.press(yes);
+    expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
+    expect(screen.queryByText(en['safety.title'])).toBeNull();
+  });
+
   it('opens the emergency screen when the answer is Yes (SAFE-1)', () => {
     openResults('demo-flag');
     fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
@@ -204,7 +325,7 @@ describe.each([
   it('labels confidence in words, not only dots', () => {
     openResults('demo');
     const labels = screen.getAllByTestId('confidence-dots').map((dots) => dots.props.accessibilityLabel);
-    expect(labels).toEqual([en['confidence.high'], en['confidence.high'], en['confidence.moderate']]);
+    expect(labels).toEqual([en['confidence.high'], en['confidence.moderate'], en['confidence.high']]);
   });
 });
 

@@ -887,5 +887,19 @@
   "settings.exportEmpty": "There are no saved readings to export yet.",
   "settings.exportUnavailable": "Sharing is not available on this phone.",
   "settings.exportFailed": "Lumen could not export your readings. Try again.",
-  "settings.deleteFailed": "Lumen could not delete everything, so some data may still be on this phone. Try again."
+  "settings.deleteFailed": "Lumen could not delete everything, so some data may still be on this phone. Try again.",
+  "checks.afib.name": "AFib",
+  "results.pulsePattern": "Pulse pattern",
+  "results.notDiabetesTest": "Not a diabetes test",
+  "results.whatExperimentalMeans": "What Experimental means",
+  "evidence.experimental.explain": "Experimental means this check is still being tested and has not been shown to be accurate yet.",
+  "common.gotIt": "Got it",
+  "checks.diabetes.name": "Diabetes",
+  "checks.hrv.name": "HRV",
+  "checks.pots.name": "POTS",
+  "checks.from.standing": "Standing test",
+  "results.notThisScan": "Not part of this scan",
+  "results.takeStanding": "Take the Standing Heart-Rate Test ›",
+  "results.potsLabel": "Heart-rate pattern",
+  "common.close": "Close"
 }

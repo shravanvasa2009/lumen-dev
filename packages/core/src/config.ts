@@ -187,6 +187,29 @@ export const DSP_CONFIG = {
     diabetesMinCleanS: 90, // §6.2, per reading
     personalBandMinReadings: 7, // §7: the first 7 readings are "learning"
     personalBandIqrs: 1.5, // band = median ± 1.5 IQR
+    // §10.1 Emergency screen: "HR > 150 bpm sustained 60 s at rest; or HR < 40 bpm with symptoms"
+    // (ADR 0076). fastBpm, sustainS, and slowBpm are the spec's; the rest are not given by the spec
+    // (initial).
+    emergency: {
+      fastBpm: 150, // rolling HR strictly above this
+      // Measured beat times carry µs of error (red team v1 F4), so a true 150 bpm can measure a
+      // few thousandths over 150; a rate must clear fastBpm by this much (27 µs on a 400 ms interval).
+      fastMarginBpm: 0.01,
+      sustainS: 60, // clean seconds, bridged breaks not counted
+      // Rolling HR = the larger of the mean rate and the median-interval rate over the last this-many
+      // clean seconds (ADR 0076): DSP-11's reporting floor, the shortest stretch Lumen reports an HR from.
+      windowS: 15,
+      // A run's first window judges the HR only with this many clean seconds.
+      windowMinCleanS: 10,
+      // The longest gap between two clean intervals that is bridged (not counted). A rejected span up to
+      // 5 s costs the beat touching it on each side (DSP-9), each under 0.4 s at > 150 bpm, plus the
+      // upstroke of the first beat after it (< 0.2 s).
+      maxBreakS: 6,
+      slowBpm: 40, // the reading's DSP-11 HR strictly below this; the app adds symptoms
+      // The same µs of beat-time error as fastMarginBpm (red team v2 N4: a true 40.000 bpm measures
+      // 39.9999999999995). 27 µs on a 1500 ms interval is 0.0007 bpm; 39.99 bpm stays urgent.
+      slowMarginBpm: 0.005,
+    },
   },
   // §7 confidence (ADR 0041; initial values, not given by the spec): the lowest of clean coverage, the
   // SQI and tier caps, and for the rhythm card the calibrated top probability.

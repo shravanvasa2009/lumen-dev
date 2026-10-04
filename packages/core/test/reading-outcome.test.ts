@@ -71,6 +71,7 @@ describe('readingOutcome (spec 07: finish, extend, or end as inconclusive)', () 
       lostSeconds: { motion: 0, pressure: 0, coverage: analysis.durationS, coldHands: 0 },
       otherLostSeconds: 0,
       causes: ['coverage'],
+      urgent: null,
     });
   });
 
@@ -78,7 +79,7 @@ describe('readingOutcome (spec 07: finish, extend, or end as inconclusive)', () 
     const analysis = analyzeReading(fingertip(32), { ...CONTEXT, mode: 'quick' });
     expect(analysis.cleanSeconds).toBeGreaterThanOrEqual(30);
     expect(analysis.heartRateBpm).not.toBeNull();
-    expect(readingOutcome(analysis)).toEqual({ kind: 'reading' });
+    expect(readingOutcome(analysis)).toEqual({ kind: 'reading', urgent: null });
   });
 
   it.each(Object.entries(NEEDED))(
@@ -86,7 +87,7 @@ describe('readingOutcome (spec 07: finish, extend, or end as inconclusive)', () 
     (mode, needed) => {
       const atTarget = analysisOf(mode, needed + 10, [{ startS: 0, endS: 10, reason: 'motion' }]);
       expect(atTarget.cleanSeconds).toBe(needed);
-      expect(readingOutcome(atTarget)).toEqual({ kind: 'reading' });
+      expect(readingOutcome(atTarget)).toEqual({ kind: 'reading', urgent: null });
 
       const below = analysisOf(mode, needed + 10, [{ startS: 0, endS: 10.001, reason: 'motion' }]);
       const outcome = readingOutcome(below);

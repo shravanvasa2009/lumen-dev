@@ -126,7 +126,17 @@
     "diabetesMinReadings": 2,
     "diabetesMinCleanS": 90,
     "personalBandMinReadings": 7,
-    "personalBandIqrs": 1.5
+    "personalBandIqrs": 1.5,
+    "emergency": {
+      "fastBpm": 150,
+      "fastMarginBpm": 0.01,
+      "sustainS": 60,
+      "windowS": 15,
+      "windowMinCleanS": 10,
+      "maxBreakS": 6,
+      "slowBpm": 40,
+      "slowMarginBpm": 0.005
+    }
   },
   "confidence": {
     "highCoverage": 0.9,

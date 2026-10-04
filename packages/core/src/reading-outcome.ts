@@ -1,4 +1,5 @@
 import { DSP_CONFIG } from './config';
+import { emergencyHeartRate, type UrgentHeartRate } from './emergency';
 import type { RejectedSpan, RejectionReason } from './live-session';
 import type { ReadingAnalysis } from './reading';
 import type { LostSeconds } from './results';
@@ -20,9 +21,12 @@ export interface InconclusiveOutcome {
   lostSeconds: LostSeconds;
   otherLostSeconds: number; // SQI-rejected and flat windows, and the 1 s after an exposure change
   causes: LostCause[]; // causes that lost ≥ 0.5 ms, most first (to the ms): the first ones pick §12's two tips
+  // §10.1 Emergency screen: an inconclusive capture still routes there (SAFE-1), since the trigger needs
+  // only its own 60 clean seconds, not the mode's target.
+  urgent: UrgentHeartRate | null;
 }
 
-export type ReadingOutcome = { kind: 'reading' } | InconclusiveOutcome;
+export type ReadingOutcome = { kind: 'reading'; urgent: UrgentHeartRate | null } | InconclusiveOutcome;
 
 // §12 Capture: one coaching line at a time, finger contact → motion → pressure → cold hands.
 const COACHING_ORDER: readonly LostCause[] = ['coverage', 'motion', 'pressure', 'coldHands'];
@@ -76,7 +80,8 @@ export function readingOutcome(analysis: ReadingAnalysis): ReadingOutcome {
   const reasons: InconclusiveReason[] = [];
   if (analysis.cleanSeconds < neededCleanSeconds) reasons.push('tooFewCleanSeconds');
   if (analysis.heartRateBpm === null) reasons.push('noHeartRate');
-  if (reasons.length === 0) return { kind: 'reading' };
+  const urgent = emergencyHeartRate(analysis);
+  if (reasons.length === 0) return { kind: 'reading', urgent };
 
   const { lostSeconds, otherLostSeconds } = lostByCause(analysis.rejectedSpans, analysis.durationS);
   // Compared in whole ms, so float rounding (3.7 − 3 = 0.7000000000000002) cannot break a tie.
@@ -90,5 +95,6 @@ export function readingOutcome(analysis: ReadingAnalysis): ReadingOutcome {
     lostSeconds,
     otherLostSeconds,
     causes,
+    urgent,
   };
 }

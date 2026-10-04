@@ -95,6 +95,10 @@ private const val ANALYZER_DRAIN_MS = 100L
 private const val EVENT_DRAIN_MS = 50L
 private const val FAILURE_LOG_EVERY = 100
 
+// MAIN's first-device order (2026-10-04): start() fails when the camera has not delivered a frame and set the
+// torch within 3 s of bind, instead of leaving the JS promise waiting on a stuck camera.
+private const val START_TIMEOUT_MS = 3000L
+
 // One running capture: CameraX ImageAnalysis on a rear lens with Camera2 interop for frame rate,
 // stabilization, exposure and locks (spec §9.2). Frames are reduced to numbers on the analyzer thread and
 // never leave this class (CAP-3).
@@ -116,6 +120,9 @@ class CameraSession(
     private val eventThread = HandlerThread("LumenCaptureEvents").apply { start() }
     private val events = Handler(eventThread.looper)
     private val mainExecutor = Executor { Handler(Looper.getMainLooper()).post(it) }
+
+    // Only this session's start timer and first-frame note are posted here, so stop() can cancel just those.
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val sensorManager = context.getSystemService(SensorManager::class.java)
     private val powerManager = context.getSystemService(PowerManager::class.java)
 
@@ -148,11 +155,42 @@ class CameraSession(
     private var reopened = false // main thread only
     private val analysisFailures = AtomicInteger(0)
 
+    // start()'s callback until the start succeeds or fails, then null. Main thread only, like the fields below.
+    private var startDone: ((Throwable?) -> Unit)? = null
+    private var torchReady = false
+    private var frameReady = false
+    private var lastCameraError: CameraState.StateError? = null
+    private var summary: SessionSummary? = null
+
+    private val startTimeout =
+        Runnable {
+            val missing = if (!frameReady) "delivered no frames" else "did not set the torch"
+            val lastError = lastCameraError?.let { "; last camera error: ${cameraErrorText(it.code)}" } ?: ""
+            finishStart(IllegalStateException("The camera $missing within ${START_TIMEOUT_MS / 1000} s of opening$lastError"))
+        }
+
+    private val firstFrameArrived =
+        Runnable {
+            frameReady = true
+            if (torchReady) finishStart(null)
+        }
+
     // CameraX 1.6.2 resets its torch control when the use cases detach (lifecycle STOP), so the camera
     // reopens dark after the app returns from the background (PR #47 review, javap on camera-camera2 1.6.2).
     // Swift restores the torch after an interruption the same way.
     private val cameraStateObserver =
         Observer<CameraState> { state ->
+            val error = state.error
+            if (error == null) {
+                Log.i(TAG, "Camera state ${state.type}")
+            } else {
+                Log.e(TAG, "Camera state ${state.type}, ${error.type} error: ${cameraErrorText(error.code)}", error.cause)
+                lastCameraError = error
+                // CameraX retries a RECOVERABLE error itself, so a start fails on one only through the timeout.
+                if (error.type == CameraState.ErrorType.CRITICAL) {
+                    finishStart(IllegalStateException("Camera error: ${cameraErrorText(error.code)}", error.cause))
+                }
+            }
             if (state.type == CameraState.Type.OPEN) {
                 if (reopened) restoreAfterReopen()
                 seenOpen = true
@@ -162,18 +200,35 @@ class CameraSession(
             }
         }
 
-    // On failure the caller still calls stop(), which releases whatever was set up.
+    // Main thread. `done` runs once: when the torch is set and the first frame has arrived, or with the failure (a
+    // bind error, a critical camera error, a torch error, START_TIMEOUT_MS, or stop()). On failure the caller
+    // still calls stop(), which unbinds the camera; closing the camera turns the torch off.
     fun start(owner: LifecycleOwner, done: (Throwable?) -> Unit) {
+        startDone = done
         val providerFuture = ProcessCameraProvider.getInstance(context)
         providerFuture.addListener({
-            if (stopped) return@addListener done(IllegalStateException("capture stopped before the camera opened"))
+            // stop() has already failed this start.
+            if (stopped) return@addListener
             val outcome = runCatching { bind(owner, providerFuture.get()) }
             outcome.exceptionOrNull()?.let {
-                done(it)
+                finishStart(it)
                 return@addListener
             }
-            setTorch(settings.torchLevel, done)
+            mainHandler.postDelayed(startTimeout, START_TIMEOUT_MS)
+            setTorch(settings.torchLevel) { failure ->
+                if (failure != null) return@setTorch finishStart(failure)
+                torchReady = true
+                if (frameReady) finishStart(null)
+            }
         }, mainExecutor)
+    }
+
+    private fun finishStart(failure: Throwable?) {
+        val done = startDone ?: return
+        startDone = null
+        mainHandler.removeCallbacks(startTimeout)
+        if (failure == null) Log.i(TAG, "Capture started") else Log.e(TAG, "Capture start failed", failure)
+        done(failure)
     }
 
     private fun bind(owner: LifecycleOwner, cameraProvider: ProcessCameraProvider) {
@@ -236,9 +291,13 @@ class CameraSession(
     }
 
     // Main thread. The last samples batch goes out before this returns, so stop() loses no frame (as in Swift).
+    // A second call (the failed-start callback stops again) returns the same summary.
     fun stop(): SessionSummary {
+        summary?.let { return it }
         stopped = true
         running = false
+        mainHandler.removeCallbacks(startTimeout)
+        mainHandler.removeCallbacks(firstFrameArrived)
         camera?.cameraInfo?.cameraState?.removeObserver(cameraStateObserver)
         analysis?.let { useCase ->
             useCase.clearAnalyzer()
@@ -255,7 +314,10 @@ class CameraSession(
         emitBatchNow()
         // Interrupts a lockExposure() that is waiting for frames, so its promise rejects.
         exposureThread.shutdownNow()
-        return SessionSummary(startedNs, frameClockNs(), lens.id, counters.frames, counters.dropped)
+        val finished = SessionSummary(startedNs, frameClockNs(), lens.id, counters.frames, counters.dropped)
+        summary = finished
+        finishStart(IllegalStateException("capture stopped before the camera started"))
+        return finished
     }
 
     // Runs on the exposure thread so stop() never waits for it; stop() interrupts it and the promise rejects.
@@ -289,6 +351,7 @@ class CameraSession(
             if (firstFrameRealtimeNs == null) {
                 firstFrameRealtimeNs = SystemClock.elapsedRealtimeNanos()
                 Log.i(TAG, "First frame: ${it.width}x${it.height}, rowStride ${plane.rowStride}, pixelStride ${plane.pixelStride}")
+                mainHandler.post(firstFrameArrived)
             }
             val numbers = reduceRgbaFrame(plane.buffer, it.width, it.height, plane.rowStride, plane.pixelStride)
             val workNs = System.nanoTime() - workStart
@@ -584,3 +647,18 @@ class CameraSession(
         }, mainExecutor)
     }
 }
+
+// CameraState.ERROR_* codes (CameraX 1.6.2) in words the failure message carries to JS.
+private fun cameraErrorText(code: Int): String =
+    when (code) {
+        CameraState.ERROR_MAX_CAMERAS_IN_USE -> "too many cameras are open (ERROR_MAX_CAMERAS_IN_USE)"
+        CameraState.ERROR_CAMERA_IN_USE -> "another app is using the camera (ERROR_CAMERA_IN_USE)"
+        CameraState.ERROR_OTHER_RECOVERABLE_ERROR -> "the camera closed unexpectedly (ERROR_OTHER_RECOVERABLE_ERROR)"
+        CameraState.ERROR_STREAM_CONFIG -> "the camera rejected the stream setup (ERROR_STREAM_CONFIG)"
+        CameraState.ERROR_CAMERA_DISABLED -> "the camera is disabled by a device policy (ERROR_CAMERA_DISABLED)"
+        CameraState.ERROR_CAMERA_FATAL_ERROR -> "the camera hit a fatal error; restarting the phone may help (ERROR_CAMERA_FATAL_ERROR)"
+        CameraState.ERROR_DO_NOT_DISTURB_MODE_ENABLED ->
+            "the camera cannot open while Do Not Disturb is on (ERROR_DO_NOT_DISTURB_MODE_ENABLED)"
+        CameraState.ERROR_CAMERA_REMOVED -> "the camera was disconnected (ERROR_CAMERA_REMOVED)"
+        else -> "camera error code $code"
+    }

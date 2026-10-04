@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { BackHandler } from 'react-native';
 
@@ -29,8 +29,9 @@ export default function ProcessingScreen() {
         : null;
 
   // SAFE-1: only this screen routes on an urgent rate, so it cannot be left until the rules have run (urgent
-  // is undefined until then): no header back, no iOS swipe-back, and the Android back press is eaten. After
-  // that the routing below needs no further analysis step, so leaving is harmless.
+  // is undefined until then). The Android back press is eaten here. The header back and iOS swipe-back are
+  // off for this route in the root layout, set once: flipping them while the screen hands over closed the app
+  // on Android (e2e on main 711c4a7). After that the routing needs no analysis step, so leaving is harmless.
   const analysing = analysis.phase === 'running' && urgent === undefined;
   useEffect(() => {
     if (!analysing) return;
@@ -64,7 +65,6 @@ export default function ProcessingScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerBackVisible: !analysing, gestureEnabled: !analysing }} />
       <ProcessingView analysis={analysis} mode={mode} />
       <SafetySheet
         visible={askSymptoms}

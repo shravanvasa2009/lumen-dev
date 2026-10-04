@@ -187,8 +187,11 @@ class CameraSession(
                 Log.e(TAG, "Camera state ${state.type}, ${error.type} error: ${cameraErrorText(error.code)}", error.cause)
                 lastCameraError = error
                 // CameraX retries a RECOVERABLE error itself, so a start fails on one only through the timeout.
+                // Posted, not called: LiveData can deliver its current value inside observe(), and failing the start
+                // there would run the caller's stop() in the middle of bind().
                 if (error.type == CameraState.ErrorType.CRITICAL) {
-                    finishStart(IllegalStateException("Camera error: ${cameraErrorText(error.code)}", error.cause))
+                    val failure = IllegalStateException("Camera error: ${cameraErrorText(error.code)}", error.cause)
+                    mainHandler.post { finishStart(failure) }
                 }
             }
             if (state.type == CameraState.Type.OPEN) {
@@ -214,6 +217,8 @@ class CameraSession(
                 finishStart(it)
                 return@addListener
             }
+            // stop() ran while binding: it has unbound the camera, so no torch and no timer for a dead session.
+            if (stopped) return@addListener
             mainHandler.postDelayed(startTimeout, START_TIMEOUT_MS)
             setTorch(settings.torchLevel) { failure ->
                 if (failure != null) return@setTorch finishStart(failure)
@@ -263,11 +268,12 @@ class CameraSession(
                 .build()
         startedNs = frameClockNs()
         val bound = cameraProvider.bindToLifecycle(owner, selector, useCase)
+        // Recorded straight after binding, so a stop() from here on unbinds the camera, which closes it and puts
+        // the torch out.
         camera = bound
-        logBound()
-        bound.cameraInfo.cameraState.observe(owner, cameraStateObserver)
         provider = cameraProvider
         analysis = useCase
+        logBound()
         running = true
         sensorManager?.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)?.let {
             sensorManager.registerListener(motionListener, it, MOTION_PERIOD_US, events)
@@ -275,6 +281,8 @@ class CameraSession(
         events.postDelayed(::emitBatch, BATCH_MS)
         events.postDelayed(::emitStatus, STATUS_MS)
         if (settings.labEvents) events.postDelayed(::emitLab, LAB_MS)
+        // Last, once the session is fully set up: observe() can call the observer at once with the current state.
+        bound.cameraInfo.cameraState.observe(owner, cameraStateObserver)
     }
 
     // Logcat in release builds too, so a first run on a new phone shows which camera path it took. Camera

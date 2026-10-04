@@ -128,8 +128,9 @@ function replayLive(
   };
 }
 
-function expectAccurateOrRefused(analysis: ReadingAnalysis, trueBpm: number): void {
-  if (analysis.heartRateBpm === null) return;
+// Every step case reads its rate with the local offset (ADR 0081), so a refusal would hide a regression.
+function expectAccurate(analysis: ReadingAnalysis, trueBpm: number): void {
+  expect(analysis.heartRateBpm).not.toBeNull();
   expect(Math.abs(analysis.heartRateBpm! - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
 }
 
@@ -143,19 +144,19 @@ describe('red team: one red step DSP-4 does not catch no longer halves the rate 
     ['breathing ±30% / 3 s', 60, 0.45, Infinity, breathing(0.3, 3)],
     ['breathing ±50% / 3 s', 60, 0.33, Infinity, breathing(0.5, 3)],
     ['breathing ±50% / 3 s', 75, 0.45, Infinity, breathing(0.5, 3)],
-  ])('%s at %i bpm, red down %p at 20 s for %p s: right or refused', (_, bpm, depth, stepS, gain) => {
+  ])('%s at %i bpm, red down %p at 20 s for %p s: reads its rate', (_, bpm, depth, stepS, gain) => {
     const analysis = analyzeReading(capture(scaledPulse(bpm, gain), redStep(depth, stepS)), CONTEXT);
-    expectAccurateOrRefused(analysis, bpm);
+    expectAccurate(analysis, bpm);
   });
 
   // Before: 25.0 bpm, live = saved = 40.00 clean s.
-  it('live, SQI 0.9: breathing ±30% / 3 s at 50 bpm, red down 0.33 for 0.5 s at 20 s: right or refused', () => {
+  it('live, SQI 0.9: breathing ±30% / 3 s at 50 bpm, red down 0.33 for 0.5 s at 20 s: reads its rate', () => {
     const { analysis, liveCleanS } = replayLive(
       capture(scaledPulse(50, breathing(0.3, 3)), redStep(0.33, 0.5)),
       0.9,
     );
     expect(liveCleanS).toBeCloseTo(analysis.cleanSeconds, 9);
-    expectAccurateOrRefused(analysis, 50);
+    expectAccurate(analysis, 50);
   });
 
   it.each<[string, number, Gain]>([

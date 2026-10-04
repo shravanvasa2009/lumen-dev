@@ -221,3 +221,29 @@ def test_window_set_round_trips_through_npz(tmp_path):
     loaded = load_window_set(path)
     for name in windows._fields:
         np.testing.assert_array_equal(getattr(loaded, name), getattr(windows, name))
+
+
+def test_rsa_leaves_af_readings_alone():
+    reading = windows_module.Reading("afdb:01", "af", np.full(120, 800.0), np.zeros(121, dtype=bool))
+    for seed in range(20):
+        np.testing.assert_array_equal(
+            windows_module._with_rsa(reading, np.random.default_rng(seed)), reading.intervals_ms
+        )
+
+
+@pytest.mark.parametrize("label", ["sinus", "other"])
+def test_rsa_modulates_non_af_readings_within_the_breathing_ranges(label):
+    # ADR 0084: RR × (1 + A·sin(2π·f·t + φ)), A and f in range, on about RSA_PROBABILITY of readings.
+    reading = windows_module.Reading("mitdb:100", label, np.full(120, 800.0), np.zeros(121, dtype=bool))
+    low, high = windows_module.RSA_AMPLITUDE_RANGE
+    changed = 0
+    for seed in range(200):
+        intervals = windows_module._with_rsa(reading, np.random.default_rng(seed))
+        ratio = intervals / reading.intervals_ms
+        if np.allclose(ratio, 1.0):
+            continue
+        changed += 1
+        assert np.max(np.abs(ratio - 1.0)) <= high + 1e-12
+        # 96 s of 0.8 s beats holds at least 14 breaths, so the swing reaches most of A.
+        assert np.max(np.abs(ratio - 1.0)) >= 0.9 * low
+    assert abs(changed / 200 - windows_module.RSA_PROBABILITY) < 0.1

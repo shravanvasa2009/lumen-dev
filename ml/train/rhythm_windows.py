@@ -50,6 +50,14 @@ WINDOWS_PER_SUBJECT_LABEL = 400
 # records and 2,178 beats (ADR 0025). The measurement includes 30 Hz quantization and pulse-transit
 # variation, so it is not phone timing jitter alone.
 JITTER_SD_RANGE_MS = (0.0, 40.0)
+# ADR 0084 (rhythm v2 red-team): the training sinus is mostly adult ECG with little respiratory sinus
+# arrhythmia, while Lumen's users are mostly teenagers, whose heart rate can swing ±10-20% with each breath;
+# without it rhythm v2 showed AF on 4% of synthetic ±10% RSA readings. Each non-AF training reading gets, with
+# RSA_PROBABILITY, RR scaled by 1 + A·sin(2π·f·t + φ), A and f drawn from the ranges below (9-24 breaths a
+# minute), φ ~ U(0, 2π). AF readings are left as they are.
+RSA_PROBABILITY = 0.5
+RSA_AMPLITUDE_RANGE = (0.03, 0.15)
+RSA_BREATHING_HZ_RANGE = (0.15, 0.4)
 
 _SIZE = DSP_CONFIG["dsp15"]["windowIntervals"]
 _STEP = DSP_CONFIG["dsp15"]["windowStep"]
@@ -120,9 +128,21 @@ def _capped(readings: list[Reading], cap: int, rng: np.random.Generator) -> list
     return sorted(kept)
 
 
+def _with_rsa(reading: Reading, rng: np.random.Generator) -> np.ndarray:
+    intervals_ms = np.asarray(reading.intervals_ms, dtype=float)
+    if reading.label == "af" or rng.random() >= RSA_PROBABILITY:
+        return intervals_ms
+    amplitude = rng.uniform(*RSA_AMPLITUDE_RANGE)
+    breathing_hz = rng.uniform(*RSA_BREATHING_HZ_RANGE)
+    phase = rng.uniform(0.0, 2 * np.pi)
+    # Each interval is scaled by the breathing phase at its start beat.
+    starts_s = np.concatenate([[0.0], np.cumsum(intervals_ms)[:-1]]) / 1000.0
+    return intervals_ms * (1.0 + amplitude * np.sin(2 * np.pi * breathing_hz * starts_s + phase))
+
+
 def _augmented(reading: Reading, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
     augmented = augment_intervals(
-        reading.intervals_ms,
+        _with_rsa(reading, rng),
         reading.beat_premature[1:],
         rng,
         jitter_sd_ms=rng.uniform(*JITTER_SD_RANGE_MS),

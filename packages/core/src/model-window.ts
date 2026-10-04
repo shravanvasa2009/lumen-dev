@@ -1,7 +1,7 @@
 import { DSP_CONFIG } from './config';
 import { sqiModelInput } from './finger-signal';
 import type { RejectedSpan } from './live-session';
-import { isFrameGap, resampleCubic } from './resample';
+import { HALF_NS_S, isFrameGap, resampleCubic } from './resample';
 
 // Shared by LiveSession and analyzeReading, so the live screen and the saved result reject the same flat
 // windows (ADR 0023, ADR 0057).
@@ -54,14 +54,15 @@ function windowFrames(
 }
 
 // ADR 0077: under live.minEffectiveFps when frames [0, count) delivered in [endS − dsp3.modelWindowS, endS],
-// covered or not, number fewer than minEffectiveFps × the window, or when any span of live.subWindowS that
+// covered or not, number fewer than minEffectiveFps × the window; when any span of live.subWindowS that
 // starts on one of them and ends inside the window holds fewer than live.minSubWindowFps × that span, ends
-// included as in the window count. The second test stops a fast burst paying for a sparse rest of the
-// window while letting random drops at a mean above 24 fps through. It counts distinct sample times
-// (implementation note 3): from the span's first frame, a frame counts only live.minSampleSpacingS or more
-// after the last counted one, so back-to-back frames cannot stand in for samples of the pulse.
+// included as in the window count; or when one such span holds two intervals between neighbouring frames
+// longer than live.maxFrameGapS (implementation note 4). The 1 s count stops a fast burst paying for a
+// sparse rest of the window. The interval test stops clumps of frames standing in for samples of a fast
+// pulse: a run of long intervals is a stretch sampled too sparsely, while one lone interval up to DSP-2's
+// gap limit is splined over as DSP-2 allows, so random drops of 3 frames in a row at 30 fps still pass.
 function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): boolean {
-  const { minEffectiveFps, minSubWindowFps, subWindowS, minSampleSpacingS } = DSP_CONFIG.live;
+  const { minEffectiveFps, minSubWindowFps, subWindowS, maxFrameGapS } = DSP_CONFIG.live;
   const startS = endS - DSP_CONFIG.dsp3.modelWindowS;
   let first = count;
   let frames = 0;
@@ -70,17 +71,16 @@ function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): 
     if (tS[i]! <= endS) frames++;
   }
   if (frames < minEffectiveFps * DSP_CONFIG.dsp3.modelWindowS) return true;
-  const spanSamples = Math.ceil(minSubWindowFps * subWindowS);
+  let longIntervalStartS = -Infinity;
+  for (let i = first + 1; i < count && tS[i]! <= endS; i++) {
+    if (tS[i]! - tS[i - 1]! <= maxFrameGapS + HALF_NS_S) continue;
+    if (tS[i]! - longIntervalStartS <= subWindowS + HALF_NS_S) return true;
+    longIntervalStartS = tS[i - 1]!;
+  }
+  const spanFrames = Math.ceil(minSubWindowFps * subWindowS);
   for (let i = first; i < count && tS[i]! + subWindowS <= endS; i++) {
-    const spanEndS = tS[i]! + subWindowS;
-    let countedS = tS[i]!;
-    let samples = 1;
-    for (let j = i + 1; j < count && tS[j]! <= spanEndS && samples < spanSamples; j++) {
-      if (tS[j]! - countedS < minSampleSpacingS) continue;
-      countedS = tS[j]!;
-      samples++;
-    }
-    if (samples < spanSamples) return true;
+    const last = i + spanFrames - 1;
+    if (last >= count || !(tS[last]! <= tS[i]! + subWindowS)) return true;
   }
   return false;
 }

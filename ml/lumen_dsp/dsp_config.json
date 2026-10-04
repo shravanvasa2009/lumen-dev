@@ -142,7 +142,7 @@
     "minEffectiveFps": 24,
     "minSubWindowFps": 16,
     "subWindowS": 1,
-    "minSampleSpacingS": 0.020833333333333332,
+    "maxFrameGapS": 0.12,
     "motionRmsThreshold": 0.05,
     "leakRedRatio": 2.5,
     "coldHandsAfterS": 10,

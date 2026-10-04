@@ -405,11 +405,12 @@ describe('analyzeReading acquisition spans', () => {
     expect(analysis.cleanSeconds).toBeLessThan(analysis.durationS - 4);
   });
 
-  // Red team PR #171 round 5: runs of frames 4.2 ms apart filled the 1 s count while the pulse was
-  // sampled about 7 times a second.
-  it('ADR 0077: 1 s of it counts only frames at least live.minSampleSpacingS after the last counted', () => {
-    expect(DSP_CONFIG.live.minSampleSpacingS).toBe(1 / 48);
-    // 240 fps except 10.5–11.5 s, where each 32 steps keep a run of 4: 30 frames, 7.5 distinct times.
+  // Red team PR #171 rounds 5 and 6: runs of frames a few ms apart filled every frame count while the pulse
+  // was sampled about 7 times a second between them.
+  it('ADR 0077: a window is rejected when 1 s of it holds two intervals over live.maxFrameGapS', () => {
+    expect(DSP_CONFIG.live.maxFrameGapS).toBe(0.12);
+    // 240 fps except 10.5–11.5 s, where each 32 steps keep a run of 4: 30 frames, intervals of 29 steps
+    // (120.8 ms) in a row.
     const reading = syntheticReading({
       fps: 240,
       seconds: 30,
@@ -418,6 +419,26 @@ describe('analyzeReading acquisition spans', () => {
     const analysis = analyze(reading, { captureFps: 240 });
     expect(cleanSeconds(10.5, 11.5, analysis.rejectedSpans)).toBe(0);
     expect(analysis.cleanSeconds).toBeLessThan(analysis.durationS - 4);
+  });
+
+  it('ADR 0077: 30 fps dropping 3 frames in a row (133 ms) twice in 1 s is rejected; once per 1 s is not', () => {
+    const dropRuns = (starts: number[]) => (tS: number) => {
+      const k = Math.round(tS * 30);
+      return starts.some((start) => k >= start && k < start + 3);
+    };
+    // Intervals 314–318 and 329–333 (frames): 10.47 s to 11.1 s.
+    const twice = analyze(syntheticReading({ fps: 30, seconds: 30, dropped: dropRuns([315, 330]) }));
+    expect(cleanSeconds(10.4, 11.2, twice.rejectedSpans)).toBe(0);
+    const everySecond = Array.from({ length: 29 }, (_, s) => 30 * (s + 1) + 1);
+    const once = analyze(syntheticReading({ fps: 30, seconds: 30, dropped: dropRuns(everySecond) }));
+    expect(spansOf(once, 'quality')).toEqual([]);
+  });
+
+  it('ADR 0077: intervals of exactly live.maxFrameGapS (25 fps, 2 dropped) are not long', () => {
+    // Two 120 ms intervals 0.4 s apart.
+    const dropped = (tS: number) => [251, 252, 261, 262].includes(Math.round(tS * 25));
+    const reading = syntheticReading({ fps: 25, seconds: 30, dropped });
+    expect(spansOf(analyze(reading, { captureFps: 25 }), 'quality')).toEqual([]);
   });
 
   it('ADR 0077: exactly 24 fps, 240 fps, and 30 fps dropping 1 frame in 5, pass the 1 s floor', () => {

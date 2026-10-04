@@ -2,7 +2,7 @@ import { DSP_CONFIG } from './config';
 
 // Timestamps are whole ns, so a gap within half a ns of the limit equals it. A difference of two times in
 // seconds carries rounding up to ~1e-13 s (10-minute captures), which would split some 150 ms gaps.
-const HALF_NS_S = 0.5e-9;
+export const HALF_NS_S = 0.5e-9;
 
 // DSP-2: frames further apart than maxGapS are never interpolated across.
 export function isFrameGap(previousS: number, nextS: number): boolean {

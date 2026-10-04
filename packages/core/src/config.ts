@@ -218,11 +218,12 @@ export const DSP_CONFIG = {
     // 26 fps mean. Only tightens the owner's floor.
     minSubWindowFps: 16,
     subWindowS: 1,
-    // ADR 0077 implementation note 3 (red team PR #171 round 5): the subWindowS count takes a frame only
-    // this long after the last one it took, so a run of frames 4.2 ms apart is one sample time, not 20.
-    // Under 30 fps spacing with jitter (33 ± a few ms); 60 fps counts every other frame (30/s) and 240 fps
-    // every 5th (48/s). 1/48 s is the double the JSON mirror spells as 0.020833333333333332.
-    minSampleSpacingS: 1 / 48,
+    // ADR 0077 implementation note 4 (red team PR #171 rounds 5 and 6): a model window with two frames in a
+    // row more than this far apart is rejected, so no stretch is sampled too sparsely for the fastest rate
+    // reported. rules.fastRegularBpm tops out at 220 bpm (3.67 Hz); 1 / (2.2 × 3.67 Hz) ≈ 0.124 s, rounded
+    // down for timing jitter. Under DSP-2's 0.15 s split; a 30 fps phone dropping 2 frames in a row
+    // (100 ms) passes, 3 in a row (133 ms) does not.
+    maxFrameGapS: 0.12,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.

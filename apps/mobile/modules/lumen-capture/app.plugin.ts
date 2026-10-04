@@ -31,6 +31,16 @@ function addOptionalCameraFeatures(manifest: AndroidManifest): AndroidManifest {
   return manifest;
 }
 
+// Hermes V1 fibers leave a code address in RBP, and GWP-ASan's frame-pointer walk then reads past the
+// stack end and crashes the app at start (x86_64 CI emulator, Android 14). Remove once the app runs
+// Hermes with commit 73f9af39 (React Native 0.88 or later); see ADR 0094.
+// https://github.com/facebook/hermes/issues/1873
+// https://developer.android.com/ndk/guides/gwp-asan
+function turnOffGwpAsan(manifest: AndroidManifest): AndroidManifest {
+  AndroidConfig.Manifest.getMainApplicationOrThrow(manifest).$['android:gwpAsanMode'] = 'never';
+  return manifest;
+}
+
 // Expo's built-in locales step writes each locale's `ios` keys to <lang>.lproj/InfoPlist.strings.
 const withSpanishCameraPurpose: ConfigPlugin = (config) => {
   const existing = config.locales?.es;
@@ -82,7 +92,7 @@ const withLumenCaptureOnce: ConfigPlugin<LumenCaptureProps> = (config, props) =>
   config = withSpanishCameraPurpose(config);
   config = AndroidConfig.Permissions.withPermissions(config, ['android.permission.CAMERA']);
   return withAndroidManifest(config, (manifestConfig) => {
-    manifestConfig.modResults = addOptionalCameraFeatures(manifestConfig.modResults);
+    manifestConfig.modResults = turnOffGwpAsan(addOptionalCameraFeatures(manifestConfig.modResults));
     return manifestConfig;
   });
 };

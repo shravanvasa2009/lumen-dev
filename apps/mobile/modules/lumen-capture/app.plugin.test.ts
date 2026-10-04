@@ -143,6 +143,11 @@ describe('lumen-capture config plugin (CAP-2)', () => {
     }
   });
 
+  it('turns GWP-ASan off on the application (Hermes #1873, ADR 0094)', () => {
+    const application = AndroidConfig.Manifest.getMainApplicationOrThrow(manifestOf(fromTemplates));
+    expect(application.$['android:gwpAsanMode']).toBe('never');
+  });
+
   it('adds nothing twice when run again on its own output', async () => {
     const firstRun = manifestOf(await introspect(projectRoot));
     await AndroidConfig.Manifest.writeAndroidManifestAsync(
@@ -153,6 +158,7 @@ describe('lumen-capture config plugin (CAP-2)', () => {
     expect(namesIn(manifest['uses-permission'], 'android.permission.CAMERA')).toHaveLength(1);
     expect(namesIn(manifest['uses-feature'], 'android.hardware.camera')).toHaveLength(1);
     expect(namesIn(manifest['uses-feature'], 'android.hardware.camera.flash')).toHaveLength(1);
+    expect(manifest.application?.[0]?.$['android:gwpAsanMode']).toBe('never');
   });
 
   it('adds nothing twice when listed twice in the plugins', async () => {

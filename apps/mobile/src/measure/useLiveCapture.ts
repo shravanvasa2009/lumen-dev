@@ -106,7 +106,8 @@ export function useLiveCapture(
     const threshold = sqiThreshold();
     let scoredEndS: number | null = null;
     let scoring = false;
-    // Only a torch capture is locked; ambient mode (spec §4.4) has its own exposure plan.
+    // Only a torch capture is locked here. A dark capture is not: spec §4.4 asks ambient mode for a different
+    // plan (unlocked for 2 s, then locked at a brighter target), which this path does not implement yet.
     let lockWanted = false;
     let lockTimer: ReturnType<typeof setTimeout> | null = null;
 

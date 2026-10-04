@@ -93,8 +93,8 @@ export function useLiveCapture(
   // Raised when the user comes back from Settings with the camera allowed, to start the capture again.
   const [permissionGrants, setPermissionGrants] = useState(0);
 
-  // Android and iOS do not ask again after a denial, so the user turns the camera on in Settings. getPermission
-  // does not prompt, which keeps the dialog from raising another foreground event.
+  // After a denial the system may not ask again (Android 11+ asks once more), so the user can turn the camera
+  // on in Settings. getPermission does not prompt, which keeps the dialog from raising another foreground event.
   useEffect(() => {
     if (!capture || live.phase !== 'denied') return;
     let mounted = true;
@@ -103,7 +103,9 @@ export function useLiveCapture(
       capture
         .getPermission()
         .then((permission) => {
-          if (mounted && permission.granted) setPermissionGrants((count) => count + 1);
+          if (!mounted || !permission.granted) return;
+          setLive(idle('starting'));
+          setPermissionGrants((count) => count + 1);
         })
         .catch((error: unknown) => console.warn(`Camera permission check failed: ${reasonOf(error)}`));
     });

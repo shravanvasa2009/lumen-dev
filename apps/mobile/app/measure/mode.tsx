@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
+import { lockText } from '@/checks/lockText';
 import { AppText } from '@/components/AppText';
 import { RouteShell } from '@/components/RouteShell';
 import { durationLabel } from '@/measure/durationLabel';
@@ -18,14 +19,7 @@ export default function ModeScreen() {
   const lock = (mode: keyof typeof MODES) => {
     const reason = lockReason(rating, mode);
     if (reason === null) return {};
-    const reasons = {
-      unsupported: t('mode.lockedUnsupported'),
-      flash: t('mode.lockedFlash'),
-      fps60: t('mode.locked60fps'),
-      full: t('mode.lockedFull'),
-      basic: t('mode.lockedBasic'),
-    };
-    return { unavailable: reasons[reason], locked: true };
+    return { unavailable: lockText(t, reason), locked: true };
   };
   return (
     <RouteShell title={t('mode.title')}>

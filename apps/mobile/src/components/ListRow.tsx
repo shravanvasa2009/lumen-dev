@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/theme';
 
 import { AppText } from './AppText';
 import { Icon } from './Icon';
+import { PressableScale } from './PressableScale';
 
 type ListRowProps = {
   title: string;
@@ -13,7 +14,7 @@ type ListRowProps = {
   trailing?: ReactNode;
   last?: boolean;
   chevron?: boolean;
-  // A row that is announced but not available yet, e.g. "Coming soon"; it ignores presses.
+  // A row that is announced but ignores presses while its action runs.
   disabled?: boolean;
   // Set on a row that opens and closes the content below it, so a screen reader hears its state.
   expanded?: boolean;
@@ -33,7 +34,7 @@ export function ListRow({
 }: ListRowProps) {
   const { colors, spacing, control } = useTheme();
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole={onPress ? 'button' : undefined}
       disabled={!onPress || disabled}
       accessibilityState={{ disabled, expanded }}
@@ -62,7 +63,7 @@ export function ListRow({
       </View>
       {trailing}
       {chevron ? <Icon name="chevron" size={control.chevronSize} color={colors.textFaint} /> : null}
-    </Pressable>
+    </PressableScale>
   );
 }
 

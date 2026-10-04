@@ -107,7 +107,7 @@ export const DSP_CONFIG = {
     minCleanS: 30, // §6.2 "Signal strength (perfusion index)"
   },
   dsp11: {
-    minCleanS: 15, // §6.2 "Heart rate"
+    minCleanS: 15, // §6.2 "Heart rate"; the accepted intervals behind the median must span this too (ADR 0080)
   },
   dsp12: {
     // The caller passes the capture format's frame rate (ADR 0040): a measured median frame interval at
@@ -149,6 +149,11 @@ export const DSP_CONFIG = {
     sampleEntropyM: 2,
     sampleEntropyR: 0.2, // × the window's population SD
     minUsableIntervals: 40, // a reading needs this many intervals that do not span an artifact
+    // Rhythm v2 features (ADR 0079), as fractions of the window's median interval. Initial values.
+    prematureShortFactor: 0.85, // a premature beat ends an interval shorter than this
+    pauseLongFactor: 1.1, // and the compensatory pause that follows is longer than this
+    trimmedDiffShare: 0.8, // the trimmed RMSSD keeps this share of the smallest |differences|
+    largeChangeFactor: 0.1, // a successive difference above this is a large change
   },
   // Standing heart-rate test (§10 DSP-16, §10.1 "Large rise on standing"; readings of the spec in ADR 0063).
   dsp16: {
@@ -203,6 +208,42 @@ export const DSP_CONFIG = {
     // edge of the HR band, so it holds no beat. A pulse of at least half an 8-bit step changes red at least
     // twice a period, so its longest equal stretch is under half a period (1 s at 30 bpm).
     minFlatS: 2,
+    // ADR 0077 (owner, option C): a model window (dsp3.modelWindowS) holding fewer frames than this many
+    // per second is rejected as quality. §5.1's hard-fail floor: a rear camera that can't reach 24 fps.
+    minEffectiveFps: 24,
+    // ADR 0077 implementation note (red team PR #171 rounds 3 and 4): every subWindowS span that starts on
+    // a frame of a model window and ends inside it must also hold minSubWindowFps × subWindowS frames, so
+    // a fast burst cannot carry a sparse rest of the window. 16 frames/s is the Nyquist rate for the 8 Hz
+    // top of DSP-6's 0.5–8 Hz morphology band (ADR 0077 option D); 24 per 1 s refused random drops at a
+    // 26 fps mean. Only tightens the owner's floor.
+    minSubWindowFps: 16,
+    subWindowS: 1,
+    // ADR 0077 implementation note 4 (red team PR #171 rounds 5 and 6): a model window is rejected when
+    // any subWindowS span of it holds two intervals between neighbouring frames longer than this; one lone
+    // longer interval, up to DSP-2's 0.15 s split, is splined over. rules.fastRegularBpm tops out at
+    // 220 bpm (3.67 Hz); 1 / (2.2 × 3.67 Hz) ≈ 0.124 s, rounded down for timing jitter. A 30 fps phone
+    // dropping 2 frames in a row (100 ms) never makes one; 3 in a row (133 ms) does.
+    maxFrameGapS: 0.12,
+    // ADR 0077 implementation note 5 (red team PR #171 round 7): a model window is also rejected when any
+    // subWindowS span of it holds maxSparseIntervalsPerS or more intervals longer than sparseIntervalS.
+    // DSP-7 finds beats in DSP-6's 0.5–8 Hz band (Nyquist spacing 62.5 ms), so a pulse's 2nd harmonic
+    // aliases under sustained ~100 ms spacing; red team measured even spacing ≤ 90 ms reading harmonics of
+    // 0.3–0.5× right and ≥ 100 ms failing. A 30 fps phone's 100 ms double drop comes about 0.8 times a
+    // second even at 5 random drops per second; 5 rather than 4 because 4 still slowed such phones by up to
+    // 8 s, while 5 slowed none measured and refused every round 7 case.
+    sparseIntervalS: 0.09,
+    maxSparseIntervalsPerS: 5,
+    // ADR 0077 implementation note 6 (red team PR #171 round 8): every subWindowS span also needs
+    // minDistinctSamplesPerS sample times at least distinctSampleS apart. The 2nd harmonic of 220 bpm is
+    // 7.33 Hz, whose Nyquist rate is 14.7 samples a second. 12 ms merges frames delivered in a clump; it is
+    // under the frame spacing at 30–60 fps, including 30 fps frames arriving in uneven pairs, and at 120 and
+    // 240 fps it counts every 2nd or 3rd frame (60 or 80 a second), still far above 15.
+    distinctSampleS: 0.012,
+    minDistinctSamplesPerS: 15,
+    // ADR 0077 implementation note 7 (red team PR #171 round 9, M): the longest run of sample times more than
+    // 68 ms apart. M's runs were 0.65–0.88 s and read 220 bpm as 110; 0.5 s refused all 7 M cases and slowed
+    // none of the ordinary-phone red-team cases (30 fps ±8 ms with up to 5 drops/s, 24/60/120/240 fps).
+    maxSparseRunS: 0.5,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.
@@ -244,9 +285,9 @@ export const DSP_CONFIG = {
       { minFps: 30, points: 14 },
       { minFps: 24, points: 6 },
     ],
-    // Not given by the spec (ADR 0058); owner decision H-039 pending. A practice capture at a 60 fps
-    // format measures 59.6–60, not exactly 60, so the achieved rate reaches a level when it is within
-    // this many fps of it. This loosens every "≥ N fps" test in §5.1/§5.2; 0 makes them strict.
+    // Not given by the spec; the owner chose this tolerance (H-039 A, ADR 0058). A practice capture at
+    // a 60 fps format measures 59.6–60, not exactly 60, so the achieved rate reaches a level when it is
+    // within this many fps of it. This loosens every "≥ N fps" test in §5.1/§5.2; 0 makes them strict.
     achievedFpsToleranceFps: 0.5,
     // §5.1 coupling: couplingPoints × min(1, PI / fullPi) × min(1, SNR / fullSnr), floored.
     couplingPoints: 35,

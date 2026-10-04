@@ -2,12 +2,8 @@ import {
   createLiveSession,
   DSP_CONFIG,
   type CoachingKey,
-  type FrameStat,
   type LiveSession,
-  type NsSpan,
   type RejectedSpan,
-  type RejectionReason,
-  type Sample,
   type SqiWindow,
 } from '@lumen/core';
 import { useEffect, useState } from 'react';
@@ -22,7 +18,7 @@ import {
   type SampleBatch,
 } from '../../modules/lumen-capture/src';
 import { scoreSqiWindow, sqiThreshold } from '../ml/runtime';
-import { keepCapture } from './keptCapture';
+import { keepCapture, keepLiveCapture, liveCaptureChanged } from './keptCapture';
 
 // The live waveform card shows the last 6 s (spec §12).
 const WAVEFORM_WINDOW_NS = 6e9;
@@ -60,14 +56,6 @@ const idle = (phase: LivePhase): LiveCapture => ({
 });
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
-const spansOf = (spans: RejectedSpan[], reason: RejectionReason, startNs: number): NsSpan[] =>
-  spans
-    .filter((span) => span.reason === reason)
-    .map((span) => ({
-      startNs: startNs + Math.round(span.startS * 1e9),
-      endNs: startNs + Math.round(span.endS * 1e9),
-    }));
 
 // A wide lens that can light the torch, else any lens that can; no lens means the module's own default,
 // and then no torch, because native rejects a torch level on a phone that has none (ADR 0029 addendum).
@@ -110,9 +98,7 @@ export function useLiveCapture(
     let session: LiveSession | null = null;
     let captureFps = 0;
     let lensId: string | null = null;
-    const samples: Sample[] = [];
-    const stats: FrameStat[] = [];
-    const sqiWindows: { endNs: number; pClean: number }[] = [];
+    let keptFrames = false;
     // The cut-off is null while no SQI model ships; then no window is scored and the session's threshold of 0
     // can reject nothing, so a missing model never invents a quality verdict.
     const threshold = sqiThreshold();
@@ -128,14 +114,14 @@ export function useLiveCapture(
       session = null;
     };
 
-    const scoreWindow = async (scored: LiveSession, window: SqiWindow, startNs: number) => {
+    const scoreWindow = async (scored: LiveSession, window: SqiWindow) => {
       scoring = true;
       try {
         const score = await scoreSqiWindow(window.input);
         // A screen that closed, or a session that failed, while the model ran has no use for the score.
         if (score.source !== 'model' || scored !== session) return;
         scored.setSqi(window.endS, score.pClean);
-        sqiWindows.push({ endNs: startNs + Math.round(window.endS * 1e9), pClean: score.pClean });
+        liveCaptureChanged();
       } catch (error) {
         console.warn(`SQI scoring failed: ${reasonOf(error)}`);
       } finally {
@@ -145,7 +131,7 @@ export function useLiveCapture(
 
     // A batch the session refuses (stats that do not match the samples, time going backwards) ends its
     // counting: the frames after it can no longer be trusted to line up, so nothing is estimated in its place.
-    const feedSession = (batch: SampleBatch, startNs: number): string | null => {
+    const feedSession = (batch: SampleBatch): string | null => {
       if (!session) return null;
       try {
         session.pushSamples(batch);
@@ -153,12 +139,22 @@ export function useLiveCapture(
         session = null;
         return reasonOf(error);
       }
-      samples.push(...batch.samples);
-      stats.push(...batch.stats);
+      // Nothing is kept for Processing until the first frames have reached the session.
+      if (keptFrames) liveCaptureChanged();
+      else {
+        const fed = session;
+        keepLiveCapture({
+          captureFps,
+          lensId,
+          readingInput: () => fed.readingInput(),
+          ...(demo ? { demo: true as const } : {}),
+        });
+        keptFrames = true;
+      }
       const window = session.sqiWindow;
       if (threshold !== null && window && !scoring && window.endS !== scoredEndS) {
         scoredEndS = window.endS;
-        void scoreWindow(session, window, startNs);
+        void scoreWindow(session, window);
       }
       return null;
     };
@@ -172,20 +168,7 @@ export function useLiveCapture(
         (sample) => newest.tNs - sample.tNs <= WAVEFORM_WINDOW_NS,
       );
       const hadSession = session !== null;
-      const refusal = feedSession(batch, startNs);
-      if (session) {
-        const rejectedSpans = session.rejectedSpans;
-        keepCapture({
-          captureFps,
-          lensId,
-          samples,
-          stats,
-          motionSpans: spansOf(rejectedSpans, 'motion', startNs),
-          coldHandsSpans: spansOf(rejectedSpans, 'coldHands', startNs),
-          sqi: sqiWindows.length > 0 && threshold !== null ? { threshold, windows: sqiWindows } : null,
-          ...(demo ? { demo: true as const } : {}),
-        });
-      }
+      const refusal = feedSession(batch);
       setLive((previous) => ({
         ...previous,
         recentRed: recent.map((sample) => sample.r),
@@ -230,6 +213,7 @@ export function useLiveCapture(
           capture.addListener('samples', onSamples),
           capture.addListener('status', (status) => {
             session?.pushStatus(status);
+            if (keptFrames) liveCaptureChanged();
             setLive((previous) => ({ ...previous, status }));
           }),
         ];

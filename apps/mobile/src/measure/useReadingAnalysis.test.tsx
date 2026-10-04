@@ -2,6 +2,9 @@ import type { InconclusiveOutcome } from '@lumen/core';
 import { renderHook, waitFor } from '@testing-library/react-native';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
+import '@/i18n';
+// Before applyPrefs: the mockFileSystem factory runs when applyPrefs loads expo-file-system.
+import { mockFileSystem } from '@/testing/memoryFiles';
 import { resyncNotifications } from '@/settings/applyPrefs';
 import { lumenDatabase } from '@/store/database';
 import { listReadings } from '@/store/readings';
@@ -10,13 +13,19 @@ import { makeReading } from '@/testing/reading';
 import { type AnalysedReading, type AnalysisRequest, analyzeKeptCapture } from './analyzeKeptCapture';
 import { pendingProgress } from './analysisProgress';
 import { type KeptCapture, keepCapture } from './keptCapture';
+import { LumenWidgets } from '../../modules/lumen-widgets/src';
 import { type AnalysisState, useReadingAnalysis } from './useReadingAnalysis';
 
 jest.mock('./analyzeKeptCapture', () => ({ analyzeKeptCapture: jest.fn() }));
 jest.mock('@/settings/applyPrefs', () => ({
   ...jest.requireActual('@/settings/applyPrefs'),
-  resyncNotifications: jest.fn(),
+  // Same contract as the real one: it never rejects and says whether the reminders were updated.
+  resyncNotifications: jest.fn(async () => true),
 }));
+jest.mock('expo-file-system', () => mockFileSystem);
+jest.mock('../../modules/lumen-widgets/src', () => ({ LumenWidgets: { publishSnapshot: jest.fn() } }));
+
+const publishSnapshot = () => jest.mocked(LumenWidgets!.publishSnapshot);
 
 const TAKEN_AT = 1_700_000_000_000;
 const REQUEST = { mode: 'full', restTimerDone: true } as const;
@@ -25,6 +34,7 @@ const finishedProgress = {
   steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
   beats: 90,
   rejectedBeats: 2,
+  outputs: null,
 } as const;
 
 function analysedReading(): AnalysedReading {
@@ -51,8 +61,9 @@ function analysedReading(): AnalysedReading {
 const newCapture = (): KeptCapture => ({
   captureFps: 60,
   lensId: null,
-  samples: [],
-  stats: [],
+  // Two finite frames: fewer is refused before the mocked analysis runs.
+  samples: [1e12, 1e12 + 1e7].map((tNs) => ({ tNs, r: 0.7, g: 0.1, b: 0.1 })),
+  stats: [1e12, 1e12 + 1e7].map((tNs) => ({ tNs, spatialStdR: 0.02, clipFrac: 0, exposureNs: 8e6 })),
   motionSpans: [],
   coldHandsSpans: [],
   sqi: null,
@@ -68,6 +79,8 @@ beforeEach(() => {
     return analysedReading();
   });
   jest.spyOn(console, 'warn').mockImplementation(() => {});
+  publishSnapshot().mockReset();
+  publishSnapshot().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -152,6 +165,29 @@ describe('saving the analysed reading', () => {
 
     expect(second.result.current).toMatchObject({ phase: 'done', readingId: `reading-${TAKEN_AT}` });
     expect(analyzeKeptCapture).toHaveBeenCalledTimes(1);
+    expect(await listReadings()).toHaveLength(1);
+  });
+});
+
+describe('updating the widgets', () => {
+  it('publishes the saved reading to the widgets', async () => {
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(publishSnapshot()).toHaveBeenCalledTimes(1));
+    expect(analysis.current.phase).toBe('done');
+    const snapshot = JSON.parse(publishSnapshot().mock.calls[0]![0]) as {
+      lastReadingAt: string;
+      hrBpm: number;
+    };
+    expect(snapshot).toMatchObject({ lastReadingAt: '2023-11-14T22:13:20Z', hrBpm: 64 });
+  });
+
+  it('reports a failed widget update and still shows the result', async () => {
+    publishSnapshot().mockRejectedValueOnce(new Error('widget store unavailable'));
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() =>
+      expect(console.warn).toHaveBeenCalledWith('Widget update failed: widget store unavailable'),
+    );
+    expect(analysis.current.phase).toBe('done');
     expect(await listReadings()).toHaveLength(1);
   });
 });

@@ -7,11 +7,17 @@ import numpy as np
 import onnxruntime as ort
 import torch
 
-from export.provenance import SEEDED_INPUTS, entry_problems, sha256_of
+from export.provenance import SEEDED_INPUTS, TOLERANCE, entry_problems, sha256_of
 from export.specs import MODELS_DIR, RUNS_DIR, SPECS, ModelSpec, inside_models_dir, release_specs
 from export.to_onnx import SourceModel, source_model
+from nets.rhythm_net import FEATURES
 
 Batch = dict[str, np.ndarray]
+
+# ML-3's cross-runtime half: the first rows of each model's seeded inputs, with onnxruntime's outputs, so
+# a Node or app test can run the same ONNX file on the same inputs. Few rows keep the file small.
+VECTOR_ROWS = 8
+VECTORS_FILE = "parity-vectors.json"
 
 
 def _rhythm_batch(rng: np.random.Generator, count: int) -> Batch:
@@ -25,7 +31,7 @@ def _rhythm_batch(rng: np.random.Generator, count: int) -> Batch:
     return {
         "intervals": intervals.astype(np.float32),
         "mask": mask,
-        "features": rng.normal(0.0, 2.0, size=(count, 8)).astype(np.float32),
+        "features": rng.normal(0.0, 2.0, size=(count, FEATURES)).astype(np.float32),
     }
 
 
@@ -65,7 +71,7 @@ def seeded_inputs(spec: ModelSpec, count: int = SEEDED_INPUTS, seed: int = 0) ->
 def edge_cases(spec: ModelSpec) -> list[Batch]:
     if "intervals" in spec.inputs:
         regular = np.full((1, 64), 0.8, dtype=np.float32)
-        features = np.zeros((1, 8), dtype=np.float32)
+        features = np.zeros((1, FEATURES), dtype=np.float32)
         tail_masked = (np.arange(64) < 10).astype(np.float32)[None]
         garbage = regular.copy()
         garbage[0, 10:] = np.nan
@@ -151,6 +157,27 @@ def parity_report(entries: dict[str, dict]) -> dict:
     return {"maxAbsDiff": top, "models": models}
 
 
+def _tensor(values: np.ndarray) -> dict:
+    # float() of a float32 is that exact value as a double, and JSON keeps doubles exactly, so a reader
+    # that rounds back to float32 gets the very bits onnxruntime saw.
+    return {"dims": list(values.shape), "data": [float(value) for value in values.ravel()]}
+
+
+def parity_vectors(spec: ModelSpec, onnx_path: Path) -> dict:
+    session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+    batch = {name: values[:VECTOR_ROWS] for name, values in seeded_inputs(spec).items()}
+    outputs = session.run(None, batch)
+    return {
+        "file": onnx_path.name,
+        "onnxSha256": sha256_of(onnx_path),
+        "inputs": {name: _tensor(values) for name, values in batch.items()},
+        "outputs": {
+            output.name: _tensor(values)
+            for output, values in zip(session.get_outputs(), outputs, strict=True)
+        },
+    }
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Check ONNX files against their source models (ML-3)")
     which = parser.add_mutually_exclusive_group(required=True)
@@ -171,20 +198,26 @@ def main(argv: list[str] | None = None) -> None:
             parser.error("--random-init needs --models-dir outside models/: its parity.json must not ship")
         if args.name:
             parser.error("models/parity.json must cover every model; use --all")
-    entries = {}
+    entries, vectors = {}, {}
     untrained = args.random_init is not None
     for spec in release_specs(args.runs_dir, untrained) if args.all else [SPECS[args.name]]:
         source = source_model(spec, args.runs_dir, args.random_init)
         from_file = args.random_init is None or spec.kind == "classifier"
         source_sha = sha256_of(args.runs_dir / spec.source_file) if from_file else None
-        entries[spec.name] = parity_entry(
-            spec, source, args.models_dir / f"{spec.file_stem}.onnx", source_sha
-        )
+        onnx_path = args.models_dir / f"{spec.file_stem}.onnx"
+        entries[spec.name] = parity_entry(spec, source, onnx_path, source_sha)
+        vectors[spec.name] = parity_vectors(spec, onnx_path)
         print(f"{spec.name}: max abs diff {entries[spec.name]['maxAbsDiff']:.3e}")
     report = parity_report(entries)
     (args.models_dir / "parity.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    vectors_path = args.models_dir / VECTORS_FILE
     if isinstance(report["maxAbsDiff"], str):
+        # Vectors from files that failed parity must not stay behind for another runtime to match.
+        vectors_path.unlink(missing_ok=True)
         sys.exit(f"ONNX parity {report['maxAbsDiff']} (ML-3)")
+    vectors_path.write_text(
+        json.dumps({"tolerance": TOLERANCE, "models": vectors}, allow_nan=False) + "\n", encoding="utf-8"
+    )
 
 
 if __name__ == "__main__":

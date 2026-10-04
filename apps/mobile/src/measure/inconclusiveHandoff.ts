@@ -6,9 +6,9 @@ import { type KeptCapture, keptCapture } from './keptCapture';
 // it came from, so once a newer capture is kept, a later visit to the Inconclusive screen shows no stale numbers.
 let handed: { capture: KeptCapture; outcome: InconclusiveOutcome } | null = null;
 
-export function handOverInconclusive(outcome: InconclusiveOutcome): void {
+export function handOverInconclusive(outcome: InconclusiveOutcome | null): void {
   const capture = keptCapture();
-  handed = capture === null ? null : { capture, outcome };
+  handed = capture === null || outcome === null ? null : { capture, outcome };
 }
 
 export function handedInconclusive(): InconclusiveOutcome | null {

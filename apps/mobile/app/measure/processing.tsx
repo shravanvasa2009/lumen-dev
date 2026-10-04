@@ -20,12 +20,13 @@ export default function ProcessingScreen() {
     if (readingId !== null) router.replace(`/results/${readingId}`);
   }, [readingId, router]);
 
-  const refused = analysis.phase === 'inconclusive' ? analysis.outcome : null;
+  const refused = analysis.phase === 'inconclusive';
+  const outcome = analysis.phase === 'inconclusive' ? analysis.outcome : null;
   useEffect(() => {
-    if (refused === null) return;
-    handOverInconclusive(refused);
+    if (!refused) return;
+    handOverInconclusive(outcome);
     router.replace(`/measure/inconclusive?mode=${mode}`);
-  }, [refused, mode, router]);
+  }, [refused, outcome, mode, router]);
 
-  return <ProcessingView analysis={analysis} />;
+  return <ProcessingView analysis={analysis} mode={mode} />;
 }

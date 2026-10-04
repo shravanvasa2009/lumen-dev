@@ -233,7 +233,7 @@ describe('§5.2 tiers', () => {
   });
 });
 
-// The achieved-fps tolerance (H-039, owner decision pending) moves these edges; each is pinned through
+// The achieved-fps tolerance (H-039: owner chose A, ADR 0058) moves these edges; each is pinned through
 // the tier or hard fail, so changing the tolerance shows up here.
 describe('§5.2 tiers at the achieved-fps edges (H-039)', () => {
   it('rates a phone Full at the 60 fps level', () => {

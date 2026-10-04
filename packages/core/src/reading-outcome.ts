@@ -19,7 +19,7 @@ export interface InconclusiveOutcome {
   // its own instead.
   lostSeconds: LostSeconds;
   otherLostSeconds: number; // SQI-rejected and flat windows, and the 1 s after an exposure change
-  causes: LostCause[]; // causes that lost time, most seconds first: the first ones pick §12's two tips
+  causes: LostCause[]; // causes that lost ≥ 0.5 ms, most first (to the ms): the first ones pick §12's two tips
 }
 
 export type ReadingOutcome = { kind: 'reading' } | InconclusiveOutcome;
@@ -79,9 +79,9 @@ export function readingOutcome(analysis: ReadingAnalysis): ReadingOutcome {
   if (reasons.length === 0) return { kind: 'reading' };
 
   const { lostSeconds, otherLostSeconds } = lostByCause(analysis.rejectedSpans, analysis.durationS);
-  const causes = COACHING_ORDER.filter((cause) => lostSeconds[cause] > 0).sort(
-    (x, y) => lostSeconds[y] - lostSeconds[x],
-  );
+  // Compared in whole ms, so float rounding (3.7 − 3 = 0.7000000000000002) cannot break a tie.
+  const lostMs = (cause: LostCause) => Math.round(lostSeconds[cause] * 1000);
+  const causes = COACHING_ORDER.filter((cause) => lostMs(cause) > 0).sort((x, y) => lostMs(y) - lostMs(x));
   return {
     kind: 'inconclusive',
     reasons,

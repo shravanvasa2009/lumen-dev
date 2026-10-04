@@ -1,17 +1,15 @@
 import { useTranslation } from 'react-i18next';
-import { Platform, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { NavButton } from '@/components/NavButton';
 import { RouteShell } from '@/components/RouteShell';
 import { lockscreenStrings } from '@/i18n/lockscreen';
 import { lockTextLines } from '@/settings/lockText';
-import { NumberedSteps } from '@/settings/NumberedSteps';
+import { CollapsibleSteps } from '@/settings/CollapsibleSteps';
 import { usePreferences } from '@/theme/preferences';
 import { SectionLabel } from '@/settings/SectionLabel';
 import {
-  AndroidMediumWidgetPreview,
-  AndroidSmallWidgetPreview,
   LockCirclePreview,
   LockRectanglePreview,
   MediumWidgetPreview,
@@ -35,17 +33,20 @@ export default function WidgetsScreen() {
   const reading = hideWidgetValues ? '—' : String(SAMPLE_BPM);
   const lastCheck = t('widgets.lastCheck', { hours: SAMPLE_HOURS_AGO });
   const streak = t('widgets.streak', { days: SAMPLE_STREAK_DAYS });
-  const stepsTitle = (
-    <AppText variant="headline" accessibilityRole="header">
-      {t('widgets.stepsTitle')}
-    </AppText>
-  );
-  // The Lock Screen list gets its own heading so a screen reader doesn't hear "How to add" twice.
-  const lockStepsTitle = (
-    <AppText variant="headline" accessibilityRole="header">
-      {t('widgets.stepsTitleLock')}
-    </AppText>
-  );
+  const stepsTitle = (steps: readonly string[]) => t('widgets.stepsTitleCount', { steps: steps.length });
+  const androidSteps = [
+    t('widgets.androidStep1'),
+    t('widgets.androidStep2'),
+    t('widgets.androidStep3'),
+    t('widgets.androidStep4'),
+  ];
+  const iphoneHomeSteps = [
+    t('widgets.iphoneHomeStep1'),
+    t('widgets.iphoneHomeStep2'),
+    t('widgets.iphoneHomeStep3'),
+    t('widgets.iphoneHomeStep4'),
+    t('widgets.iphoneHomeStep5'),
+  ];
   const buttonsNote = (
     <AppText variant="caption" tone="textDim">
       {t('widgets.buttons')}
@@ -59,31 +60,17 @@ export default function WidgetsScreen() {
           {t('widgets.sample')}
         </AppText>
         <SectionLabel>{t('widgets.android')}</SectionLabel>
-        <AndroidSmallWidgetPreview
-          name={upToDate.name}
-          status={upToDate.status}
-          lastCheck={lastCheck}
-          checkNow={t('widgets.checkNow')}
-        />
-        <AndroidMediumWidgetPreview
+        {/* The Glance widgets follow mockup 32 too, so both platforms preview the same design. */}
+        <SmallWidgetPreview status={upToDate.status} detail={lastCheck} action={t('widgets.checkNow')} />
+        <MediumWidgetPreview
           name={upToDate.name}
           reading={hideWidgetValues ? null : String(SAMPLE_BPM)}
           unit={t('widgets.bpm')}
-          status={upToDate.status}
-          lastCheck={lastCheck}
-          streak={streak}
+          status={`${upToDate.status} · ${streak}`}
           checkNow={t('widgets.checkNow')}
           fullScan={t('mode.full')}
         />
-        {stepsTitle}
-        <NumberedSteps
-          steps={[
-            t('widgets.androidStep1'),
-            t('widgets.androidStep2'),
-            t('widgets.androidStep3'),
-            t('widgets.androidStep4'),
-          ]}
-        />
+        <CollapsibleSteps title={stepsTitle(androidSteps)} steps={androidSteps} />
         {buttonsNote}
       </RouteShell>
     );
@@ -95,7 +82,15 @@ export default function WidgetsScreen() {
         {t('widgets.sample')}
       </AppText>
       <SectionLabel>{t('widgets.iphoneHome')}</SectionLabel>
-      <SmallWidgetPreview status={upToDate.status} detail={lastCheck} action={t('widgets.checkNow')} />
+      <View style={[styles.smallRow, { gap: spacing.md }]}>
+        <SmallWidgetPreview status={upToDate.status} detail={lastCheck} action={t('widgets.checkNow')} />
+        <View style={[styles.smallNotes, { gap: spacing.md }]}>
+          <AppText>
+            <AppText style={styles.lead}>{t('widgets.howToLead')}</AppText> {t('widgets.howToShort')}
+          </AppText>
+          {buttonsNote}
+        </View>
+      </View>
       <MediumWidgetPreview
         name={upToDate.name}
         reading={reading}
@@ -104,25 +99,15 @@ export default function WidgetsScreen() {
         checkNow={t('widgets.checkNow')}
         fullScan={t('mode.full')}
       />
-      {stepsTitle}
-      <NumberedSteps
-        steps={[
-          t('widgets.iphoneHomeStep1'),
-          t('widgets.iphoneHomeStep2'),
-          t('widgets.iphoneHomeStep3'),
-          t('widgets.iphoneHomeStep4'),
-          t('widgets.iphoneHomeStep5'),
-        ]}
-      />
-      {buttonsNote}
+      <CollapsibleSteps title={stepsTitle(iphoneHomeSteps)} steps={iphoneHomeSteps} />
       <SectionLabel>{t('widgets.iphoneLock')}</SectionLabel>
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
         <LockCirclePreview />
         <LockRectanglePreview name={checkAgain.name} status={checkAgain.status} />
       </View>
       <AppText tone="textDim">{t('widgets.inline', { text: inline })}</AppText>
-      {lockStepsTitle}
-      <NumberedSteps
+      <CollapsibleSteps
+        title={t('widgets.stepsTitleLock')}
         steps={[
           t('widgets.iphoneLockStep1'),
           t('widgets.iphoneLockStep2'),
@@ -138,3 +123,9 @@ export default function WidgetsScreen() {
     </RouteShell>
   );
 }
+
+const styles = StyleSheet.create({
+  smallRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  smallNotes: { flex: 1 },
+  lead: { fontWeight: '700' },
+});

@@ -19,14 +19,24 @@ from export.to_onnx import source_model
 from export.verify_onnx import seeded_inputs
 from eval.external import diabetes_part
 from eval.external_stats import (
+    MAX_GAP_PTS,
+    MIN_CLEAN_WINDOWS_PER_GROUP,
     RHYTHM_PREVALENCES,
     BiasWindows,
     binary_report,
     rhythm_bias_report,
 )
-from export.write_manifest import EXTERNAL_NOT_RUN, NOT_MEASURED, logistic_rule
-from nets.rhythm_net import LABELS
-from tests.training_artifacts import fit_baseline, save_trained
+from export.write_manifest import (
+    ACCEPTANCE_HEADING,
+    EXTERNAL_NOT_RUN,
+    NOT_CALIBRATED,
+    NOT_MEASURED,
+    ExternalRun,
+    logistic_rule,
+    model_card,
+)
+from nets.rhythm_net import FEATURES, LABELS
+from tests.training_artifacts import fit_baseline, save_trained, valid_metrics
 from train.rhythm import LOGISTIC_FEATURES, Units, sensitivity_at, specificity_at, with_ci
 from train.rhythm_windows import FEATURE_NAMES
 
@@ -40,9 +50,13 @@ CARD_HEADINGS = [
     "## Ablation",
     "## Calibration",
     "## What the app shows when the model abstains",
+    f"## {ACCEPTANCE_HEADING}",
 ]
 
 NETWORKS = sorted(name for name, spec in SPECS.items() if spec.kind == "torch")
+
+# Each model's name@version as the release writes it (export.specs).
+ID = {name: spec.file_stem for name, spec in SPECS.items()}
 
 
 def ship_decision(ships):
@@ -56,6 +70,8 @@ def ship_decision(ships):
 
 RHYTHM_EXTRAS = {
     "metricsFormat": 2,
+    # train.rhythm records it for every rhythm model (ADR 0079 puts it in their manifest entries).
+    "featureOrder": list(FEATURE_NAMES),
     "shipDecision": ship_decision("rhythm-lgbm"),
     "ablation": [{"model": "rhythm-net", "auroc": 0.5}, {"model": "lightgbm", "auroc": 0.25}],
     "calibration": {"method": "temperature scaling", "temperature": 1.5},
@@ -133,7 +149,7 @@ def test_manifest_matches_the_files_and_appendix_b(untrained):
         assert all(value is None for value in external.values())
     assert entries["sqi-finger"]["inputs"] == {"window": [1, 1, 256]}
     rhythm = entries["rhythm-net"]
-    assert rhythm["inputs"] == {"intervals": [1, 64], "mask": [1, 64], "features": [1, 8]}
+    assert rhythm["inputs"] == {"intervals": [1, 64], "mask": [1, 64], "features": [1, FEATURES]}
     assert rhythm["outputs"] == {"probs": [1, 3]}
     assert rhythm["labels"] == ["sinus", "af", "other"]
     assert rhythm["abstainBelow"] == 0.6
@@ -149,7 +165,9 @@ def test_cards_have_every_heading_and_no_external_numbers(untrained):
         assert EXTERNAL_NOT_RUN in external
         if not entry["trainedOn"]:
             assert NOT_MEASURED in card.split("## Development metrics", 1)[1].split("\n## ", 1)[0]
-    sqi_card = (models_dir / "sqi-finger@1.0.0.md").read_text(encoding="utf-8")
+            calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
+            assert NOT_MEASURED in calibration and NOT_CALIBRATED not in calibration
+    sqi_card = (models_dir / f"{ID['sqi-finger']}.md").read_text(encoding="utf-8")
     assert "inverted red channel" in sqi_card and "finger recordings" in sqi_card
 
 
@@ -177,9 +195,9 @@ def test_trained_release_fills_metrics_and_lists_baselines(trained):
     assert "reported under Development metrics" not in card
     assert "(ablation model, not shipped)" in card and "the app loads rhythm-lgbm" in card
     shipped_card = (models_dir / entries["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
-    assert shipped_card.startswith("# rhythm-lgbm 1.0.0 (shipped rhythm model)")
+    assert shipped_card.startswith(f"# rhythm-lgbm {SPECS['rhythm-lgbm'].version} (shipped rhythm model)")
     assert "ships per §11.3 (ADR 0031)" in shipped_card
-    assert entries["rhythm-lgbm"]["inputs"] == {"features": [1, 8]}
+    assert entries["rhythm-lgbm"]["inputs"] == {"features": [1, FEATURES]}
 
 
 def test_entries_carry_the_development_metrics_verbatim(trained):
@@ -230,7 +248,7 @@ def with_rule(trained):
     models_dir, runs_dir = trained
     spec = SPECS["rhythm-logistic"]
     pipeline = fit_baseline(spec)
-    save_trained(spec, runs_dir, pipeline, {**RHYTHM_EXTRAS, "featureOrder": list(FEATURE_NAMES)})
+    save_trained(spec, runs_dir, pipeline, RHYTHM_EXTRAS)
     _release(models_dir, runs_dir)
     return models_dir, runs_dir, pipeline
 
@@ -257,6 +275,47 @@ def test_the_logistic_rule_entry_carries_the_rule_for_the_app(with_rule):
     np.testing.assert_allclose(probs, expected, rtol=0, atol=1e-12)
     (onnx_probs,) = ort.InferenceSession(str(models_dir / entry["file"])).run(None, {"features": features})
     assert np.abs(probs - onnx_probs).max() <= TOLERANCE
+
+
+# The fields of a non-diabetes manifest entry (Appendix B and its accepted additions); `rule` is added only on
+# classical rhythm entries the app runs in code.
+ENTRY_FIELDS = {
+    "name",
+    "family",
+    "ships",
+    "role",
+    "version",
+    "file",
+    "sha256",
+    "inputs",
+    "outputs",
+    "labels",
+    "threshold",
+    "abstainBelow",
+    "externalTest",
+    "trainedOn",
+    "development",
+    "opset",
+    "toolchain",
+    "commit",
+    "date",
+    "card",
+}
+
+
+def test_only_diabetes_entries_carry_the_feature_fill_and_rhythm_entries_name_their_features(with_rule):
+    # SQI training also writes a featureOrder list; it stays out of SQI entries. Rhythm entries carry the
+    # names the app checks against core's RHYTHM_FEATURE_NAMES (ADR 0079).
+    models_dir, runs_dir, _pipeline = with_rule
+    entries = _manifest(models_dir, runs_dir)
+    for name, entry in entries.items():
+        if entry["family"] == "diabetes":
+            continue
+        rhythm = entry["family"] == "rhythm"
+        expected = ENTRY_FIELDS | ({"featureOrder"} if rhythm else set())
+        assert set(entry) == expected | ({"rule"} if name == "rhythm-logistic" else set()), name
+        if rhythm:
+            assert entry["featureOrder"] == list(FEATURE_NAMES), name
 
 
 def test_a_rule_without_column_selection_is_refused():
@@ -342,6 +401,14 @@ def test_refuses_when_the_metrics_pick_another_shipped_model(trained):
     _assert_refused(models_dir, runs_dir, ShipRuleError, r"rhythm-net.*owner decides.*ADR 0031")
 
 
+def test_refuses_a_rhythm_model_trained_on_another_feature_order(trained):
+    models_dir, runs_dir = trained
+    spec = SPECS["rhythm-lgbm"]
+    other_order = list(reversed(FEATURE_NAMES))
+    save_trained(spec, runs_dir, fit_baseline(spec), {**RHYTHM_EXTRAS, "featureOrder": other_order})
+    _assert_refused(models_dir, runs_dir, ValueError, "rhythm-lgbm was trained on features")
+
+
 def test_ship_decision_guard_covers_every_family(trained):
     models_dir, runs_dir = trained
     spec = SPECS["sqi-finger"]
@@ -392,7 +459,7 @@ def test_refuses_parity_that_covers_only_one_model(untrained):
 def test_refuses_parity_run_on_a_different_onnx_file(untrained):
     models_dir, runs_dir = untrained
     _run(to_onnx, "--name", "diabetes-net", "--random-init", 4, "--out-dir", models_dir)
-    _assert_refused(models_dir, runs_dir, ProvenanceError, "different diabetes-net@1.0.0.onnx")
+    _assert_refused(models_dir, runs_dir, ProvenanceError, f"different {ID['diabetes-net']}.onnx")
 
 
 def test_refuses_parity_above_tolerance(untrained):
@@ -468,11 +535,11 @@ def test_reliability_tables_get_a_plot_next_to_the_card(trained):
     _with_calibration(runs_dir, lgbm, lambda sha: {"sourceSha256": sha, **RELIABILITY})
     card = (models_dir / _manifest(models_dir, runs_dir)["rhythm-lgbm"]["card"]).read_text(encoding="utf-8")
     calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
-    assert "![Reliability diagram, dev-val windows](rhythm-lgbm@1.0.0.calibration.svg)" in calibration
+    assert f"![Reliability diagram, dev-val windows]({ID['rhythm-lgbm']}.calibration.svg)" in calibration
     assert "| 0.3-0.4 | 10 | 0.350 | 0.610 | +0.260 |" in calibration
     assert "| 0.5-0.6 | 100 | 0.550 | 0.600 | +0.050 |" in calibration
     assert "- windowExpectedCalibrationErrorAf: 0.035" in calibration
-    svg = ElementTree.parse(models_dir / "rhythm-lgbm@1.0.0.calibration.svg").getroot()
+    svg = ElementTree.parse(models_dir / f"{ID['rhythm-lgbm']}.calibration.svg").getroot()
     namespace = "{http://www.w3.org/2000/svg}"
     assert len(svg.findall(f"{namespace}polyline")) == 2
     assert len(svg.findall(f"{namespace}circle")) == 3
@@ -487,7 +554,7 @@ def test_reliability_tables_get_a_plot_next_to_the_card(trained):
 
 def test_a_model_without_tables_gets_no_plot_and_loses_a_stale_one(trained):
     models_dir, runs_dir = trained
-    stale = models_dir / "rhythm-net@1.0.0.calibration.svg"
+    stale = models_dir / f"{ID['rhythm-net']}.calibration.svg"
     stale.write_text("<svg/>", encoding="utf-8")
     card = (models_dir / _manifest(models_dir, runs_dir)["rhythm-net"]["card"]).read_text(encoding="utf-8")
     assert "- temperature: 1.5" in card and ".calibration.svg" not in card
@@ -512,7 +579,7 @@ def test_a_calibration_not_keyed_to_the_model_file_is_refused(trained, calibrati
 def test_the_reliability_plot_is_byte_for_byte_reproducible(trained):
     models_dir, runs_dir = trained
     _with_calibration(runs_dir, SPECS["rhythm-lgbm"], lambda sha: {"sourceSha256": sha, **RELIABILITY})
-    plot = models_dir / "rhythm-lgbm@1.0.0.calibration.svg"
+    plot = models_dir / f"{ID['rhythm-lgbm']}.calibration.svg"
     _manifest(models_dir, runs_dir)
     first = plot.read_bytes()
     plot.unlink()
@@ -540,11 +607,11 @@ def _external_results(models_dir, runs_dir, status="done"):
 
     def ledger(name):
         return {
-            "model": f"{name}@1.0.0",
+            "model": ID[name],
             "family": SPECS[name].family,
             "approval": "H-050",
             "commit": "0" * 40,
-            "onnxSha256": sha256_of(models_dir / f"{name}@1.0.0.onnx"),
+            "onnxSha256": sha256_of(models_dir / f"{ID[name]}.onnx"),
             "status": status,
             "startedAt": "2026-10-20T10:00:00+00:00",
             "finishedAt": "2026-10-20T11:00:00+00:00" if status == "done" else None,
@@ -555,7 +622,7 @@ def _external_results(models_dir, runs_dir, status="done"):
         return results
     reports = {
         name: {
-            "model": f"{name}@1.0.0",
+            "model": ID[name],
             "role": "shipped" if seed == 0 else "ablation",
             "subject": binary_report(_units(seed), frozen(name), RHYTHM_PREVALENCES),
             "reading": binary_report(_units(seed + 10), frozen(name), ()),
@@ -582,19 +649,23 @@ def _external_results(models_dir, runs_dir, status="done"):
     subjects = np.where(is_af, "af", "sinus") + (np.arange(600) % 3).astype(str)
     windows = BiasWindows(subjects, is_af, rng.random(600) < 0.9, rng.uniform(50, 110, 600))
     results["rhythm"] = {
-        "model": "rhythm-lgbm@1.0.0",
+        "model": ID["rhythm-lgbm"],
         "subjects": 40,
         "outcome": "shipped-meets-floor",
         "models": reports,
     }
     results["sqi"] = {
-        "model": "sqi-finger@1.0.0",
+        "model": ID["sqi-finger"],
         "role": "guard",
         "threshold": frozen("sqi-finger"),
         "subjects": 6,
         **rhythm_bias_report(windows, ["af0", "af1", "af2"], ["sinus0", "sinus1", "sinus2"]),
     }
-    entry = {"name": "diabetes-net", "version": "1.0.0", "threshold": {"pattern": frozen("diabetes-net")}}
+    entry = {
+        "name": "diabetes-net",
+        "version": SPECS["diabetes-net"].version,
+        "threshold": {"pattern": frozen("diabetes-net")},
+    }
     results["diabetes"] = diabetes_part(
         entry,
         _units(2),
@@ -694,7 +765,9 @@ def test_refuses_an_external_run_of_a_different_onnx_file(trained, monkeypatch):
     results = _external_results(models_dir, runs_dir)
     results["runs"][1]["onnxSha256"] = "f" * 64
     _write_external(models_dir, results)
-    _assert_refused(models_dir, runs_dir, ProvenanceError, "rhythm-net@1.0.0 was externally tested as ONNX")
+    _assert_refused(
+        models_dir, runs_dir, ProvenanceError, f"{ID['rhythm-net']} was externally tested as ONNX"
+    )
 
 
 @pytest.mark.parametrize(
@@ -732,7 +805,10 @@ def test_refuses_rhythm_numbers_at_another_threshold(trained, monkeypatch):
     results["rhythm"]["models"]["rhythm-net"]["subject"]["threshold"] = 0.77
     _write_external(models_dir, results)
     _assert_refused(
-        models_dir, runs_dir, ProvenanceError, "rhythm-net@1.0.0 was externally tested at af threshold 0.77"
+        models_dir,
+        runs_dir,
+        ProvenanceError,
+        f"{ID['rhythm-net']} was externally tested at af threshold 0.77",
     )
 
 
@@ -750,7 +826,9 @@ def test_refuses_a_started_run_of_a_different_onnx_file(trained):
     results = _external_results(models_dir, runs_dir, status="started")
     results["runs"][2]["onnxSha256"] = "f" * 64
     _write_external(models_dir, results)
-    _assert_refused(models_dir, runs_dir, ProvenanceError, "sqi-finger@1.0.0 was externally tested as ONNX")
+    _assert_refused(
+        models_dir, runs_dir, ProvenanceError, f"{ID['sqi-finger']} was externally tested as ONNX"
+    )
 
 
 def test_refuses_reading_level_numbers_at_another_threshold(trained, monkeypatch):
@@ -760,7 +838,10 @@ def test_refuses_reading_level_numbers_at_another_threshold(trained, monkeypatch
     results["rhythm"]["models"]["rhythm-lgbm"]["reading"]["threshold"] = 0.66
     _write_external(models_dir, results)
     _assert_refused(
-        models_dir, runs_dir, ProvenanceError, "rhythm-lgbm@1.0.0 was externally tested at af threshold 0.66"
+        models_dir,
+        runs_dir,
+        ProvenanceError,
+        f"{ID['rhythm-lgbm']} was externally tested at af threshold 0.66",
     )
 
 
@@ -771,5 +852,114 @@ def test_refuses_app_scored_readings_at_another_threshold(trained, monkeypatch):
     results["rhythm"]["models"]["rhythm-lgbm"]["appReadings"]["answered"]["threshold"] = 0.42
     _write_external(models_dir, results)
     _assert_refused(
-        models_dir, runs_dir, ProvenanceError, "rhythm-lgbm@1.0.0 was externally tested at af threshold 0.42"
+        models_dir,
+        runs_dir,
+        ProvenanceError,
+        f"{ID['rhythm-lgbm']} was externally tested at af threshold 0.42",
     )
+
+
+def test_a_trained_model_without_calibration_says_so_not_that_it_is_untrained(trained):
+    models_dir, runs_dir = trained
+    entries = _manifest(models_dir, runs_dir)
+    card = (models_dir / entries["sqi-finger"]["card"]).read_text(encoding="utf-8")
+    calibration = card.split("## Calibration", 1)[1].split("\n## ", 1)[0]
+    assert NOT_CALIBRATED in calibration and NOT_MEASURED not in calibration
+    assert "this version has none" in card and "team captures hand-labeled clean." not in card
+
+
+PARITY_ENTRY = {
+    "onnxSha256": "a" * 64,
+    "sourceSha256": "b" * 64,
+    "nInputs": 502,
+    "maxAbsDiff": 2.5e-07,
+    "outputStd": 0.02,
+}
+
+
+def _sqi_metrics(ml2=0.668, gap=2.3, groups=1776):
+    measured = {"windowAuroc": {"estimate": 0.84, "low": 0.78, "high": 0.89}}
+    if ml2 is not None:
+        measured["ml2HrWithin5BpmOfAccepted"] = {"estimate": ml2, "low": ml2 - 0.25, "high": ml2 + 0.04}
+    if gap is not None:
+        measured["ml4GapSinusMinusAfPts"] = {"estimate": gap, "low": gap - 4.7, "high": gap + 12.7}
+    return {
+        **valid_metrics(SPECS["sqi-finger"], "c" * 64),
+        "development": {"subjects": 9, "metrics": measured},
+        "windowCounts": [
+            {"set": "retimed", "kind": kind, "windows": groups, "records": 148, "subjects": 9}
+            for kind in ("retimed-af", "retimed-premature", "retimed-sinus")
+        ],
+    }
+
+
+def _acceptance(card):
+    return card.split(f"## {ACCEPTANCE_HEADING}", 1)[1].split("\n## ", 1)[0].strip()
+
+
+def test_acceptance_section_renders_from_the_metrics_and_parity():
+    section = _acceptance(model_card(SPECS["sqi-finger"], _sqi_metrics(), None, PARITY_ENTRY))
+    assert f"max abs diff 2.500e-07 over 502 inputs, tolerance {TOLERANCE:g}: Python half met" in section
+    assert "Python check" in section
+    assert "development proxy" in section and "held-out BUT PPG dev-val subjects" in section
+    assert "0.668 (95% CI 0.418-0.708), target ≥ 95%: not met." in section
+    assert "1776 AF and 1776 sinus windows" in section and "re-timed BUT PPG" in section
+    assert f"2.3 points (95% CI -2.4 to 15.0), limit ±{MAX_GAP_PTS:g} points" in section
+    assert "within the limit" in section
+    assert "The decisive ML-4 check is the external run, shown in External test." in section
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"ml2": 0.96}, "target ≥ 95%: met on development data, where τ was chosen."),
+        ({"gap": -6.0}, "outside the limit"),
+        ({"groups": MIN_CLEAN_WINDOWS_PER_GROUP - 1}, "insufficient data"),
+    ],
+)
+def test_acceptance_verdicts_follow_the_numbers(overrides, expected):
+    section = _acceptance(model_card(SPECS["sqi-finger"], _sqi_metrics(**overrides), None, PARITY_ENTRY))
+    assert expected in section
+
+
+def test_a_retimed_group_without_a_row_is_insufficient_data():
+    metrics = _sqi_metrics()
+    metrics["windowCounts"] = [row for row in metrics["windowCounts"] if row["kind"] != "retimed-af"]
+    section = _acceptance(model_card(SPECS["sqi-finger"], metrics, None, PARITY_ENTRY))
+    assert "0 AF and 1776 sinus windows" in section and "insufficient data" in section
+
+
+def test_failed_parity_is_not_met():
+    entry = {**PARITY_ENTRY, "maxAbsDiff": 2 * TOLERANCE}
+    assert ": Python half not met." in _acceptance(model_card(SPECS["rhythm-net"], None, None, entry))
+
+
+@pytest.mark.parametrize("metrics", [None, _sqi_metrics(ml2=None, gap=None)])
+def test_missing_acceptance_numbers_say_not_measured(metrics):
+    section = _acceptance(model_card(SPECS["sqi-finger"], metrics, None, None))
+    lines = section.splitlines()
+    assert len(lines) == 3 and all("not measured" in line for line in lines)
+
+
+def test_only_sqi_cards_carry_ml2_and_ml4():
+    section = _acceptance(model_card(SPECS["rhythm-net"], None, None, PARITY_ENTRY))
+    assert "ML-3" in section and "ML-2" not in section and "ML-4" not in section
+
+
+def test_acceptance_section_shows_no_external_numbers(monkeypatch):
+    monkeypatch.setattr("train.rhythm.BOOTSTRAP_RESAMPLES", 200)
+    rng = np.random.default_rng(3)
+    is_af = np.repeat([True, False], 300)
+    subjects = np.where(is_af, "af", "sinus") + (np.arange(600) % 3).astype(str)
+    windows = BiasWindows(subjects, is_af, rng.random(600) < np.where(is_af, 0.7, 0.9), np.full(600, 80.0))
+    report = {
+        "subjects": 6,
+        **rhythm_bias_report(windows, ["af0", "af1", "af2"], ["sinus0", "sinus1", "sinus2"]),
+    }
+    run = {"approval": "H-050", "commit": "0" * 40, "finishedAt": "2026-10-20T11:00:00+00:00"}
+    card = model_card(SPECS["sqi-finger"], _sqi_metrics(), ExternalRun(run, report), PARITY_ENTRY)
+    external_gap = report["rhythmBiasGapPts"]
+    assert str(external_gap) in card.split("## External test", 1)[1]
+    section = _acceptance(card)
+    for number in (external_gap, *report["ci95"]):
+        assert str(number) not in section and f"{number:.1f}" not in section

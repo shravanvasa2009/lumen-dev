@@ -8,6 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "build:clinics": "node scripts/build-clinics.mjs",
+    "build:clinics-osm": "node scripts/build-regular-clinics.mjs",
     "test": "jest --passWithNoTests",
     "test:routes": "jest src/routes.test.tsx",
     "test:evidence": "jest src/evidence",
@@ -40,9 +41,11 @@
     "react-i18next": "17.0.15",
     "react-native": "0.86.3",
     "react-native-ble-plx": "3.5.1",
+    "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "5.7.0",
     "react-native-screens": "4.26.2",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
     "@babel/plugin-transform-dynamic-import": "7.29.7",

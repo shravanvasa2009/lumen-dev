@@ -8,9 +8,9 @@ import { Icon } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
-import { useReduceMotion } from '@/onboarding/useReduceMotion';
 import { usePhoneProbe, type PhoneProbe } from '@/onboarding/usePhoneProbe';
 import { useTheme } from '@/theme';
+import { useReduceMotion } from '@/theme/motion';
 
 // Spec §5.2: a rear camera that cannot reach 24 fps is a hard fail.
 const MIN_FPS = 24;

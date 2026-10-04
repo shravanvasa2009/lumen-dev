@@ -27,6 +27,7 @@ export type {
   RhythmMetric,
   RmssdMetric,
 } from './results';
+export { adaRisk, type AdaAnswers, type AdaRisk } from './ada-risk';
 export { DSP_CONFIG } from './config';
 export { buildTimebase, type Timebase } from './timebase';
 export { resampleCubic, type ResampledSegment } from './resample';
@@ -35,7 +36,9 @@ export { estimateLiveHeartRate } from './live-hr';
 export { butterBandpass, butterLowpass, CausalFilter, filterZeroPhase, type SosSection } from './filters';
 export {
   hasEnoughUsableIntervals,
+  RHYTHM_FEATURE_NAMES,
   rhythmFeatureVector,
+  rhythmV2Features,
   rhythmWindows,
   type RhythmWindow,
 } from './rhythm-features';
@@ -95,7 +98,7 @@ export {
 } from './reading-outcome';
 export { createLiveSession, type LiveSessionConfig } from './live';
 export { SHAPE_FEATURE_NAMES, shapeFeatures } from './shape-features';
-export { hrSummary } from './reading-metrics';
+export { HR_SUMMARY_NAMES, hrSummary } from './reading-metrics';
 export { diabetesModelInput, type DiabetesModelInput } from './diabetes-input';
 export {
   rateDevice,

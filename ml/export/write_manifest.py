@@ -15,9 +15,11 @@ from sklearn.preprocessing import StandardScaler
 
 from export.provenance import (
     ALL_BAD_BASIS,
+    TOLERANCE,
     ProvenanceError,
     check_parity,
     check_threshold_bases,
+    entry_problems,
     load_metrics,
     sha256_of,
     threshold_approval,
@@ -36,6 +38,9 @@ from export.specs import (
 )
 from export.to_onnx import source_model
 from eval.external_gate import RESULTS_FILE, read_results
+from eval.external_stats import MAX_GAP_PTS, MIN_CLEAN_WINDOWS_PER_GROUP
+from train.rhythm_windows import FEATURE_NAMES
+from train.sqi import HR_TOLERANCE_BPM
 
 EXTERNAL_NOT_RUN = "Not run yet. Run once per model version, only after the owner approves (need-human)."
 # Pass or fail facts eval.external writes next to the numbers (§11.5, ML-1, ML-4, ML-6). The role and the
@@ -48,7 +53,9 @@ LEVEL_UNITS = {
 }
 # Where the spec states each family's "ship the network only if it beats the baselines" rule.
 SHIP_RULE_SECTION = {"sqi": "§11.1", "rhythm": "§11.3", "diabetes": "§11.4"}
+ACCEPTANCE_HEADING = "Acceptance evidence (development data and parity checks, not the external test)"
 NOT_MEASURED = "Not measured yet: no training run is recorded for this model version."
+NOT_CALIBRATED = "Not measured: the training run recorded no calibration for this model version."
 # §11.10: when the rhythm model fails to load, the app runs this rule in code (@lumen/core) as "basic
 # analysis", so its manifest entry carries every number the rule needs, read from the trained pickle.
 CODED_FALLBACKS = ("rhythm-logistic",)
@@ -71,9 +78,10 @@ CARD_TEXT = {
             "(ADR 0023). Clean windows: BUT PPG finger windows whose PPG heart rate matches the ECG "
             "reference; "
             "clean BUT PPG beats re-timed with real interval patterns from AF and premature-beat episodes "
-            "(MIT-BIH AF, Long-Term AF, MIT-BIH Arrhythmia); team captures hand-labeled clean. Bad windows: "
-            "synthetic motion, pressure, flicker, and dropout corruptions of clean windows, and team "
-            "captures hand-labeled bad. MIMIC PERform AF is never used for training or tuning."
+            "(MIT-BIH AF, Long-Term AF, MIT-BIH Arrhythmia). Bad windows: synthetic motion, pressure, "
+            "flicker, and dropout corruptions of clean windows. §11.2 also calls for team captures "
+            "hand-labeled clean and bad; this version has none (see Trained on). MIMIC PERform AF is never "
+            "used for training or tuning."
         ),
         "limitations": (
             "- If clean training windows were all regular, the model could reject AF windows as noisy. The "
@@ -291,10 +299,35 @@ def manifest_entry(
         "date": date,
         "card": f"{spec.file_stem}.md",
         **({"rule": rule} if rule else {}),
-        # ML-6: the app fills a missing input feature with the dev-train median the model was trained with,
-        # and must feed the features in this order; neither is inside the ONNX file.
-        **{key: metrics[key] for key in ("featureOrder", "fillMedians") if metrics and key in metrics},
+        # ML-6: the app fills a missing diabetes feature with the dev-train median the model was trained with,
+        # and must feed the features in this order; neither is inside the ONNX file. SQI metrics also record a
+        # featureOrder (a list, for training), which the app never reads.
+        **{
+            key: metrics[key]
+            for key in ("featureOrder", "fillMedians")
+            if spec.family == "diabetes" and metrics and key in metrics
+        },
+        # ADR 0079: the app checks a rhythm model's feature names against core's RHYTHM_FEATURE_NAMES and
+        # feeds the prefix they name, so v1 (8) and v2 (15) models both get what they were trained on.
+        **(
+            {"featureOrder": _rhythm_feature_order(spec, metrics)}
+            if spec.family == "rhythm" and metrics
+            else {}
+        ),
     }
+
+
+def _rhythm_feature_order(spec: ModelSpec, metrics: dict) -> list[str]:
+    # train.rhythm_windows.FEATURE_NAMES is the order the windows were built in; a training record that names
+    # another order belongs to other code, so the release stops rather than ship mismatched names.
+    names = list(FEATURE_NAMES)
+    if len(names) != spec.inputs["features"][1]:
+        raise ValueError(f"{spec.name}: {len(names)} feature names for a {spec.inputs['features']} input")
+    recorded = metrics.get("featureOrder")
+    if recorded is not None and list(recorded) != names:
+        raise ValueError(f"{spec.name} was trained on features {recorded}, not {names}")
+    # A flat list, as the app's ML runtime reads it (the diabetes per-input dict is another contract).
+    return names
 
 
 def _table(rows: list[dict]) -> str:
@@ -355,13 +388,14 @@ def _approved_status(spec: ModelSpec, approval: str, metrics: dict) -> str:
         facts.append("the ML-2 proxy was not measured, so ML-2 is not shown to be met")
     elif ml2["estimate"] < ML2_TARGET:
         facts.append(
-            f"the ML-2 proxy (accepted windows with spectral HR within 5 bpm) is {_ci(ml2)}, below the "
-            f"{ML2_TARGET:.0%} floor, so ML-2 is not met"
+            f"the ML-2 proxy (accepted windows with spectral HR within {HR_TOLERANCE_BPM:g} bpm) is "
+            f"{_ci(ml2)}, below the {ML2_TARGET:.0%} floor, so ML-2 is not met"
         )
     else:
         facts.append(
-            f"the ML-2 proxy (accepted windows with spectral HR within 5 bpm) is {_ci(ml2)}, at or "
-            f"above the {ML2_TARGET:.0%} floor on the dev-val subjects τ was chosen on, so it is optimistic"
+            f"the ML-2 proxy (accepted windows with spectral HR within {HR_TOLERANCE_BPM:g} bpm) is "
+            f"{_ci(ml2)}, at or above the {ML2_TARGET:.0%} floor on the dev-val subjects τ was chosen on, so "
+            "it is optimistic"
         )
     return "; ".join(facts)
 
@@ -512,7 +546,7 @@ def _reliability_rows(rows: list[dict]) -> list[dict]:
 
 def _calibration_section(spec: ModelSpec, calibration: dict | None) -> str:
     if not calibration:
-        return NOT_MEASURED
+        return NOT_CALIBRATED
     facts = "\n".join(
         f"- {key}: {value}" for key, value in calibration.items() if not isinstance(value, list)
     )
@@ -645,6 +679,70 @@ def _external_section(spec: ModelSpec, external: ExternalRun | None) -> str:
     return "\n\n".join(parts)
 
 
+def _parity_line(spec: ModelSpec, parity: dict | None) -> str:
+    if parity is None:
+        return "- ML-3 (Python check): not measured; models/parity.json has no entry for this file."
+    diff = parity["maxAbsDiff"]
+    shown = f"{diff:.3e}" if isinstance(diff, float | int) else diff
+    # Only the Python half of ML-3: the app and Node runtimes are checked against parity-vectors.json.
+    verdict = "Python half not met" if entry_problems(spec.name, parity) else "Python half met"
+    return (
+        "- ML-3 (Python check, onnxruntime against the source model, on seeded synthetic inputs): max abs "
+        f"diff {shown} over {parity['nInputs']} inputs, tolerance {TOLERANCE:g}: {verdict}. The app and Node "
+        "runtimes are not covered by this line."
+    )
+
+
+def _ml2_line(measured: dict) -> str:
+    label = (
+        "- ML-2 (development proxy: share of accepted windows whose spectral-peak HR is within "
+        f"{HR_TOLERANCE_BPM:g} bpm of the ECG reference, on held-out BUT PPG dev-val subjects)"
+    )
+    share = measured.get("ml2HrWithin5BpmOfAccepted")
+    if share is None:
+        return f"{label}: not measured."
+    if share["estimate"] < ML2_TARGET:
+        return f"{label}: {_ci(share)}, target ≥ {ML2_TARGET:.0%}: not met."
+    return f"{label}: {_ci(share)}, target ≥ {ML2_TARGET:.0%}: met on development data, where τ was chosen."
+
+
+def _ml4_line(metrics: dict) -> str:
+    # ADR 0028's rule, as eval.external_stats applies it to the external run: the point estimate against
+    # MAX_GAP_PTS, and too few windows in either group is insufficient data, not a pass.
+    sizes = {
+        row["kind"]: row["windows"] for row in metrics.get("windowCounts", []) if row.get("set") == "retimed"
+    }
+    # A run that recorded re-timed counts but no row for one group had no windows in it.
+    af, sinus = (sizes.get(kind, 0) if sizes else None for kind in ("retimed-af", "retimed-sinus"))
+    counted = "" if af is None or sinus is None else f", {af} AF and {sinus} sinus windows"
+    label = (
+        "- ML-4 (development proxy, ADR 0028: acceptance of re-timed BUT PPG sinus minus re-timed AF "
+        f"windows on dev-val subjects{counted})"
+    )
+    decisive = " The decisive ML-4 check is the external run, shown in External test."
+    gap = metrics.get("development", {}).get("metrics", {}).get("ml4GapSinusMinusAfPts")
+    if gap is None:
+        return f"{label}: not measured.{decisive}"
+    if not counted:
+        verdict = "not judged, since the group sizes are not recorded"
+    elif min(af, sinus) < MIN_CLEAN_WINDOWS_PER_GROUP:
+        verdict = f"insufficient data (fewer than {MIN_CLEAN_WINDOWS_PER_GROUP} windows in a group)"
+    else:
+        verdict = "within the limit" if abs(gap["estimate"]) <= MAX_GAP_PTS else "outside the limit"
+    return (
+        f"{label}: {gap['estimate']:.1f} points (95% CI {gap['low']:.1f} to {gap['high']:.1f}), limit "
+        f"±{MAX_GAP_PTS:g} points on the estimate: {verdict}.{decisive}"
+    )
+
+
+def _acceptance_section(spec: ModelSpec, metrics: dict | None, parity: dict | None) -> str:
+    lines = [_parity_line(spec, parity)]
+    if spec.family == "sqi":
+        recorded = metrics or {}
+        lines += [_ml2_line(recorded.get("development", {}).get("metrics", {})), _ml4_line(recorded)]
+    return "\n".join(lines)
+
+
 def _app_readings_section(app: dict) -> str:
     # ADR 0041: eval.external's app_readings applies the rhythm-card rule, abstainBelow and the 2-of-3 rule.
     def interval_row(metric: str, value: dict | None) -> dict:
@@ -673,7 +771,9 @@ def _app_readings_section(app: dict) -> str:
     )
 
 
-def model_card(spec: ModelSpec, metrics: dict | None, external: ExternalRun | None = None) -> str:
+def model_card(
+    spec: ModelSpec, metrics: dict | None, external: ExternalRun | None = None, parity: dict | None = None
+) -> str:
     text = CARD_TEXT[spec.family]
     if not spec.ships:
         role = "ablation model, not shipped"
@@ -697,7 +797,8 @@ def model_card(spec: ModelSpec, metrics: dict | None, external: ExternalRun | No
         *filter(None, [_threshold_section(spec, metrics)]),
         "## Ablation\n\nThe neural model ships only if it beats its classical baseline on held-out "
         "subjects.\n\n" + (_table(ablation) if ablation else NOT_MEASURED),
-        f"## Calibration\n\n{_calibration_section(spec, calibration)}",
+        f"## Calibration\n\n{_calibration_section(spec, calibration) if metrics else NOT_MEASURED}",
+        f"## {ACCEPTANCE_HEADING}\n\n{_acceptance_section(spec, metrics, parity)}",
         f"## External test\n\n{_external_section(spec, external)}",
         f"## Limitations\n\n{text['limitations']}{_measured_limits(spec, metrics)}",
         f"## What the app shows when the model abstains\n\n{text['abstain']}",
@@ -772,8 +873,10 @@ def write_manifest(models_dir: Path, runs_dir: Path, require_metrics: bool) -> P
     check_parity(models_dir, entries, source_shas)
     # Every check, and every card render, happens before anything is written, so a failure leaves no
     # manifest or cards behind.
+    parity = json.loads((models_dir / "parity.json").read_text(encoding="utf-8"))["models"]
     cards = {
-        spec.file_stem: model_card(spec, metrics_by_name[spec.name], externals[spec.name]) for spec in specs
+        spec.file_stem: model_card(spec, metrics_by_name[spec.name], externals[spec.name], parity[spec.name])
+        for spec in specs
     }
     plots: dict[str, str | None] = {}
     for spec in specs:

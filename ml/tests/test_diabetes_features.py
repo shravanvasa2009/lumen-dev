@@ -11,6 +11,7 @@ from export.specs import SPECS
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.shape_features import SHAPE_FEATURE_NAMES, shape_features
 from nets.diabetes_net import HR_SUMMARY_NAMES
+from nets.rhythm_net import FEATURES
 from tests.test_train_diabetes import write_inputs
 from tests.test_vitaldb_pleth import write_vital
 from tests.training_artifacts import fit_baseline, save_trained
@@ -34,7 +35,7 @@ def constant_model(sinus: int, af: int, other: int, sha: str) -> ShippedRhythm:
     # A real classifier whose window probabilities are the class shares it was fitted on, whatever the
     # features, so a test picks the reading's rhythm label.
     labels = [0] * sinus + [1] * af + [2] * other
-    classifier = DummyClassifier(strategy="prior").fit(np.zeros((len(labels), 8)), labels)
+    classifier = DummyClassifier(strategy="prior").fit(np.zeros((len(labels), FEATURES)), labels)
     return ShippedRhythm(classifier, sha, DSP_CONFIG["rules"]["uncertainBelowTopProb"])
 
 
@@ -93,8 +94,9 @@ def test_hrv_is_null_unless_the_reading_is_confidently_sinus(model, label):
 
 
 def test_too_few_beats_give_no_averaged_beat_and_no_rhythm_card_but_still_a_row():
-    # 15 s at 70 bpm holds about 17 beats, fewer than DSP-14's 20 and DSP-15's 40 usable intervals.
-    row, pulse_shape = segment_features(bands_of(finger_pulse_codes(15)), SINUS)
+    # 16.5 s at 70 bpm holds 19 normal beats, fewer than DSP-14's 20 and DSP-15's 40 usable intervals, yet
+    # just enough accepted intervals for DSP-11's 15 s HR floor (ADR 0080); 15 s now reports no HR.
+    row, pulse_shape = segment_features(bands_of(finger_pulse_codes(16.5)), SINUS)
     assert pulse_shape is None and not row["hasShape"] and row["beatsUsed"] == 0
     assert row["beats_normal"] < DSP_CONFIG["dsp14"]["minNormalBeats"]
     assert all(row[name] is None for name in SHAPE_FEATURE_NAMES)

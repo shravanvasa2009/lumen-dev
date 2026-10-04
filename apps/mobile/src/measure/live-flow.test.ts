@@ -4,7 +4,8 @@ import { renderRouter, screen } from 'expo-router/testing-library';
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { ReplayCapture, type RecordedCapture } from '../../modules/lumen-capture/src';
 import en from '@/i18n/en.json';
-import { storedReadingById } from '@/store/readings';
+import { listReadings, storedReadingById } from '@/store/readings';
+import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import { keepCapture, keptCapture } from './keptCapture';
 import { useLiveCapture } from './useLiveCapture';
@@ -13,6 +14,7 @@ import { useReadingAnalysis } from './useReadingAnalysis';
 // The first render in a Jest process loads react-native lazily (see LabPanel.test.tsx), and 40 s of replay
 // runs the session over 2,400 frames.
 jest.setTimeout(60_000);
+preloadAppRoutes();
 
 const FPS = 60;
 const FRAME_NS = 1e9 / FPS;
@@ -115,6 +117,19 @@ describe('live capture fed by a LiveSession', () => {
     expect(kept?.motionSpans).toEqual([]);
     expect(kept?.sqi).toBeNull();
   });
+
+  it('builds the kept capture from the session, with the frames exactly as the module sent them', async () => {
+    const recording = syntheticRecording(30);
+    await replayFor(recording, 5);
+    const kept = keptCapture();
+    if (!kept) throw new Error('nothing was kept');
+    expect(kept.samples.map((sample) => sample.tNs)).toEqual(
+      recording.samples.tNs.slice(0, kept.samples.length),
+    );
+    expect(kept.samples[0]?.r).toBe(recording.samples.r[0]);
+    // The same object until more frames arrive, so one capture is analysed and saved once.
+    expect(keptCapture()).toBe(kept);
+  });
 });
 
 describe('reading analysis of a kept capture', () => {
@@ -187,5 +202,64 @@ describe('reading analysis of a kept capture', () => {
     if (failed.phase !== 'failed') throw new Error('analysis did not fail');
     expect(failed.reason).not.toBe('');
     expect(failed.progress.steps.beats).toBe('active');
+  });
+
+  const refusalFor = async (samples: { tNs: number; r: number }[]) => {
+    jest.useRealTimers();
+    keepCapture({
+      captureFps: FPS,
+      lensId: null,
+      samples: samples.map(({ tNs, r }) => ({ tNs, r, g: 0.1, b: 0.1 })),
+      stats: samples.map(({ tNs }) => ({ tNs, spatialStdR: 0.02, clipFrac: 0, exposureNs: 8e6 })),
+      motionSpans: [],
+      coldHandsSpans: [],
+      sqi: null,
+    });
+    const { result: analysis } = renderHook(() => useReadingAnalysis({ mode: 'quick', restTimerDone: true }));
+    await waitFor(() => expect(analysis.current.phase).toBe('inconclusive'), { timeout: 10_000 });
+    // A refused capture is not a reading: nothing reaches the readings table.
+    expect(await listReadings()).toEqual([]);
+    return analysis.current;
+  };
+
+  it('refuses a capture too short to measure without saving it, not as a failure', async () => {
+    const refused = await refusalFor([{ tNs: 1e12, r: 0.7 }]);
+    expect(refused).toMatchObject({ phase: 'inconclusive', outcome: null });
+  });
+
+  it('refuses a capture with no finger on the lens and hands over its numbers', async () => {
+    const frames = Array.from({ length: 40 * FPS }, (_, i) => ({ tNs: 1e12 + i * FRAME_NS, r: 0.05 }));
+    const refused = await refusalFor(frames);
+    expect(refused).toMatchObject({
+      phase: 'inconclusive',
+      outcome: { kind: 'inconclusive', cleanSeconds: 0, neededCleanSeconds: 30 },
+    });
+  });
+
+  it('still analyses and saves a capture with a few NaN frames, which are just not clean', async () => {
+    jest.useRealTimers();
+    // A Quick Check needs 30 clean seconds (spec 07), so the capture runs 35 s.
+    const captureS = 35;
+    const frames = Array.from({ length: captureS * FPS }, (_, i) => 1e12 + i * FRAME_NS);
+    keepCapture({
+      captureFps: FPS,
+      lensId: null,
+      samples: frames.map((tNs, i) => ({
+        tNs,
+        r: i >= 300 && i < 303 ? Number.NaN : 0.7 - 0.012 * Math.sin(2 * Math.PI * PULSE_HZ * (i / FPS)),
+        g: 0.1,
+        b: 0.1,
+      })),
+      stats: frames.map((tNs) => ({ tNs, spatialStdR: 0.02, clipFrac: 0, exposureNs: 8e6 })),
+      motionSpans: [],
+      coldHandsSpans: [],
+      sqi: null,
+    });
+    const { result: analysis } = renderHook(() => useReadingAnalysis({ mode: 'quick', restTimerDone: true }));
+    await waitFor(() => expect(analysis.current.phase).toBe('done'), { timeout: 10_000 });
+    if (analysis.current.phase !== 'done') throw new Error('analysis did not finish');
+    const saved = await storedReadingById(analysis.current.readingId);
+    if (!saved) throw new Error('the reading was not saved');
+    expect(saved.outcome.cleanSeconds).toBeLessThan(captureS);
   });
 });

@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { cancelAllScheduledNotificationsAsync } from 'expo-notifications';
 
+import '@/i18n';
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { demoReadingById, keepDemoReading } from '@/demo/demoReadings';
 import { enterDemo, isDemoActive } from '@/demo/demoSession';
@@ -15,6 +16,9 @@ import { memoryFiles } from '@/testing/memoryFiles';
 import { saveTestReading } from '@/testing/savedReading';
 import { setPreference, usePreferences } from '@/theme/preferences';
 
+import { LumenWidgets } from '../../modules/lumen-widgets/src';
+import type { WidgetSnapshot } from '@/widgets/snapshot';
+
 import { lumenDatabase } from './database';
 import { deleteAllData } from './deleteAllData';
 import { profileValue, saveHealthNote } from './profile';
@@ -23,6 +27,9 @@ import { listReadings } from './readings';
 jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').mockFileSystem);
 jest.mock('expo-notifications', () => ({ cancelAllScheduledNotificationsAsync: jest.fn() }));
 jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
+jest.mock('../../modules/lumen-widgets/src', () => ({
+  LumenWidgets: { publishSnapshot: jest.fn(() => Promise.resolve()) },
+}));
 
 const cancelAll = jest.mocked(cancelAllScheduledNotificationsAsync);
 const sync = jest.mocked(syncNotifications);
@@ -61,11 +68,23 @@ beforeEach(() => {
   memoryFiles.clear();
   cancelAll.mockReset();
   cancelAll.mockResolvedValue(undefined);
+  jest.mocked(LumenWidgets!.publishSnapshot).mockClear();
   sync.mockReset();
   sync.mockResolvedValue(undefined);
 });
 
 describe('deleteAllData', () => {
+  it('replaces the home-screen widget snapshot with the no-reading one (PRIV-1)', async () => {
+    await saveTestReading(Date.UTC(2026, 9, 1), 70);
+    await deleteAllData('en');
+    const calls = jest.mocked(LumenWidgets!.publishSnapshot).mock.calls;
+    expect(calls).toHaveLength(1);
+    const snapshot = JSON.parse(calls[0]![0]) as WidgetSnapshot;
+    expect(snapshot.status).toBeNull();
+    expect(snapshot.hrBpm).toBeNull();
+    expect(snapshot.lastReadingAt).toBeNull();
+  });
+
   it('empties readings, profile, baselines and device rating', async () => {
     await fillEveryTable();
     expect(Object.values(await rowCounts()).every((count) => count > 0)).toBe(true);
@@ -194,6 +213,13 @@ describe('deleteAllData', () => {
   it('removes the folder expo-print writes PDFs to, and leaves other cache files', async () => {
     memoryFiles.set('cache/Print/a.pdf', 'x');
     memoryFiles.set('cache/Print/b.pdf', 'x');
+    memoryFiles.set('cache/other.bin', 'x');
+    await deleteAllData('en');
+    expect([...memoryFiles.keys()]).toEqual(['cache/other.bin']);
+  });
+
+  it('removes a readings export left behind when the app closed during sharing', async () => {
+    memoryFiles.set('lumen-readings.csv', 'taken_at_utc,mode');
     memoryFiles.set('cache/other.bin', 'x');
     await deleteAllData('en');
     expect([...memoryFiles.keys()]).toEqual(['cache/other.bin']);

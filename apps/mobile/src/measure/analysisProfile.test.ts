@@ -21,6 +21,7 @@ jest.mock('../ml/runtime', () => ({
     scores: mockRhythmScores,
     threshold: { af: 0.5 },
   }),
+  scoreDiabetesInput: async () => ({ source: 'basic', value: null, reason: 'no diabetes model in this test' }),
 }));
 
 jest.setTimeout(60_000);
@@ -141,5 +142,21 @@ describe('analysis reads the stored rating tier', () => {
       { testedAt: 1_700_000_000_000, osVersion: '26.0', appVersion: null, lensId: 'main', practice: null },
     );
     expect((await analyse()).context.tier).toBe('basic');
+  });
+});
+
+describe('analysis with a rhythm row that is not a probability row', () => {
+  beforeEach(() => jest.spyOn(console, 'warn').mockImplementation(() => {}));
+  afterEach(() => jest.restoreAllMocks());
+
+  it.each([
+    ['a NaN score', { sinus: Number.NaN, af: 0.5, other: 0.5 }],
+    ['scores that do not sum to 1', { sinus: 0.5, af: 0.5, other: 0.5 }],
+  ])('keeps the heart rate and drops only the rhythm card for %s', async (_label, scores) => {
+    mockRhythmScores = scores;
+    const { reading } = await analyse();
+    expect(reading.metrics.hr?.value).toBeCloseTo(BEATS_PER_MIN, -1);
+    expect(reading.metrics.rhythm).toBeNull();
+    expect(console.warn).toHaveBeenCalledTimes(1);
   });
 });

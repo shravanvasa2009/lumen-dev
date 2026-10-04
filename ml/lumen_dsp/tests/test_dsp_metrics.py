@@ -49,7 +49,7 @@ def test_heart_rate_regular_and_af_like():
 
 
 def test_heart_rate_keeps_atypical_and_long_pauses_and_drops_intervals_touching_an_artifact():
-    intervals_s = [0.8] * 20
+    intervals_s = [0.8] * 30
     intervals_s[4] = 0.5
     intervals_s[9] = intervals_s[10] = 0.3
     beats = beats_from(intervals_s, {5: "atypical", 10: "artifact"}, long_pauses=(15,))
@@ -71,12 +71,27 @@ def test_heart_rate_needs_15_clean_seconds_and_an_interval():
     assert heart_rate([beats], math.nan) is None
     assert heart_rate([beats], 15) == pytest.approx(75, abs=1e-9)
     assert heart_rate([beats_from([])], 60) is None
+    assert heart_rate([beats_from([0.8] * 25, {25: "artifact"})], 60) == pytest.approx(75, abs=1e-9)
+
+
+def test_heart_rate_needs_15_s_of_accepted_intervals():
+    # Red team PR #171 round 3: 35 clean s with one accepted 0.3 s interval read 201 bpm (ADR 0080).
+    assert heart_rate([beats_from([0.3])], 35) is None
+    assert heart_rate([beats_from([0.8] * 18)], 60) is None
+    assert heart_rate([beats_from([0.8] * 19)], 60) == pytest.approx(75, abs=1e-9)
+    first = beats_from([1.0] * 7 + [0.5], first_s=1)
+    second = beats_from([1.0] * 7 + [0.5], first_s=20)
+    assert heart_rate([first, second], 60) == pytest.approx(60, abs=1e-9)
+    assert heart_rate([first, second[:-1]], 60) is None
+    assert heart_rate([beats_from([0.8] * 20, {10: "artifact"})], 60) is None
 
 
 def test_heart_rate_leaves_out_zero_and_negative_intervals():
-    # A beat detected twice, or out of order; the median of 0.8 and 0.9 is 0.85 (0.4 with the other two).
+    # A beat detected twice, or out of order; the median of the positive ones is 0.85 (0.8 with the
+    # other two).
     assert heart_rate([beats_from([0.0])], 60) is None
-    assert heart_rate([beats_from([0.8, 0.0, -0.1, 0.9])], 60) == pytest.approx(60 / 0.85, abs=1e-9)
+    intervals_s = [0.8] * 10 + [0.0, -0.1] + [0.9] * 10
+    assert heart_rate([beats_from(intervals_s)], 60) == pytest.approx(60 / 0.85, abs=1e-9)
 
 
 def test_perfusion_index_known_ac_dc_and_median_over_normal_beats():

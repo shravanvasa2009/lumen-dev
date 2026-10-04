@@ -1,10 +1,11 @@
 import type { GestureResponderEvent } from 'react-native';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { useTheme } from '@/theme';
 
 import { AppText } from './AppText';
 import { Icon } from './Icon';
+import { PressableScale } from './PressableScale';
 
 type CareTabButtonProps = {
   label: string;
@@ -31,7 +32,7 @@ export function CareTabButton({
 }: CareTabButtonProps) {
   const { colors, control } = useTheme();
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="tab"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected }}
@@ -58,6 +59,6 @@ export function CareTabButton({
       <AppText variant="caption" tone="accent" style={{ fontWeight: selected ? '700' : '500' }}>
         {label}
       </AppText>
-    </Pressable>
+    </PressableScale>
   );
 }

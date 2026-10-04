@@ -8,6 +8,9 @@ class File {
   constructor(...parts: string[]) {
     this.name = parts[parts.length - 1] ?? '';
   }
+  get uri() {
+    return this.name;
+  }
   get exists() {
     return memoryFiles.has(this.name);
   }

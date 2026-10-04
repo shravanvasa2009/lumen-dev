@@ -1,7 +1,29 @@
 import { DSP_CONFIG } from './config';
+import { median } from './median';
 
 // Every sum runs in index order so ml/lumen_dsp/rhythm.py, which uses the same loops, gives the same
-// doubles (§10.2 parity).
+// doubles (§10.2 parity), up to 1 ulp where Python's ** 2 uses the platform pow().
+
+// Rhythm model inputs by name, in training order: the first 8 are rhythmFeatureVector's (v1, ml/train/
+// rhythm_windows.py FEATURE_NAMES on main), the last 7 rhythmV2Features' (v2, which Track D's rhythm v2
+// training appends to that tuple). A model reads the prefix its manifest featureOrder names.
+export const RHYTHM_FEATURE_NAMES = Object.freeze([
+  'normalizedRmssd',
+  'shannonEntropyBits',
+  'turningPointRatio',
+  'sd1S',
+  'sd2S',
+  'pnn50',
+  'sampleEntropy',
+  'atypicalFraction',
+  'medianAbsDiffNorm',
+  'shortLongPairShare',
+  'rmssdPairsRemovedNorm',
+  'trimmedRmssdNorm',
+  'largeChangeShare',
+  'rrLag1Autocorr',
+  'rrLag2Autocorr',
+] as const);
 
 export interface RhythmWindow {
   startInterval: number; // index of the window's first interval in the reading
@@ -164,4 +186,56 @@ export function rhythmFeatureVector(window: RhythmWindow): number[] {
 /** DSP-15: a reading needs at least 40 intervals that do not span an artifact. */
 export function hasEnoughUsableIntervals(spansArtifact: boolean[]): boolean {
   return spansArtifact.filter((spans) => !spans).length >= DSP_CONFIG.dsp15.minUsableIntervals;
+}
+
+const NEAR_CONSTANT_SD = 1e-9;
+
+// Population form; 0 when either side is constant, so the vector stays finite (ADR 0024).
+function pearson(a: number[], b: number[]): number {
+  const meanA = sum(a) / a.length;
+  const meanB = sum(b) / b.length;
+  const sdA = populationSd(a);
+  const sdB = populationSd(b);
+  // Below 1e-9 of the mean the spread is rounding left over from subtracting the mean, not rhythm, and its
+  // correlation is noise (red-team on #192: one-ulp alternation read +0.94 for a true −1).
+  if (sdA <= NEAR_CONSTANT_SD * meanA || sdB <= NEAR_CONSTANT_SD * meanB) return 0;
+  const covariance = sum(a.map((value, i) => (value - meanA) * (b[i]! - meanB))) / a.length;
+  return covariance / (sdA * sdB);
+}
+
+function rootMeanSquare(values: number[]): number {
+  return Math.sqrt(sum(values.map((value) => value * value)) / values.length);
+}
+
+/** DSP-15 rhythm v2 (ADR 0079): 7 irregularity features that isolated premature beats barely move. */
+export function rhythmV2Features(window: RhythmWindow): number[] {
+  const { prematureShortFactor, pauseLongFactor, trimmedDiffShare, largeChangeFactor } = DSP_CONFIG.dsp15;
+  const x = window.intervalsS;
+  const differences = x.slice(1).map((value, i) => value - x[i]!);
+  const absolute = differences.map(Math.abs);
+  const med = median(x);
+
+  // A premature beat, then its compensatory pause: the short–long pair isolated ectopy makes and AF lacks.
+  const pairs: number[] = [];
+  for (let i = 0; i < differences.length; i++)
+    if (x[i]! < prematureShortFactor * med && x[i + 1]! > pauseLongFactor * med) pairs.push(i);
+  const kept = new Array<boolean>(x.length).fill(true);
+  for (const i of pairs) for (let j = Math.max(0, i - 1); j < Math.min(x.length, i + 3); j++) kept[j] = false;
+  // Only intervals still adjacent in the window are differenced, never across a dropped stretch.
+  const keptDifferences = differences.filter((_, i) => kept[i] && kept[i + 1]);
+  const pairsRemoved = keptDifferences.length < 2 ? 0 : rootMeanSquare(keptDifferences) / med;
+
+  const trimmed = [...absolute]
+    .sort((a, b) => a - b)
+    .slice(0, Math.max(1, Math.floor(trimmedDiffShare * absolute.length)));
+  const large = absolute.filter((value) => value > largeChangeFactor * med).length;
+  return [
+    median(absolute) / med,
+    pairs.length / differences.length,
+    pairsRemoved,
+    rootMeanSquare(trimmed) / med,
+    large / absolute.length,
+    pearson(x.slice(0, -1), x.slice(1)),
+    pearson(x.slice(0, -2), x.slice(2)),
+  ];
 }

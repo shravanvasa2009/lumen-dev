@@ -3,6 +3,7 @@ import {
   buildReadingResult,
   DSP_CONFIG,
   logisticRhythmOutputs,
+  RHYTHM_FEATURE_NAMES,
   type ReadingContext,
   type ReadingResult,
   type RhythmOutputs,
@@ -114,6 +115,18 @@ describe('red team: logistic rule inputs JSON cannot carry', () => {
     const vector = [0, 0, 0, 0, 0, 0, 0, bad];
     expect(() => logisticRhythmOutputs(entryFor(ruleFixture.rule, 8), [vector])).toThrow(RangeError);
   });
+
+  // ADR 0079: core sends all 15 features; a v1 (8-wide) entry reads the prefix, yet a non-finite v2 value is
+  // still an upstream fault, so both widths refuse it.
+  it.each([Number.NaN, Infinity, -Infinity])(
+    'refuses %s in v2 column 14 for a v1 (8) and a 15-wide entry',
+    (bad) => {
+      const vector = new Array<number>(RHYTHM_FEATURE_NAMES.length).fill(0);
+      vector[14] = bad;
+      expect(() => logisticRhythmOutputs(entryFor(ruleFixture.rule, 8), [vector])).toThrow(RangeError);
+      expect(() => logisticRhythmOutputs(entryFor(ruleFixture.rule, 15), [vector])).toThrow(RangeError);
+    },
+  );
 
   // Array.prototype.every skips holes, so a sparse vector passes the finite check.
   it('refuses a feature vector with a hole at a used index ([ , 99, ln 3, −99])', () => {

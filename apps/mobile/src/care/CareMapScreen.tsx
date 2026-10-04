@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
@@ -9,7 +9,7 @@ import { callNumber, opensOk } from '@/profile/dial';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { useTheme } from '@/theme';
 
-import { CareMapView, Pin } from './CareMapView';
+import { CareMapView } from './CareMapView';
 import { ClinicCard } from './ClinicCard';
 import { type Coordinates, findPlace, type NearbyClinic, nearestClinics } from './clinics';
 import { directionsUrl, doctorSearchUrl } from './contact';
@@ -22,18 +22,13 @@ import {
 import { useCareLocation } from './useCareLocation';
 
 type DoctorNotice = 'searchBusy' | 'searchFailed' | 'mapsFailed';
+type SearchedPlace = { coordinates: Coordinates; label: string };
 
-function LegendItem({ shape, label }: { shape: 'clinic' | 'doctor' | 'you'; label: string }) {
-  const { spacing } = useTheme();
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-      <Pin shape={shape} />
-      <AppText variant="caption" tone="textDim">
-        {label}
-      </AppText>
-    </View>
-  );
-}
+// ODbL 4.3 asks for this notice wherever the regular clinics are shown (ADR 0078).
+const OSM_COPYRIGHT_URL = 'https://www.openstreetmap.org/copyright';
+
+// Five digits is a whole ZIP code, so the map moves without waiting for Search.
+const COMPLETE_ZIP = /^\d{5}$/;
 
 export function CareMapScreen() {
   const { t } = useTranslation();
@@ -41,31 +36,48 @@ export function CareMapScreen() {
   const location = useCareLocation();
   const { phone: doctorPhone } = useDoctorPhone();
   const [query, setQuery] = useState('');
-  const [searchedPlace, setSearchedPlace] = useState<Coordinates | null>(null);
+  // Stays until the next search that finds a place, whatever is typed in between.
+  const [searchedPlace, setSearchedPlace] = useState<SearchedPlace | null>(null);
   const [placeNotFound, setPlaceNotFound] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [doctors, setDoctors] = useState<readonly NearbyDoctor[]>([]);
   const [doctorNotice, setDoctorNotice] = useState<DoctorNotice | null>(null);
   const [failedCallPhone, setFailedCallPhone] = useState<string | null>(null);
   const [directionsFailedId, setDirectionsFailedId] = useState<string | null>(null);
-  const [typing, setTyping] = useState(false);
+  const [keyboardUp, setKeyboardUp] = useState(false);
+  // Keyboard events, not focus: Android hides the keyboard (back key, chevron) without blurring the field.
+  useEffect(() => {
+    const shown = Keyboard.addListener('keyboardDidShow', () => setKeyboardUp(true));
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setKeyboardUp(false));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, []);
 
   const you = location.status === 'ready' ? location.origin : null;
-  const centre = searchedPlace ?? you;
+  const centre = searchedPlace?.coordinates ?? you;
   const clinics = useMemo(() => (centre ? nearestClinics(centre) : []), [centre]);
   const listed: NearbyClinic[] = [
     ...clinics.filter((clinic) => clinic.id === selectedId),
     ...clinics.filter((clinic) => clinic.id !== selectedId),
   ];
 
-  const searchPlace = () => {
-    const found = findPlace(query);
+  const searchPlace = (text: string) => {
+    Keyboard.dismiss();
+    setKeyboardUp(false);
+    const found = findPlace(text);
     setPlaceNotFound(found === null);
     if (found) {
-      setSearchedPlace(found);
+      setSearchedPlace({ coordinates: found, label: text.trim() });
       setSelectedId(null);
       setDoctors([]);
     }
+  };
+
+  const changeQuery = (text: string) => {
+    setQuery(text);
+    if (COMPLETE_ZIP.test(text.trim())) searchPlace(text);
   };
 
   const call = async (phone: string) => {
@@ -132,7 +144,7 @@ export function CareMapScreen() {
             clinics={clinics}
             doctors={doctors}
             selectedId={selectedId}
-            collapsed={typing}
+            compact={keyboardUp}
             onSelectClinic={setSelectedId}
             onClearSelection={() => setSelectedId(null)}
           />
@@ -142,21 +154,14 @@ export function CareMapScreen() {
           contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xxxl }}
           keyboardShouldPersistTaps="handled"
         >
-          <AppText variant="caption" tone="textDim">
-            {t('careMap.privacy')}
-          </AppText>
-          {locationNotice ? <AppText tone="textDim">{locationNotice}</AppText> : null}
-
           <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
             <TextInput
               accessibilityLabel={t('careMap.zipLabel')}
               placeholder={t('careMap.zipLabel')}
               placeholderTextColor={colors.textFaint}
               value={query}
-              onChangeText={setQuery}
-              onFocus={() => setTyping(true)}
-              onBlur={() => setTyping(false)}
-              onSubmitEditing={searchPlace}
+              onChangeText={changeQuery}
+              onSubmitEditing={() => searchPlace(query)}
               returnKeyType="search"
               autoCorrect={false}
               style={{
@@ -174,7 +179,7 @@ export function CareMapScreen() {
             <Button
               label={t('careMap.search')}
               variant="secondary"
-              onPress={searchPlace}
+              onPress={() => searchPlace(query)}
               disabled={query.trim() === ''}
             />
           </View>
@@ -183,14 +188,18 @@ export function CareMapScreen() {
               {t('careMap.notFound')}
             </AppText>
           ) : null}
+          {searchedPlace ? (
+            <AppText testID="care-map-place" tone="textDim">
+              {t('careMap.showingNear', { place: searchedPlace.label })}
+            </AppText>
+          ) : null}
+          {locationNotice && !searchedPlace ? <AppText tone="textDim">{locationNotice}</AppText> : null}
+          <AppText variant="caption" tone="textDim">
+            {t('careMap.privacy')}
+          </AppText>
 
           {centre ? (
             <>
-              <View style={{ gap: spacing.sm }}>
-                <LegendItem shape="clinic" label={t('careMap.legendClinic')} />
-                {doctors.length > 0 ? <LegendItem shape="doctor" label={t('careMap.legendDoctor')} /> : null}
-                {searchedPlace ? null : <LegendItem shape="you" label={t('careMap.legendYou')} />}
-              </View>
               <Button
                 label={canSearchNearbyDoctors() ? t('careMap.showDoctors') : t('careMap.searchDoctors')}
                 variant="secondary"
@@ -217,6 +226,14 @@ export function CareMapScreen() {
               ))}
               <AppText variant="caption" tone="textDim">
                 {t('careMap.source')}
+              </AppText>
+              <AppText
+                variant="caption"
+                tone="textDim"
+                accessibilityRole="link"
+                onPress={() => void opensOk(OSM_COPYRIGHT_URL)}
+              >
+                {t('careMap.sourceOsm')}
               </AppText>
             </>
           ) : null}

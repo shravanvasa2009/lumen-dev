@@ -1,8 +1,9 @@
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { useTheme } from '@/theme';
 
 import { AppText } from './AppText';
+import { PressableScale } from './PressableScale';
 
 type ButtonProps = {
   label: string;
@@ -19,7 +20,7 @@ export function Button({ label, onPress, variant = 'primary', disabled = false }
   const fill = variant === 'critical' ? colors.criticalFill : colors.accentFill;
   const onFill = variant === 'critical' ? colors.onCriticalFill : colors.onAccentFill;
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
@@ -39,7 +40,7 @@ export function Button({ label, onPress, variant = 'primary', disabled = false }
       <AppText variant="headline" style={{ color: labelColor ?? onFill }}>
         {label}
       </AppText>
-    </Pressable>
+    </PressableScale>
   );
 }
 

@@ -3,11 +3,13 @@ import { cancelAllScheduledNotificationsAsync } from 'expo-notifications';
 
 import { clearDemoReadings } from '@/demo/demoReadings';
 import { exitDemo } from '@/demo/demoSession';
+import { removeExportFile } from '@/export/exportFile';
 import { keepCapture } from '@/measure/keptCapture';
 import type { NotificationPrefs, NotificationTriggers } from '@/notifications/plan';
 import { syncNotifications } from '@/notifications/scheduler';
 import { resetDoctorPhone } from '@/profile/doctorPhone';
-import { resetPreferences } from '@/theme/preferences';
+import { currentPreferences, resetPreferences } from '@/theme/preferences';
+import { publishWidgets } from '@/widgets/publish';
 
 import { lumenDatabase } from './database';
 
@@ -51,7 +53,8 @@ async function emptyEveryTable(): Promise<void> {
 // finishes its schedule and file writes before anything is deleted, and then the system's reminders are
 // cancelled so none fires or is re-planned meanwhile. Captures are held in memory
 // only, so nothing is on disk for them; the downloaded models are not the person's data and stay. A failure
-// throws before any in-memory state resets, and running it again finishes the job.
+// before the widget publish throws before any in-memory state resets; a failed publish throws after them. Either
+// way, running it again finishes the job.
 // expo-notifications 57: https://docs.expo.dev/versions/v57.0.0/sdk/notifications/
 // expo-file-system 57: https://docs.expo.dev/versions/v57.0.0/sdk/filesystem/
 export async function deleteAllData(languageTag: string): Promise<void> {
@@ -71,9 +74,13 @@ export async function deleteAllData(languageTag: string): Promise<void> {
   }
   const printed = new Directory(Paths.cache, PRINT_FOLDER);
   if (printed.exists) printed.delete();
+  removeExportFile();
   keepCapture(null);
   clearDemoReadings();
   resetPreferences();
   resetDoctorPhone();
   exitDemo();
+  // The widget snapshot is a copy of the latest reading outside SQLite; with the tables empty this writes the
+  // no-reading snapshot, so the home-screen widget shows its empty state.
+  await publishWidgets(currentPreferences());
 }

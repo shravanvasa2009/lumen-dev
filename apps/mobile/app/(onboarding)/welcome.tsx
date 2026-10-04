@@ -12,9 +12,9 @@ import { useTheme } from '@/theme';
 
 // Mockup 01 v2 draws the lockup at 73% of the screen width and the tagline at 20 pt.
 const LOCKUP_SCREEN_SHARE = 0.73;
-// Below this window height (a 360 x 640 phone) the lockup and tagline shrink and the check tiles go compact.
+// Below this window height (a 360 x 640 phone) the drawn lockup shrinks and the check tiles go compact; text keeps its size.
 const COMPACT_HEIGHT = 700;
-const COMPACT_LOCKUP_SHARE = 0.5;
+const COMPACT_LOCKUP_SHARE = 0.45;
 const TAGLINE_MAX_WIDTH = 300;
 
 export default function WelcomeScreen() {
@@ -37,7 +37,7 @@ export default function WelcomeScreen() {
       }
     >
       <ScrollView
-        contentContainerStyle={[styles.body, { gap: compact ? spacing.lg : spacing.xl }]}
+        contentContainerStyle={[styles.body, { gap: compact ? spacing.md : spacing.xl }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.group, { gap: spacing.md }]}>
@@ -45,11 +45,7 @@ export default function WelcomeScreen() {
           <AppText accessibilityRole="header" style={styles.screenReaderOnly}>
             {t('app.name')}
           </AppText>
-          <AppText
-            variant="headline"
-            tone="textDim"
-            style={[styles.centeredText, styles.tagline, compact ? styles.compactTagline : null]}
-          >
+          <AppText variant="headline" tone="textDim" style={[styles.centeredText, styles.tagline]}>
             {t('app.tagline')}
           </AppText>
         </View>
@@ -65,6 +61,5 @@ const styles = StyleSheet.create({
   body: { flexGrow: 1, justifyContent: 'center' },
   group: { alignItems: 'center' },
   centeredText: { textAlign: 'center' },
-  compactTagline: { fontSize: 16, lineHeight: 22 },
   tagline: { fontWeight: '400', fontSize: 20, lineHeight: 28, maxWidth: TAGLINE_MAX_WIDTH },
 });

@@ -1,6 +1,8 @@
 import type { InconclusiveOutcome, UrgentHeartRate } from '@lumen/core';
 import { renderHook } from '@testing-library/react-native';
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { router } from 'expo-router';
+import { BackHandler } from 'react-native';
 
 import en from '@/i18n/en.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -318,6 +320,154 @@ describe('urgent heart rates (SAFE-1, ADR 0076)', () => {
       expect(route.getPathname()).toBe('/measure/processing');
       expect(screen.queryByText(en['safety.question'])).toBeNull();
       expect(screen.getByText(en['processing.failed'])).toBeOnTheScreen();
+    });
+  });
+});
+
+describe('leaving Processing during the analysis (SAFE-1)', () => {
+  let backHandlers: Parameters<typeof BackHandler.addEventListener>[1][];
+  const backPressEaten = () => backHandlers.some((handler) => handler(undefined as never) === true);
+
+  beforeEach(() => {
+    backHandlers = [];
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+      backHandlers.push(handler);
+      return { remove: () => (backHandlers = backHandlers.filter((other) => other !== handler)) };
+    });
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('eats the Android back press while the analysis runs', () => {
+    mockAnalysis = { phase: 'running', progress: midway };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(backPressEaten()).toBe(true);
+    expect(route.getPathname()).toBe('/measure/processing');
+  });
+
+  it('lets the back press through once the analysis has failed', () => {
+    mockAnalysis = { phase: 'failed', progress: midway, reason: 'disk full', urgent: null };
+    renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(backPressEaten()).toBe(false);
+  });
+
+  it('lets the back press through when there is nothing to analyse', () => {
+    mockAnalysis = { phase: 'unavailable' };
+    renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(backPressEaten()).toBe(false);
+  });
+});
+
+describe('the symptom question is asked once per reading', () => {
+  const finished: AnalysisProgress = {
+    ...midway,
+    steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
+  };
+
+  it('does not ask again on Results after No on Processing', () => {
+    mockAnalysis = {
+      phase: 'done',
+      progress: finished,
+      readingId: 'demo-hr-flag',
+      urgent: { fastSustained: false, slowBelow40: true },
+    };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    expect(route.getPathname()).toBe('/results/demo-hr-flag');
+    expect(screen.queryByText(en['safety.question'])).toBeNull();
+  });
+
+  it('leaves nothing marked when no question was asked, so Results asks for a flagged reading', () => {
+    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo-hr-flag', urgent: null };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(route.getPathname()).toBe('/results/demo-hr-flag');
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+  });
+
+  it('does not mark the reading as asked in its URL, so no link can switch the question off', () => {
+    mockAnalysis = {
+      phase: 'done',
+      progress: finished,
+      readingId: 'demo-hr-flag',
+      urgent: { fastSustained: false, slowBelow40: true },
+    };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    expect(route.getSearchParams()).toEqual({ id: 'demo-hr-flag' });
+  });
+});
+
+describe('urgent flags known while the analysis still runs (SAFE-1)', () => {
+  const running = (urgent?: UrgentHeartRate | null): AnalysisState => ({
+    phase: 'running',
+    progress: midway,
+    urgent,
+  });
+  const finished: AnalysisProgress = {
+    ...midway,
+    steps: { beats: 'done', rhythm: 'done', breathing: 'done', baseline: 'done' },
+  };
+  const slow: UrgentHeartRate = { fastSustained: false, slowBelow40: true };
+
+  it('opens Emergency before the model and the save have finished', () => {
+    mockAnalysis = running({ fastSustained: true, slowBelow40: false });
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(route.getPathname()).toBe('/emergency');
+  });
+
+  it('does not navigate again when the analysis finishes after an early Emergency', () => {
+    mockAnalysis = running({ fastSustained: true, slowBelow40: false });
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    mockAnalysis = {
+      phase: 'done',
+      progress: finished,
+      readingId: 'demo',
+      urgent: { fastSustained: true, slowBelow40: false },
+    };
+    act(() => router.setParams({ mode: 'quick' }));
+    expect(route.getPathname()).toBe('/emergency');
+  });
+
+  it('asks the symptom question while running, and Yes opens Emergency', () => {
+    mockAnalysis = running(slow);
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
+    expect(route.getPathname()).toBe('/emergency');
+  });
+
+  it('waits for the reading after No, and does not leave before the question is answered', () => {
+    mockAnalysis = running(slow);
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo-hr-flag', urgent: slow };
+    act(() => router.setParams({ mode: 'quick' }));
+    expect(route.getPathname()).toBe('/measure/processing');
+    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    expect(route.getPathname()).toBe('/results/demo-hr-flag');
+    expect(screen.queryByText(en['safety.question'])).toBeNull();
+  });
+
+  describe('leaving', () => {
+    let backHandlers: Parameters<typeof BackHandler.addEventListener>[1][];
+    const backPressEaten = () => backHandlers.some((handler) => handler(undefined as never) === true);
+
+    beforeEach(() => {
+      backHandlers = [];
+      jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+        backHandlers.push(handler);
+        return { remove: () => (backHandlers = backHandlers.filter((other) => other !== handler)) };
+      });
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('is blocked until the flags are known, then allowed while the analysis still runs', () => {
+      mockAnalysis = running(undefined);
+      renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+      expect(backPressEaten()).toBe(true);
+      mockAnalysis = running(null);
+      act(() => router.setParams({ mode: 'quick' }));
+      expect(backPressEaten()).toBe(false);
     });
   });
 });

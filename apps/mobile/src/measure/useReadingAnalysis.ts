@@ -15,7 +15,9 @@ import { DEFAULT_MODE } from './mode';
 
 export type AnalysisState =
   | { phase: 'unavailable' }
-  | { phase: 'running'; progress: AnalysisProgress }
+  // urgent is undefined until the emergency heart-rate rules have run, then null or the flags, while the
+  // model and save steps still run (SAFE-1).
+  | { phase: 'running'; progress: AnalysisProgress; urgent?: UrgentHeartRate | null }
   | { phase: 'done'; progress: AnalysisProgress; readingId: string; urgent: UrgentHeartRate | null }
   // A refused capture is not a reading: nothing is saved and Processing opens the Inconclusive screen. The
   // outcome is null for a capture too short to analyse, which has no numbers to show.
@@ -27,7 +29,7 @@ const DEFAULT_REQUEST: AnalysisRequest = { mode: DEFAULT_MODE, restTimerDone: fa
 
 type Tracker = {
   latest: AnalysisProgress;
-  urgent: UrgentHeartRate | null;
+  urgent: UrgentHeartRate | null | undefined;
   listeners: Set<(progress: AnalysisProgress) => void>;
 };
 type Finished =
@@ -42,7 +44,7 @@ const runs = new WeakMap<KeptCapture, Run>();
 function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest): Run {
   const existing = runs.get(capture);
   if (existing !== undefined) return existing;
-  const tracker: Tracker = { latest: pendingProgress, urgent: null, listeners: new Set() };
+  const tracker: Tracker = { latest: pendingProgress, urgent: undefined, listeners: new Set() };
   if (isTooShort(capture)) {
     const refused: Run = { tracker, outcome: Promise.resolve({ kind: 'inconclusive', outcome: null }) };
     runs.set(capture, refused);
@@ -57,6 +59,7 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
     },
     (urgent) => {
       tracker.urgent = urgent;
+      for (const listener of tracker.listeners) listener(tracker.latest);
     },
   ).then(async (analysed): Promise<Finished> => {
     // Only a refusal has a kind; an analysed reading is told apart by lacking one.
@@ -99,7 +102,7 @@ export function useReadingAnalysis(request: AnalysisRequest = DEFAULT_REQUEST): 
     let active = true;
     const run = runFor(capture, { mode, restTimerDone });
     const showProgress = (progress: AnalysisProgress) => {
-      if (active) setState({ phase: 'running', progress });
+      if (active) setState({ phase: 'running', progress, urgent: run.tracker.urgent });
     };
     run.tracker.listeners.add(showProgress);
     showProgress(run.tracker.latest);
@@ -120,7 +123,12 @@ export function useReadingAnalysis(request: AnalysisRequest = DEFAULT_REQUEST): 
         const reason = error instanceof Error ? error.message : String(error);
         console.warn(`Reading analysis failed: ${reason}`);
         if (active)
-          setState({ phase: 'failed', progress: run.tracker.latest, reason, urgent: run.tracker.urgent });
+          setState({
+            phase: 'failed',
+            progress: run.tracker.latest,
+            reason,
+            urgent: run.tracker.urgent ?? null,
+          });
       },
     );
     return () => {

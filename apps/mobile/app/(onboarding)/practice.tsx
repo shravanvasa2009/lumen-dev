@@ -7,6 +7,7 @@ import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
 import { coachingText } from '@/measure/coachingText';
 import { LiveWaveform } from '@/measure/LiveWaveform';
+import { OpenSettingsButton } from '@/measure/OpenSettingsButton';
 import { phaseCaption } from '@/measure/phaseCaption';
 import { useLiveCapture } from '@/measure/useLiveCapture';
 import { FingerPreview, ProgressRing, SignalMeter, SignalScale } from '@/onboarding/practiceParts';
@@ -76,6 +77,7 @@ export default function PracticeScreen() {
       <AppText variant="caption" tone="textDim">
         {caption}
       </AppText>
+      <OpenSettingsButton live={live} />
     </OnboardingStep>
   );
 }

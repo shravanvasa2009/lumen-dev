@@ -7,6 +7,7 @@ import {
   type SqiWindow,
 } from '@lumen/core';
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 import {
   LumenCapture,
@@ -89,6 +90,28 @@ export function useLiveCapture(
   { demo = false }: { demo?: boolean } = {},
 ): LiveCapture {
   const [live, setLive] = useState<LiveCapture>(idle(capture ? 'starting' : 'unavailable'));
+  // Raised when the user comes back from Settings with the camera allowed, to start the capture again.
+  const [permissionGrants, setPermissionGrants] = useState(0);
+
+  // Android and iOS do not ask again after a denial, so the user turns the camera on in Settings. getPermission
+  // does not prompt, which keeps the dialog from raising another foreground event.
+  useEffect(() => {
+    if (!capture || live.phase !== 'denied') return;
+    let mounted = true;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      capture
+        .getPermission()
+        .then((permission) => {
+          if (mounted && permission.granted) setPermissionGrants((count) => count + 1);
+        })
+        .catch((error: unknown) => console.warn(`Camera permission check failed: ${reasonOf(error)}`));
+    });
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, [capture, live.phase]);
 
   useEffect(() => {
     if (!capture) return;
@@ -275,7 +298,7 @@ export function useLiveCapture(
       mounted = false;
       stopCamera();
     };
-  }, [capture, demo]);
+  }, [capture, demo, permissionGrants]);
 
   return live;
 }

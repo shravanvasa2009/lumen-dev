@@ -377,6 +377,7 @@
   "capture.cameraOn": "La cámara lleva {{seconds}} s encendida.",
   "capture.starting": "Iniciando la cámara…",
   "capture.unavailable": "La cámara no está conectada en esta compilación, así que aquí no se puede medir nada.",
+  "capture.openSettings": "Abrir Ajustes",
   "capture.denied": "Lumen necesita acceso a la cámara para leer tu pulso. Actívalo en Ajustes.",
   "capture.failed": "La cámara no se inició: {{reason}}",
   "capture.noWaveform": "Tu pulso se dibuja aquí cuando la cámara esté en marcha.",

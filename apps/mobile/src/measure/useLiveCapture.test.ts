@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 
 import type {
   CameraPermission,
@@ -322,6 +323,32 @@ describe('useLiveCapture', () => {
     const { result: live } = renderHook(() => useLiveCapture(fake));
     await waitFor(() => expect(live.current.phase).toBe('denied'));
     expect(fake.started).toEqual([]);
+  });
+
+  it('starts the camera when the app returns to the foreground with the permission granted', async () => {
+    let appStateChanged: (state: AppStateStatus) => void = () => {};
+    const remove = jest.fn();
+    const listen = jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+      appStateChanged = listener;
+      return { remove };
+    });
+    const fake = new FakeCapture();
+    fake.permission = DENIED;
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('denied'));
+
+    await act(async () => appStateChanged('active'));
+    expect(live.current.phase).toBe('denied');
+    expect(fake.started).toEqual([]);
+
+    fake.permission = GRANTED;
+    await act(async () => appStateChanged('background'));
+    expect(fake.started).toEqual([]);
+    await act(async () => appStateChanged('active'));
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    expect(fake.started).toHaveLength(1);
+    expect(remove).toHaveBeenCalled();
+    listen.mockRestore();
   });
 
   it('reports a start failure with its reason', async () => {

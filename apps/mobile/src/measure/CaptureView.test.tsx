@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import * as Linking from 'expo-linking';
 
 import { ScrollView } from 'react-native';
 
@@ -64,6 +65,19 @@ describe('CaptureView', () => {
   it('explains a denied camera permission and a failed start', () => {
     show({ phase: 'denied', status: null });
     expect(screen.getByText(en['capture.denied'])).toBeOnTheScreen();
+  });
+
+  it('offers Open Settings when the camera is denied, and only then', () => {
+    const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+    show({ phase: 'denied', status: null });
+    fireEvent.press(screen.getByRole('button', { name: en['capture.openSettings'] }));
+    expect(openSettings).toHaveBeenCalledTimes(1);
+    openSettings.mockRestore();
+  });
+
+  it('has no Open Settings button while the camera runs', () => {
+    show({});
+    expect(screen.queryByRole('button', { name: en['capture.openSettings'] })).toBeNull();
   });
 
   it('shows the start failure reason', () => {

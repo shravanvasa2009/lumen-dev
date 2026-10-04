@@ -377,6 +377,7 @@
   "capture.cameraOn": "The camera has been on for {{seconds}} s.",
   "capture.starting": "Starting the camera…",
   "capture.unavailable": "The camera isn't connected in this build, so nothing can be measured here.",
+  "capture.openSettings": "Open Settings",
   "capture.denied": "Lumen needs camera access to read your pulse. Turn it on in Settings.",
   "capture.failed": "The camera didn't start: {{reason}}",
   "capture.noWaveform": "Your pulse draws here once the camera is running.",

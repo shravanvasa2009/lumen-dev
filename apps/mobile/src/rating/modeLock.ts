@@ -16,11 +16,9 @@ const REQUIRED_MODE: Record<ListedMode, RatingMode> = {
 
 const DEEP_HRV_MIN_FPS = 60;
 
-export type LockReason = LockWhy;
-
 // Why the phone's rating keeps a mode locked, or null when the mode is open. A phone with no rating yet
 // keeps every mode open: the rating gates features, and before it exists nothing has been measured to gate on.
-export function lockReason(rating: StoredRating | null | undefined, mode: ListedMode): LockReason | null {
+export function lockReason(rating: StoredRating | null | undefined, mode: ListedMode): LockWhy | null {
   if (rating === null || rating === undefined) return null;
   if (rating.unlocks.includes(REQUIRED_MODE[mode])) return null;
   if (rating.tier === 'unsupported') return 'unsupported';

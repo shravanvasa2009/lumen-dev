@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
@@ -26,12 +27,13 @@ const CHECK_TAG_SIZE = 9;
 const CHECK_GAP = 8;
 
 // Same order and shapes as the real widgets: AFib, POTS, HRV, Diabetes.
+// Each name is a literal key so the i18n check can see it.
 const CHECKS = [
-  { icon: 'pulse', nameKey: 'widgets.checkAfib' },
-  { icon: 'standing', nameKey: 'widgets.checkPots' },
-  { icon: 'bars', nameKey: 'widgets.checkHrv' },
-  { icon: 'drop', nameKey: 'widgets.checkDiabetes' },
-] as const satisfies readonly { icon: IconName; nameKey: string }[];
+  { icon: 'pulse', name: (t: TFunction) => t('widgets.checkAfib') },
+  { icon: 'standing', name: (t: TFunction) => t('widgets.checkPots') },
+  { icon: 'bars', name: (t: TFunction) => t('widgets.checkHrv') },
+  { icon: 'drop', name: (t: TFunction) => t('widgets.checkDiabetes') },
+] as const satisfies readonly { icon: IconName; name: (t: TFunction) => string }[];
 
 function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
   const { colors, radius, spacing } = useTheme();
@@ -156,13 +158,13 @@ function FourChecksRow() {
     <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
       <View style={{ height: 1, backgroundColor: colors.line }} />
       <View style={[styles.logoRow, { gap: CHECK_GAP }]}>
-        {CHECKS.map(({ icon, nameKey }) => (
+        {CHECKS.map(({ icon, name }) => (
           <View key={icon} style={[styles.logoRow, { gap: spacing.xs }]}>
             <Icon name={icon} size={MEDIUM_CHECK_ICON_SIZE} color={colors.accent} />
             <AppText
               style={{ fontSize: CHECK_NAME_SIZE, lineHeight: CHECK_NAME_SIZE + 4, fontWeight: '500' }}
             >
-              {t(nameKey)}
+              {name(t)}
             </AppText>
           </View>
         ))}

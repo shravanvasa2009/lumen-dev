@@ -45,6 +45,7 @@ export function BottomSheet({ visible, onDismiss, dismissLabel, children }: Bott
           }}
         >
           <Pressable
+            testID="sheet-scrim-press"
             accessible={onDismiss !== undefined}
             accessibilityLabel={dismissLabel}
             onPress={onDismiss}

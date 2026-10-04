@@ -281,7 +281,7 @@ describe('urgent heart rates (SAFE-1, ADR 0076)', () => {
   it('keeps the question open when the scrim is tapped, and goes nowhere', () => {
     mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo', urgent: slow };
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
-    fireEvent.press(screen.getByTestId('sheet-scrim'));
+    fireEvent.press(screen.getByTestId('sheet-scrim-press'));
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
     expect(route.getPathname()).toBe('/measure/processing');
   });

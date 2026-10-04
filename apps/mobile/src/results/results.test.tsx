@@ -218,7 +218,7 @@ describe.each([
 
   it('keeps the question open on a scrim tap and on Android Back (ADR 0093)', () => {
     openResults('demo-hr-flag');
-    fireEvent.press(screen.getByTestId('sheet-scrim'));
+    fireEvent.press(screen.getByTestId('sheet-scrim-press'));
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
     act(() => screen.UNSAFE_getByType(Modal).props.onRequestClose());
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();

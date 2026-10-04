@@ -74,7 +74,8 @@ export default function SettingsProfileScreen() {
               draft={draft}
               onAnswer={(field, answer) => {
                 risk.change(field, answer);
-                void risk.persist();
+                // A tap stores only the questions; the basics are checked and stored by Done.
+                void risk.persist('questions');
               }}
             />
           </View>

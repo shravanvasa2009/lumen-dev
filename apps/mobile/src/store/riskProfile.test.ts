@@ -74,6 +74,12 @@ describe('risk answers in the profile table', () => {
     expect(await loadRiskDraft()).toMatchObject({ ageYears: 60, familyHistory: false, hypertension: null });
   });
 
+  it('drops the pregnancy answer when the basics are saved with a sex other than Female', async () => {
+    await saveRiskDraft({ ...answered, sex: 'female', gestationalDiabetes: true });
+    await saveRiskDraft({ ...answered, sex: 'male', gestationalDiabetes: null }, 'basics');
+    expect(await profileValue('gestationalDiabetes')).toBeNull();
+  });
+
   it('writes nothing in Demo mode', async () => {
     enterDemo();
     await saveRiskDraft(answered);

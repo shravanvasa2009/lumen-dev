@@ -1,3 +1,5 @@
+import type { AdaAnswers } from '@lumen/core';
+
 export type Sex = 'female' | 'male' | 'preferNot';
 
 export type RiskDraft = {
@@ -28,7 +30,7 @@ export const MIN_APP_AGE = 13;
 
 export const HEIGHT_CM = { min: 100, max: 250 } as const;
 export const WEIGHT_KG = { min: 20, max: 300 } as const;
-// The ranges @lumen/core's adaRisk accepts; outside them it rejects the answers.
+// The ranges adaRisk accepts; outside them it throws.
 const AGE_YEARS = { min: 0, max: 130 } as const;
 const BMI = { min: 10, max: 100 } as const;
 
@@ -44,22 +46,12 @@ export const bmiOf = (heightCm: number, weightKg: number) => weightKg / (heightC
 
 type RiskField = 'age' | 'height' | 'weight' | 'bmi';
 
-// The field names match the AdaAnswers type in @lumen/core; an exported core type replaces this one.
-type RiskAnswers = {
-  ageYears: number;
-  male: boolean;
-  familyHistory: boolean;
-  hypertension: boolean;
-  physicallyActive: boolean;
-  bmi: number;
-};
-
 export type RiskAssessment =
   | { status: 'incomplete' }
   | { status: 'invalid'; fields: readonly RiskField[] }
   // sexNotGiven is true for "Prefer not": the answers then carry male: false, but the sex point was not
   // counted, so the score is a minimum.
-  | { status: 'ready'; answers: RiskAnswers; sexNotGiven: boolean };
+  | { status: 'ready'; answers: AdaAnswers; sexNotGiven: boolean };
 
 const within = (value: number, range: { min: number; max: number }) =>
   Number.isFinite(value) && value >= range.min && value <= range.max;
@@ -95,7 +87,8 @@ export function assessRisk(draft: RiskDraft): RiskAssessment {
   };
 }
 
-// Out-of-range numbers are never stored: what is on disk is what a risk check could use.
+// Out-of-range numbers are never stored, and the pregnancy answer is dropped unless sex is Female:
+// what is on disk is what a risk check could use.
 export function storableDraft(draft: RiskDraft): RiskDraft {
   const assessment = assessRisk(draft);
   const dropped = assessment.status === 'invalid' ? assessment.fields : [];
@@ -104,6 +97,7 @@ export function storableDraft(draft: RiskDraft): RiskDraft {
     ageYears: dropped.includes('age') ? null : draft.ageYears,
     heightCm: dropped.includes('height') ? null : draft.heightCm,
     weightKg: dropped.includes('weight') ? null : draft.weightKg,
+    gestationalDiabetes: draft.sex === 'female' ? draft.gestationalDiabetes : null,
   };
 }
 

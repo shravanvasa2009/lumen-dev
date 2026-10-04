@@ -12,7 +12,7 @@ export type RiskDraftState = {
   saveFailed: boolean;
   change: <Field extends keyof RiskDraft>(field: Field, value: RiskDraft[Field]) => void;
   // Resolves true when the draft is stored.
-  persist: () => Promise<boolean>;
+  persist: (only?: RiskScope) => Promise<boolean>;
 };
 
 // scope is what persist writes: a screen that edits only part of the profile saves only that part.
@@ -50,20 +50,23 @@ export function useRiskDraft(scope: RiskScope = 'all'): RiskDraftState {
     setDraft(latest.current);
   }, []);
 
-  const persist = useCallback(() => {
-    const saving = lastSave.current.then(() => saveRiskDraft(storableDraft(latest.current), scope));
-    lastSave.current = saving.catch(() => undefined);
-    return saving.then(
-      () => {
-        setSaveFailed(false);
-        return true;
-      },
-      () => {
-        setSaveFailed(true);
-        return false;
-      },
-    );
-  }, [scope]);
+  const persist = useCallback(
+    (only: RiskScope = scope) => {
+      const saving = lastSave.current.then(() => saveRiskDraft(storableDraft(latest.current), only));
+      lastSave.current = saving.catch(() => undefined);
+      return saving.then(
+        () => {
+          setSaveFailed(false);
+          return true;
+        },
+        () => {
+          setSaveFailed(true);
+          return false;
+        },
+      );
+    },
+    [scope],
+  );
 
   return { draft, loaded, loadFailed, saveFailed, change, persist };
 }

@@ -4,7 +4,7 @@ import { Dimensions, ScrollView } from 'react-native';
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import en from '@/i18n/en.json';
 import { EMPTY_RISK_DRAFT, type RiskDraft } from '@/profile/diabetesRisk';
-import { loadRiskDraft, saveRiskDraft } from '@/store/profile';
+import { loadRiskDraft, profileValue, saveRiskDraft } from '@/store/profile';
 import { expectNavTitle } from '@/testing/navHeader';
 import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -80,6 +80,28 @@ describe('Settings > Profile', () => {
     fireEvent.changeText(screen.getByLabelText(en['profile.height']), '30');
     expect(screen.getByRole('button', { name: en['common.done'] })).toBeDisabled();
     await waitFor(() => expect(screen.getByText('Enter a height between 100 and 250 cm.')).toBeOnTheScreen());
+  });
+
+  it('stores a question tap without storing an unchecked age', async () => {
+    await saveRiskDraft(saved);
+    renderRouter('./app', { initialUrl: '/settings/profile' });
+    fireEvent.press(await screen.findByRole('button', { name: en['dr.edit'] }));
+    fireEvent.changeText(screen.getByLabelText(en['profile.age']), '9');
+    const family = screen.getByLabelText(en['dr.family']);
+    fireEvent.press(within(family).getByRole('radio', { name: en['common.no'] }));
+    await waitFor(async () => expect((await loadRiskDraft()).familyHistory).toBe(false));
+    expect((await loadRiskDraft()).ageYears).toBe(52);
+  });
+
+  it('removes the pregnancy answer once sex is changed from Female', async () => {
+    await saveRiskDraft({ ...saved, gestationalDiabetes: true });
+    renderRouter('./app', { initialUrl: '/settings/profile' });
+    fireEvent.press(await screen.findByRole('button', { name: en['dr.edit'] }));
+    fireEvent.press(screen.getByRole('radio', { name: en['profile.male'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['common.done'] }));
+    await screen.findByText('52 years');
+    expect((await loadRiskDraft()).gestationalDiabetes).toBeNull();
+    expect(await profileValue('gestationalDiabetes')).toBeNull();
   });
 
   it('fits a 360 by 640 phone: both views scroll', async () => {

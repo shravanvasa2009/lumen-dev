@@ -140,6 +140,13 @@ describe('storableDraft', () => {
     });
     expect(storableDraft(complete)).toEqual(complete);
   });
+
+  it('keeps the pregnancy answer only for Female', () => {
+    const answered = { ...complete, gestationalDiabetes: true };
+    expect(storableDraft(answered).gestationalDiabetes).toBe(true);
+    expect(storableDraft({ ...answered, sex: 'male' }).gestationalDiabetes).toBeNull();
+    expect(storableDraft({ ...answered, sex: 'preferNot' }).gestationalDiabetes).toBeNull();
+  });
 });
 
 describe('basicsAcceptable', () => {

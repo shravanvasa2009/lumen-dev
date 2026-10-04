@@ -119,6 +119,8 @@ export async function saveRiskDraft(draft: RiskDraft, scope: RiskScope = 'all'):
       (field) => [NUMBER_KEYS[field], draft[field] === null ? null : String(draft[field])] as const,
     ),
   ];
+  // Changing sex away from Female on the basics screen must also remove a pregnancy answer given earlier.
+  if (draft.sex !== 'female' && scope === 'basics') basics.push([FLAG_KEYS.gestationalDiabetes, null]);
   const questions = (Object.keys(FLAG_KEYS) as (keyof typeof FLAG_KEYS)[]).map(
     (field) => [FLAG_KEYS[field], draft[field] === null ? null : String(draft[field])] as const,
   );

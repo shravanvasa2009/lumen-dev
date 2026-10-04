@@ -65,8 +65,7 @@ function chosenLens(capabilities: Capabilities): LensInfo | undefined {
 }
 
 // Spec 09-architecture §9.2 (frame rate): iOS up to 120 fps where formats allow (native caps iOS at 120 too);
-// Android requests 60. Native never reports the rate it chose, so the rate is chosen here, sent as targetFps,
-// and given to the live session and the reading's context unchanged.
+// Android requests 60. This is only the request; the session uses the rate start() reports (ADR 0067).
 const CAPTURE_FPS_CEILING: Record<Capabilities['platform'], number> = { ios: 120, android: 60 };
 
 const captureFpsFor = (platform: Capabilities['platform'], lens: LensInfo): number =>
@@ -197,17 +196,7 @@ export function useLiveCapture(
         const capabilities = await capture.getCapabilities();
         if (!mounted) return;
         const lens = chosenLens(capabilities);
-        // With no torch-capable lens there is no rate to ask for or to give the session, so that phone runs
-        // without clean seconds rather than with a guessed rate.
-        if (lens) {
-          captureFps = captureFpsFor(capabilities.platform, lens);
-          lensId = lens.id;
-          session = createLiveSession({
-            captureFps,
-            sqiThreshold: threshold ?? 0,
-            perfusionFloorPct: DSP_CONFIG.live.defaultPerfusionFloorPct,
-          });
-        }
+        const requestedFps = lens ? captureFpsFor(capabilities.platform, lens) : 0;
         keepCapture(null);
         subscriptions = [
           capture.addListener('samples', onSamples),
@@ -217,14 +206,30 @@ export function useLiveCapture(
             setLive((previous) => ({ ...previous, status }));
           }),
         ];
-        await capture.start(captureConfig(capabilities, lens, captureFps));
+        const { activeFps } = await capture.start(captureConfig(capabilities, lens, requestedFps));
         started = true;
         // The screen closed while the camera was starting, so its cleanup had nothing to stop yet.
-        if (!mounted) stopCamera();
-        else setLive((previous) => ({ ...previous, phase: 'running' }));
+        if (!mounted) {
+          stopCamera();
+          return;
+        }
+        // The live filter is designed for the rate the camera runs at, which can be below the request (ADR
+        // 0067), so the session starts only now. Batches before this are not fed to it; on Android they can
+        // arrive before the torch is on. With no torch-capable lens the module runs its own default lens dark and no
+        // session is started, as before ADR 0067.
+        if (lens) {
+          captureFps = activeFps;
+          lensId = lens.id;
+          session = createLiveSession({
+            captureFps,
+            sqiThreshold: threshold ?? 0,
+            perfusionFloorPct: DSP_CONFIG.live.defaultPerfusionFloorPct,
+          });
+        }
+        setLive((previous) => ({ ...previous, phase: 'running' }));
       } catch (error) {
-        subscriptions.forEach((subscription) => subscription.remove());
-        subscriptions = [];
+        // A session the reported rate cannot support fails after the camera started, so it is stopped too.
+        stopCamera();
         if (mounted) setLive({ ...idle('failed'), failure: reasonOf(error) });
         else console.warn(`Capture failed after the screen closed: ${reasonOf(error)}`);
       }

@@ -19,5 +19,11 @@ export default function ProcessingScreen() {
     if (readingId !== null) router.replace(`/results/${readingId}`);
   }, [readingId, router]);
 
+  const refused = analysis.phase === 'inconclusive';
+  // The Inconclusive route takes the mode only; it has no parameter for the reason yet.
+  useEffect(() => {
+    if (refused) router.replace(`/measure/inconclusive?mode=${mode}`);
+  }, [refused, router, mode]);
+
   return <ProcessingView analysis={analysis} mode={mode} />;
 }

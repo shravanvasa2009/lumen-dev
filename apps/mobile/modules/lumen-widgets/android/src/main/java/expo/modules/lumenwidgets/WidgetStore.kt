@@ -7,6 +7,7 @@ import android.util.Log
 private const val PREFS = "lumen_widgets"
 private const val SNAPSHOT_KEY = "snapshot"
 private const val DISPLAY_KEY = "display"
+private const val PREVIEWED_DISPLAY_KEY = "previewedDisplay"
 
 object WidgetStore {
     // commit, not apply: the widgets re-read the store right after this returns.
@@ -19,6 +20,18 @@ object WidgetStore {
                 .putString(DISPLAY_KEY, displayJson)
                 .commit()
         check(saved) { "Could not save the widget snapshot." }
+    }
+
+    // The published copy, palette and checks: what the picker's generated preview draws with a sample reading.
+    fun display(context: Context): String? =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(DISPLAY_KEY, null)
+
+    // Android rate-limits picker preview updates, so they're asked for only when the copy behind them changed.
+    fun previewNeedsUpdate(context: Context, displayJson: String): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(PREVIEWED_DISPLAY_KEY, null) != displayJson
+
+    fun markPreviewed(context: Context, displayJson: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(PREVIEWED_DISPLAY_KEY, displayJson).apply()
     }
 
     // null until the app has published once (a widget added before the app ever ran), or while the stored

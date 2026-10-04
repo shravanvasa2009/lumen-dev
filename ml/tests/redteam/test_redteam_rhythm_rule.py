@@ -4,6 +4,7 @@ import time
 
 import pytest
 
+from lumen_dsp.rhythm import RHYTHM_FEATURE_NAMES
 from lumen_dsp.rhythm_rule import RuleError, rule_probs
 from tests.redteam.rule_cases import CASES_PATH, DSP15_FEATURES, HAND_WINDOW, cases, fixture_rule, toy_rule
 
@@ -51,6 +52,17 @@ def test_a_non_finite_value_in_an_unused_position_is_refused(bad):
     vector[7] = bad
     with pytest.raises(RuleError, match="finite"):
         rule_probs(fixture_rule(), [vector], DSP15_FEATURES)
+
+
+# ADR 0079: core sends all 15 features; a v1 (8-wide) entry reads the prefix, but a non-finite v2 value still
+# means an upstream fault, so both widths refuse it.
+@pytest.mark.parametrize("width", [DSP15_FEATURES, len(RHYTHM_FEATURE_NAMES)])
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_a_non_finite_v2_column_is_refused_at_both_widths(bad, width):
+    vector = [0.0] * len(RHYTHM_FEATURE_NAMES)
+    vector[14] = bad
+    with pytest.raises(RuleError, match="finite"):
+        rule_probs(fixture_rule(), [vector], width)
 
 
 def test_scores_10000_windows_in_budget():

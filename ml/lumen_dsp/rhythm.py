@@ -11,6 +11,27 @@ from lumen_dsp.median import median
 # far inside the 1e-4 check.
 
 
+# packages/core/src/rhythm-features.ts RHYTHM_FEATURE_NAMES: the rhythm model inputs in training order, the 8
+# of rhythm_feature_vector (v1) then the 7 of rhythm_v2_features (v2). A model reads the prefix it names.
+RHYTHM_FEATURE_NAMES = (
+    "normalizedRmssd",
+    "shannonEntropyBits",
+    "turningPointRatio",
+    "sd1S",
+    "sd2S",
+    "pnn50",
+    "sampleEntropy",
+    "atypicalFraction",
+    "medianAbsDiffNorm",
+    "shortLongPairShare",
+    "rmssdPairsRemovedNorm",
+    "trimmedRmssdNorm",
+    "largeChangeShare",
+    "rrLag1Autocorr",
+    "rrLag2Autocorr",
+)
+
+
 @dataclass(frozen=True)
 class RhythmWindow:
     start_interval: int  # index of the window's first interval in the reading

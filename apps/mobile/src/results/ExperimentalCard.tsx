@@ -12,16 +12,13 @@ import { useTheme } from '@/theme';
 
 type ExperimentalCardProps = {
   experimental: ReadingResult['experimental'];
-  // True when the diabetes estimate sits here because it has not cleared the accuracy floor (mockup 16b).
-  showDiabetes: boolean;
 };
 
 // §6.3: grey badges, no flags. Collapsed by default; the row opens the extra-beats and pulse-shape detail.
-export function ExperimentalCard({ experimental, showDiabetes }: ExperimentalCardProps) {
+export function ExperimentalCard({ experimental }: ExperimentalCardProps) {
   const { t } = useTranslation();
   const { colors, spacing } = useTheme();
   const [open, setOpen] = useState(false);
-  const total = showDiabetes ? 3 : 2;
   return (
     <Card flush>
       <View
@@ -34,26 +31,10 @@ export function ExperimentalCard({ experimental, showDiabetes }: ExperimentalCar
         }}
       >
         <AppText tone="textDim" style={{ flex: 1 }}>
-          {t('results.experimentalCount', { total })}
+          {t('results.experimentalCount', { total: 2 })}
         </AppText>
         <EvidenceBadge metric="extraBeats" />
       </View>
-      {showDiabetes ? (
-        <View
-          style={{
-            borderTopColor: colors.line,
-            borderTopWidth: 1,
-            padding: spacing.lg,
-            gap: spacing.xs,
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <AppText variant="headline">{t('dm.flag.title')}</AppText>
-            <EvidenceBadge metric="diabetes" />
-          </View>
-          <AppText tone="textDim">{t('dm.experimental')}</AppText>
-        </View>
-      ) : null}
       <View style={{ borderTopColor: colors.line, borderTopWidth: 1 }}>
         <ListRow
           title={t('results.extraAndShape')}

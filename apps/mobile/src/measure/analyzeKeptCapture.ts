@@ -118,8 +118,7 @@ export async function analyzeKeptCapture(
 
   report(step({ beats: 'active' }, noCounts));
   await letScreenDraw();
-  // The capture screen may still be appending frames, so the analysis works on a snapshot.
-  const analysis = analyzeReading({ samples: [...capture.samples], stats: [...capture.stats] }, context);
+  const analysis = analyzeReading({ samples: capture.samples, stats: capture.stats }, context);
   const detected = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');
   const counts = {
     beats: detected.length,

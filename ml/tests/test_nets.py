@@ -4,7 +4,7 @@ import torch
 
 from export.specs import SPECS
 from export.to_onnx import source_model
-from nets.rhythm_net import RhythmNet
+from nets.rhythm_net import FEATURES, RhythmNet
 from nets.sqi_net import SqiNet
 
 NETWORKS = sorted(name for name, spec in SPECS.items() if spec.kind == "torch")
@@ -18,7 +18,7 @@ def _rhythm_inputs(batch: int, valid: int) -> tuple[torch.Tensor, torch.Tensor, 
     generator = torch.Generator().manual_seed(3)
     intervals = 0.4 + torch.rand(batch, 64, generator=generator)
     mask = (torch.arange(64) < valid).float().expand(batch, 64).clone()
-    return intervals, mask, torch.randn(batch, 8, generator=generator)
+    return intervals, mask, torch.randn(batch, FEATURES, generator=generator)
 
 
 @pytest.mark.parametrize("name", NETWORKS)

@@ -18,6 +18,7 @@ import { checkingItems } from './checkingItems';
 import { LiveWaveform } from './LiveWaveform';
 import { coachingText } from './coachingText';
 import { cleanSecondsNeeded, type MeasureMode } from './mode';
+import { OpenSettingsButton } from './OpenSettingsButton';
 import { phaseCaption } from './phaseCaption';
 import type { LiveCapture } from './useLiveCapture';
 
@@ -157,6 +158,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
           <AppText tone="textDim" style={{ textAlign: 'center' }}>
             {caption}
           </AppText>
+          <OpenSettingsButton live={live} />
 
           {fingerOn ? null : (
             <AppText tone="textDim" style={{ textAlign: 'center' }}>

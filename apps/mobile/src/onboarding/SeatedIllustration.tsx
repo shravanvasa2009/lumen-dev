@@ -1,71 +1,274 @@
-import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, Ellipse, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 
 import { useTheme } from '@/theme';
 
-const VIEWBOX_WIDTH = 300;
-const VIEWBOX_HEIGHT = 190;
-const LABEL_SIZE = 12;
+import { seatedFigure } from './seatedFigure';
 
-type SeatedIllustrationProps = { phoneLabel: string; elbowLabel: string };
+const LABEL_SIZE = 5.6;
+const INSET_LABEL_SIZE = 4.4;
+// Only used to shade the figure's own colours; page colours always come from the theme.
+const BLACK = '#000000';
+const WHITE = '#ffffff';
+// The chair back leans 2 degrees about its seat joint.
+const CHAIR_PIVOT = '-12.7, -45';
+const LINE_WIDTH = 0.45;
+const LONG_LABEL = 22;
+const LABEL_LINE_HEIGHT = 6.6;
 
-// Side view of someone seated at a table with the elbow resting on it and the phone at chest height.
-export function SeatedIllustration({ phoneLabel, elbowLabel }: SeatedIllustrationProps) {
+type SeatedIllustrationProps = {
+  phoneLabel: string;
+  elbowLabel: string;
+  // With the labels, the figure also shows a magnified fingertip over the lens and flash.
+  pressInset?: { lensLabel: string; flashLabel: string };
+};
+
+const rgb = (hex: string) => [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16));
+
+// Blends `first` with `second`; `firstShare` is the fraction of `first` kept (0 to 1).
+function mix(first: string, second: string, firstShare: number): string {
+  const [from, to] = [rgb(first), rgb(second)];
+  const channels = from.map((channel, index) =>
+    Math.round(channel * firstShare + (to[index] ?? 0) * (1 - firstShare))
+      .toString(16)
+      .padStart(2, '0'),
+  );
+  return `#${channels.join('')}`;
+}
+
+const darken = (colour: string, keep: number) => mix(colour, BLACK, keep);
+const lighten = (colour: string, keep: number) => mix(colour, WHITE, keep);
+
+function splitLabel(label: string): string[] {
+  if (label.length <= LONG_LABEL) return [label];
+  const words = label.split(' ');
+  const half = Math.ceil(words.length / 2);
+  return [words.slice(0, half).join(' '), words.slice(half).join(' ')];
+}
+
+// Side view of a seated adult against a chair back, elbow on the table, phone held at chest height with the
+// index fingertip on the rear camera. Scales with its container: the viewBox sets the shape, not the pixels.
+export function SeatedIllustration({ phoneLabel, elbowLabel, pressInset }: SeatedIllustrationProps) {
   const { colors } = useTheme();
+  const figure = seatedFigure;
+  const { viewBox, inset } = figure;
+  const skinShade = darken(colors.illustrationSkin, 0.84);
+  const shirt = mix(colors.illustrationTorso, colors.surface3, 0.55);
+  const sleeve = darken(shirt, 0.88);
+  const pants = mix(colors.textDim, colors.surface3, 0.6);
+  const deviceFace = lighten(colors.illustrationDevice, 0.86);
+  const bumpFill = lighten(colors.illustrationDevice, 0.62);
+  const [camX, camY] = figure.camera;
+  const [phoneX, phoneY] = figure.phoneMid;
+  const [insetX, insetY] = inset.centre;
+  const insetLabels = pressInset
+    ? ([
+        [inset.lens, inset.magnify * 0.55, pressInset.lensLabel],
+        [inset.flash, inset.magnify * 0.25, pressInset.flashLabel],
+      ] as const)
+    : [];
+  const padRight = inset.lens[0] + inset.padWidth / 2;
   return (
     <Svg
+      testID="seated-illustration"
       width="100%"
-      height={VIEWBOX_HEIGHT}
-      viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+      style={{ aspectRatio: viewBox.width / viewBox.height }}
+      viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Rect x={20} y={128} width={260} height={10} rx={5} fill={colors.line2} />
-      <Rect x={40} y={138} width={10} height={52} fill={colors.surface3} />
-      <Rect x={250} y={138} width={10} height={52} fill={colors.surface3} />
-      <Circle cx={100} cy={32} r={20} fill={colors.illustrationSkin} />
-      <Path
-        d="M112 58 Q92 76 96 124"
-        stroke={colors.illustrationTorso}
-        strokeWidth={18}
-        strokeLinecap="round"
-        fill="none"
-      />
       <Line
-        x1={104}
-        y1={72}
-        x2={130}
-        y2={120}
-        stroke={colors.illustrationSkin}
-        strokeWidth={8}
-        strokeLinecap="round"
+        x1={viewBox.x}
+        x2={viewBox.x + viewBox.width}
+        y1={0}
+        y2={0}
+        stroke={colors.line2}
+        strokeWidth={0.7}
       />
-      <Line
-        x1={130}
-        y1={120}
-        x2={190}
-        y2={100}
-        stroke={colors.illustrationSkin}
-        strokeWidth={8}
-        strokeLinecap="round"
-      />
-      <Circle cx={130} cy={121} r={9} fill="none" stroke={colors.accent} strokeWidth={2.5} />
-      <Rect
-        x={188}
-        y={76}
-        width={22}
-        height={42}
+      {figure.chair.map((part) => (
+        <Rect
+          key={`${part.x}-${part.y}`}
+          x={part.x}
+          y={part.y}
+          width={part.width}
+          height={part.height}
+          rx={part.rx}
+          fill={colors.line2}
+          rotation={part.tilt}
+          origin={part.tilt ? CHAIR_PIVOT : undefined}
+        />
+      ))}
+      {figure.table.map((part) => (
+        <Rect
+          key={`${part.x}-${part.y}`}
+          x={part.x}
+          y={part.y}
+          width={part.width}
+          height={part.height}
+          rx={part.rx}
+          fill={colors.line2}
+        />
+      ))}
+      <Path d={figure.legs} fill={pants} />
+      <Path d={figure.shoe} fill={colors.illustrationShoe} />
+      <Path d={figure.torso} fill={shirt} />
+      <Path d={figure.neck} fill={skinShade} />
+      <G transform={`translate(${figure.head.x} ${figure.head.y}) rotate(${figure.head.tilt})`}>
+        <Path d={figure.face} fill={colors.illustrationSkin} />
+        <Path d={figure.hair} fill={colors.illustrationHair} />
+        <Ellipse cx={-2.6} cy={0.6} rx={1.9} ry={2.8} fill={skinShade} />
+        <Circle cx={6.6} cy={-1.6} r={0.75} fill={colors.illustrationShoe} />
+      </G>
+      <Path d={figure.forearm} fill={colors.illustrationSkin} />
+      <Circle cx={figure.wrist[0]} cy={figure.wrist[1]} r={2.3} fill={colors.illustrationSkin} />
+      <Circle cx={figure.elbow[0]} cy={figure.elbow[1]} r={3.5} fill={colors.illustrationSkin} />
+      <Path d={figure.sleeve} fill={sleeve} />
+      <Circle cx={figure.shoulder[0]} cy={figure.shoulder[1]} r={4.7} fill={sleeve} />
+      <Circle cx={figure.elbow[0]} cy={figure.elbow[1]} r={4.2} fill={sleeve} />
+      <Ellipse
+        cx={figure.elbow[0]}
+        cy={-73.3}
         rx={5}
-        fill={colors.bg}
-        stroke={colors.accent}
-        strokeWidth={2.5}
+        ry={0.5}
+        fill={colors.illustrationShoe}
+        opacity={0.12}
       />
-      <Circle cx={198} cy={88} r={4} fill={colors.pulse} />
-      <SvgText x={218} y={90} fill={colors.accent} fontSize={LABEL_SIZE}>
-        {phoneLabel}
-      </SvgText>
-      <SvgText x={140} y={152} fill={colors.accent} fontSize={LABEL_SIZE}>
+      <Path
+        d={figure.phoneEdge}
+        fill={colors.illustrationDevice}
+        stroke={colors.illustrationDeviceLine}
+        strokeWidth={0.3}
+      />
+      <Path d={figure.phoneBack} fill={deviceFace} />
+      <Path d={figure.phoneRim} fill={colors.illustrationDeviceLine} />
+      <Path d={figure.cameraBump} fill={bumpFill} />
+      <Path d={figure.palm} fill={colors.illustrationSkin} />
+      <Path d={figure.index} fill={colors.illustrationSkin} />
+      <Path d={figure.thumb} fill={darken(colors.illustrationSkin, 0.93)} />
+      <Path d={figure.fingernail} fill={colors.illustrationOnDevice} opacity={0.28} />
+      <Path
+        d={`M${figure.elbowLabelFrom} -75.6 H58`}
+        stroke={colors.textDim}
+        strokeWidth={LINE_WIDTH}
+        strokeDasharray="1 1"
+      />
+      <SvgText x={60} y={-73.9} fontSize={LABEL_SIZE} fill={colors.textDim}>
         {elbowLabel}
       </SvgText>
+      {pressInset ? (
+        <G testID="seated-press-inset">
+          <Line
+            x1={camX + 0.8}
+            y1={camY}
+            x2={insetX - inset.radius * 0.97}
+            y2={insetY + 4}
+            stroke={colors.textDim}
+            strokeWidth={LINE_WIDTH}
+          />
+          <Circle cx={camX} cy={camY} r={2.6} fill="none" stroke={colors.textDim} strokeWidth={LINE_WIDTH} />
+          <Circle cx={insetX} cy={insetY} r={inset.radius + 0.6} fill={colors.line2} />
+          <Defs>
+            <ClipPath id="seated-inset-clip">
+              <Circle cx={insetX} cy={insetY} r={inset.radius} />
+            </ClipPath>
+          </Defs>
+          <G clipPath="url(#seated-inset-clip)">
+            <Rect
+              x={insetX - inset.radius}
+              y={insetY - inset.radius}
+              width={inset.radius * 2}
+              height={inset.radius * 2}
+              fill={colors.surface2}
+            />
+            <Rect
+              x={insetX - 22}
+              y={insetY - 21}
+              width={60}
+              height={70}
+              rx={7}
+              fill={colors.illustrationDevice}
+            />
+            <Rect
+              x={inset.lens[0] - 6.5}
+              y={inset.lens[1] - 6.5}
+              width={13}
+              height={13 + 1.4 * inset.magnify}
+              rx={5.5}
+              fill={lighten(colors.illustrationDevice, 0.8)}
+            />
+            <Circle
+              cx={inset.lens[0]}
+              cy={inset.lens[1]}
+              r={0.55 * inset.magnify}
+              fill={colors.illustrationLens}
+              stroke={colors.illustrationDeviceLine}
+              strokeWidth={0.6}
+            />
+            <Circle
+              cx={inset.flash[0]}
+              cy={inset.flash[1]}
+              r={0.25 * inset.magnify}
+              fill={colors.illustrationFlash}
+            />
+            <Path d={inset.padPath} fill={colors.illustrationSkin} opacity={0.93} />
+            <Path d={inset.padCreases} stroke={skinShade} strokeWidth={0.7} fill="none" />
+            <Circle
+              cx={inset.lens[0]}
+              cy={inset.lens[1]}
+              r={0.55 * inset.magnify}
+              fill="none"
+              stroke={colors.illustrationOnDevice}
+              strokeWidth={1}
+              strokeDasharray="1.6 1.1"
+            />
+            <Circle
+              cx={inset.flash[0]}
+              cy={inset.flash[1]}
+              r={0.25 * inset.magnify}
+              fill="none"
+              stroke={colors.illustrationOnDevice}
+              strokeWidth={1}
+              strokeDasharray="1.2 0.9"
+            />
+            {insetLabels.map(([[pointX, pointY], pointRadius, text]) => (
+              <G key={text}>
+                <Path
+                  d={`M${pointX + pointRadius + 0.6} ${pointY} H${padRight + 3.2}`}
+                  stroke={colors.illustrationOnDevice}
+                  strokeWidth={0.5}
+                />
+                <SvgText
+                  x={padRight + 4}
+                  y={pointY + 1.5}
+                  fontSize={INSET_LABEL_SIZE}
+                  fontWeight="600"
+                  fill={colors.illustrationOnDevice}
+                >
+                  {text}
+                </SvgText>
+              </G>
+            ))}
+          </G>
+        </G>
+      ) : (
+        <G>
+          <Path
+            d={`M${phoneX + 7.4} ${phoneY} H${phoneX + 5.2}`}
+            stroke={colors.textDim}
+            strokeWidth={LINE_WIDTH}
+          />
+          {splitLabel(phoneLabel).map((line, index) => (
+            <SvgText
+              key={line}
+              x={phoneX + 8.6}
+              y={phoneY + 1.9 + index * LABEL_LINE_HEIGHT}
+              fontSize={LABEL_SIZE}
+              fill={colors.textDim}
+            >
+              {line}
+            </SvgText>
+          ))}
+        </G>
+      )}
     </Svg>
   );
 }

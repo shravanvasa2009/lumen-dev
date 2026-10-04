@@ -1,4 +1,4 @@
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { expectNavTitle } from '@/testing/navHeader';
@@ -11,6 +11,7 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
 }));
 
 const causes = ['pressure', 'motion', 'coverage', 'coldHands'] as const;
+const causeGlyphs = { pressure: 'finger', motion: 'elbow', coverage: 'lens', coldHands: 'warm' } as const;
 
 preloadAppRoutes();
 
@@ -34,6 +35,11 @@ describe('fix my technique', () => {
   it.each(causes)('puts the %s cause in a card with its own icon and the why note', (cause) => {
     renderRouter('./app', { initialUrl: `/measure/fix-technique?cause=${cause}` });
     expect(screen.getByTestId(`fix-cause-icon-${cause}`)).toBeOnTheScreen();
+    expect(
+      within(screen.getByTestId(`fix-cause-icon-${cause}`)).getByTestId(`icon-${causeGlyphs[cause]}`, {
+        hidden: true,
+      }),
+    ).toBeOnTheScreen();
     expect(screen.getAllByText(/lost signal from|perdió señal por/)).toHaveLength(1);
     expect(screen.getByText(en[`fix.why.${cause}`])).toBeOnTheScreen();
   });

@@ -53,6 +53,7 @@ export function Icon({ name, size, color, mark }: IconProps) {
         height={size}
         viewBox="0 0 24 24"
         fill="none"
+        testID={`icon-${name}`}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
@@ -67,6 +68,7 @@ export function Icon({ name, size, color, mark }: IconProps) {
       height={size}
       viewBox="0 0 24 24"
       fill="none"
+      testID={`icon-${name}`}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >

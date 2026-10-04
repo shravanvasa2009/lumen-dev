@@ -305,6 +305,8 @@ class CameraSession(
         stopped = true
         running = false
         mainHandler.removeCallbacks(startTimeout)
+        // A frame still in analyze() can post firstFrameArrived after this; it is harmless because finishStart()
+        // below clears startDone, so the late note finds no start to finish.
         mainHandler.removeCallbacks(firstFrameArrived)
         camera?.cameraInfo?.cameraState?.removeObserver(cameraStateObserver)
         analysis?.let { useCase ->

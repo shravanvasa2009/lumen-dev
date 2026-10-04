@@ -227,12 +227,28 @@ describe('reading analysis of a kept capture', () => {
     expect(refused).toMatchObject({ phase: 'inconclusive', reason: 'tooShort' });
   });
 
-  it('refuses a capture with a value that is not a number without saving it', async () => {
-    const frames = Array.from({ length: 120 }, (_, i) => ({
-      tNs: 1e12 + i * FRAME_NS,
-      r: i === 7 ? Number.NaN : 0.7,
-    }));
-    const refused = await refusalFor(frames);
-    expect(refused).toMatchObject({ phase: 'inconclusive', reason: 'notFinite' });
+  it('still analyses and saves a capture with a few NaN frames, which are just not clean', async () => {
+    jest.useRealTimers();
+    const frames = Array.from({ length: 1200 }, (_, i) => 1e12 + i * FRAME_NS);
+    keepCapture({
+      captureFps: FPS,
+      lensId: null,
+      samples: frames.map((tNs, i) => ({
+        tNs,
+        r: i >= 300 && i < 303 ? Number.NaN : 0.7 - 0.012 * Math.sin(2 * Math.PI * PULSE_HZ * (i / FPS)),
+        g: 0.1,
+        b: 0.1,
+      })),
+      stats: frames.map((tNs) => ({ tNs, spatialStdR: 0.02, clipFrac: 0, exposureNs: 8e6 })),
+      motionSpans: [],
+      coldHandsSpans: [],
+      sqi: null,
+    });
+    const { result: analysis } = renderHook(() => useReadingAnalysis({ mode: 'quick', restTimerDone: true }));
+    await waitFor(() => expect(analysis.current.phase).toBe('done'), { timeout: 10_000 });
+    if (analysis.current.phase !== 'done') throw new Error('analysis did not finish');
+    const saved = await storedReadingById(analysis.current.readingId);
+    if (!saved) throw new Error('the reading was not saved');
+    expect(saved.outcome.cleanSeconds).toBeLessThan(20);
   });
 });

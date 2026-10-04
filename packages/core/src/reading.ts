@@ -160,6 +160,7 @@ function frameQualitySpans(timebase: Timebase, samples: Sample[], stats: FrameSt
   const windowS = DSP_CONFIG.dsp3.modelWindowS;
   const spans: RejectedSpan[] = [];
   const unscored: RejectedSpan[] = [];
+  const sparse: RejectedSpan[] = [];
   const flatRuns = new FlatRuns();
   let nextTickS = DSP_CONFIG.live.sqiEveryS;
   let formedEndS: number | null = null;
@@ -168,15 +169,18 @@ function frameQualitySpans(timebase: Timebase, samples: Sample[], stats: FrameSt
     if (tS < nextTickS) return;
     nextTickS = nextModelTickS(tS);
     const window = modelWindowAt(timebase.tS, timebase.r, covered, i + 1);
-    if (window && !window.input)
-      spans.push({ startS: window.endS - windowS, endS: window.endS, reason: 'quality' });
+    if (window && !window.input) {
+      const span: RejectedSpan = { startS: window.endS - windowS, endS: window.endS, reason: 'quality' };
+      spans.push(span);
+      if (window.sparse) sparse.push(span);
+    }
     const missing = window ? null : unscoredSpan(timebase.tS, i + 1, formedEndS);
     if (missing) unscored.push(missing);
     if (window) formedEndS = window.endS;
   });
   const rejectedUnscored = modelRan ? unscored : [];
   // In LiveSession's order, so equal starts sort alike.
-  return { all: [...spans, ...rejectedUnscored, ...flatRuns.spans()], unscored: rejectedUnscored };
+  return { all: [...spans, ...rejectedUnscored, ...flatRuns.spans()], unscored: rejectedUnscored, sparse };
 }
 
 function lostSecondsOf(spans: RejectedSpan[], durationS: number): LostSeconds {
@@ -377,7 +381,8 @@ export function analyzeReading(
   const caller = callerSpans(context, timebase.startNs);
   const frameQuality = frameQualitySpans(timebase, capture.samples, capture.stats, modelRan);
   const otherSpans = [...exposureSpans(timebase), ...caller.sensors, ...caller.sqiNet, ...frameQuality.all];
-  const sqiNetSpans = new Set([...caller.sqiNet, ...frameQuality.unscored]);
+  const sqiNetSpans = new Set([...caller.sqiNet, ...frameQuality.unscored, ...frameQuality.sparse]);
+  const emergencyView = modelRan || frameQuality.sparse.length > 0;
   const notSqiNet = (span: RejectedSpan) => !sqiNetSpans.has(span);
   const byStart = (x: RejectedSpan, y: RejectedSpan) => x.startS - y.startS;
   // Frame gaps count against clean seconds only, last in LiveSession's order (frameGapSpan).
@@ -401,7 +406,7 @@ export function analyzeReading(
     capture.samples,
     capture.stats,
     signalSpans,
-    modelRan ? signalSpans.filter(notSqiNet) : null,
+    emergencyView ? signalSpans.filter(notSqiNet) : null,
   );
   const segments = bands.map((segment) => segment.beats);
   const bySegment = intervalsBySegment(segments, timebase.startNs);
@@ -427,7 +432,7 @@ export function analyzeReading(
     rhythmFeatures: windows.map((window) => [...rhythmFeatureVector(window), ...rhythmV2Features(window)]),
     enoughRhythmIntervals: hasEnoughUsableIntervals(spansArtifact),
     pulseShape: readingShape(bands, context.captureFps),
-    withoutSqiNet: modelRan
+    withoutSqiNet: emergencyView
       ? {
           intervals: intervalsBySegment(
             bands.map((band) => band.beatsWithoutSqiNet ?? band.beats),

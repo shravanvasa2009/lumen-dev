@@ -1,960 +1,2823 @@
 [
-  {
-    "name": "fixture rule, every feature +1e300",
-    "featureCount": 8,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["normalizedRmssd", "shannonEntropyBits", "turningPointRatio"],
-      "featureIndices": [0, 1, 2],
-      "mean": [0.006522639558340112, -0.013481870173709467, 0.019215671826993155],
-      "scale": [0.9932251921315209, 1.009191943553862, 0.9881546544144801],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [-2.9701356887817383, -2.105003833770752, 1.5235973596572876],
-        [0.11153087764978409, 0.11855658143758774, -0.19723765552043915],
-        [2.8586039543151855, 1.9864459037780762, -1.326359510421753]
-      ],
-      "intercepts": [-0.8158670663833618, 1.1628012657165527, -0.34693339467048645]
-    },
-    "features": [[1e300, 1e300, 1e300, 1e300, 1e300, 1e300, 1e300, 1e300]],
-    "expect": "probs",
-    "probs": [[0.0, 0.0, 1.0]]
-  },
-  {
-    "name": "fixture rule, every feature -1e300",
-    "featureCount": 8,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["normalizedRmssd", "shannonEntropyBits", "turningPointRatio"],
-      "featureIndices": [0, 1, 2],
-      "mean": [0.006522639558340112, -0.013481870173709467, 0.019215671826993155],
-      "scale": [0.9932251921315209, 1.009191943553862, 0.9881546544144801],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [-2.9701356887817383, -2.105003833770752, 1.5235973596572876],
-        [0.11153087764978409, 0.11855658143758774, -0.19723765552043915],
-        [2.8586039543151855, 1.9864459037780762, -1.326359510421753]
-      ],
-      "intercepts": [-0.8158670663833618, 1.1628012657165527, -0.34693339467048645]
-    },
-    "features": [[-1e300, -1e300, -1e300, -1e300, -1e300, -1e300, -1e300, -1e300]],
-    "expect": "probs",
-    "probs": [[1.0, 0.0, 0.0]]
-  },
-  {
-    "name": "fixture rule, features alternating ±1e300",
-    "featureCount": 8,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["normalizedRmssd", "shannonEntropyBits", "turningPointRatio"],
-      "featureIndices": [0, 1, 2],
-      "mean": [0.006522639558340112, -0.013481870173709467, 0.019215671826993155],
-      "scale": [0.9932251921315209, 1.009191943553862, 0.9881546544144801],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [-2.9701356887817383, -2.105003833770752, 1.5235973596572876],
-        [0.11153087764978409, 0.11855658143758774, -0.19723765552043915],
-        [2.8586039543151855, 1.9864459037780762, -1.326359510421753]
-      ],
-      "intercepts": [-0.8158670663833618, 1.1628012657165527, -0.34693339467048645]
-    },
-    "features": [[1e300, -1e300, 1e300, -1e300, 1e300, -1e300, 1e300, -1e300]],
-    "expect": "probs",
-    "probs": [[1.0, 0.0, 0.0]]
-  },
-  {
-    "name": "fixture rule, every feature the smallest subnormal",
-    "featureCount": 8,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["normalizedRmssd", "shannonEntropyBits", "turningPointRatio"],
-      "featureIndices": [0, 1, 2],
-      "mean": [0.006522639558340112, -0.013481870173709467, 0.019215671826993155],
-      "scale": [0.9932251921315209, 1.009191943553862, 0.9881546544144801],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [-2.9701356887817383, -2.105003833770752, 1.5235973596572876],
-        [0.11153087764978409, 0.11855658143758774, -0.19723765552043915],
-        [2.8586039543151855, 1.9864459037780762, -1.326359510421753]
-      ],
-      "intercepts": [-0.8158670663833618, 1.1628012657165527, -0.34693339467048645]
-    },
-    "features": [[5e-324, 5e-324, 5e-324, 5e-324, 5e-324, 5e-324, 5e-324, 5e-324]],
-    "expect": "probs",
-    "probs": [[0.09739324172480275, 0.7353565928011223, 0.16725016547407498]]
-  },
-  {
-    "name": "fixture rule, every feature minus the smallest normal",
-    "featureCount": 8,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["normalizedRmssd", "shannonEntropyBits", "turningPointRatio"],
-      "featureIndices": [0, 1, 2],
-      "mean": [0.006522639558340112, -0.013481870173709467, 0.019215671826993155],
-      "scale": [0.9932251921315209, 1.009191943553862, 0.9881546544144801],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [-2.9701356887817383, -2.105003833770752, 1.5235973596572876],
-        [0.11153087764978409, 0.11855658143758774, -0.19723765552043915],
-        [2.8586039543151855, 1.9864459037780762, -1.326359510421753]
-      ],
-      "intercepts": [-0.8158670663833618, 1.1628012657165527, -0.34693339467048645]
-    },
-    "features": [
-      [
-        -2.2250738585072014e-308, -2.2250738585072014e-308, -2.2250738585072014e-308,
-        -2.2250738585072014e-308, -2.2250738585072014e-308, -2.2250738585072014e-308,
-        -2.2250738585072014e-308, -2.2250738585072014e-308
-      ]
+ {
+  "name": "fixture rule, every feature +1e300",
+  "featureCount": 8,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "normalizedRmssd",
+    "shannonEntropyBits",
+    "turningPointRatio"
+   ],
+   "featureIndices": [
+    0,
+    1,
+    2
+   ],
+   "mean": [
+    0.010112126273227962,
+    0.026144193542616753,
+    0.06632983817306619
+   ],
+   "scale": [
+    0.9855935259201042,
+    1.001207204968705,
+    1.0170728221378686
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     -2.9197468757629395,
+     -1.900534987449646,
+     1.543116569519043
     ],
-    "expect": "probs",
-    "probs": [[0.09739324172480275, 0.7353565928011223, 0.16725016547407498]]
-  },
-  {
-    "name": "fixture rule, each used feature exactly at its mean",
-    "featureCount": 8,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["normalizedRmssd", "shannonEntropyBits", "turningPointRatio"],
-      "featureIndices": [0, 1, 2],
-      "mean": [0.006522639558340112, -0.013481870173709467, 0.019215671826993155],
-      "scale": [0.9932251921315209, 1.009191943553862, 0.9881546544144801],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [-2.9701356887817383, -2.105003833770752, 1.5235973596572876],
-        [0.11153087764978409, 0.11855658143758774, -0.19723765552043915],
-        [2.8586039543151855, 1.9864459037780762, -1.326359510421753]
-      ],
-      "intercepts": [-0.8158670663833618, 1.1628012657165527, -0.34693339467048645]
-    },
-    "features": [
-      [0.006522639558340112, -0.013481870173709467, 0.019215671826993155, 0.0, 0.0, 0.0, 0.0, 0.0]
+    [
+     -0.010626568458974361,
+     0.014833832159638405,
+     0.004254247061908245
     ],
-    "expect": "probs",
-    "probs": [[0.10171498110963273, 0.7357150851291683, 0.16256993376119896]]
+    [
+     2.9303741455078125,
+     1.8857009410858154,
+     -1.5473705530166626
+    ]
+   ],
+   "intercepts": [
+    -0.5875208377838135,
+    1.1687394380569458,
+    -0.5812181830406189
+   ]
   },
-  {
-    "name": "scale 1e-300 with features exactly at the mean",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.5, -0.5],
-      "scale": [1e-300, 1e-300],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.5, 0.0, -0.5, 0.0]],
-    "expect": "probs",
-    "probs": [[0.3333333333333333, 0.3333333333333333, 0.3333333333333333]]
-  },
-  {
-    "name": "scale 1e-300 with features 1e-300 and 2e-300 from the mean",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1e-300, 1e-300],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[1e-300, 0.0, 2e-300, 0.0]],
-    "expect": "probs",
-    "probs": [[0.09003057317038046, 0.24472847105479764, 0.6652409557748219]]
-  },
-  {
-    "name": "scale 1e-300 with features 1 and 0.5 from the mean",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1e-300, 1e-300],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[1.0, 0.0, 0.5, 0.0]],
-    "expect": "probs",
-    "probs": [[0.0, 1.0, 0.0]]
-  },
-  {
-    "name": "af and other tie exactly",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [1.0, 0.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 0.0, 7.0, 0.0]],
-    "expect": "probs",
-    "probs": [[0.2, 0.4, 0.4]]
-  },
-  {
-    "name": "all three classes tie",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [0.0, 0.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "probs",
-    "probs": [[0.3333333333333333, 0.3333333333333333, 0.3333333333333333]]
-  },
-  {
-    "name": "intercepts ±1e308 with sinus and af tied at the top",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [1e308, 1e308, -1e308]
-    },
-    "features": [[0.0, 0.0, 0.0, 0.0]],
-    "expect": "probs",
-    "probs": [[0.5, 0.5, 0.0]]
-  },
-  {
-    "name": "intercepts ±1e308 with af on top",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [-1e308, 1e308, 0.0]
-    },
-    "features": [[0.0, 0.0, 0.0, 0.0]],
-    "expect": "probs",
-    "probs": [[0.0, 1.0, 0.0]]
-  },
-  {
-    "name": "extra keys in the rule block",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0],
-      "note": "x",
-      "trainedOn": [1, 2],
-      "nested": {
-        "mean": [9.0, 9.0]
-      }
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "probs",
-    "probs": [[0.16666666666666666, 0.3333333333333333, 0.5]]
-  },
-  {
-    "name": "classes listed other, af, sinus",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["other", "af", "sinus"],
-      "coefficients": [
-        [0.0, 1.0],
-        [1.0, 0.0],
-        [0.0, 0.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "probs",
-    "probs": [[0.5, 0.3333333333333333, 0.16666666666666666]]
-  },
-  {
-    "name": "a __proto__ key beside a complete rule",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0],
-      "__proto__": {
-        "mean": [100.0, 100.0]
-      }
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "probs",
-    "probs": [[0.16666666666666666, 0.3333333333333333, 0.5]]
-  },
-  {
-    "name": "featureIndices written as integral floats",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0.0, 2.0],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "probs",
-    "probs": [[0.16666666666666666, 0.3333333333333333, 0.5]]
-  },
-  {
-    "name": "an integer feature and mean above 2^53",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [9007199254740992, 0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[9007199254740993, 0, 0, 0]],
-    "expect": "probs",
-    "probs": [[0.3333333333333333, 0.3333333333333333, 0.3333333333333333]]
-  },
-  {
-    "name": "zero windows",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [],
-    "expect": "probs",
-    "probs": []
-  },
-  {
-    "name": "one window",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "probs",
-    "probs": [[0.16666666666666666, 0.3333333333333333, 0.5]]
-  },
-  {
-    "name": "string-typed means",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": ["0", "0"],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "string-typed scales",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": ["1", "1"],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "string-typed featureIndices",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": ["0", "2"],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "string-typed coefficients",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        ["0", "0"],
-        ["1", "0"],
-        ["0", "1"]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "string-typed intercepts",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": ["0", "0", "0"]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "boolean featureIndices",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [true, false],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "means nested one level too deep",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [[0.0], [0.0]],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "featureIndices nested one level too deep",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [[0], [2]],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "coefficients flattened to one row",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [0.0, 0.0, 1.0, 0.0, 0.0, 1.0],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "coefficients nested one level too deep",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [[[0.0, 0.0]], [[1.0, 0.0]], [[0.0, 1.0]]],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "intercepts nested one level too deep",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [[0.0], [0.0], [0.0]]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "a feature vector nested one level too deep",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[[0.0], [0.0], [0.0], [0.0]]],
-    "expect": "refuse"
-  },
-  {
-    "name": "af listed twice, sinus once, other missing",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["af", "sinus", "af"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "other listed twice, af missing",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["other", "other", "sinus"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "the same feature indexed twice",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 0],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "a class name that is a number",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": [1, "af", "sinus"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "a class name that is null",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": [null, "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "the smallest negative scale",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, -5e-324],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "an integer mean too big for a double",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [
-        10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
-        0.0
-      ],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
-  },
-  {
-    "name": "an integer feature too big for a double",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [
-      [
-        10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
-        0.0, 0.0, 0.0
-      ]
+  "features": [
+   [
+    1e+300,
+    1e+300,
+    1e+300,
+    1e+300,
+    1e+300,
+    1e+300,
+    1e+300,
+    1e+300
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.0,
+    0.0,
+    1.0
+   ]
+  ]
+ },
+ {
+  "name": "fixture rule, every feature -1e300",
+  "featureCount": 8,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "normalizedRmssd",
+    "shannonEntropyBits",
+    "turningPointRatio"
+   ],
+   "featureIndices": [
+    0,
+    1,
+    2
+   ],
+   "mean": [
+    0.010112126273227962,
+    0.026144193542616753,
+    0.06632983817306619
+   ],
+   "scale": [
+    0.9855935259201042,
+    1.001207204968705,
+    1.0170728221378686
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     -2.9197468757629395,
+     -1.900534987449646,
+     1.543116569519043
     ],
-    "expect": "refuse"
+    [
+     -0.010626568458974361,
+     0.014833832159638405,
+     0.004254247061908245
+    ],
+    [
+     2.9303741455078125,
+     1.8857009410858154,
+     -1.5473705530166626
+    ]
+   ],
+   "intercepts": [
+    -0.5875208377838135,
+    1.1687394380569458,
+    -0.5812181830406189
+   ]
   },
-  {
-    "name": "a required key only under __proto__",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0],
-      "__proto__": {
-        "mean": [0.0, 0.0]
-      }
-    },
-    "features": [[0.6931471805599453, 99.0, 1.0986122886681098, -99.0]],
-    "expect": "refuse"
+  "features": [
+   [
+    -1e+300,
+    -1e+300,
+    -1e+300,
+    -1e+300,
+    -1e+300,
+    -1e+300,
+    -1e+300,
+    -1e+300
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    1.0,
+    0.0,
+    0.0
+   ]
+  ]
+ },
+ {
+  "name": "fixture rule, features alternating ±1e300",
+  "featureCount": 8,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "normalizedRmssd",
+    "shannonEntropyBits",
+    "turningPointRatio"
+   ],
+   "featureIndices": [
+    0,
+    1,
+    2
+   ],
+   "mean": [
+    0.010112126273227962,
+    0.026144193542616753,
+    0.06632983817306619
+   ],
+   "scale": [
+    0.9855935259201042,
+    1.001207204968705,
+    1.0170728221378686
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     -2.9197468757629395,
+     -1.900534987449646,
+     1.543116569519043
+    ],
+    [
+     -0.010626568458974361,
+     0.014833832159638405,
+     0.004254247061908245
+    ],
+    [
+     2.9303741455078125,
+     1.8857009410858154,
+     -1.5473705530166626
+    ]
+   ],
+   "intercepts": [
+    -0.5875208377838135,
+    1.1687394380569458,
+    -0.5812181830406189
+   ]
   },
-  {
-    "name": "subnormal scale 5e-324 with a feature 1 from the mean",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [5e-324, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[1.0, 0.0, 0.0, 0.0]],
-    "expect": "finiteOrRefuse"
+  "features": [
+   [
+    1e+300,
+    -1e+300,
+    1e+300,
+    -1e+300,
+    1e+300,
+    -1e+300,
+    1e+300,
+    -1e+300
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    1.0,
+    0.0,
+    0.0
+   ]
+  ]
+ },
+ {
+  "name": "fixture rule, every feature the smallest subnormal",
+  "featureCount": 8,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "normalizedRmssd",
+    "shannonEntropyBits",
+    "turningPointRatio"
+   ],
+   "featureIndices": [
+    0,
+    1,
+    2
+   ],
+   "mean": [
+    0.010112126273227962,
+    0.026144193542616753,
+    0.06632983817306619
+   ],
+   "scale": [
+    0.9855935259201042,
+    1.001207204968705,
+    1.0170728221378686
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     -2.9197468757629395,
+     -1.900534987449646,
+     1.543116569519043
+    ],
+    [
+     -0.010626568458974361,
+     0.014833832159638405,
+     0.004254247061908245
+    ],
+    [
+     2.9303741455078125,
+     1.8857009410858154,
+     -1.5473705530166626
+    ]
+   ],
+   "intercepts": [
+    -0.5875208377838135,
+    1.1687394380569458,
+    -0.5812181830406189
+   ]
   },
-  {
-    "name": "scale 1e-300 with a feature 1e10 from the mean",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1e-300, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 0.0, 0.0]
-    },
-    "features": [[10000000000.0, 0.0, 0.0, 0.0]],
-    "expect": "finiteOrRefuse"
+  "features": [
+   [
+    5e-324,
+    5e-324,
+    5e-324,
+    5e-324,
+    5e-324,
+    5e-324,
+    5e-324,
+    5e-324
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.12561495576642695,
+    0.7424666038776071,
+    0.13191844035596592
+   ]
+  ]
+ },
+ {
+  "name": "fixture rule, every feature minus the smallest normal",
+  "featureCount": 8,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "normalizedRmssd",
+    "shannonEntropyBits",
+    "turningPointRatio"
+   ],
+   "featureIndices": [
+    0,
+    1,
+    2
+   ],
+   "mean": [
+    0.010112126273227962,
+    0.026144193542616753,
+    0.06632983817306619
+   ],
+   "scale": [
+    0.9855935259201042,
+    1.001207204968705,
+    1.0170728221378686
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     -2.9197468757629395,
+     -1.900534987449646,
+     1.543116569519043
+    ],
+    [
+     -0.010626568458974361,
+     0.014833832159638405,
+     0.004254247061908245
+    ],
+    [
+     2.9303741455078125,
+     1.8857009410858154,
+     -1.5473705530166626
+    ]
+   ],
+   "intercepts": [
+    -0.5875208377838135,
+    1.1687394380569458,
+    -0.5812181830406189
+   ]
   },
-  {
-    "name": "fixture rule, every feature 1e308",
-    "featureCount": 8,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["normalizedRmssd", "shannonEntropyBits", "turningPointRatio"],
-      "featureIndices": [0, 1, 2],
-      "mean": [0.006522639558340112, -0.013481870173709467, 0.019215671826993155],
-      "scale": [0.9932251921315209, 1.009191943553862, 0.9881546544144801],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [-2.9701356887817383, -2.105003833770752, 1.5235973596572876],
-        [0.11153087764978409, 0.11855658143758774, -0.19723765552043915],
-        [2.8586039543151855, 1.9864459037780762, -1.326359510421753]
-      ],
-      "intercepts": [-0.8158670663833618, 1.1628012657165527, -0.34693339467048645]
-    },
-    "features": [[1e308, 1e308, 1e308, 1e308, 1e308, 1e308, 1e308, 1e308]],
-    "expect": "finiteOrRefuse"
+  "features": [
+   [
+    -2.2250738585072014e-308,
+    -2.2250738585072014e-308,
+    -2.2250738585072014e-308,
+    -2.2250738585072014e-308,
+    -2.2250738585072014e-308,
+    -2.2250738585072014e-308,
+    -2.2250738585072014e-308,
+    -2.2250738585072014e-308
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.12561495576642695,
+    0.7424666038776071,
+    0.13191844035596592
+   ]
+  ]
+ },
+ {
+  "name": "fixture rule, each used feature exactly at its mean",
+  "featureCount": 8,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "normalizedRmssd",
+    "shannonEntropyBits",
+    "turningPointRatio"
+   ],
+   "featureIndices": [
+    0,
+    1,
+    2
+   ],
+   "mean": [
+    0.010112126273227962,
+    0.026144193542616753,
+    0.06632983817306619
+   ],
+   "scale": [
+    0.9855935259201042,
+    1.001207204968705,
+    1.0170728221378686
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     -2.9197468757629395,
+     -1.900534987449646,
+     1.543116569519043
+    ],
+    [
+     -0.010626568458974361,
+     0.014833832159638405,
+     0.004254247061908245
+    ],
+    [
+     2.9303741455078125,
+     1.8857009410858154,
+     -1.5473705530166626
+    ]
+   ],
+   "intercepts": [
+    -0.5875208377838135,
+    1.1687394380569458,
+    -0.5812181830406189
+   ]
   },
-  {
-    "name": "intercept 1.7e308 plus a 1.7e308 coefficient·z",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0]
-      ],
-      "intercepts": [0.0, 1.7e308, 0.0]
-    },
-    "features": [[1.7e308, 0.0, 0.0, 0.0]],
-    "expect": "finiteOrRefuse"
+  "features": [
+   [
+    0.010112126273227962,
+    0.026144193542616753,
+    0.06632983817306619,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.12825341011347613,
+    0.7426822901149669,
+    0.12906429977155698
+   ]
+  ]
+ },
+ {
+  "name": "scale 1e-300 with features exactly at the mean",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.5,
+    -0.5
+   ],
+   "scale": [
+    1e-300,
+    1e-300
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
   },
-  {
-    "name": "every logit overflows to −∞",
-    "featureCount": 4,
-    "rule": {
-      "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
-      "features": ["first", "third"],
-      "featureIndices": [0, 2],
-      "mean": [0.0, 0.0],
-      "scale": [1.0, 1.0],
-      "classes": ["sinus", "af", "other"],
-      "coefficients": [
-        [1.0, 0.0],
-        [1.0, 0.0],
-        [1.0, 0.0]
-      ],
-      "intercepts": [-1.7e308, -1.7e308, -1.7e308]
-    },
-    "features": [[-1.7e308, 0.0, 0.0, 0.0]],
-    "expect": "finiteOrRefuse"
-  }
+  "features": [
+   [
+    0.5,
+    0.0,
+    -0.5,
+    0.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.3333333333333333,
+    0.3333333333333333,
+    0.3333333333333333
+   ]
+  ]
+ },
+ {
+  "name": "scale 1e-300 with features 1e-300 and 2e-300 from the mean",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1e-300,
+    1e-300
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    1e-300,
+    0.0,
+    2e-300,
+    0.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.09003057317038046,
+    0.24472847105479764,
+    0.6652409557748219
+   ]
+  ]
+ },
+ {
+  "name": "scale 1e-300 with features 1 and 0.5 from the mean",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1e-300,
+    1e-300
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    1.0,
+    0.0,
+    0.5,
+    0.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.0,
+    1.0,
+    0.0
+   ]
+  ]
+ },
+ {
+  "name": "af and other tie exactly",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    0.0,
+    7.0,
+    0.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.2,
+    0.4,
+    0.4
+   ]
+  ]
+ },
+ {
+  "name": "all three classes tie",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.3333333333333333,
+    0.3333333333333333,
+    0.3333333333333333
+   ]
+  ]
+ },
+ {
+  "name": "intercepts ±1e308 with sinus and af tied at the top",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    1e+308,
+    1e+308,
+    -1e+308
+   ]
+  },
+  "features": [
+   [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.5,
+    0.5,
+    0.0
+   ]
+  ]
+ },
+ {
+  "name": "intercepts ±1e308 with af on top",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    -1e+308,
+    1e+308,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.0,
+    1.0,
+    0.0
+   ]
+  ]
+ },
+ {
+  "name": "extra keys in the rule block",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "note": "x",
+   "trainedOn": [
+    1,
+    2
+   ],
+   "nested": {
+    "mean": [
+     9.0,
+     9.0
+    ]
+   }
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.16666666666666666,
+    0.3333333333333333,
+    0.5
+   ]
+  ]
+ },
+ {
+  "name": "classes listed other, af, sinus",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "other",
+    "af",
+    "sinus"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     1.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.5,
+    0.3333333333333333,
+    0.16666666666666666
+   ]
+  ]
+ },
+ {
+  "name": "a __proto__ key beside a complete rule",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "__proto__": {
+    "mean": [
+     100.0,
+     100.0
+    ]
+   }
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.16666666666666666,
+    0.3333333333333333,
+    0.5
+   ]
+  ]
+ },
+ {
+  "name": "featureIndices written as integral floats",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0.0,
+    2.0
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.16666666666666666,
+    0.3333333333333333,
+    0.5
+   ]
+  ]
+ },
+ {
+  "name": "an integer feature and mean above 2^53",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    9007199254740992,
+    0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    9007199254740993,
+    0,
+    0,
+    0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.3333333333333333,
+    0.3333333333333333,
+    0.3333333333333333
+   ]
+  ]
+ },
+ {
+  "name": "zero windows",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [],
+  "expect": "probs",
+  "probs": []
+ },
+ {
+  "name": "one window",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "probs",
+  "probs": [
+   [
+    0.16666666666666666,
+    0.3333333333333333,
+    0.5
+   ]
+  ]
+ },
+ {
+  "name": "string-typed means",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    "0",
+    "0"
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "string-typed scales",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    "1",
+    "1"
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "string-typed featureIndices",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    "0",
+    "2"
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "string-typed coefficients",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "1",
+     "0"
+    ],
+    [
+     "0",
+     "1"
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "string-typed intercepts",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    "0",
+    "0",
+    "0"
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "boolean featureIndices",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    true,
+    false
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "means nested one level too deep",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    [
+     0.0
+    ],
+    [
+     0.0
+    ]
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "featureIndices nested one level too deep",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    [
+     0
+    ],
+    [
+     2
+    ]
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "coefficients flattened to one row",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "coefficients nested one level too deep",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     [
+      0.0,
+      0.0
+     ]
+    ],
+    [
+     [
+      1.0,
+      0.0
+     ]
+    ],
+    [
+     [
+      0.0,
+      1.0
+     ]
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "intercepts nested one level too deep",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    [
+     0.0
+    ],
+    [
+     0.0
+    ],
+    [
+     0.0
+    ]
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "a feature vector nested one level too deep",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    [
+     0.0
+    ],
+    [
+     0.0
+    ],
+    [
+     0.0
+    ],
+    [
+     0.0
+    ]
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "af listed twice, sinus once, other missing",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "af",
+    "sinus",
+    "af"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "other listed twice, af missing",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "other",
+    "other",
+    "sinus"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "the same feature indexed twice",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    0
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "a class name that is a number",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    1,
+    "af",
+    "sinus"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "a class name that is null",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    null,
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "the smallest negative scale",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    -5e-324
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "an integer mean too big for a double",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "an integer feature too big for a double",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+    0.0,
+    0.0,
+    0.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "a required key only under __proto__",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "__proto__": {
+    "mean": [
+     0.0,
+     0.0
+    ]
+   }
+  },
+  "features": [
+   [
+    0.6931471805599453,
+    99.0,
+    1.0986122886681098,
+    -99.0
+   ]
+  ],
+  "expect": "refuse"
+ },
+ {
+  "name": "subnormal scale 5e-324 with a feature 1 from the mean",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    5e-324,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  ],
+  "expect": "finiteOrRefuse"
+ },
+ {
+  "name": "scale 1e-300 with a feature 1e10 from the mean",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1e-300,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    10000000000.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  ],
+  "expect": "finiteOrRefuse"
+ },
+ {
+  "name": "fixture rule, every feature 1e308",
+  "featureCount": 8,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "normalizedRmssd",
+    "shannonEntropyBits",
+    "turningPointRatio"
+   ],
+   "featureIndices": [
+    0,
+    1,
+    2
+   ],
+   "mean": [
+    0.010112126273227962,
+    0.026144193542616753,
+    0.06632983817306619
+   ],
+   "scale": [
+    0.9855935259201042,
+    1.001207204968705,
+    1.0170728221378686
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     -2.9197468757629395,
+     -1.900534987449646,
+     1.543116569519043
+    ],
+    [
+     -0.010626568458974361,
+     0.014833832159638405,
+     0.004254247061908245
+    ],
+    [
+     2.9303741455078125,
+     1.8857009410858154,
+     -1.5473705530166626
+    ]
+   ],
+   "intercepts": [
+    -0.5875208377838135,
+    1.1687394380569458,
+    -0.5812181830406189
+   ]
+  },
+  "features": [
+   [
+    1e+308,
+    1e+308,
+    1e+308,
+    1e+308,
+    1e+308,
+    1e+308,
+    1e+308,
+    1e+308
+   ]
+  ],
+  "expect": "finiteOrRefuse"
+ },
+ {
+  "name": "intercept 1.7e308 plus a 1.7e308 coefficient·z",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "intercepts": [
+    0.0,
+    1.7e+308,
+    0.0
+   ]
+  },
+  "features": [
+   [
+    1.7e+308,
+    0.0,
+    0.0,
+    0.0
+   ]
+  ],
+  "expect": "finiteOrRefuse"
+ },
+ {
+  "name": "every logit overflows to −∞",
+  "featureCount": 4,
+  "rule": {
+   "method": "probs = softmax(coefficients · z + intercepts), z = (features[featureIndices] − mean) / scale",
+   "features": [
+    "first",
+    "third"
+   ],
+   "featureIndices": [
+    0,
+    2
+   ],
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0
+   ],
+   "classes": [
+    "sinus",
+    "af",
+    "other"
+   ],
+   "coefficients": [
+    [
+     1.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "intercepts": [
+    -1.7e+308,
+    -1.7e+308,
+    -1.7e+308
+   ]
+  },
+  "features": [
+   [
+    -1.7e+308,
+    0.0,
+    0.0,
+    0.0
+   ]
+  ],
+  "expect": "finiteOrRefuse"
+ }
 ]

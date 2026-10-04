@@ -3,8 +3,16 @@ import { View } from 'react-native';
 
 import { useTheme } from '@/theme';
 
-// Flush cards hold grouped rows that bring their own padding and dividers.
-export function Card({ children, flush = false }: { children: ReactNode; flush?: boolean }) {
+// Flush cards hold grouped rows that bring their own padding and dividers. Dense cards are for small screens.
+export function Card({
+  children,
+  flush = false,
+  dense = false,
+}: {
+  children: ReactNode;
+  flush?: boolean;
+  dense?: boolean;
+}) {
   const { colors, radius, spacing } = useTheme();
   return (
     <View
@@ -14,8 +22,8 @@ export function Card({ children, flush = false }: { children: ReactNode; flush?:
         borderWidth: 1,
         borderRadius: radius.card,
         overflow: 'hidden',
-        padding: flush ? 0 : spacing.lg,
-        gap: spacing.sm,
+        padding: flush ? 0 : dense ? spacing.sm : spacing.lg,
+        gap: dense ? 0 : spacing.sm,
       }}
     >
       {children}

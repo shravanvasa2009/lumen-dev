@@ -8,9 +8,12 @@ import { useTheme } from '@/theme';
 
 import { Sparkline } from './Sparkline';
 
-type MetricTileProps = { label: string; unit: string; points: readonly number[] };
+// The 360 x 640 layout trades sparkline height for room (mockup 10-home.small).
+const SPARKLINE_COMPACT = 16;
 
-export function MetricTile({ label, unit, points }: MetricTileProps) {
+type MetricTileProps = { label: string; unit: string; points: readonly number[]; compact?: boolean };
+
+export function MetricTile({ label, unit, points, compact = false }: MetricTileProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const { spacing } = useTheme();
@@ -23,7 +26,7 @@ export function MetricTile({ label, unit, points }: MetricTileProps) {
       onPress={() => router.push('/trends')}
       style={{ flex: 1 }}
     >
-      <Card>
+      <Card dense={compact}>
         <AppText variant="caption" tone="textDim">
           {label}
         </AppText>
@@ -35,8 +38,8 @@ export function MetricTile({ label, unit, points }: MetricTileProps) {
             </AppText>
           )}
         </View>
-        <View style={{ minHeight: 32 }}>
-          <Sparkline points={points} />
+        <View style={{ minHeight: compact ? SPARKLINE_COMPACT : 32 }}>
+          <Sparkline points={points} height={compact ? SPARKLINE_COMPACT : undefined} />
         </View>
       </Card>
     </Pressable>

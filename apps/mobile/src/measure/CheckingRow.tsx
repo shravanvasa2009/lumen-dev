@@ -7,13 +7,22 @@ import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
 
 import type { CheckingItem } from './checkingItems';
+import type { MeasureMode } from './mode';
 
 // Below this width the checks stack as a list with the state on the right (mockup 13 at 360 x 640).
 const COMPACT_WIDTH_DP = 400;
 
 // Only colour and the icon change as a check fills in: nothing moves on the capture screen (ADR 0075).
 // While coaching is showing, `dimmed` greys the whole panel with the quiet text token so it never competes.
-export function CheckingRow({ items, dimmed = false }: { items: readonly CheckingItem[]; dimmed?: boolean }) {
+export function CheckingRow({
+  mode,
+  items,
+  dimmed = false,
+}: {
+  mode: MeasureMode;
+  items: readonly CheckingItem[];
+  dimmed?: boolean;
+}) {
   const { t } = useTranslation();
   const { colors, spacing, radius } = useTheme();
   const compact = useWindowDimensions().width < COMPACT_WIDTH_DP;
@@ -29,8 +38,9 @@ export function CheckingRow({ items, dimmed = false }: { items: readonly Checkin
     unavailable: t('checks.state.unavailable'),
     off: t('checks.state.off'),
   };
-  // A mode that runs no check (Quick Check) says so in one line instead of listing four "Not in this scan" rows.
-  const runsNoCheck = items.every(({ state }) => state === 'off');
+  // Quick Check runs no check and says so in one line instead of four "Not in this scan" rows. Keyed on the mode,
+  // not on every item being off, so a Full Scan on a phone with every check locked never shows the Quick wording.
+  const quick = mode === 'quick';
   return (
     <View
       style={{
@@ -46,7 +56,7 @@ export function CheckingRow({ items, dimmed = false }: { items: readonly Checkin
       <AppText variant="caption" tone="textDim" style={{ textTransform: 'uppercase', fontWeight: '600' }}>
         {t('checks.checking')}
       </AppText>
-      {runsNoCheck ? (
+      {quick ? (
         <AppText tone="textDim">{t('checks.quickHeartRateOnly')}</AppText>
       ) : (
         <View

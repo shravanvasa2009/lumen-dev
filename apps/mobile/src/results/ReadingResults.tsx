@@ -14,6 +14,7 @@ import { useTheme } from '@/theme';
 import { CompactChecks } from './CompactChecks';
 import { DemoBanner } from './DemoBanner';
 import { DiabetesCheckCard } from './DiabetesCheckCard';
+import { DiabetesRiskCard } from './DiabetesRiskCard';
 import { ExperimentalCard } from './ExperimentalCard';
 import type { FixtureReading } from './fixtures';
 import { formatClock, formatDay } from './format';
@@ -93,7 +94,10 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   return (
     <Screen
       footer={
-        <View testID="results-footer" style={{ flexDirection: stackFooter ? 'column' : 'row', gap: spacing.md }}>
+        <View
+          testID="results-footer"
+          style={{ flexDirection: stackFooter ? 'column' : 'row', gap: spacing.md }}
+        >
           <View style={stackFooter ? undefined : { flex: 1 }}>
             <Button
               label={t('results.showWhy')}
@@ -200,6 +204,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
         ) : null}
 
         {reading.mode !== 'full' ? <CompactChecks /> : null}
+        {reading.mode === 'full' || diabetesExperimental ? <DiabetesRiskCard /> : null}
         {diabetesExperimental ? <DiabetesCheckCard /> : null}
         {reading.mode === 'full' ? <PotsCard /> : null}
 

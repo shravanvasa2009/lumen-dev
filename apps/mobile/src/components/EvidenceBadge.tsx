@@ -1,13 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
-import { evidenceFor, type EvidenceMetric } from '@/evidence';
+import { type EvidenceKey, evidenceFor } from '@/evidence';
 import { useTheme } from '@/theme';
 
 import { AppText } from './AppText';
 
 // The label comes from the evidence reader alone.
-export function EvidenceBadge({ metric, compact = false }: { metric: EvidenceMetric; compact?: boolean }) {
+export function EvidenceBadge({ metric, compact = false }: { metric: EvidenceKey; compact?: boolean }) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   const { label } = evidenceFor(metric);

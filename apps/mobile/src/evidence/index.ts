@@ -4,6 +4,8 @@ import bundledEvidence from '../../assets/evidence.json';
 
 export const evidenceMetrics = ['hr', 'rhythm', 'hrv', 'resp', 'diabetes', 'extraBeats'] as const;
 export type EvidenceMetric = (typeof evidenceMetrics)[number];
+// The questionnaire has its own entry but no accuracy-screen row, so it stays out of evidenceMetrics.
+export type EvidenceKey = EvidenceMetric | 'questionnaire';
 
 export type MetricEvidence = {
   label: EvidenceLabel;
@@ -37,14 +39,17 @@ export function readEvidence(file: unknown): Record<EvidenceMetric, MetricEviden
 
 // The raw record of one metric, for screens that show its figures. It applies no gating: each caller decides
 // whether its figures depend on the label (readEvidence) or not (rhythm explainer figures).
-export function metricRecord(file: unknown, metric: EvidenceMetric): Record<string, unknown> {
+export function metricRecord(file: unknown, metric: EvidenceKey): Record<string, unknown> {
   const metrics = isRecord(file) && isRecord(file.metrics) ? file.metrics : {};
   const record = metrics[metric];
   return isRecord(record) ? record : {};
 }
 
-const bundled = readEvidence(bundledEvidence);
+const bundled: Record<EvidenceKey, MetricEvidence> = {
+  ...readEvidence(bundledEvidence),
+  questionnaire: readMetric(metricRecord(bundledEvidence, 'questionnaire')),
+};
 
-export function evidenceFor(metric: EvidenceMetric): MetricEvidence {
+export function evidenceFor(metric: EvidenceKey): MetricEvidence {
   return bundled[metric];
 }

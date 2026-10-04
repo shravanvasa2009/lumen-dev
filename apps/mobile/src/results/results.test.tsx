@@ -24,6 +24,9 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
   default: () => ({ width: mockWindow.width, height: 900, scale: 2.6, fontScale: mockWindow.fontScale }),
 }));
 
+// The questionnaire card reads the database; diabetesRiskCard.test.tsx covers it.
+jest.mock('@/profile/riskScore', () => ({ useStoredRiskScore: () => null }));
+
 const mockEvidence = { diabetesPassed: false };
 jest.mock('@/evidence', () => {
   const actual = jest.requireActual('@/evidence');
@@ -90,9 +93,9 @@ describe.each([
   it('shows the diabetes estimate as its own Experimental card until the evidence file passes it (ADR 0082)', () => {
     openResults('demo');
     expect(screen.queryByText(en['dm.flag.body'])).toBeNull();
-    expect(screen.getByText(en['checks.diabetes.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['dr.pulseExtra'])).toBeOnTheScreen();
     expect(screen.getByText(en['results.pulsePattern'])).toBeOnTheScreen();
-    expect(screen.getByText(en['dm.experimental'])).toBeOnTheScreen();
+    expect(screen.getByText(`${en['dm.experimental']} ${en['dr.notInScore']}`)).toBeOnTheScreen();
     expect(screen.getByText('Experimental measurements (2)')).toBeOnTheScreen();
     expect(screen.getByText(en['results.sublineUsual'])).toBeOnTheScreen();
     expect(screen.queryByText(en['safety.title'])).toBeNull();
@@ -104,7 +107,9 @@ describe.each([
     expect(card).toBeOnTheScreen();
     expect(screen.queryByText(en['results.notHealthMeasurement'])).toBeNull();
     const pill = screen.getByRole('button', { name: en['results.whatExperimentalMeans'] });
-    expect(within(pill).getByTestId('evidence-badge').props.accessibilityLabel).toBe(en['evidence.experimental']);
+    expect(within(pill).getByTestId('evidence-badge').props.accessibilityLabel).toBe(
+      en['evidence.experimental'],
+    );
   });
 
   it('explains Experimental in one sentence when the pill is tapped, and closes on Got it', () => {
@@ -156,7 +161,7 @@ describe.each([
     const badgesBefore = screen.getAllByTestId('evidence-badge').length;
     fireEvent.press(screen.getByRole('button', { name: en['results.whatExperimentalMeans'] }));
     expect(screen.getAllByTestId('evidence-badge').length).toBe(badgesBefore + 1);
-    expect(screen.getAllByText(en['dm.experimental']).length).toBe(2);
+    expect(screen.getAllByText(en['dm.experimental'], { exact: false }).length).toBe(2);
     fireEvent.press(screen.getAllByText(`${en['results.accuracy']} ›`).at(-1) as ReactTestInstance);
     expect(screen.queryByText(en['evidence.experimental.explain'])).toBeNull();
     expect(screen.getByText(en['accuracy.heartRate'])).toBeOnTheScreen();

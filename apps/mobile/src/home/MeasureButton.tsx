@@ -6,49 +6,42 @@ import { useTheme } from '@/theme';
 
 type MeasureButtonProps = { label: string; modeLabel: string; size: number; onPress: () => void };
 
-const DISC_SHARE = 0.8;
-// Sizes from the approved mockup (four-checks-v2 10-home): 256 dp disc in a 320 dp halo, and a 164 dp halo on
-// a 360 x 640 phone.
+// Sizes from the approved mockup (proposal 2026-10-04, M3): a 320 dp button, and 164 dp on a 360 x 640 phone.
 const REGULAR_MIN_SIZE = 250;
 const TEXT = {
-  regular: { label: 40, labelLine: 44, mode: 16, modeLine: 20 },
+  regular: { label: 40, labelLine: 44, mode: 17, modeLine: 22 },
   small: { label: 26, labelLine: 30, mode: 14, modeLine: 18 },
 };
-// The mockup's gradient: highlight focus at 34% / 28% of the disc, solid accentFill to 58% of the way to the
-// farthest corner, then the rim colour. Fractions are of the disc width.
-const FOCUS = { x: 0.34, y: 0.28 };
-const FARTHEST_CORNER = Math.hypot(1 - FOCUS.x, 1 - FOCUS.y);
-const SOLID_END = 0.58;
-const HIGHLIGHT_END = 0.38;
-const HIGHLIGHT_OPACITY = 0.38;
-const DARK_RIM_OPACITY = 0.42;
-const TEXT_WIDTH_SHARE = 0.8;
-// Dark text keeps at least 4.5:1 while the rim colour is under about 45% mixed in (light: accent over
-// accentFill; dark: the background over accentFill). That is 0.75 of the disc width from the focus.
-const READABLE_REACH = 0.75;
+// One radial gradient: a flat core to CORE_END of the radius so the text always sits on one known colour,
+// then the same colour fading into the halo. Offsets and opacities are the approved mockup values.
+const CORE_END = 0.7;
+const FADE = {
+  edge: { offset: 0.76, opacity: 0.92 },
+  mid: { offset: 0.82, opacity: 0.42 },
+  outer: { offset: 0.91, opacity: 0.16 },
+  gone: { offset: 1, opacity: 0 },
+};
+const TEXT_WIDTH_SHARE = 0.64;
+// Past this share of the radius the fill is under 0.92 opaque, and the 4.5:1 text contrast no longer holds.
+const READABLE_SHARE = FADE.edge.offset;
 
-// How far the text box corner sits from the gradient focus, against how far the text stays readable.
+// How far the text box corner sits from the centre, against how far the text stays on a near-opaque fill.
 export function measureLayout(size: number, modeLines: number) {
-  const disc = size * DISC_SHARE;
   const text = size >= REGULAR_MIN_SIZE ? TEXT.regular : TEXT.small;
-  const halfWidth = (disc * TEXT_WIDTH_SHARE) / 2;
+  const textWidth = size * TEXT_WIDTH_SHARE;
   const halfHeight = (text.labelLine + text.modeLine * modeLines) / 2;
   return {
-    discRadius: disc / 2,
-    textWidth: disc * TEXT_WIDTH_SHARE,
+    textWidth,
     text,
-    cornerFromFocus: Math.hypot(halfWidth + (0.5 - FOCUS.x) * disc, halfHeight + (0.5 - FOCUS.y) * disc),
-    readableReach: READABLE_REACH * disc,
+    cornerFromCenter: Math.hypot(textWidth / 2, halfHeight),
+    readableReach: (size / 2) * READABLE_SHARE,
   };
 }
 
 export function MeasureButton({ label, modeLabel, size, onPress }: MeasureButtonProps) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const center = size / 2;
-  const { discRadius, textWidth, text } = measureLayout(size, 1);
-  const highlight = isDark ? colors.text : colors.surface;
-  const rim = isDark ? colors.bg : colors.accent;
-  const rimOpacity = isDark ? DARK_RIM_OPACITY : 1;
+  const { textWidth, text } = measureLayout(size, 1);
   return (
     <Pressable
       accessibilityRole="button"
@@ -59,50 +52,33 @@ export function MeasureButton({ label, modeLabel, size, onPress }: MeasureButton
     >
       <Svg width={size} height={size} style={{ position: 'absolute' }}>
         <Defs>
-          <RadialGradient
-            id="measureFill"
-            cx={`${FOCUS.x * 100}%`}
-            cy={`${FOCUS.y * 100}%`}
-            fx={`${FOCUS.x * 100}%`}
-            fy={`${FOCUS.y * 100}%`}
-            r={`${FARTHEST_CORNER * 100}%`}
-          >
-            <Stop offset="0" stopColor={highlight} stopOpacity={HIGHLIGHT_OPACITY} />
-            <Stop offset={HIGHLIGHT_END} stopColor={highlight} stopOpacity={0} />
-            <Stop offset={SOLID_END} stopColor={rim} stopOpacity={0} />
-            <Stop offset="1" stopColor={rim} stopOpacity={rimOpacity} />
+          <RadialGradient id="measureFill" cx="50%" cy="50%" fx="50%" fy="50%" r="50%">
+            <Stop offset={0} stopColor={colors.measureCore} stopOpacity={1} />
+            <Stop offset={CORE_END} stopColor={colors.measureCore} stopOpacity={1} />
+            <Stop offset={FADE.edge.offset} stopColor={colors.measureCore} stopOpacity={FADE.edge.opacity} />
+            <Stop offset={FADE.mid.offset} stopColor={colors.measureCore} stopOpacity={FADE.mid.opacity} />
+            <Stop
+              offset={FADE.outer.offset}
+              stopColor={colors.measureCore}
+              stopOpacity={FADE.outer.opacity}
+            />
+            <Stop offset={FADE.gone.offset} stopColor={colors.measureCore} stopOpacity={FADE.gone.opacity} />
           </RadialGradient>
         </Defs>
-        <Circle cx={center} cy={center} r={center} fill={colors.accentFill} fillOpacity={0.14} />
-        <Circle
-          cx={center}
-          cy={center}
-          r={(center + discRadius) / 2}
-          fill={colors.accentFill}
-          fillOpacity={0.24}
-        />
-        <Circle cx={center} cy={center} r={discRadius} fill={colors.accentFill} />
-        <Circle
-          cx={center}
-          cy={center}
-          r={discRadius}
-          fill="url(#measureFill)"
-          stroke={colors.accent}
-          strokeWidth={3}
-        />
+        <Circle cx={center} cy={center} r={center} fill="url(#measureFill)" />
       </Svg>
       <View style={{ alignItems: 'center', width: textWidth }}>
         <AppText
           variant="display"
           numberOfLines={1}
           adjustsFontSizeToFit
-          style={{ color: colors.onAccentFill, fontSize: text.label, lineHeight: text.labelLine }}
+          style={{ color: colors.text, fontSize: text.label, lineHeight: text.labelLine }}
         >
           {label}
         </AppText>
         <AppText
           style={{
-            color: colors.onAccentFill,
+            color: colors.text,
             textAlign: 'center',
             fontSize: text.mode,
             lineHeight: text.modeLine,

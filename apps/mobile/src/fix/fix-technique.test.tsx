@@ -1,6 +1,9 @@
-import { fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
+import i18n from 'i18next';
+import { Text as SvgText } from 'react-native-svg';
 import en from '@/i18n/en.json';
+import es from '@/i18n/es.json';
 import { expectNavTitle } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
@@ -14,6 +17,8 @@ const causes = ['pressure', 'motion', 'coverage', 'coldHands'] as const;
 const causeGlyphs = { pressure: 'finger', motion: 'elbow', coverage: 'lens', coldHands: 'warm' } as const;
 
 preloadAppRoutes();
+
+const figureLabels = () => screen.UNSAFE_getAllByType(SvgText).map((label) => label.props.children);
 
 describe('fix my technique', () => {
   it.each(['light', 'dark'] as const)('renders in %s with the practice card and Done', (scheme) => {
@@ -90,5 +95,40 @@ describe('fix my technique', () => {
     renderRouter('./app', { initialUrl: '/measure/inconclusive' });
     fireEvent.press(screen.getByRole('button', { name: en['inconclusive.fix'] }));
     expect(screen.getByText(en['fix.introGeneric'])).toBeOnTheScreen();
+  });
+
+  it.each(['light', 'dark'] as const)(
+    'shows the seated figure with the Lens and Flash press inset for moving in %s',
+    (scheme) => {
+      mockScheme = scheme;
+      renderRouter('./app', { initialUrl: '/measure/fix-technique?cause=motion' });
+      expect(screen.getByTestId('seated-illustration', { hidden: true })).toBeOnTheScreen();
+      expect(screen.getByTestId('seated-press-inset', { hidden: true })).toBeOnTheScreen();
+      expect(figureLabels()).toContain(en['placement.lens']);
+      expect(figureLabels()).toContain(en['placement.flash']);
+      expect(figureLabels()).toContain(en['howToSit.labelElbow']);
+    },
+  );
+
+  it('shows the same figure and inset when no cause is known, and not for the other causes', () => {
+    renderRouter('./app', { initialUrl: '/measure/fix-technique' });
+    expect(screen.getByTestId('seated-press-inset', { hidden: true })).toBeOnTheScreen();
+  });
+
+  it.each(['pressure', 'coverage', 'coldHands'] as const)('keeps its own picture for %s', (cause) => {
+    renderRouter('./app', { initialUrl: `/measure/fix-technique?cause=${cause}` });
+    expect(screen.queryByTestId('seated-illustration', { hidden: true })).toBeNull();
+  });
+
+  it('labels the inset in Spanish', async () => {
+    await act(() => i18n.changeLanguage('es'));
+    try {
+      renderRouter('./app', { initialUrl: '/measure/fix-technique?cause=motion' });
+      expect(figureLabels()).toContain(es['placement.lens']);
+      expect(figureLabels()).toContain(es['placement.flash']);
+      expect(figureLabels()).toContain(es['howToSit.labelElbow']);
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 });

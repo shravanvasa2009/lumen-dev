@@ -87,4 +87,15 @@ describe('adaRisk (Bang 2009 points, twin of ml/train/ada_risk.py)', () => {
   ] as const)('refuses %s = %d', (field, value) => {
     expect(() => score({ [field]: value })).toThrow(RangeError);
   });
+
+  // Red team #234 (advisory): untyped answers from storage threw in Python but scored NaN or coerced here.
+  it.each([
+    ['a missing yes/no', { male: undefined }],
+    ['a null age', { ageYears: null }],
+    ['an age as a string', { ageYears: '45' }],
+    ['a BMI as a string', { bmi: '31' }],
+    ['a yes/no as 1', { hypertension: 1 }],
+  ])('refuses %s with a TypeError', (_, changes) => {
+    expect(() => score(changes as unknown as Partial<AdaAnswers>)).toThrow(TypeError);
+  });
 });

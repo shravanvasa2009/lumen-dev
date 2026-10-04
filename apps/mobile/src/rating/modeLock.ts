@@ -1,5 +1,6 @@
 import type { RatingMode } from '@lumen/core';
 
+import type { LockWhy } from '@/checks/checkPlan';
 import type { MODES } from '@/measure/mode';
 import type { StoredRating } from '@/store/deviceRating';
 
@@ -15,7 +16,7 @@ const REQUIRED_MODE: Record<ListedMode, RatingMode> = {
 
 const DEEP_HRV_MIN_FPS = 60;
 
-export type LockReason = 'unsupported' | 'flash' | 'fps60' | 'full' | 'basic';
+export type LockReason = LockWhy;
 
 // Why the phone's rating keeps a mode locked, or null when the mode is open. A phone with no rating yet
 // keeps every mode open: the rating gates features, and before it exists nothing has been measured to gate on.

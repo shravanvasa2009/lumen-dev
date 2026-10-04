@@ -143,6 +143,8 @@
     "minSubWindowFps": 16,
     "subWindowS": 1,
     "maxFrameGapS": 0.12,
+    "sparseIntervalS": 0.09,
+    "maxSparseIntervalsPerS": 5,
     "motionRmsThreshold": 0.05,
     "leakRedRatio": 2.5,
     "coldHandsAfterS": 10,

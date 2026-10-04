@@ -14,8 +14,9 @@ import { beatTimes, beatTrain, type Channels } from './attacks';
 
 // Red team PR #171 round 5 (at 9f38758). A model window is rejected when any 1 s of it holds fewer than
 // live.minSubWindowFps (16) frames, or two intervals between neighbouring frames longer than
-// live.maxFrameGapS (0.12 s), on top of the owner's 96 frames per 4 s window (ADR 0077, implementation
-// note 4, which replaced note 3's count of distinct sample times). Invariants: a capture accepted as a
+// live.maxFrameGapS (0.12 s) or live.maxSparseIntervalsPerS (5) longer than live.sparseIntervalS
+// (0.09 s), on top of the owner's 96 frames per 4 s window (ADR 0077, implementation notes 4 and 5; note 4
+// replaced note 3's count of distinct sample times). Invariants: a capture accepted as a
 // reading carries a heart rate within 5 bpm of its pulse (ANSI/AAMI EC13, as reading-outcome-edges), or it
 // is refused; live and saved agree; ordinary phones finish each mode. SQI is a fixed 0.9 stand-in for the
 // model; a still finger; batches of 3 frames, as reading-outcome-steps.
@@ -164,13 +165,19 @@ describe('red team: clustered frames pass both frame counts but not the interval
     expect(readingOutcome(analysis).kind).not.toBe('reading');
   });
 
-  // Controls: after the run, a frame every 24 steps (100 ms), 16 steps (67 ms) or 12 steps (50 ms) keeps
-  // every interval within 0.12 s, so the pulse is sampled at 10 Hz or more and every rate tried reads within
-  // 1 bpm. Note 3 refused the 100 ms pattern (about 13 distinct times a second); note 4 reads it.
+  // After the run, a frame every 24 steps (100 ms): 9 intervals over live.sparseIntervalS each second.
+  // Note 3 refused it (about 13 distinct times a second), note 4 read it, and note 5 refuses it again: at
+  // that spacing a pulse's second harmonic aliases (red team round 7).
+  it.each([75, 150, 200])('18-frame runs, then every 24 steps, %i bpm: refused', (bpm) => {
+    const { analysis, liveCleanS } = replay(clustered(40, 240, 240, 18, 24), steadyPulse(bpm), 240);
+    expect(liveCleanS).toBeCloseTo(analysis.cleanSeconds, 9);
+    expect(analysis.cleanSeconds).toBe(0);
+    expect(readingOutcome(analysis).kind).not.toBe('reading');
+  });
+
+  // Controls: after the run, a frame every 16 steps (67 ms) or 12 steps (50 ms) keeps every interval within
+  // 0.09 s, so the pulse is sampled at 15 Hz or more and every rate tried reads within 1 bpm.
   it.each([
-    [24, 75],
-    [24, 150],
-    [24, 200],
     [16, 75],
     [16, 150],
     [16, 200],

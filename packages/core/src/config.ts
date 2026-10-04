@@ -218,12 +218,21 @@ export const DSP_CONFIG = {
     // 26 fps mean. Only tightens the owner's floor.
     minSubWindowFps: 16,
     subWindowS: 1,
-    // ADR 0077 implementation note 4 (red team PR #171 rounds 5 and 6): a model window with two frames in a
-    // row more than this far apart is rejected, so no stretch is sampled too sparsely for the fastest rate
-    // reported. rules.fastRegularBpm tops out at 220 bpm (3.67 Hz); 1 / (2.2 × 3.67 Hz) ≈ 0.124 s, rounded
-    // down for timing jitter. Under DSP-2's 0.15 s split; a 30 fps phone dropping 2 frames in a row
-    // (100 ms) passes, 3 in a row (133 ms) does not.
+    // ADR 0077 implementation note 4 (red team PR #171 rounds 5 and 6): a model window is rejected when
+    // any subWindowS span of it holds two intervals between neighbouring frames longer than this; one lone
+    // longer interval, up to DSP-2's 0.15 s split, is splined over. rules.fastRegularBpm tops out at
+    // 220 bpm (3.67 Hz); 1 / (2.2 × 3.67 Hz) ≈ 0.124 s, rounded down for timing jitter. A 30 fps phone
+    // dropping 2 frames in a row (100 ms) never makes one; 3 in a row (133 ms) does.
     maxFrameGapS: 0.12,
+    // ADR 0077 implementation note 5 (red team PR #171 round 7): a model window is also rejected when any
+    // subWindowS span of it holds maxSparseIntervalsPerS or more intervals longer than sparseIntervalS.
+    // DSP-7 finds beats in DSP-6's 0.5–8 Hz band (Nyquist spacing 62.5 ms), so a pulse's 2nd harmonic
+    // aliases under sustained ~100 ms spacing; red team measured even spacing ≤ 90 ms reading harmonics of
+    // 0.3–0.5× right and ≥ 100 ms failing. A 30 fps phone's 100 ms double drop comes about 0.8 times a
+    // second even at 5 random drops per second; 5 rather than 4 because 4 still slowed such phones by up to
+    // 8 s, while 5 slowed none measured and refused every round 7 case.
+    sparseIntervalS: 0.09,
+    maxSparseIntervalsPerS: 5,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.

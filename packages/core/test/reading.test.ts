@@ -444,6 +444,29 @@ describe('analyzeReading acquisition spans', () => {
     expect(spansOf(analyze(reading, { captureFps: 25 }), 'quality')).toEqual([]);
   });
 
+  // Red team PR #171 round 7: frames evenly 100–120 ms apart let a pulse's second harmonic alias.
+  it('ADR 0077: a window is rejected when 1 s of it holds 5 intervals over live.sparseIntervalS', () => {
+    expect(DSP_CONFIG.live.sparseIntervalS).toBe(0.09);
+    expect(DSP_CONFIG.live.maxSparseIntervalsPerS).toBe(5);
+    const dropPairs = (starts: number[]) => (tS: number) => {
+      const k = Math.round(tS * 30);
+      return starts.some((start) => k >= start && k < start + 2);
+    };
+    // 100 ms intervals starting at frames 314, 319, 324, 329 and 334: the 5th ends 0.77 s after the 1st.
+    const five = analyze(
+      syntheticReading({ fps: 30, seconds: 30, dropped: dropPairs([315, 320, 325, 330, 335]) }),
+    );
+    expect(cleanSeconds(10.4, 11.2, five.rejectedSpans)).toBe(0);
+    const four = analyze(
+      syntheticReading({ fps: 30, seconds: 30, dropped: dropPairs([315, 320, 325, 330]) }),
+    );
+    expect(spansOf(four, 'quality')).toEqual([]);
+    // A 100 ms interval every 12 frames: any 5 in a row span 51 frames (1.7 s).
+    const everyTwelfth = Array.from({ length: 72 }, (_, k) => 31 + 12 * k);
+    const spread = analyze(syntheticReading({ fps: 30, seconds: 30, dropped: dropPairs(everyTwelfth) }));
+    expect(spansOf(spread, 'quality')).toEqual([]);
+  });
+
   it('ADR 0077: exactly 24 fps, 240 fps, and 30 fps dropping 1 frame in 5, pass the 1 s floor', () => {
     expect(DSP_CONFIG.live.minEffectiveFps).toBe(24);
     expect(DSP_CONFIG.live.minSubWindowFps).toBe(16);

@@ -53,16 +53,48 @@ function windowFrames(
   return null;
 }
 
+// The most intervals between neighbouring frames [first, count) up to endS longer than longerThanS that
+// fit in one closed span of live.subWindowS, from the first one's start to the last one's end, with
+// DSP-2's half-ns allowance.
+function intervalsInSpan(
+  tS: ArrayLike<number>,
+  first: number,
+  count: number,
+  endS: number,
+  longerThanS: number,
+): number {
+  const { subWindowS } = DSP_CONFIG.live;
+  const startsS: number[] = [];
+  let oldest = 0;
+  let most = 0;
+  for (let i = first + 1; i < count && tS[i]! <= endS; i++) {
+    if (tS[i]! - tS[i - 1]! <= longerThanS + HALF_NS_S) continue;
+    startsS.push(tS[i - 1]!);
+    while (tS[i]! - startsS[oldest]! > subWindowS + HALF_NS_S) oldest++;
+    most = Math.max(most, startsS.length - oldest);
+  }
+  return most;
+}
+
 // ADR 0077: under live.minEffectiveFps when frames [0, count) delivered in [endS − dsp3.modelWindowS, endS],
 // covered or not, number fewer than minEffectiveFps × the window; when any span of live.subWindowS that
 // starts on one of them and ends inside the window holds fewer than live.minSubWindowFps × that span, ends
 // included as in the window count; or when one such span holds two intervals between neighbouring frames
-// longer than live.maxFrameGapS (implementation note 4). The 1 s count stops a fast burst paying for a
-// sparse rest of the window. The interval test stops clumps of frames standing in for samples of a fast
-// pulse: a run of long intervals is a stretch sampled too sparsely, while one lone interval up to DSP-2's
-// gap limit is splined over as DSP-2 allows, so random drops of 3 frames in a row at 30 fps still pass.
+// longer than live.maxFrameGapS (implementation note 4), or live.maxSparseIntervalsPerS longer than
+// live.sparseIntervalS (note 5). The 1 s count stops a fast burst paying for a sparse rest of the window.
+// The interval tests stop clumps of frames standing in for samples of a fast pulse: a run of long
+// intervals is a stretch sampled too sparsely for the pulse (note 4) or its harmonics (note 5), while one
+// lone interval up to DSP-2's gap limit is splined over as DSP-2 allows, so random drops of 3 frames in a
+// row at 30 fps still pass.
 function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): boolean {
-  const { minEffectiveFps, minSubWindowFps, subWindowS, maxFrameGapS } = DSP_CONFIG.live;
+  const {
+    minEffectiveFps,
+    minSubWindowFps,
+    subWindowS,
+    maxFrameGapS,
+    sparseIntervalS,
+    maxSparseIntervalsPerS,
+  } = DSP_CONFIG.live;
   const startS = endS - DSP_CONFIG.dsp3.modelWindowS;
   let first = count;
   let frames = 0;
@@ -71,12 +103,8 @@ function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): 
     if (tS[i]! <= endS) frames++;
   }
   if (frames < minEffectiveFps * DSP_CONFIG.dsp3.modelWindowS) return true;
-  let longIntervalStartS = -Infinity;
-  for (let i = first + 1; i < count && tS[i]! <= endS; i++) {
-    if (tS[i]! - tS[i - 1]! <= maxFrameGapS + HALF_NS_S) continue;
-    if (tS[i]! - longIntervalStartS <= subWindowS + HALF_NS_S) return true;
-    longIntervalStartS = tS[i - 1]!;
-  }
+  if (intervalsInSpan(tS, first, count, endS, maxFrameGapS) >= 2) return true;
+  if (intervalsInSpan(tS, first, count, endS, sparseIntervalS) >= maxSparseIntervalsPerS) return true;
   const spanFrames = Math.ceil(minSubWindowFps * subWindowS);
   for (let i = first; i < count && tS[i]! + subWindowS <= endS; i++) {
     const last = i + spanFrames - 1;

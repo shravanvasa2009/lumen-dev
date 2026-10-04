@@ -904,5 +904,11 @@
   "results.notThisScan": "Not part of this scan",
   "results.takeStanding": "Take the Standing Heart-Rate Test ›",
   "results.potsLabel": "Heart-rate pattern",
-  "common.close": "Close"
+  "common.close": "Close",
+  "checks.checking": "Checking",
+  "checks.state.ready": "Ready",
+  "checks.state.working": "Checking",
+  "checks.state.unavailable": "Not on this phone",
+  "checks.state.off": "Not in this scan",
+  "checks.pots.standingNote": "POTS, not in this scan. It runs in the Standing test."
 }

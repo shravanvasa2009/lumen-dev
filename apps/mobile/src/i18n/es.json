@@ -904,5 +904,11 @@
   "results.notThisScan": "No forma parte de este escaneo",
   "results.takeStanding": "Hacer la prueba de frecuencia cardíaca de pie ›",
   "results.potsLabel": "Patrón de frecuencia cardíaca",
-  "common.close": "Cerrar"
+  "common.close": "Cerrar",
+  "checks.checking": "Revisando",
+  "checks.state.ready": "Listo",
+  "checks.state.working": "Revisando",
+  "checks.state.unavailable": "No en este teléfono",
+  "checks.state.off": "No está en este escaneo",
+  "checks.pots.standingNote": "POTS, no está en este escaneo. Se revisa en la prueba de pie."
 }

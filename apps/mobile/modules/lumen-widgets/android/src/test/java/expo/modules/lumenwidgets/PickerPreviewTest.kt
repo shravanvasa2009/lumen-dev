@@ -1,5 +1,6 @@
 package expo.modules.lumenwidgets
 
+import android.appwidget.AppWidgetProviderInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -30,6 +31,14 @@ class PickerPreviewTest {
     fun followsTheEvidenceLabelOnceDiabetesIsNoLongerExperimental() {
         WidgetStore.write(context, testSnapshot(), testDisplayWithChecks(null))
         assertNull(sampleView(context, TEST_READING_MS)!!.diabetesTag)
+    }
+
+    // WID-2: the preview names the four checks, so it is set for the home screen and nothing else.
+    @Test
+    fun setsThePreviewForTheHomeScreenOnly() {
+        assertEquals(1, PREVIEW_CATEGORIES.size)
+        assertEquals(true, PREVIEW_CATEGORIES.contains(AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN))
+        assertEquals(false, PREVIEW_CATEGORIES.contains(AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD))
     }
 
     @Test

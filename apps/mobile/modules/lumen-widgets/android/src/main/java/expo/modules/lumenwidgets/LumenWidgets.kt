@@ -1,8 +1,10 @@
 package expo.modules.lumenwidgets
 
+import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import androidx.collection.intSetOf
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
@@ -502,6 +504,10 @@ suspend fun refreshWidgets(context: Context) {
     MediumWidget().updateAll(context)
 }
 
+// Home screen only. The generated preview names the four checks, so it must never be offered for the lock screen
+// (keyguard) or another surface, which setWidgetPreviews would include by default (WID-2).
+internal val PREVIEW_CATEGORIES = intSetOf(AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
+
 // Android 15+ shows a generated picker preview (providePreview) instead of previewLayout. The system limits how
 // often an app may set them, so a refused call keeps the last preview until the copy changes again.
 // https://developer.android.com/develop/ui/compose/glance/generated-previews
@@ -509,8 +515,8 @@ suspend fun refreshPickerPreviews(context: Context, displayJson: String) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return
     if (!WidgetStore.previewNeedsUpdate(context, displayJson)) return
     val manager = GlanceAppWidgetManager(context)
-    val small = manager.setWidgetPreviews(SmallWidgetReceiver::class)
-    val medium = manager.setWidgetPreviews(MediumWidgetReceiver::class)
+    val small = manager.setWidgetPreviews(SmallWidgetReceiver::class, PREVIEW_CATEGORIES)
+    val medium = manager.setWidgetPreviews(MediumWidgetReceiver::class, PREVIEW_CATEGORIES)
     if (small == GlanceAppWidgetManager.SET_WIDGET_PREVIEWS_RESULT_SUCCESS &&
         medium == GlanceAppWidgetManager.SET_WIDGET_PREVIEWS_RESULT_SUCCESS
     ) {

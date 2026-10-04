@@ -376,7 +376,7 @@
   "processing.rejected_other": "{{count}} rejected",
   "processing.seeSample": "See a sample result",
   "processing.failed": "The analysis could not finish. Please take the reading again.",
-  "processing.unavailable": "The analysis isn't connected in this build, so there is no reading to analyze. See a sample result opens a sample reading, not yours.",
+  "processing.unavailable": "No recording was kept in this build, so there is no reading to analyze. See a sample result opens a sample reading, not yours.",
   "processing.stateDone": "Done",
   "processing.stateActive": "In progress",
   "processing.statePending": "Waiting",

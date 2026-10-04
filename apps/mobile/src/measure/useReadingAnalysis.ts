@@ -8,6 +8,7 @@ import { publishWidgets } from '@/widgets/publish';
 
 import { analyzeKeptCapture, type AnalysisRequest } from './analyzeKeptCapture';
 import { type AnalysisProgress, pendingProgress } from './analysisProgress';
+import { type CaptureRefusal, refusalOf } from './captureRefusal';
 import { type KeptCapture, keptCapture } from './keptCapture';
 import { DEFAULT_MODE } from './mode';
 
@@ -15,13 +16,16 @@ export type AnalysisState =
   | { phase: 'unavailable' }
   | { phase: 'running'; progress: AnalysisProgress }
   | { phase: 'done'; progress: AnalysisProgress; readingId: string }
+  // A refused capture is not a reading: nothing is saved and Processing opens the Inconclusive screen.
+  | { phase: 'inconclusive'; progress: AnalysisProgress; reason: CaptureRefusal }
   | { phase: 'failed'; progress: AnalysisProgress; reason: string };
 
 // The Processing route always passes what pre-check recorded; this is only for a caller that has none.
 const DEFAULT_REQUEST: AnalysisRequest = { mode: DEFAULT_MODE, restTimerDone: false };
 
 type Tracker = { latest: AnalysisProgress; listeners: Set<(progress: AnalysisProgress) => void> };
-type Run = { tracker: Tracker; outcome: Promise<{ readingId: string; progress: AnalysisProgress }> };
+type Outcome = { refused: CaptureRefusal } | { refused: null; readingId: string; progress: AnalysisProgress };
+type Run = { tracker: Tracker; outcome: Promise<Outcome> };
 
 // One analysis and one save per kept capture, however many times the screen mounts or its params change:
 // a second run would store the same reading again. A failed run is forgotten so the next mount can retry.
@@ -31,13 +35,19 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
   const existing = runs.get(capture);
   if (existing !== undefined) return existing;
   const tracker: Tracker = { latest: pendingProgress, listeners: new Set() };
+  const refusal = refusalOf(capture);
+  if (refusal !== null) {
+    const refused = { tracker, outcome: Promise.resolve<Outcome>({ refused: refusal }) };
+    runs.set(capture, refused);
+    return refused;
+  }
   const outcome = analyzeKeptCapture(capture, { mode, restTimerDone }, (progress) => {
     tracker.latest = progress;
     for (const listener of tracker.listeners) listener(progress);
   }).then(async (analysed) => {
     const { readingId, recordedMs, context, models, reading, progress } = analysed;
     // §8.5: a Demo reading is shown from memory and never reaches the readings table.
-    if (capture.demo) return { readingId: keepDemoReading(analysed, mode), progress };
+    if (capture.demo) return { refused: null, readingId: keepDemoReading(analysed, mode), progress };
     await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
     // Spec §9.6: the widgets show the new reading. They publish after the reminders are re-planned, so the
     // widget's next check time is current. The reading is already saved, so a failed widget write is reported
@@ -48,7 +58,7 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
         console.warn(`Widget update failed: ${reason}`);
       }),
     );
-    return { readingId, progress };
+    return { refused: null, readingId, progress };
   });
   outcome.catch(() => runs.delete(capture));
   const run = { tracker, outcome };
@@ -77,8 +87,11 @@ export function useReadingAnalysis(request: AnalysisRequest = DEFAULT_REQUEST): 
     run.tracker.listeners.add(showProgress);
     showProgress(run.tracker.latest);
     run.outcome.then(
-      ({ readingId, progress }) => {
-        if (active) setState({ phase: 'done', progress, readingId });
+      (outcome) => {
+        if (!active) return;
+        if (outcome.refused !== null)
+          setState({ phase: 'inconclusive', progress: pendingProgress, reason: outcome.refused });
+        else setState({ phase: 'done', progress: outcome.progress, readingId: outcome.readingId });
       },
       (error: unknown) => {
         const reason = error instanceof Error ? error.message : String(error);

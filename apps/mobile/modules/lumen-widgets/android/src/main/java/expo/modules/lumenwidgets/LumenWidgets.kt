@@ -522,6 +522,6 @@ suspend fun refreshPickerPreviews(context: Context, displayJson: String) {
     ) {
         WidgetStore.markPreviewed(context, displayJson)
     } else {
-        Log.w("LumenWidgets", "Picker preview update refused (results $small, $medium); retried on the next publish")
+        Log.w("LumenWidgets", "Picker preview update refused (results $small, $medium); retried on the next publish or app start")
     }
 }

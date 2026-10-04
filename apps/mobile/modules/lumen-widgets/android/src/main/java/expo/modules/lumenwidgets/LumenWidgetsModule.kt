@@ -4,6 +4,7 @@ import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import kotlinx.coroutines.launch
 
 class LumenWidgetsModule : Module() {
     private val context
@@ -12,6 +13,14 @@ class LumenWidgetsModule : Module() {
     override fun definition() =
         ModuleDefinition {
             Name("LumenWidgets")
+
+            // After an app update the picker is back to the static previewLayout until previews are set again, and
+            // nothing may publish for days (publishes follow readings and settings), so start-up re-sets them.
+            OnCreate {
+                val reactContext = appContext.reactContext ?: return@OnCreate
+                val displayJson = WidgetStore.display(reactContext) ?: return@OnCreate
+                appContext.backgroundCoroutineScope.launch { refreshPickerPreviews(reactContext, displayJson) }
+            }
 
             AsyncFunction("publishSnapshot") Coroutine { snapshotJson: String, displayJson: String ->
                 // Parsed once here so a bad payload rejects the call instead of breaking the widgets later.

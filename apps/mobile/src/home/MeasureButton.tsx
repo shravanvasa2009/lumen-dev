@@ -22,7 +22,8 @@ const FADE = {
   gone: { offset: 1, opacity: 0 },
 };
 const TEXT_WIDTH_SHARE = 0.64;
-// Past this share of the radius the fill is under 0.92 opaque, and the 4.5:1 text contrast no longer holds.
+// Past this share of the radius the fill is under 0.92 opaque and reads as halo, so the text stays inside it
+// to sit on the solid-looking disc.
 const READABLE_SHARE = FADE.edge.offset;
 
 // How far the text box corner sits from the centre, against how far the text stays on a near-opaque fill.

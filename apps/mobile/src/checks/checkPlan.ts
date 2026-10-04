@@ -47,7 +47,8 @@ export const CHECK_ICON: Record<CheckId, IconName> = {
   pots: 'finger',
 };
 
-// Spec 05 §5.2 table: the rating row each check needs.
+// Spec 05 §5.2 table: the rating row each check needs. A Limited phone has no rhythmFlags row, and Quick (30 s)
+// is shorter than the 60 s the rhythm check needs, so Limited gets no rhythm result in any mode (ADR 0089).
 const REQUIRED_RATING_MODE: Record<CheckId, RatingMode> = {
   afib: 'rhythmFlags',
   hrv: 'hrv',
@@ -67,7 +68,7 @@ const MODE_RATING_ROW: Record<PlanMode, RatingMode> = {
 };
 
 // Spec 12 §Modes ("Produces") and spec 06 §6.2: which checks each mode can run.
-// Owner decision (a), pending: Quick Check's rhythm check needs 60 s of clean signal (spec 06 §6.2) but
+// Owner decision (a), decided (owner, 2026-10-04): Quick Check's rhythm check needs 60 s of clean signal (spec 06 §6.2) but
 // Quick is 30 s (spec 12), so AFib is not part of a Quick Check. Flip QUICK_RUNS_AFIB to change it.
 const QUICK_RUNS_AFIB = false;
 const MODE_RUNS: Record<PlanMode, ReadonlySet<CheckId>> = {
@@ -76,10 +77,6 @@ const MODE_RUNS: Record<PlanMode, ReadonlySet<CheckId>> = {
   deep: new Set<CheckId>(['hrv']),
   standing: new Set<CheckId>(['pots']),
 };
-
-// Owner decision (b), pending: a Limited phone's Quick Check still gives the rhythm check without flags
-// (spec 05 §5.2 first row), so AFib stays open on Limited and its flags are what the tier takes away.
-const LIMITED_KEEPS_AFIB = true;
 
 function cleanSecondsFor(check: CheckId, mode: PlanMode): number | null {
   const { rules, dsp12 } = DSP_CONFIG;
@@ -97,9 +94,7 @@ function lockFor(check: CheckId, mode: PlanMode, phone: PlanPhone): LockWhy | nu
   if (tier === 'unrated') return null;
   if (tier === 'unsupported') return 'unsupported';
   const unlocks = tierUnlocks(tier);
-  const checkOpen =
-    unlocks.includes(REQUIRED_RATING_MODE[check]) ||
-    (check === 'afib' && tier === 'limited' && LIMITED_KEEPS_AFIB);
+  const checkOpen = unlocks.includes(REQUIRED_RATING_MODE[check]);
   const notEnough: LockWhy = ambient ? 'flash' : 'basic';
   if (!checkOpen) {
     if (!NEEDS_60_FPS.has(check)) return notEnough;

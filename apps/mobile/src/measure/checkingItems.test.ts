@@ -63,11 +63,11 @@ describe('checkingItems', () => {
     expect(states(checkingItems('full', 5, undefined))[2]).toBe('diabetes:checking');
   });
 
-  it('keeps AFib on Checking for the whole Quick Check, since 30 s is under the rhythm threshold', () => {
+  it('lists no check in a Quick Check, because the rhythm check needs 60 s and Quick is 30 s (owner decision a)', () => {
     expect(rhythm).toBeGreaterThan(30);
-    for (const seconds of [0, 29.9, 30, 45]) {
+    for (const seconds of [0, 30, 45]) {
       expect(states(checkingItems('quick', seconds, full))).toEqual([
-        'afib:checking',
+        'afib:off',
         'hrv:off',
         'diabetes:off',
         'pots:off',

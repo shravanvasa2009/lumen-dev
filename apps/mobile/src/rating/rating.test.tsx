@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
+import { checkCell, planPhone } from '@/checks/checkPlan';
 import en from '@/i18n/en.json';
 import { type KeptCapture, keepCapture } from '@/measure/keptCapture';
 import { resyncNotifications } from '@/settings/applyPrefs';
@@ -349,6 +350,21 @@ describe('mode picker gating', () => {
     await storeRating(noFlashPhone, { ...practiceOf(60), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
     renderRouter('./app', { initialUrl: '/measure/mode' });
     expect(await screen.findAllByText(en['mode.lockedFlash'])).toHaveLength(3);
+  });
+
+  it('shows a flash-less phone at 30 fps the same reason as the checks table (flash, not the frame rate)', async () => {
+    const slowNoFlash: Capabilities = {
+      ...noFlashPhone,
+      rearLenses: [{ id: 'main', kind: 'wide', maxFps: 30, torchUsable: false }],
+    };
+    await storeRating(slowNoFlash, { ...practiceOf(30), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
+    const stored = await loadDeviceRating();
+    expect(stored?.ambient).toBe(true);
+    const cell = checkCell('deep', 'hrv', planPhone(stored));
+    expect(cell).toEqual({ state: 'locked', why: 'flash' });
+    renderRouter('./app', { initialUrl: '/measure/mode' });
+    expect(await screen.findAllByText(en['mode.lockedFlash'])).toHaveLength(3);
+    expect(screen.queryByText(en['mode.locked60fps'])).toBeNull();
   });
 
   it('leaves a flash-less Limited phone with Quick Check only, and still lists the other modes', async () => {

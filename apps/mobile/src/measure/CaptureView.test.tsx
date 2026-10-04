@@ -181,6 +181,13 @@ describe('CaptureView', () => {
       expect(screen.queryByLabelText(/^(AFib|HRV|Diabetes),/)).toBeNull();
     });
 
+    it('keeps the normal rows in a Full Scan where every check is off', () => {
+      const allOff = (['afib', 'hrv', 'diabetes', 'pots'] as const).map((id) => ({ id, state: 'off' as const }));
+      render(<CheckingRow mode="full" items={allOff} />);
+      expect(screen.queryByText(en['checks.quickHeartRateOnly'])).toBeNull();
+      expect(screen.getAllByText(en['checks.state.off'])).toHaveLength(4);
+    });
+
     it('greys a ready check while the coaching message is showing', () => {
       show({ cleanSeconds: 60 }, 'full');
       const lit = afibColour();
@@ -191,10 +198,10 @@ describe('CaptureView', () => {
     });
 
     it('changes only colour and icon between states, with no transform, opacity or transition', () => {
-      const pending = render(<CheckingRow items={checkingItems('full', 10, FULL_PHONE)} />);
+      const pending = render(<CheckingRow mode="full" items={checkingItems('full', 10, FULL_PHONE)} />);
       const pendingTree = JSON.stringify(pending.toJSON());
       pending.unmount();
-      const ready = render(<CheckingRow items={checkingItems('full', 90, FULL_PHONE)} />);
+      const ready = render(<CheckingRow mode="full" items={checkingItems('full', 90, FULL_PHONE)} />);
       const readyTree = JSON.stringify(ready.toJSON());
       expect(readyTree).not.toBe(pendingTree);
       for (const tree of [pendingTree, readyTree]) {

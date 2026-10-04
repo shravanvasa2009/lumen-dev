@@ -139,6 +139,9 @@ describe('the rating from the probe and practice', () => {
     expect(screen.getByText(en['tier.full'])).toBeOnTheScreen();
     expect(screen.getByText(en['ratingMode.deepHrv'])).toBeOnTheScreen();
     expect(screen.getByText(en['ratingMode.fullScan'])).toBeOnTheScreen();
+    expect(screen.getByText(en['rating.checksHere'])).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['checks.diabetes.name']}: ${en['checks.diabetes.what']}`)).toBeOnTheScreen();
+    expect(screen.queryByText(en['mode.locked60fps'])).toBeNull();
 
     const stored = await loadDeviceRating();
     expect(stored).toMatchObject({
@@ -227,6 +230,8 @@ describe('the rating from the probe and practice', () => {
     jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText('84')).toBeOnTheScreen();
     expect(screen.getByText(en['tier.basic'])).toBeOnTheScreen();
+    // Basic phones keep AFib and POTS but lock HRV and Diabetes.
+    expect(screen.getAllByText(en['mode.locked60fps'])).toHaveLength(2);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('not in the probe'));
     warn.mockRestore();
   });
@@ -321,6 +326,23 @@ describe('mode picker gating', () => {
     renderRouter('./app', { initialUrl: '/measure/mode' });
     expect(await screen.findByText(en['mode.lockedFull'])).toBeOnTheScreen();
     expect(screen.queryByText(en['mode.locked60fps'])).toBeNull();
+  });
+
+  it('gives every locked check on a flash-less Limited phone the flash reason', async () => {
+    await storeRating(noFlashPhone, { ...practiceOf(60), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
+    expect((await loadDeviceRating())?.tier).toBe('limited');
+    renderRouter('./app', { initialUrl: '/rating' });
+    for (const name of ['checks.hrv.name', 'checks.diabetes.name', 'checks.pots.name', 'checks.afib.name'] as const) {
+      expect(await screen.findByLabelText(`${en[name]}: ${en['mode.lockedFlash']}`)).toBeOnTheScreen();
+    }
+  });
+
+  it('opens POTS on a Basic phone and gives HRV and Diabetes the 60 fps reason', async () => {
+    await storeRating(thirtyFpsPhone, practiceOf(30));
+    renderRouter('./app', { initialUrl: '/rating' });
+    expect(await screen.findByLabelText(`${en['checks.pots.name']}: ${en['checks.pots.whatShort']}`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['checks.afib.name']}: ${en['checks.afib.what']}`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['checks.hrv.name']}: ${en['mode.locked60fps']}`)).toBeOnTheScreen();
   });
 
   it('gives a flash-less Limited phone the flash reason on every locked mode', async () => {

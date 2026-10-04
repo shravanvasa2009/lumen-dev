@@ -24,7 +24,7 @@ const midway: AnalysisProgress = {
 preloadAppRoutes();
 
 describe('useReadingAnalysis', () => {
-  it('reports unavailable until analyzeReading is in the app', () => {
+  it('reports unavailable when no capture was kept', () => {
     const actual = jest.requireActual<typeof import('./useReadingAnalysis')>('./useReadingAnalysis');
     const { result: analysis } = renderHook(() => actual.useReadingAnalysis());
     expect(analysis.current).toEqual({
@@ -102,5 +102,12 @@ describe('processing screen', () => {
     mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo' };
     const route = renderRouter('./app', { initialUrl: '/measure/processing' });
     expect(route.getPathname()).toBe('/results/demo');
+  });
+
+  it('opens the Inconclusive screen with the mode when the capture was refused', () => {
+    mockAnalysis = { phase: 'inconclusive', progress: pendingProgress, reason: 'tooShort' };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    expect(route.getPathname()).toBe('/measure/inconclusive');
+    expect(route.getSearchParams()).toEqual({ mode: 'full' });
   });
 });

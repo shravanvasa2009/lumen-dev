@@ -24,7 +24,6 @@ fixClockAtMorning();
 // The fixed clock is Thursday, Oct 1, 2026 in the morning; this reading was taken at 06:30 that day.
 const TAKEN_AT = new Date(2026, 9, 1, 6, 30).getTime();
 const ID = `reading-${TAKEN_AT}`;
-const TODAY_LINE = /^Today, /;
 
 async function saveHeartRate(hr: number): Promise<void> {
   const { outcome } = makeReading(TAKEN_AT, hr, 48);
@@ -53,26 +52,26 @@ beforeEach(startOnboarded);
 afterEach(() => jest.restoreAllMocks());
 
 describe('Home with a saved reading', () => {
-  it('shows it as the latest result, with its heart rate on the tile', async () => {
+  it('shows its HRV finding on the HRV card, with its heart rate on the tile', async () => {
     await saveHeartRate(71);
     renderRouter('./app', { initialUrl: '/' });
-    await waitFor(() => expect(screen.getByText(TODAY_LINE)).toBeOnTheScreen());
-    expect(screen.queryByText(en['home.noReadings'])).toBeNull();
+    await waitFor(() => expect(screen.getByText('48 ms')).toBeOnTheScreen());
+    expect(screen.getAllByText(en['home.noReadings'])).toHaveLength(2);
     expect(screen.getByText('71')).toBeOnTheScreen();
   });
 
-  it('opens that reading from the latest result card', async () => {
+  it('opens that reading from the HRV card', async () => {
     await saveHeartRate(71);
     renderRouter('./app', { initialUrl: '/' });
-    await waitFor(() => expect(screen.getByText(TODAY_LINE)).toBeOnTheScreen());
-    fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${en['home.latestResult']}`) }));
+    await waitFor(() => expect(screen.getByText('48 ms')).toBeOnTheScreen());
+    fireEvent.press(screen.getAllByRole('button', { name: `${en['checks.hrv.name']}: 48 ms` })[0]!);
     await waitFor(() => expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen());
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
   });
 
   it('still shows the empty state when nothing is saved', async () => {
     renderRouter('./app', { initialUrl: '/' });
-    await waitFor(() => expect(screen.getByText(en['home.noReadings'])).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getAllByText(en['home.noReadings'])).toHaveLength(3));
   });
 });
 
@@ -118,7 +117,7 @@ describe('Results for a saved reading id', () => {
     renderRouter('./app', { initialUrl: `/results/${ID}` });
     expect(await screen.findByRole('header', { name: en['error.title'] })).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: en['error.retry'] }));
-    expect(await screen.findByText(TODAY_LINE)).toBeOnTheScreen();
+    expect(await screen.findByText('48 ms')).toBeOnTheScreen();
   });
 
   it('shows no values for an id that was never saved', async () => {

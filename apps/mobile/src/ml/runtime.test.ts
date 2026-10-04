@@ -169,6 +169,13 @@ function sqiEntry(changes: Record<string, unknown> = {}) {
   };
 }
 
+const holed = (names: readonly string[]) => {
+  const copy: string[] = [...names];
+  delete copy[1];
+  return copy;
+};
+const ownSome = (names: readonly string[]) => Object.assign([...names], { some: () => false });
+
 const shapeFeatureNames: string[] = [...SHAPE_FEATURE_NAMES];
 const hrSummaryNames: string[] = [...HR_SUMMARY_NAMES];
 // Every median is different, so a null filled from the wrong slot gives a different score.
@@ -487,6 +494,8 @@ describe('rhythm feature width (ADR 0079)', () => {
     ['reordered names', reordered],
     ['too few names', RHYTHM_FEATURE_NAMES.slice(0, 7)],
     ['no names', undefined],
+    ['a hole where a name belongs', holed(RHYTHM_FEATURE_NAMES.slice(0, 8))],
+    ['its own some() that hides a reordering', ownSome(reordered)],
   ])('refuses a v1 manifest with %s in featureOrder', async (_, featureOrder) => {
     const runtime = await loadRuntime({ models: [rhythmEntry({ featureOrder })] });
     const plan = runtime.modelPlan().rhythm;
@@ -597,6 +606,21 @@ describe('diabetes inputs with missing values', () => {
         featureOrder: {
           shapeFeatures: shapeFeatureNames,
           hrSummary: [...hrSummaryNames.slice(1), hrSummaryNames[0]],
+        },
+      },
+      `its featureOrder.hrSummary is not core's order: ${hrSummaryNames.join(', ')}`,
+    ],
+    [
+      'a hole in the shapeFeatures list',
+      { featureOrder: { shapeFeatures: holed(shapeFeatureNames), hrSummary: hrSummaryNames } },
+      `its featureOrder.shapeFeatures is not core's order: ${shapeFeatureNames.join(', ')}`,
+    ],
+    [
+      'an hrSummary list whose own some() hides a reordering',
+      {
+        featureOrder: {
+          shapeFeatures: shapeFeatureNames,
+          hrSummary: ownSome([...hrSummaryNames.slice(1), hrSummaryNames[0] as string]),
         },
       },
       `its featureOrder.hrSummary is not core's order: ${hrSummaryNames.join(', ')}`,

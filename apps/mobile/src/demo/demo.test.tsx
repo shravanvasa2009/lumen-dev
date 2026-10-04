@@ -96,7 +96,7 @@ describe('demo session', () => {
 
     expect(await listReadings()).toEqual([]);
     act(() => router.replace('/'));
-    expect(await screen.findByText(en['home.noReadingsBody'])).toBeOnTheScreen();
+    expect(await screen.findAllByText(en['home.noReadings'])).toHaveLength(3);
   });
 
   it('writes nothing from the follow-up sheet in demo', async () => {

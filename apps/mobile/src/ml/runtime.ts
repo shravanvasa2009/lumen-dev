@@ -98,6 +98,11 @@ function readShapes(value: unknown): Record<string, Shape> | null {
   return Object.values(value).every(isShape) ? (value as Record<string, Shape>) : null;
 }
 
+// A manifest array may carry its own `some`, `map` or iterator, or have holes; only length and indexes are trusted.
+function readByIndex(list: readonly unknown[]): unknown[] {
+  return Array.from({ length: list.length }, (_, index) => list[index]);
+}
+
 function sameShape(left: Shape, right: Shape): boolean {
   return left.length === right.length && left.every((dim, index) => dim === right[index]);
 }
@@ -114,14 +119,15 @@ function readFills(entry: Record<string, unknown>, inputs: Readonly<Record<strin
   if (!isRecord(featureOrder) || !isRecord(fillMedians)) return 'it has no featureOrder or fillMedians';
   const fills: Record<string, number[]> = {};
   for (const input of diabetesFilledInputs) {
-    const names = featureOrder[input];
+    const listed = featureOrder[input];
     const width = inputs[input]?.[1];
-    if (!Array.isArray(names) || names.length !== width)
+    if (!Array.isArray(listed) || listed.length !== width)
       return `its featureOrder.${input} does not list the ${width} features of that input`;
     // Core builds each input in its own name order; a manifest in another order would put each feature, and
     // each null's median, in the wrong model slot.
+    const names = readByIndex(listed);
     const coreNames: readonly string[] = coreFillNames[input];
-    if (names.some((name, index) => name !== coreNames[index]))
+    if (!names.every((name, index) => name === coreNames[index]))
       return `its featureOrder.${input} is not core's order: ${coreNames.join(', ')}`;
     const medians = names.map((name) => (typeof name === 'string' ? fillMedians[name] : undefined));
     if (!medians.every((median): median is number => typeof median === 'number' && Number.isFinite(median)))
@@ -137,11 +143,12 @@ function rhythmOrderMismatch(entry: Record<string, unknown>, inputs: Readonly<Re
   const width = inputs.features?.[1];
   // Without a `features` input nothing can be fed, and the load check reports that.
   if (width === undefined) return null;
-  const names = entry.featureOrder;
-  if (!Array.isArray(names) || names.length !== width)
+  const listed = entry.featureOrder;
+  if (!Array.isArray(listed) || listed.length !== width)
     return `its featureOrder does not list the ${width} rhythm features`;
+  const names = readByIndex(listed);
   const expected = RHYTHM_FEATURE_NAMES.slice(0, width);
-  if (names.length > RHYTHM_FEATURE_NAMES.length || names.some((name, index) => name !== expected[index]))
+  if (names.length > RHYTHM_FEATURE_NAMES.length || !names.every((name, index) => name === expected[index]))
     return `its featureOrder is not core's order: ${RHYTHM_FEATURE_NAMES.join(', ')}`;
   return null;
 }

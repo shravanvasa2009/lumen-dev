@@ -324,8 +324,12 @@ class CameraSession(
             freshRed(firstWaitMs)
             if (lens.exposureLock) applyRequest(added.copy(aeLock = true))
         }
-        val focusDistance = if (lens.focusLock && !lens.fixedFocus) latest?.focusDistance else null
+        // getCapabilities() reported locks.focus for this lens, so a distance is always set: the one autofocus
+        // reached on the finger, else the closest the lens can focus (the finger touches the lens).
+        val focusDistance =
+            if (lens.focusLock && !lens.fixedFocus) latest?.focusDistance ?: lens.minimumFocusDistance else null
         applyRequest(added.copy(awbLock = lens.whiteBalanceLock, focusDistance = focusDistance))
+        Log.i(TAG, "Locks applied: white balance ${lens.whiteBalanceLock}, focus distance ${focusDistance ?: "not set"}")
         counters.armOverexposureWatch()
     }
 

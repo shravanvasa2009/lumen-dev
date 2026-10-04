@@ -3,6 +3,9 @@ package expo.modules.lumencapture
 import android.hardware.camera2.CameraMetadata.CONTROL_AF_MODE_AUTO
 import android.hardware.camera2.CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE
 import android.hardware.camera2.CameraMetadata.CONTROL_AF_MODE_OFF
+import android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_FULL
+import android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY
+import android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -71,10 +74,26 @@ class FocusTest {
         assertFalse(isFixedFocus(IntArray(0), null))
     }
 
+    private val manual = intArrayOf(CONTROL_AF_MODE_OFF) + autofocus
+
     @Test
-    fun focusHoldsWhenFixedOrManual() {
-        assertTrue(focusHolds(IntArray(0), fixedFocus = true))
-        assertTrue(focusHolds(intArrayOf(CONTROL_AF_MODE_OFF) + autofocus, fixedFocus = false))
-        assertFalse(focusHolds(autofocus, fixedFocus = false))
+    fun fixedFocusAlwaysHolds() {
+        assertTrue(focusHolds(IntArray(0), fixedFocus = true, minimumFocusDistance = null, hardwareLevel = null))
+        assertTrue(focusHolds(IntArray(0), true, 0f, INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY))
+    }
+
+    @Test
+    fun manualFocusHoldsWithAKnownRangeAboveLegacy() {
+        assertTrue(focusHolds(manual, false, 10f, INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED))
+        assertTrue(focusHolds(manual, false, 10f, INFO_SUPPORTED_HARDWARE_LEVEL_FULL))
+    }
+
+    // The audit case: a budget LEGACY camera lists AF mode OFF, but nothing shows a set distance is honored.
+    @Test
+    fun legacyUnknownRangeOrNoAfOffDoesNotHold() {
+        assertFalse(focusHolds(manual, false, 10f, INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY))
+        assertFalse(focusHolds(manual, false, null, INFO_SUPPORTED_HARDWARE_LEVEL_FULL))
+        assertFalse(focusHolds(manual, false, 10f, null))
+        assertFalse(focusHolds(autofocus, false, 10f, INFO_SUPPORTED_HARDWARE_LEVEL_FULL))
     }
 }

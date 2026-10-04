@@ -28,7 +28,7 @@ EXTREME_FEATURE = 1e4
 
 def fitted_rule() -> tuple[Pipeline, dict]:
     # train.rhythm's own fit on synthetic windows (no dataset is read), so the fixture has the rule's real
-    # shape: labels depend on the three rule features, in the eight-feature input the app passes.
+    # shape: labels depend on the three rule features, in the features input the app passes.
     rng = np.random.default_rng(SEED)
     features = rng.normal(size=(TRAIN_WINDOWS, len(FEATURE_NAMES))).astype(np.float32)
     columns = [FEATURE_NAMES.index(name) for name in LOGISTIC_FEATURES]

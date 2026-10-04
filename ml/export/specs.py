@@ -92,7 +92,8 @@ _SQI = ModelSpec(
 )
 _RHYTHM = ModelSpec(
     name="rhythm-net",
-    version="1.0.0",
+    # ADR 0079: the features input grew from 8 to 15, so every rhythm model is a new major version.
+    version="2.0.0",
     kind="torch",
     build=RhythmNet,
     inputs={"intervals": [1, INTERVALS], "mask": [1, INTERVALS], "features": [1, FEATURES]},
@@ -110,7 +111,8 @@ _RHYTHM = ModelSpec(
 )
 _DIABETES = ModelSpec(
     name="diabetes-net",
-    version="1.0.0",
+    # ADR 0079: same recipe, retrained because its segments' rhythm labels now come from rhythm v2.
+    version="1.1.0",
     kind="torch",
     build=DiabetesNet,
     inputs={"beat": [1, 1, BEAT], "shapeFeatures": [1, SHAPE_FEATURES], "hrSummary": [1, HR_SUMMARY]},

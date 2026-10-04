@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 from export.write_manifest import RULE_METHOD as MANIFEST_RULE_METHOD
+from lumen_dsp.rhythm import RHYTHM_FEATURE_NAMES
 from lumen_dsp.rhythm_rule import RULE_METHOD, RuleError, check_rule, rule_probs
 from lumen_dsp.rule_fixture import FIXTURE_PATH, fitted_rule, rule_fixture
 
@@ -151,3 +152,24 @@ def test_a_window_whose_logits_overflow_is_refused():
 def test_an_integer_feature_beyond_a_double_is_refused():
     with pytest.raises(RuleError, match="finite"):
         rule_probs(toy_rule(), [[10**400, 0.0, 0.0, 0.0]], 4)
+
+
+def _wide(window):
+    return [*window, *([7.0] * (len(RHYTHM_FEATURE_NAMES) - len(window)))]
+
+
+def test_reads_only_the_prefix_of_cores_full_width_vector():
+    window = [math.log(2), 99.0, math.log(3), -99.0]
+    assert rule_probs(toy_rule(), [_wide(window)], 4) == rule_probs(toy_rule(), [window], 4)
+
+
+def test_full_width_vector_with_a_non_finite_value_past_the_prefix_is_refused():
+    window = _wide([math.log(2), 99.0, math.log(3), -99.0])
+    window[-1] = math.nan
+    with pytest.raises(RuleError, match="feature vector"):
+        rule_probs(toy_rule(), [window], 4)
+
+
+def test_a_rule_wider_than_core_is_refused():
+    with pytest.raises(RuleError, match="core computes"):
+        rule_probs(toy_rule(), [], len(RHYTHM_FEATURE_NAMES) + 1)

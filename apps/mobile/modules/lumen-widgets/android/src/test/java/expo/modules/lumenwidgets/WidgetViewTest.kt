@@ -25,6 +25,17 @@ class WidgetViewTest {
         assertEquals("system", view.theme)
         assertEquals(0xFF2EC4B6L, view.dark.accentFill)
         assertEquals(0xFFF87171L, view.dark.criticalText)
+        assertEquals(0xFF272B36L, view.dark.badgeExperimentalBg)
+        assertEquals(emptyList<String>(), view.checks)
+        assertEquals(null, view.diabetesTag)
+    }
+
+    @Test
+    fun readsTheFourChecksAndTheDiabetesTag() {
+        val view = widgetView(testSnapshot(), testDisplayWithChecks(), TEST_READING_MS)
+        assertEquals(listOf("AFib", "POTS", "HRV", "Diabetes"), view.checks)
+        assertEquals("Experimental", view.diabetesTag)
+        assertEquals(null, widgetView(testSnapshot(), testDisplayWithChecks(null), TEST_READING_MS).diabetesTag)
     }
 
     @Test

@@ -28,7 +28,20 @@ def ada_risk(
     physically_active: bool,
     bmi: float,
 ) -> AdaRisk | None:
-    # None under age 20: the score was never validated there.
+    # Answers may arrive untyped (storage, a spreadsheet): refuse them, as the TS twin does, rather than let
+    # int() score male=2 as two points or a bool pass as an age. None under 20: never validated there.
+    for name, value in (("age_years", age_years), ("bmi", bmi)):
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            raise TypeError(f"{name} must be a number, got {value!r}")
+    for name, value in (
+        ("male", male),
+        ("family_history", family_history),
+        ("hypertension", hypertension),
+        ("physically_active", physically_active),
+    ):
+        if not isinstance(value, bool):
+            raise TypeError(f"{name} must be True or False, got {value!r}")
+    # The chained comparisons are False for NaN, so NaN is refused too.
     if not 0 <= age_years <= 130:
         raise ValueError(f"age_years must be 0-130, got {age_years}")
     if not 10.0 <= bmi <= 100.0:

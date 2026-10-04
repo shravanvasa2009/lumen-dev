@@ -36,9 +36,9 @@ def partial_points(clinical: pd.DataFrame) -> pd.Series:
             return np.nan
         risk = ada_risk(
             age_years=int(age.loc[index]),
-            male=clinical.loc[index, "sex"] == "M",
+            male=bool(clinical.loc[index, "sex"] == "M"),
             family_history=False,
-            hypertension=clinical.loc[index, "preop_htn"] == 1,
+            hypertension=bool(clinical.loc[index, "preop_htn"] == 1),
             physically_active=False,
             bmi=float(bmi.loc[index]),
         )

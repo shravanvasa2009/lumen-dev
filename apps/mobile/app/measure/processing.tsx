@@ -68,7 +68,7 @@ export default function ProcessingScreen() {
       <ProcessingView analysis={analysis} mode={mode} />
       <SafetySheet
         visible={askSymptoms}
-        onDismiss={() => setSymptomsAnswered(true)}
+        onNo={() => setSymptomsAnswered(true)}
         onYes={() => router.replace('/emergency')}
       />
     </>

@@ -1,6 +1,6 @@
 // In memory only, never in the URL: a deep link must not be able to switch the safety question off. Set by
-// Processing when it has just asked the question for a reading, cleared once that reading's Results has
-// opened, so a later visit to the same reading (from History) asks again.
+// Processing when it has just asked the question for a reading, cleared when that reading's Results opens or
+// its route unmounts, so a mark only serves the visit right after Processing and a later visit asks again.
 let askedFor: string | null = null;
 
 export function markSymptomsAsked(readingId: string): void {

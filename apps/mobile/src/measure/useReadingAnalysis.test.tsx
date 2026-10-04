@@ -1,5 +1,5 @@
 import type { InconclusiveOutcome } from '@lumen/core';
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import '@/i18n';
@@ -263,6 +263,18 @@ describe('the flags show while the analysis still runs (SAFE-1)', () => {
     await waitFor(() => expect(analysis.current).toMatchObject({ phase: 'running', urgent }));
     finish({ ...analysedReading(), urgent });
     await waitFor(() => expect(analysis.current.phase).toBe('done'));
+  });
+
+  it('notifies the screen when the flags arrive after it subscribed', async () => {
+    let report: (flags: typeof urgent) => void = () => {};
+    jest.mocked(analyzeKeptCapture).mockImplementation((_capture, _request, _report, reportUrgent) => {
+      report = reportUrgent;
+      return new Promise(() => {});
+    });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current).toMatchObject({ phase: 'running', urgent: undefined }));
+    act(() => report(urgent));
+    expect(analysis.current).toMatchObject({ phase: 'running', urgent });
   });
 
   it('leaves it undefined while the rules have not run', async () => {

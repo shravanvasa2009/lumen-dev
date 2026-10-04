@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
-import { StyleSheet } from 'react-native';
+import { Modal, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
 import diabetes from '@/i18n/diabetes.json';
@@ -214,6 +214,16 @@ describe.each([
     act(() => router.push('/results/demo-flag'));
     act(() => router.push('/results/demo-hr-flag'));
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+  });
+
+  it('keeps the question open on a scrim tap and on Android Back (ADR 0093)', () => {
+    openResults('demo-hr-flag');
+    fireEvent.press(screen.getByTestId('sheet-scrim-press'));
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    act(() => screen.UNSAFE_getByType(Modal).props.onRequestClose());
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    expect(screen.queryByText(en['safety.question'])).toBeNull();
   });
 
   it('cannot be silenced by a link carrying symptomsAsked (SAFE-1)', () => {

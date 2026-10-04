@@ -10,15 +10,16 @@ import { useTheme } from '@/theme';
 
 // A caller that must replace its own screen with the emergency screen (Processing) passes onYes; the Results
 // screen stays underneath and takes the default push.
-type SafetySheetProps = { visible: boolean; onDismiss: () => void; onYes?: () => void };
+type SafetySheetProps = { visible: boolean; onNo: () => void; onYes?: () => void };
 
 // Answer buttons are well above the 44 dp minimum so the question can be answered at a glance.
 const ANSWER_HEIGHT = 72;
 
 // SAFE-1: shown when any flag fires (heart rate, rhythm, or the diabetes pattern card, §12.5).
-// Yes opens emergency guidance at once; No or a tap outside closes it. Yes uses the amber flag tokens,
+// Yes opens emergency guidance at once; No closes it. A tap outside and Android Back do nothing, so a slip
+// cannot skip the question (ADR 0093). Yes uses the amber flag tokens,
 // because red belongs to the emergency screen alone.
-export function SafetySheet({ visible, onDismiss, onYes }: SafetySheetProps) {
+export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors, radius, spacing } = useTheme();
@@ -27,11 +28,11 @@ export function SafetySheet({ visible, onDismiss, onYes }: SafetySheetProps) {
       onYes();
       return;
     }
-    onDismiss();
+    onNo();
     router.push('/emergency');
   };
   return (
-    <BottomSheet visible={visible} onDismiss={onDismiss} dismissLabel={t('safety.dismiss')}>
+    <BottomSheet visible={visible}>
       <View
         style={{
           alignSelf: 'center',
@@ -84,7 +85,7 @@ export function SafetySheet({ visible, onDismiss, onYes }: SafetySheetProps) {
         <View style={{ flex: 1 }}>
           <PressableScale
             accessibilityRole="button"
-            onPress={onDismiss}
+            onPress={onNo}
             style={{
               minHeight: ANSWER_HEIGHT,
               borderRadius: radius.pill,

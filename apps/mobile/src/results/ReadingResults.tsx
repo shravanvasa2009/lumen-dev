@@ -233,7 +233,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           </AppText>
         </AppText>
       </ScrollView>
-      <SafetySheet visible={sheetOpen} onDismiss={() => setSheetOpen(false)} />
+      <SafetySheet visible={sheetOpen} onNo={() => setSheetOpen(false)} />
     </Screen>
   );
 }

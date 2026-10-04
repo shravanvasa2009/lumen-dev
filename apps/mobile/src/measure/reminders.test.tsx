@@ -116,4 +116,14 @@ describe('capture tips button', () => {
     expect(screen.queryByText(FLAT)).toBeNull();
     expect(screen.getByRole('button', { name: en['capture.stop'] })).toBeOnTheScreen();
   });
+
+  // Control for the SafetySheet scrim tests: the same element does close a sheet that has a dismiss handler.
+  it('closes when the scrim is tapped', () => {
+    mockLive = running;
+    renderRouter('./app', { initialUrl: '/measure/capture?mode=quick' });
+    fireEvent.press(screen.getByRole('button', { name: en['capture.tips'] }));
+    expect(screen.getByText(FLAT)).toBeOnTheScreen();
+    fireEvent.press(screen.getByTestId('sheet-scrim-press'));
+    expect(screen.queryByText(FLAT)).toBeNull();
+  });
 });

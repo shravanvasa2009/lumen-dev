@@ -1,6 +1,8 @@
 package expo.modules.lumenwidgets
 
 import android.content.Context
+import android.os.Build
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
@@ -17,6 +19,7 @@ import androidx.glance.LocalSize
 import androidx.glance.action.Action
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
@@ -41,6 +44,11 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import org.json.JSONObject
 
 // Mockup 32 draws the small widget at about 140 x 140 dp and the medium at 330 x 140 dp. Every size below is
 // for that design and is multiplied by the scale for the cell the launcher actually gives.
@@ -427,6 +435,30 @@ internal fun fallbackView(context: Context): WidgetView {
     )
 }
 
+// The in-app gallery's sample reading (app/settings/widgets/index.tsx; the res picker strings hold the same).
+private const val SAMPLE_BPM = 64
+private const val SAMPLE_STREAK_DAYS = 5
+private const val SAMPLE_HOURS_AGO = 2L
+private const val SAMPLE_HOUR_MS = 3_600_000L
+
+// The picker preview Android 15+ generates from the real widget: the gallery's sample reading drawn with the
+// published copy, palette and checks, so the Diabetes tag follows the evidence label (EVID-1) and the look
+// follows any change to the widget. null before the app first publishes; the static previewLayout shows then.
+internal fun sampleView(context: Context, nowMs: Long): WidgetView? {
+    val displayJson = WidgetStore.display(context) ?: return null
+    val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+    val snapshot =
+        JSONObject()
+            .put("v", 1)
+            .put("status", "regular")
+            .put("lastReadingAt", format.format(Date(nowMs - SAMPLE_HOURS_AGO * SAMPLE_HOUR_MS)))
+            .put("hrBpm", SAMPLE_BPM)
+            .put("hideValues", false)
+            .put("streakDays", SAMPLE_STREAK_DAYS)
+            .put("theme", "system")
+    return widgetView(snapshot.toString(), displayJson, nowMs)
+}
+
 // Exact: the layout is drawn for the cell the launcher really gives, so it fills a large cell and still fits
 // a 2x2 on a 360 dp phone.
 class SmallWidget : GlanceAppWidget() {
@@ -436,6 +468,11 @@ class SmallWidget : GlanceAppWidget() {
         val view = WidgetStore.read(context, System.currentTimeMillis()) ?: fallbackView(context)
         provideContent { WidgetBody(view, medium = false) }
     }
+
+    override suspend fun providePreview(context: Context, widgetCategory: Int) {
+        val view = sampleView(context, System.currentTimeMillis()) ?: fallbackView(context)
+        provideContent { WidgetBody(view, medium = false) }
+    }
 }
 
 class MediumWidget : GlanceAppWidget() {
@@ -443,6 +480,11 @@ class MediumWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val view = WidgetStore.read(context, System.currentTimeMillis()) ?: fallbackView(context)
+        provideContent { WidgetBody(view, medium = true) }
+    }
+
+    override suspend fun providePreview(context: Context, widgetCategory: Int) {
+        val view = sampleView(context, System.currentTimeMillis()) ?: fallbackView(context)
         provideContent { WidgetBody(view, medium = true) }
     }
 }
@@ -458,4 +500,22 @@ class MediumWidgetReceiver : GlanceAppWidgetReceiver() {
 suspend fun refreshWidgets(context: Context) {
     SmallWidget().updateAll(context)
     MediumWidget().updateAll(context)
+}
+
+// Android 15+ shows a generated picker preview (providePreview) instead of previewLayout. The system limits how
+// often an app may set them, so a refused call keeps the last preview until the copy changes again.
+// https://developer.android.com/develop/ui/compose/glance/generated-previews
+suspend fun refreshPickerPreviews(context: Context, displayJson: String) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return
+    if (!WidgetStore.previewNeedsUpdate(context, displayJson)) return
+    val manager = GlanceAppWidgetManager(context)
+    val small = manager.setWidgetPreviews(SmallWidgetReceiver::class)
+    val medium = manager.setWidgetPreviews(MediumWidgetReceiver::class)
+    if (small == GlanceAppWidgetManager.SET_WIDGET_PREVIEWS_RESULT_SUCCESS &&
+        medium == GlanceAppWidgetManager.SET_WIDGET_PREVIEWS_RESULT_SUCCESS
+    ) {
+        WidgetStore.markPreviewed(context, displayJson)
+    } else {
+        Log.w("LumenWidgets", "Picker preview update refused (results $small, $medium); retried on the next publish")
+    }
 }

@@ -30,6 +30,13 @@ name: Onboarding from welcome to Home
 - tapOn: 'Enter age'
 - inputText: '42'
 - hideKeyboard
+- assertVisible: 'Question set 1 of 2'
+- tapOn: 'Next'
+- assertVisible: 'Diabetes risk questions'
+- assertVisible: 'Question set 2 of 2'
+- tapOn: 'Back'
+- assertVisible: 'About you'
+- tapOn: 'Next'
 - tapOn: 'Continue'
 - assertVisible: 'Checking your phone'
 - tapOn: 'Next: finger placement'

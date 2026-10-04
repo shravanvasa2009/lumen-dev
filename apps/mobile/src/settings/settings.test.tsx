@@ -48,6 +48,7 @@ describe('Settings tab', () => {
     renderRouter(appDirectory, { initialUrl: '/settings' });
     for (const key of [
       'settings.profile',
+      'profile.diabetesRisk',
       'settings.language',
       'settings.accuracy',
       'settings.phone',

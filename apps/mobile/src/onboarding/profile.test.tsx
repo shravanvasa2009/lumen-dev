@@ -6,7 +6,7 @@ import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { lumenDatabase } from '@/store/database';
-import { loadProfile, saveHealthNote } from '@/store/profile';
+import { loadProfile, loadRiskDraft, saveHealthNote } from '@/store/profile';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -14,8 +14,8 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => 'dark',
 }));
 
-const continueButton = () => screen.getByRole('button', { name: en['common.continue'] });
-const ageField = () => screen.getByLabelText(en['profile.age']);
+const nextButton = () => screen.getByRole('button', { name: en['common.next'] });
+const ageField = () => screen.findByLabelText(en['profile.age']);
 
 const phoneField = () => screen.getByLabelText(en['profile.doctorPhone']);
 
@@ -30,9 +30,9 @@ describe('profile', () => {
     act(() => doctorPhone.current.setPhone(null));
   });
 
-  it('shows the age field, the three sex options and the four health notes', () => {
+  it('shows the age field, the three sex options and the four health notes', async () => {
     renderRouter('./app', { initialUrl: '/profile' });
-    expect(ageField()).toBeOnTheScreen();
+    expect(await ageField()).toBeOnTheScreen();
     for (const key of ['profile.female', 'profile.male', 'profile.preferNot'] as const)
       expect(screen.getByRole('radio', { name: en[key] })).toBeOnTheScreen();
     for (const key of [
@@ -44,25 +44,26 @@ describe('profile', () => {
       expect(screen.getByRole('switch', { name: en[key] })).toBeOnTheScreen();
   });
 
-  it('keeps Continue off until an age of 13 or more is entered', () => {
+  it('keeps Next off until an age of 13 or more is entered', async () => {
     renderRouter('./app', { initialUrl: '/profile' });
-    expect(continueButton()).toBeDisabled();
-    fireEvent.changeText(ageField(), '12');
-    expect(continueButton()).toBeDisabled();
+    expect(nextButton()).toBeDisabled();
+    fireEvent.changeText(await ageField(), '12');
+    expect(nextButton()).toBeDisabled();
     expect(screen.getByText(en['profile.ageTooYoung'])).toBeOnTheScreen();
-    fireEvent.changeText(ageField(), '13');
-    expect(continueButton()).toBeEnabled();
+    fireEvent.changeText(await ageField(), '13');
+    expect(nextButton()).toBeEnabled();
     expect(screen.queryByText(en['profile.ageTooYoung'])).not.toBeOnTheScreen();
   });
 
-  it('drops anything that is not a digit from the age', () => {
+  it('drops anything that is not a digit from the age', async () => {
     renderRouter('./app', { initialUrl: '/profile' });
-    fireEvent.changeText(ageField(), '4a2');
-    expect(ageField().props.value).toBe('42');
+    fireEvent.changeText(await ageField(), '4a2');
+    expect((await ageField()).props.value).toBe('42');
   });
 
-  it('selects one sex option at a time and flips a health note', () => {
+  it('selects one sex option at a time and flips a health note', async () => {
     renderRouter('./app', { initialUrl: '/profile' });
+    await ageField();
     fireEvent.press(screen.getByRole('radio', { name: en['profile.male'] }));
     expect(screen.getByRole('radio', { name: en['profile.male'] })).toBeChecked();
     fireEvent.press(screen.getByRole('radio', { name: en['profile.preferNot'] }));
@@ -90,16 +91,16 @@ describe('profile', () => {
     expect(screen.getByRole('switch', { name: en['profile.betaBlocker'] })).not.toBeChecked();
   });
 
-  it('has an optional doctor phone field with a phone keypad that never blocks Continue', () => {
+  it('has an optional doctor phone field with a phone keypad that never blocks Next', async () => {
     renderRouter('./app', { initialUrl: '/profile' });
     expect(phoneField().props.keyboardType).toBe('phone-pad');
     expect(en['profile.doctorPhone']).toContain('optional');
     expect(es['profile.doctorPhone']).toContain('opcional');
-    fireEvent.changeText(ageField(), '40');
-    expect(continueButton()).toBeEnabled();
+    fireEvent.changeText(await ageField(), '40');
+    expect(nextButton()).toBeEnabled();
     fireEvent.changeText(phoneField(), 'abc');
     expect(screen.getByText(en['profile.doctorPhoneInvalid'])).toBeOnTheScreen();
-    expect(continueButton()).toBeEnabled();
+    expect(nextButton()).toBeEnabled();
   });
 
   it('saves a valid doctor phone, clears the error, and forgets it when emptied', () => {
@@ -144,5 +145,81 @@ describe('profile', () => {
     );
     expect(screen.getByRole('switch', { name: en['profile.athlete'] })).not.toBeChecked();
     await waitFor(async () => expect((await loadProfile()).athlete).toBe(false));
+  });
+
+  it('names the question set above the title', async () => {
+    renderRouter('./app', { initialUrl: '/profile' });
+    await ageField();
+    expect(screen.getByText('Question set 1 of 2')).toBeOnTheScreen();
+  });
+
+  it('works out the body mass index live and never asks for it', async () => {
+    renderRouter('./app', { initialUrl: '/profile' });
+    fireEvent.changeText(await ageField(), '52');
+    expect(screen.getByLabelText(`${en['profile.bmi']} —`)).toBeOnTheScreen();
+    fireEvent.changeText(screen.getByLabelText(en['profile.height']), '168');
+    fireEvent.changeText(screen.getByLabelText(en['profile.weight']), '82');
+    expect(screen.getByLabelText(`${en['profile.bmi']} 29.1`)).toBeOnTheScreen();
+  });
+
+  it('says what range a height or weight must be in and keeps Next off', async () => {
+    renderRouter('./app', { initialUrl: '/profile' });
+    fireEvent.changeText(await ageField(), '52');
+    fireEvent.changeText(screen.getByLabelText(en['profile.height']), '50');
+    expect(screen.getByText('Enter a height between 100 and 250 cm.')).toBeOnTheScreen();
+    expect(nextButton()).toBeDisabled();
+    fireEvent.changeText(screen.getByLabelText(en['profile.height']), '168');
+    fireEvent.changeText(screen.getByLabelText(en['profile.weight']), '10');
+    expect(screen.getByText('Enter a weight between 20 and 300 kg.')).toBeOnTheScreen();
+    fireEvent.changeText(screen.getByLabelText(en['profile.weight']), '300');
+    fireEvent.changeText(screen.getByLabelText(en['profile.height']), '100');
+    expect(screen.getByText(en['profile.bmiInvalid'])).toBeOnTheScreen();
+    expect(nextButton()).toBeDisabled();
+  });
+
+  it('converts to inches and pounds for display and keeps metric underneath', async () => {
+    renderRouter('./app', { initialUrl: '/profile' });
+    fireEvent.changeText(await ageField(), '52');
+    fireEvent.changeText(screen.getByLabelText(en['profile.height']), '170');
+    fireEvent.changeText(screen.getByLabelText(en['profile.weight']), '80');
+    fireEvent.press(screen.getByRole('radio', { name: en['profile.unitsImperial'] }));
+    expect(screen.getByLabelText(en['profile.height']).props.value).toBe('66.9');
+    expect(screen.getByLabelText(en['profile.weight']).props.value).toBe('176.4');
+    expect(screen.getByLabelText(`${en['profile.bmi']} 27.7`)).toBeOnTheScreen();
+    fireEvent.changeText(screen.getByLabelText(en['profile.height']), '30');
+    expect(screen.getByText('Enter a height between 40 and 98 in.')).toBeOnTheScreen();
+  });
+
+  it('stores the basics when Next is pressed and opens the second question set', async () => {
+    renderRouter('./app', { initialUrl: '/profile' });
+    fireEvent.changeText(await ageField(), '52');
+    fireEvent.press(screen.getByRole('radio', { name: en['profile.female'] }));
+    fireEvent.changeText(screen.getByLabelText(en['profile.height']), '168');
+    fireEvent.changeText(screen.getByLabelText(en['profile.weight']), '82');
+    fireEvent.press(nextButton());
+    expect(await screen.findByRole('header', { name: en['dr.title'] })).toBeOnTheScreen();
+    expect(await loadRiskDraft()).toMatchObject({ ageYears: 52, sex: 'female', heightCm: 168, weightKg: 82 });
+  });
+
+  it('shows the saved basics again on the next visit', async () => {
+    const first = renderRouter('./app', { initialUrl: '/profile' });
+    fireEvent.changeText(await ageField(), '47');
+    fireEvent.changeText(screen.getByLabelText(en['profile.height']), '180');
+    fireEvent.press(nextButton());
+    await screen.findByRole('header', { name: en['dr.title'] });
+    first.unmount();
+    renderRouter('./app', { initialUrl: '/profile' });
+    await waitFor(() => expect(screen.getByLabelText(en['profile.age']).props.value).toBe('47'));
+    expect(screen.getByLabelText(en['profile.height']).props.value).toBe('180');
+  });
+
+  it('shows an alert and stays on the screen when the basics cannot be stored', async () => {
+    renderRouter('./app', { initialUrl: '/profile' });
+    fireEvent.changeText(await ageField(), '52');
+    const database = await lumenDatabase();
+    jest.spyOn(database, 'withTransactionAsync').mockRejectedValue(new Error('disk full'));
+    fireEvent.press(nextButton());
+    await waitFor(() => expect(screen.getByText(en['profile.saveFailed'])).toBeOnTheScreen());
+    expect(screen.queryByRole('header', { name: en['dr.title'] })).not.toBeOnTheScreen();
   });
 });

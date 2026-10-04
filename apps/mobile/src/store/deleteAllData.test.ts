@@ -21,7 +21,9 @@ import type { WidgetSnapshot } from '@/widgets/snapshot';
 
 import { lumenDatabase } from './database';
 import { deleteAllData } from './deleteAllData';
-import { profileValue, saveHealthNote } from './profile';
+import { EMPTY_RISK_DRAFT } from '@/profile/diabetesRisk';
+
+import { loadRiskDraft, profileValue, saveHealthNote, saveRiskDraft } from './profile';
 import { listReadings } from './readings';
 
 jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').mockFileSystem);
@@ -99,6 +101,23 @@ describe('deleteAllData', () => {
     await deleteAllData('en');
     expect(await profileValue('onboardingDone')).toBeNull();
     expect(await profileValue('athlete')).toBeNull();
+  });
+
+  it('removes the diabetes risk answers, height, weight, age and sex', async () => {
+    await saveRiskDraft({
+      ageYears: 52,
+      sex: 'female',
+      heightCm: 168,
+      weightKg: 82,
+      familyHistory: true,
+      hypertension: false,
+      physicallyActive: true,
+      gestationalDiabetes: false,
+    });
+    expect((await loadRiskDraft()).heightCm).toBe(168);
+    await deleteAllData('en');
+    expect(await loadRiskDraft()).toEqual(EMPTY_RISK_DRAFT);
+    expect(await profileValue('weightKg')).toBeNull();
   });
 
   it('cancels every scheduled notification and removes the settings and schedule files', async () => {

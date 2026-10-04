@@ -110,7 +110,7 @@ fun widgetView(snapshotJson: String, displayJson: String, nowMs: Long): WidgetVi
         checkNow = display.getString("checkNow"),
         fullScan = display.getString("fullScan"),
         checks = display.optJSONArray("checks")?.let { names -> List(names.length()) { names.getString(it) } } ?: emptyList(),
-        diabetesTag = if (display.has("diabetesTag")) display.stringOrNull("diabetesTag") else null,
+        diabetesTag = display.stringOrNull("diabetesTag"),
         emptyTitle = empty.getString("title"),
         emptyBody = empty.getString("body"),
         theme = snapshot.getString("theme"),

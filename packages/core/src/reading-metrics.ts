@@ -80,9 +80,11 @@ function beatPairs<T extends ClassifiedBeat>(segment: T[]): [T, T][] {
   return beats.slice(1).map((beat, i) => [beats[i]!, beat]);
 }
 
-// DSP-11's 15 s also binds the accepted intervals: a median of a few intervals in a long clean reading is
-// not a rate measured over 15 s (red team PR #171 round 3, ADR 0080).
-/** DSP-11: heart rate in bpm, 60 / the median interval between consecutive non-artifact beats. */
+/**
+ * DSP-11: heart rate in bpm, 60 / the median interval between consecutive non-artifact beats. DSP-11's 15 s
+ * also binds the accepted intervals: a median of a few intervals in a long clean reading is not a rate
+ * measured over 15 s (red team PR #171 round 3, ADR 0080).
+ */
 export function heartRate(segments: ClassifiedBeat[][], cleanS: number): number | null {
   const { minCleanS } = DSP_CONFIG.dsp11;
   if (!(cleanS >= minCleanS)) return null;
@@ -182,7 +184,7 @@ export function hrv(
 }
 
 // The order of hrSummary's output: diabetes-net's [1, 4] input, named as in its manifest featureOrder.hrSummary.
-export const HR_SUMMARY_NAMES = ['hrBpm', 'rmssdMs', 'sdnnMs', 'pnn50'] as const;
+export const HR_SUMMARY_NAMES = Object.freeze(['hrBpm', 'rmssdMs', 'sdnnMs', 'pnn50'] as const);
 
 // Null values get the model's training median, not a core fill.
 /** ML-6: diabetes-net's HR/HRV summary, in HR_SUMMARY_NAMES order, by DSP-11 and DSP-12. */

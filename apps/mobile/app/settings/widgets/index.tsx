@@ -21,8 +21,6 @@ import { useTheme } from '@/theme';
 const SAMPLE_BPM = 64;
 const SAMPLE_STREAK_DAYS = 5;
 const SAMPLE_HOURS_AGO = 2;
-const IPHONE_HOME_STEPS = 5;
-const ANDROID_STEPS = 4;
 
 export default function WidgetsScreen() {
   const { t, i18n } = useTranslation();
@@ -35,7 +33,20 @@ export default function WidgetsScreen() {
   const reading = hideWidgetValues ? '—' : String(SAMPLE_BPM);
   const lastCheck = t('widgets.lastCheck', { hours: SAMPLE_HOURS_AGO });
   const streak = t('widgets.streak', { days: SAMPLE_STREAK_DAYS });
-  const stepsTitle = (steps: number) => t('widgets.stepsTitleCount', { steps });
+  const stepsTitle = (steps: readonly string[]) => t('widgets.stepsTitleCount', { steps: steps.length });
+  const androidSteps = [
+    t('widgets.androidStep1'),
+    t('widgets.androidStep2'),
+    t('widgets.androidStep3'),
+    t('widgets.androidStep4'),
+  ];
+  const iphoneHomeSteps = [
+    t('widgets.iphoneHomeStep1'),
+    t('widgets.iphoneHomeStep2'),
+    t('widgets.iphoneHomeStep3'),
+    t('widgets.iphoneHomeStep4'),
+    t('widgets.iphoneHomeStep5'),
+  ];
   const buttonsNote = (
     <AppText variant="caption" tone="textDim">
       {t('widgets.buttons')}
@@ -59,15 +70,7 @@ export default function WidgetsScreen() {
           checkNow={t('widgets.checkNow')}
           fullScan={t('mode.full')}
         />
-        <CollapsibleSteps
-          title={stepsTitle(ANDROID_STEPS)}
-          steps={[
-            t('widgets.androidStep1'),
-            t('widgets.androidStep2'),
-            t('widgets.androidStep3'),
-            t('widgets.androidStep4'),
-          ]}
-        />
+        <CollapsibleSteps title={stepsTitle(androidSteps)} steps={androidSteps} />
         {buttonsNote}
       </RouteShell>
     );
@@ -96,16 +99,7 @@ export default function WidgetsScreen() {
         checkNow={t('widgets.checkNow')}
         fullScan={t('mode.full')}
       />
-      <CollapsibleSteps
-        title={stepsTitle(IPHONE_HOME_STEPS)}
-        steps={[
-          t('widgets.iphoneHomeStep1'),
-          t('widgets.iphoneHomeStep2'),
-          t('widgets.iphoneHomeStep3'),
-          t('widgets.iphoneHomeStep4'),
-          t('widgets.iphoneHomeStep5'),
-        ]}
-      />
+      <CollapsibleSteps title={stepsTitle(iphoneHomeSteps)} steps={iphoneHomeSteps} />
       <SectionLabel>{t('widgets.iphoneLock')}</SectionLabel>
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
         <LockCirclePreview />

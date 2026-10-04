@@ -1,7 +1,7 @@
 import { DSP_CONFIG } from './config';
 import { sqiModelInput } from './finger-signal';
 import type { RejectedSpan } from './live-session';
-import { isFrameGap, resampleCubic } from './resample';
+import { HALF_NS_S, isFrameGap, resampleCubic } from './resample';
 
 // Shared by LiveSession and analyzeReading, so the live screen and the saved result reject the same flat
 // windows (ADR 0023, ADR 0057).
@@ -53,15 +53,52 @@ function windowFrames(
   return null;
 }
 
+// The most intervals between neighbouring frames [first, count) up to endS longer than longerThanS that
+// fit in one closed span of live.subWindowS, from the first one's start to the last one's end, with
+// DSP-2's half-ns allowance.
+function intervalsInSpan(
+  tS: ArrayLike<number>,
+  first: number,
+  count: number,
+  endS: number,
+  longerThanS: number,
+): number {
+  const { subWindowS } = DSP_CONFIG.live;
+  const startsS: number[] = [];
+  let oldest = 0;
+  let most = 0;
+  for (let i = first + 1; i < count && tS[i]! <= endS; i++) {
+    if (tS[i]! - tS[i - 1]! <= longerThanS + HALF_NS_S) continue;
+    startsS.push(tS[i - 1]!);
+    while (tS[i]! - startsS[oldest]! > subWindowS + HALF_NS_S) oldest++;
+    most = Math.max(most, startsS.length - oldest);
+  }
+  return most;
+}
+
 // ADR 0077: under live.minEffectiveFps when frames [0, count) delivered in [endS − dsp3.modelWindowS, endS],
-// covered or not, number fewer than minEffectiveFps × the window, or when any span of live.subWindowS that
+// covered or not, number fewer than minEffectiveFps × the window; when any span of live.subWindowS that
 // starts on one of them and ends inside the window holds fewer than live.minSubWindowFps × that span, ends
-// included as in the window count. The second test stops a fast burst paying for a sparse rest of the
-// window while letting random drops at a mean above 24 fps through. It counts distinct sample times
-// (implementation note 3): from the span's first frame, a frame counts only live.minSampleSpacingS or more
-// after the last counted one, so back-to-back frames cannot stand in for samples of the pulse.
+// included as in the window count; or when one such span holds two intervals between neighbouring frames
+// longer than live.maxFrameGapS (implementation note 4), or live.maxSparseIntervalsPerS longer than
+// live.sparseIntervalS (note 5). The 1 s count stops a fast burst paying for a sparse rest of the window.
+// The interval tests stop clumps of frames standing in for samples of a fast pulse: a run of long
+// intervals is a stretch sampled too sparsely for the pulse (note 4) or its harmonics (note 5), while one
+// lone interval up to DSP-2's gap limit is splined over as DSP-2 allows, so random drops of 3 frames in a
+// row at 30 fps still pass. Every such span must also hold live.minDistinctSamplesPerS distinct sample times
+// (note 6): Nyquist for the 2nd harmonic of the fastest rate reported, so no arrangement of clustered
+// frames samples the pulse more sparsely than its shape needs. No run of sparse sample times may outlast
+// live.maxSparseRunS either (note 7, longSparseRun).
 function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): boolean {
-  const { minEffectiveFps, minSubWindowFps, subWindowS, minSampleSpacingS } = DSP_CONFIG.live;
+  const {
+    minEffectiveFps,
+    minSubWindowFps,
+    subWindowS,
+    maxFrameGapS,
+    sparseIntervalS,
+    maxSparseIntervalsPerS,
+    minDistinctSamplesPerS,
+  } = DSP_CONFIG.live;
   const startS = endS - DSP_CONFIG.dsp3.modelWindowS;
   let first = count;
   let frames = 0;
@@ -70,19 +107,48 @@ function underEffectiveFps(tS: ArrayLike<number>, count: number, endS: number): 
     if (tS[i]! <= endS) frames++;
   }
   if (frames < minEffectiveFps * DSP_CONFIG.dsp3.modelWindowS) return true;
-  const spanSamples = Math.ceil(minSubWindowFps * subWindowS);
+  if (intervalsInSpan(tS, first, count, endS, maxFrameGapS) >= 2) return true;
+  if (intervalsInSpan(tS, first, count, endS, sparseIntervalS) >= maxSparseIntervalsPerS) return true;
+  const spanFrames = Math.ceil(minSubWindowFps * subWindowS);
   for (let i = first; i < count && tS[i]! + subWindowS <= endS; i++) {
-    const spanEndS = tS[i]! + subWindowS;
-    let countedS = tS[i]!;
-    let samples = 1;
-    for (let j = i + 1; j < count && tS[j]! <= spanEndS && samples < spanSamples; j++) {
-      if (tS[j]! - countedS < minSampleSpacingS) continue;
-      countedS = tS[j]!;
-      samples++;
-    }
-    if (samples < spanSamples) return true;
+    const last = i + spanFrames - 1;
+    if (last >= count || !(tS[last]! <= tS[i]! + subWindowS)) return true;
+    if (distinctSamples(tS, i, count, tS[i]! + subWindowS) < minDistinctSamplesPerS * subWindowS) return true;
+  }
+  return longSparseRun(tS, first, count, endS);
+}
+
+// ADR 0077 implementation note 7 (red team PR #171 round 9, M): sample times more than 1 / (2 × the 2nd
+// harmonic of rules.fastRegularBpm's top) apart (68 ms at 220 bpm) leave that harmonic under-sampled. A run
+// of them may last at most live.maxSparseRunS, so a burst of close frames cannot pay for a sparse rest of
+// the second in note 6's count. Sample times as note 6 (distinctSampleS); one shorter spacing ends a run.
+function longSparseRun(tS: ArrayLike<number>, first: number, count: number, endS: number): boolean {
+  const { distinctSampleS, maxSparseRunS } = DSP_CONFIG.live;
+  const nyquistS = 60 / (2 * 2 * DSP_CONFIG.rules.fastRegularBpm[1]!);
+  let lastS = tS[first]!;
+  let runS = 0;
+  for (let k = first + 1; k < count && tS[k]! <= endS; k++) {
+    const spacingS = tS[k]! - lastS;
+    if (spacingS < distinctSampleS - HALF_NS_S) continue;
+    lastS = tS[k]!;
+    runS = spacingS > nyquistS + HALF_NS_S ? runS + spacingS : 0;
+    if (runS > maxSparseRunS + HALF_NS_S) return true;
   }
   return false;
+}
+
+// Sample times in [tS[i], untilS]: a frame counts only live.distinctSampleS or more after the last counted
+// one (with DSP-2's half-ns allowance), so frames delivered in a cluster sample the pulse once (note 6).
+function distinctSamples(tS: ArrayLike<number>, i: number, count: number, untilS: number): number {
+  const { distinctSampleS } = DSP_CONFIG.live;
+  let samples = 1;
+  let lastS = tS[i]!;
+  for (let k = i + 1; k < count && tS[k]! <= untilS + HALF_NS_S; k++) {
+    if (tS[k]! - lastS < distinctSampleS - HALF_NS_S) continue;
+    samples++;
+    lastS = tS[k]!;
+  }
+  return samples;
 }
 
 // The SQI-Net window ending at or before frame count − 1 (ADR 0023): 256 points of −R on the 64 Hz grid,

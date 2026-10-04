@@ -9,7 +9,7 @@ import torch
 from export import to_onnx, verify_onnx
 from export.provenance import TOLERANCE, ProvenanceError, load_metrics, trained_source
 from export.specs import SPECS
-from nets.rhythm_net import LABELS
+from nets.rhythm_net import FEATURES, LABELS
 from train import rhythm, rhythm_calibration, rhythm_logistic, rhythm_windows
 from train.rhythm import (
     TARGET_SPECIFICITY,
@@ -37,7 +37,7 @@ def windows_for(rows):
     mask = np.zeros((count, 64), np.float32)
     mask[:, :32] = 1.0
     labels, subjects, readings = zip(*rows, strict=True)
-    features = rng.normal(size=(count, 8)).astype(np.float32)
+    features = rng.normal(size=(count, FEATURES)).astype(np.float32)
     features[:, ATYPICAL_INDEX] = NEUTRAL_ATYPICAL_FRACTION
     return WindowSet(
         intervals,
@@ -297,13 +297,13 @@ def test_training_writes_metrics_the_manifest_accepts(trained_run):
     for row in network["ablation"]:
         assert float(row["subject specificity at τ_AF"].split()[0]) >= TARGET_SPECIFICITY
     assert any("atypical-beat fraction neutralized in v1" in note.lower() for note in network["notes"])
-    state = torch.load(trained_run / "rhythm-net@1.0.0.pt", weights_only=True)
+    state = torch.load(trained_run / SPECS["rhythm-net"].source_file, weights_only=True)
     assert float(state["temperature"]) == pytest.approx(network["calibration"]["temperature"])
 
 
 def test_trained_lightgbm_ignores_the_neutralized_feature(trained_run):
-    lgbm = pickle.loads((trained_run / "rhythm-lgbm@1.0.0.pkl").read_bytes())
-    features = np.random.default_rng(3).normal(size=(50, 8)).astype(np.float32)
+    lgbm = pickle.loads((trained_run / SPECS["rhythm-lgbm"].source_file).read_bytes())
+    features = np.random.default_rng(3).normal(size=(50, FEATURES)).astype(np.float32)
     np.testing.assert_array_equal(
         lgbm.predict_proba(with_atypical(features, 0.0)), lgbm.predict_proba(with_atypical(features, 0.42))
     )
@@ -371,16 +371,16 @@ def test_calibration_measured_after_training_matches_the_training_record(trained
 
 
 def test_calibration_refuses_windows_the_model_was_not_scored_on(trained_run):
-    before = (trained_run / "rhythm-lgbm@1.0.0.json").read_bytes()
+    before = (trained_run / f"{SPECS['rhythm-lgbm'].file_stem}.json").read_bytes()
     with pytest.raises(ProvenanceError, match="τ_AF"):
         rhythm_calibration.main(
             ["--runs-dir", str(trained_run), "--windows", str(val_cache(trained_run, "train.npz"))]
         )
-    assert (trained_run / "rhythm-lgbm@1.0.0.json").read_bytes() == before
+    assert (trained_run / f"{SPECS['rhythm-lgbm'].file_stem}.json").read_bytes() == before
 
 
 def test_calibration_refuses_a_model_file_changed_after_training(trained_run):
-    path = trained_run / "rhythm-lgbm@1.0.0.pkl"
+    path = trained_run / SPECS["rhythm-lgbm"].source_file
     path.write_bytes(path.read_bytes() + b"\0")
     with pytest.raises(ProvenanceError, match="sha256 differs"):
         rhythm_calibration.main(
@@ -416,7 +416,7 @@ def test_the_rule_refitted_on_the_run_cache_matches_its_training_record(trained_
     assert {key: value for key, value in after["calibration"].items() if key not in unkeyed} == {
         key: value for key, value in before["calibration"].items() if key not in unkeyed
     }
-    features = np.random.default_rng(5).normal(size=(40, 8)).astype(np.float32)
+    features = np.random.default_rng(5).normal(size=(40, FEATURES)).astype(np.float32)
     np.testing.assert_array_equal(
         pickle.loads(refitted.read_bytes()).predict_proba(features), trained.predict_proba(features)
     )

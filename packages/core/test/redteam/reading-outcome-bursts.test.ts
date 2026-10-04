@@ -12,9 +12,11 @@ import {
 } from '../../src';
 import { beatTimes, beatTrain, type Channels } from './attacks';
 
-// Red team PR #171 round 5 (at 9f38758): every 1 s of a model window needs live.minSubWindowFps (16)
-// distinct sample times, frames at least live.minSampleSpacingS apart, on top of the owner's 96 frames per
-// 4 s window (ADR 0077, implementation note 3). Invariants: a capture accepted as a
+// Red team PR #171 round 5 (at 9f38758). A model window is rejected when any 1 s of it holds fewer than
+// live.minSubWindowFps (16) frames, or two intervals between neighbouring frames longer than
+// live.maxFrameGapS (0.12 s) or live.maxSparseIntervalsPerS (5) longer than live.sparseIntervalS
+// (0.09 s), on top of the owner's 96 frames per 4 s window (ADR 0077, implementation notes 4 and 5; note 4
+// replaced note 3's count of distinct sample times). Invariants: a capture accepted as a
 // reading carries a heart rate within 5 bpm of its pulse (ANSI/AAMI EC13, as reading-outcome-edges), or it
 // is refused; live and saved agree; ordinary phones finish each mode. SQI is a fixed 0.9 stand-in for the
 // model; a still finger; batches of 3 frames, as reading-outcome-steps.
@@ -135,13 +137,13 @@ function clustered(totalS: number, gridFps: number, periodSteps: number, run: nu
   return steps.map((step) => Math.round((step * 1e9) / gridFps) / 1e9).filter((tS) => tS <= totalS);
 }
 
-describe('red team: clustered frames pass both frame counts but not the distinct-time count', () => {
+describe('red team: clustered frames pass both frame counts but not the interval test', () => {
   // 240 fps clock, 40 s, Quick. Each second holds 19 or 20 frames 4.2 ms apart and then
   // 6 frames about 150 ms apart: 100–104 frames per 4 s window and at least 25 in every 1 s, so both frame
   // counts pass. The beat signal is sampled at about 7 distinct times a second (a 3.5 Hz Nyquist rate), so
   // a 150–180 bpm pulse aliases: when every frame counted (9f38758) these read 85.5, 86.5, 38.6, 60.0 and
-  // 100.5 bpm with 40.00 clean s. Each run counts as about 5 sample times, so each second holds about 12
-  // and every window is rejected.
+  // 100.5 bpm with 40.00 clean s. Each second holds 5 or 6 intervals of 146–150 ms in a row, so every
+  // window is rejected.
   it.each([
     ['20-frame runs, then every 36 steps', 240, 20, 36, 180, false],
     ['19-frame runs, then every 35 steps', 240, 19, 35, 180, false],
@@ -163,16 +165,18 @@ describe('red team: clustered frames pass both frame counts but not the distinct
     expect(readingOutcome(analysis).kind).not.toBe('reading');
   });
 
-  // The same pattern with frames every 24 steps (100 ms): about 13 distinct times a second, under 16, so
-  // refused too, though it read within 1 bpm when every frame counted.
+  // After the run, a frame every 24 steps (100 ms): 9 intervals over live.sparseIntervalS each second.
+  // Note 3 refused it (about 13 distinct times a second), note 4 read it, and note 5 refuses it again: at
+  // that spacing a pulse's second harmonic aliases (red team round 7).
   it.each([75, 150, 200])('18-frame runs, then every 24 steps, %i bpm: refused', (bpm) => {
     const { analysis, liveCleanS } = replay(clustered(40, 240, 240, 18, 24), steadyPulse(bpm), 240);
     expect(liveCleanS).toBeCloseTo(analysis.cleanSeconds, 9);
+    expect(analysis.cleanSeconds).toBe(0);
     expect(readingOutcome(analysis).kind).not.toBe('reading');
   });
 
-  // Controls: every 16 steps (67 ms) or 12 steps (50 ms) gives about 17 or 22 distinct times a second, so
-  // the 1 s count passes, and every rate tried reads within 1 bpm.
+  // Controls: after the run, a frame every 16 steps (67 ms) or 12 steps (50 ms) keeps every interval within
+  // 0.09 s, so the pulse is sampled at 15 Hz or more and every rate tried reads within 1 bpm.
   it.each([
     [16, 75],
     [16, 150],
@@ -199,7 +203,7 @@ function alternating(totalS: number, sparseFps: number, denseFps: number, sparse
 }
 
 describe('red team: sparse seconds of 16–23 fps between dense ones', () => {
-  // Even sampling at 16 fps or more holds DSP-6's 8 Hz band, so these read right wherever both floors pass.
+  // Even sampling at 16 fps or more holds DSP-6's 8 Hz band, so these read right wherever every test passes.
   it.each([
     [16, 32, 1, 1],
     [17, 31, 1, 1],
@@ -239,7 +243,8 @@ describe('red team: ordinary phones finish every mode', () => {
   // 75 bpm, stopping when the live counter shows the mode's target; maxDurationS is the capture length a
   // user would sit through. 1–4 random drops per s finish Quick in 30.0–34.1 s on six seeds; 5 per s (25 fps
   // on average, just above the owner's 96 frames per 4 s) takes 34.0–51.1 s, from the 96-frame floor, not
-  // the 1 s rule. The same before and after the distinct-time count (implementation note 3).
+  // the 1 s rule. The same before and after the distinct-time count (implementation note 3); note 4's
+  // interval test leaves these within the same bounds.
   const throttled = (toS: number) => [...framesS(0, 10, 60), ...framesS(10 + 1 / 30, toS, 30)];
   const cases: [string, Mode, number, number, number[]][] = [
     ['30 fps, 1 random drop per s, seed 7919', 'quick', 30, 32, randomDrops(30, 80, 1, 7919)],

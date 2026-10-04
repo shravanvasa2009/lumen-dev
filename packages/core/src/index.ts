@@ -27,6 +27,7 @@ export type {
   RhythmMetric,
   RmssdMetric,
 } from './results';
+export { adaRisk, type AdaAnswers, type AdaRisk } from './ada-risk';
 export { DSP_CONFIG } from './config';
 export { buildTimebase, type Timebase } from './timebase';
 export { resampleCubic, type ResampledSegment } from './resample';

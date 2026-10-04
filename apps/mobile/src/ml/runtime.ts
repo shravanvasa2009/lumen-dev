@@ -1,7 +1,12 @@
 import { Asset } from 'expo-asset';
 import { CryptoDigestAlgorithm, digest } from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
-import { type DiabetesModelInput, SHAPE_FEATURE_NAMES } from '@lumen/core';
+import {
+  type DiabetesModelInput,
+  HR_SUMMARY_NAMES,
+  RHYTHM_FEATURE_NAMES,
+  SHAPE_FEATURE_NAMES,
+} from '@lumen/core';
 import type { InferenceSession } from 'onnxruntime-react-native';
 
 import { isRecord } from '../evidence';
@@ -93,6 +98,11 @@ function readShapes(value: unknown): Record<string, Shape> | null {
   return Object.values(value).every(isShape) ? (value as Record<string, Shape>) : null;
 }
 
+// A manifest array may carry its own `some`, `map` or iterator, or have holes; only length and indexes are trusted.
+function readByIndex(list: readonly unknown[]): unknown[] {
+  return Array.from({ length: list.length }, (_, index) => list[index]);
+}
+
 function sameShape(left: Shape, right: Shape): boolean {
   return left.length === right.length && left.every((dim, index) => dim === right[index]);
 }
@@ -102,27 +112,45 @@ function shapeSize(shape: Shape): number {
 }
 
 const diabetesFilledInputs = ['shapeFeatures', 'hrSummary'] as const;
+const coreFillNames = { shapeFeatures: SHAPE_FEATURE_NAMES, hrSummary: HR_SUMMARY_NAMES };
 
 function readFills(entry: Record<string, unknown>, inputs: Readonly<Record<string, Shape>>) {
   const { featureOrder, fillMedians } = entry;
   if (!isRecord(featureOrder) || !isRecord(fillMedians)) return 'it has no featureOrder or fillMedians';
   const fills: Record<string, number[]> = {};
   for (const input of diabetesFilledInputs) {
-    const names = featureOrder[input];
+    const listed = featureOrder[input];
     const width = inputs[input]?.[1];
-    if (!Array.isArray(names) || names.length !== width)
+    if (!Array.isArray(listed) || listed.length !== width)
       return `its featureOrder.${input} does not list the ${width} features of that input`;
-    // Core builds shapeFeatures in SHAPE_FEATURE_NAMES order; a manifest in another order would put each
-    // feature, and each null's median, in the wrong model slot. Core exports no name list for hrSummary
-    // yet, so that input is checked for width only.
-    if (input === 'shapeFeatures' && names.some((name, index) => name !== SHAPE_FEATURE_NAMES[index]))
-      return `its featureOrder.shapeFeatures is not core's order: ${SHAPE_FEATURE_NAMES.join(', ')}`;
+    // Core builds each input in its own name order; a manifest in another order would put each feature, and
+    // each null's median, in the wrong model slot.
+    const names = readByIndex(listed);
+    const coreNames: readonly string[] = coreFillNames[input];
+    if (!names.every((name, index) => name === coreNames[index]))
+      return `its featureOrder.${input} is not core's order: ${coreNames.join(', ')}`;
     const medians = names.map((name) => (typeof name === 'string' ? fillMedians[name] : undefined));
     if (!medians.every((median): median is number => typeof median === 'number' && Number.isFinite(median)))
       return `its fillMedians has no finite median for every ${input} feature`;
     fills[input] = medians;
   }
   return fills;
+}
+
+// Core lists the v1 features, then the v2 ones; a model reads the prefix its width names (ADR 0079). A
+// manifest in another name or order would put each feature in the wrong model slot with no error.
+function rhythmOrderMismatch(entry: Record<string, unknown>, inputs: Readonly<Record<string, Shape>>) {
+  const width = inputs.features?.[1];
+  // Without a `features` input nothing can be fed, and the load check reports that.
+  if (width === undefined) return null;
+  const listed = entry.featureOrder;
+  if (!Array.isArray(listed) || listed.length !== width)
+    return `its featureOrder does not list the ${width} rhythm features`;
+  const names = readByIndex(listed);
+  const expected = RHYTHM_FEATURE_NAMES.slice(0, width);
+  if (names.length > RHYTHM_FEATURE_NAMES.length || !names.every((name, index) => name === expected[index]))
+    return `its featureOrder is not core's order: ${RHYTHM_FEATURE_NAMES.join(', ')}`;
+  return null;
 }
 
 function readShipped(entry: Record<string, unknown>, family: ModelFamily): ShippedModel | string {
@@ -155,6 +183,8 @@ function readShipped(entry: Record<string, unknown>, family: ModelFamily): Shipp
   // The guard compares its one score (P(clean)) with that label's threshold (ADR 0038: pClean < threshold.clean).
   if (role === 'guard' && (labels.length !== 1 || typeof threshold[labels[0] as string] !== 'number'))
     return `${id} is a guard without one label and a numeric threshold for it`;
+  const orderMismatch = family === 'rhythm' ? rhythmOrderMismatch(entry, inputs) : null;
+  if (orderMismatch) return `${id} cannot be fed its features: ${orderMismatch}`;
   const fills = family === 'diabetes' ? readFills(entry, inputs) : {};
   if (typeof fills === 'string') return `${id} cannot be fed a missing value: ${fills}`;
   return {
@@ -357,9 +387,21 @@ async function scoreFamily(family: ModelFamily, feeds: ModelFeeds): Promise<Scor
   };
 }
 
+// ADR 0079: the core vector is the v1 features followed by the v2 ones, so a model declaring a narrower width
+// gets the leading values it was trained on. A window with fewer values than declared is left as it is, and
+// the input check refuses it with its reason.
+function rhythmFeedAtManifestWidth(feeds: ModelFeeds): ModelFeeds {
+  const plan = plans.rhythm;
+  const feed = feeds.features;
+  const width = 'model' in plan ? plan.model.inputs.features?.[1] : undefined;
+  if (feed === undefined || width === undefined || feed.values.length <= width) return feeds;
+  if (!sameShape(feed.dims, [1, feed.values.length])) return feeds;
+  return { ...feeds, features: { values: feed.values.slice(0, width), dims: [1, width] } };
+}
+
 // §11.3; the logistic-rule fallback is not in @lumen/core yet, so basic analysis has no value.
 export function classifyRhythm(feeds: ModelFeeds): Promise<ScoreOutcome> {
-  return scoreFamily('rhythm', feeds);
+  return scoreFamily('rhythm', rhythmFeedAtManifestWidth(feeds));
 }
 
 // §11.4; the logistic-regression fallback is not in @lumen/core yet, so basic analysis has no value.
@@ -368,7 +410,11 @@ export function scoreDiabetesPattern(feeds: ModelFeeds): Promise<ScoreOutcome> {
 }
 
 // §11.4: core leaves a feature it could not compute null; the model's training median stands in for it here.
-export function scoreDiabetesInput({ beat, shapeFeatures, hrSummary }: DiabetesModelInput): Promise<ScoreOutcome> {
+export function scoreDiabetesInput({
+  beat,
+  shapeFeatures,
+  hrSummary,
+}: DiabetesModelInput): Promise<ScoreOutcome> {
   const plan = plans.diabetes;
   if ('reason' in plan) return Promise.resolve(basic(plan.reason));
   const { inputs, fills } = plan.model;

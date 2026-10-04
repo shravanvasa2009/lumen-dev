@@ -2,6 +2,8 @@ import math
 import sys
 from collections.abc import Sequence
 
+from lumen_dsp.rhythm import RHYTHM_FEATURE_NAMES
+
 # Mirrors packages/core/src/rhythm-rule.ts: §11.1's logistic rhythm rule, from the `rule` block of the
 # rhythm-logistic manifest entry, with the same loops in the same order on plain Python floats (§10.2).
 
@@ -107,12 +109,19 @@ def check_rule(rule: dict, feature_count: int) -> dict:
 def rule_probs(rule: dict, features: Sequence[Sequence[float]], feature_count: int) -> list[list[float]]:
     # Per-window probabilities, in the rule's `classes` order.
     checked = check_rule(rule, feature_count)
-    message = f"each feature vector needs {feature_count} finite numbers"
+    # As in rhythm-rule.ts: the rule's own width or core's full width, every value finite, read or not; the
+    # rule reads its prefix, so a v1 rule keeps working on the wider v2 vector.
+    if feature_count > len(RHYTHM_FEATURE_NAMES):
+        raise RuleError(
+            f"the rule asks for {feature_count} features; core computes {len(RHYTHM_FEATURE_NAMES)}"
+        )
+    widths = (feature_count, len(RHYTHM_FEATURE_NAMES))
+    message = f"each feature vector needs {' or '.join(str(width) for width in widths)} finite numbers"
     vectors = []
     for vector in features:
-        if not isinstance(vector, Sequence) or isinstance(vector, str) or len(vector) != feature_count:
+        if not isinstance(vector, Sequence) or isinstance(vector, str) or len(vector) not in widths:
             raise RuleError(message)
-        vectors.append(_doubles(vector, message))
+        vectors.append(_doubles(vector, message)[:feature_count])
     indices, mean, scale = checked["featureIndices"], checked["mean"], checked["scale"]
     probs = []
     for vector in vectors:

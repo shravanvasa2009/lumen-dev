@@ -218,11 +218,32 @@ export const DSP_CONFIG = {
     // 26 fps mean. Only tightens the owner's floor.
     minSubWindowFps: 16,
     subWindowS: 1,
-    // ADR 0077 implementation note 3 (red team PR #171 round 5): the subWindowS count takes a frame only
-    // this long after the last one it took, so a run of frames 4.2 ms apart is one sample time, not 20.
-    // Under 30 fps spacing with jitter (33 ± a few ms); 60 fps counts every other frame (30/s) and 240 fps
-    // every 5th (48/s). 1/48 s is the double the JSON mirror spells as 0.020833333333333332.
-    minSampleSpacingS: 1 / 48,
+    // ADR 0077 implementation note 4 (red team PR #171 rounds 5 and 6): a model window is rejected when
+    // any subWindowS span of it holds two intervals between neighbouring frames longer than this; one lone
+    // longer interval, up to DSP-2's 0.15 s split, is splined over. rules.fastRegularBpm tops out at
+    // 220 bpm (3.67 Hz); 1 / (2.2 × 3.67 Hz) ≈ 0.124 s, rounded down for timing jitter. A 30 fps phone
+    // dropping 2 frames in a row (100 ms) never makes one; 3 in a row (133 ms) does.
+    maxFrameGapS: 0.12,
+    // ADR 0077 implementation note 5 (red team PR #171 round 7): a model window is also rejected when any
+    // subWindowS span of it holds maxSparseIntervalsPerS or more intervals longer than sparseIntervalS.
+    // DSP-7 finds beats in DSP-6's 0.5–8 Hz band (Nyquist spacing 62.5 ms), so a pulse's 2nd harmonic
+    // aliases under sustained ~100 ms spacing; red team measured even spacing ≤ 90 ms reading harmonics of
+    // 0.3–0.5× right and ≥ 100 ms failing. A 30 fps phone's 100 ms double drop comes about 0.8 times a
+    // second even at 5 random drops per second; 5 rather than 4 because 4 still slowed such phones by up to
+    // 8 s, while 5 slowed none measured and refused every round 7 case.
+    sparseIntervalS: 0.09,
+    maxSparseIntervalsPerS: 5,
+    // ADR 0077 implementation note 6 (red team PR #171 round 8): every subWindowS span also needs
+    // minDistinctSamplesPerS sample times at least distinctSampleS apart. The 2nd harmonic of 220 bpm is
+    // 7.33 Hz, whose Nyquist rate is 14.7 samples a second. 12 ms merges frames delivered in a clump; it is
+    // under the frame spacing at 30–60 fps, including 30 fps frames arriving in uneven pairs, and at 120 and
+    // 240 fps it counts every 2nd or 3rd frame (60 or 80 a second), still far above 15.
+    distinctSampleS: 0.012,
+    minDistinctSamplesPerS: 15,
+    // ADR 0077 implementation note 7 (red team PR #171 round 9, M): the longest run of sample times more than
+    // 68 ms apart. M's runs were 0.65–0.88 s and read 220 bpm as 110; 0.5 s refused all 7 M cases and slowed
+    // none of the ordinary-phone red-team cases (30 fps ±8 ms with up to 5 drops/s, 24/60/120/240 fps).
+    maxSparseRunS: 0.5,
     // Initial; flagged for Track B, who own motionRms. Appendix A gives no units: this assumes
     // gravity-free acceleration RMS in g (CoreMotion userAcceleration), where hand tremor at rest is
     // about 0.01 g and a deliberate move several times 0.05 g.

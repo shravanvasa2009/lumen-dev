@@ -13,6 +13,7 @@ import { ContextChip } from '@/measure/ContextChip';
 import { parseMode } from '@/measure/mode';
 import { conclusiveCount, READINGS_BEFORE_COLLAPSE, ReminderRows } from '@/measure/reminders';
 import { RestRing } from '@/measure/RestRing';
+import { ScanChecks } from '@/measure/ScanChecks';
 import { formatClock, REST_SECONDS, useRestTimer } from '@/measure/restTimer';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useStoredReadings } from '@/store/useStoredReadings';
@@ -53,7 +54,7 @@ export default function PrecheckScreen() {
       }
     >
       <Stack.Screen options={{ title: t('precheck.title') }} />
-      <ScrollView contentContainerStyle={{ gap: spacing.lg, paddingBottom: spacing.lg }}>
+      <ScrollView contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.md }}>
         <View style={{ alignItems: 'center', gap: spacing.sm }}>
           <RestRing
             elapsed={1 - remaining / REST_SECONDS}
@@ -63,7 +64,7 @@ export default function PrecheckScreen() {
           {remaining > 0 ? <Button label={t('precheck.skip')} variant="link" onPress={skip} /> : null}
         </View>
         <SectionLabel>{t('precheck.lastHours')}</SectionLabel>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           {chips.map(({ context, label, icon }) => (
             <ContextChip
               key={context}
@@ -74,6 +75,7 @@ export default function PrecheckScreen() {
             />
           ))}
         </View>
+        <ScanChecks mode={mode} />
         {folded ? (
           <Card flush>
             <ListRow

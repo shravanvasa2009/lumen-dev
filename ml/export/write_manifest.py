@@ -317,7 +317,7 @@ def manifest_entry(
     }
 
 
-def _rhythm_feature_order(spec: ModelSpec, metrics: dict) -> dict[str, list[str]]:
+def _rhythm_feature_order(spec: ModelSpec, metrics: dict) -> list[str]:
     # train.rhythm_windows.FEATURE_NAMES is the order the windows were built in; a training record that names
     # another order belongs to other code, so the release stops rather than ship mismatched names.
     names = list(FEATURE_NAMES)
@@ -326,7 +326,8 @@ def _rhythm_feature_order(spec: ModelSpec, metrics: dict) -> dict[str, list[str]
     recorded = metrics.get("featureOrder")
     if recorded is not None and list(recorded) != names:
         raise ValueError(f"{spec.name} was trained on features {recorded}, not {names}")
-    return {"features": names}
+    # A flat list, as the app's ML runtime reads it (the diabetes per-input dict is another contract).
+    return names
 
 
 def _table(rows: list[dict]) -> str:

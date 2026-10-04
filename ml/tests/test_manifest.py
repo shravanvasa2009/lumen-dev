@@ -315,7 +315,7 @@ def test_only_diabetes_entries_carry_the_feature_fill_and_rhythm_entries_name_th
         expected = ENTRY_FIELDS | ({"featureOrder"} if rhythm else set())
         assert set(entry) == expected | ({"rule"} if name == "rhythm-logistic" else set()), name
         if rhythm:
-            assert entry["featureOrder"] == {"features": list(FEATURE_NAMES)}, name
+            assert entry["featureOrder"] == list(FEATURE_NAMES), name
 
 
 def test_a_rule_without_column_selection_is_refused():

@@ -6,16 +6,14 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 
-from eval.bootstrap import cluster_bootstrap_ci
+from eval.bootstrap import ConfidenceInterval, cluster_bootstrap_ci
 from export.specs import RUNS_DIR
-from train.nhanes_questionnaire import MODEL_FILE, SEED, TEST_CYCLE, bang_points, load
+from train.nhanes_questionnaire import BANG_FLAG, MODEL_FILE, SEED, TEST_CYCLE, bang_points, load
 
-# Workspace docs/research/diabetes-fusion.md: the one-time test of the frozen questionnaire model on NHANES
-# 2017-18.
-# The hash was recorded there before cycle J was first read; any other model file is refused.
+# ADR 0091: the one-time test of the frozen questionnaire model on NHANES 2017-18. The hash was recorded in
+# the pre-registration before cycle J was first read; any other model file is refused.
 FROZEN_SHA256 = "bed7718cb214e501d6b749db9022bbd0a768d3390785feb3b611588cc8a66a5e"
 REPORT_FILE = "nhanes-test.json"
-BANG_FLAG = 5
 
 
 class NhanesTestRefusedError(Exception):
@@ -37,9 +35,18 @@ def questionnaire_logit(formula: dict, frame: pd.DataFrame) -> np.ndarray:
     return standardised @ np.array(formula["coef"]) + formula["intercept"]
 
 
+def interval_json(interval: ConfidenceInterval) -> dict:
+    return {
+        "estimate": interval.estimate,
+        "low": interval.low,
+        "high": interval.high,
+        "undefinedResamples": interval.undefined_resamples,
+    }
+
+
 def auroc_ci(labels: np.ndarray, scores: np.ndarray) -> dict:
     interval = cluster_bootstrap_ci(np.arange(len(labels)), labels, scores, roc_auc_score, seed=SEED)
-    return {"estimate": interval.estimate, "low": interval.low, "high": interval.high}
+    return interval_json(interval)
 
 
 def paired_delta(labels: np.ndarray, model_scores: np.ndarray, bang_scores: np.ndarray) -> dict:
@@ -48,7 +55,7 @@ def paired_delta(labels: np.ndarray, model_scores: np.ndarray, bang_scores: np.n
 
     pairs = np.column_stack([model_scores, bang_scores])
     interval = cluster_bootstrap_ci(np.arange(len(labels)), labels, pairs, delta, seed=SEED)
-    return {"estimate": interval.estimate, "low": interval.low, "high": interval.high}
+    return interval_json(interval)
 
 
 def sensitivity_specificity(labels: np.ndarray, flagged: np.ndarray) -> dict:

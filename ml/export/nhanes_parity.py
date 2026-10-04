@@ -23,7 +23,7 @@ def parity_cases(frozen: dict) -> list[dict]:
             "familyHistory": family,
             "hypertension": pressure,
             "physicallyActive": active,
-            "gestationalDiabetes": gestational if not male else 0.0,
+            "gestationalDiabetes": gestational,
         }
         for age, bmi in itertools.product(AGES, BMIS)
         for male, family, pressure, active, gestational in itertools.product(YES_NO, repeat=5)

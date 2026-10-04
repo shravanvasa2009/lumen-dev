@@ -63,6 +63,7 @@ def test_borderline_and_lab_values_below_the_cut_off_are_not_diabetes():
         {"BPQ020": 9.0},
         {"PAQ650": np.nan, "PAQ665": 9.0},
         {"BMXWT": np.nan},
+        {"BMXWT": 30.0},
         {"DIQ010": 9.0, "LBXGH": np.nan},
     ],
 )
@@ -70,8 +71,23 @@ def test_people_without_the_answers_or_a_label_are_left_out(changes):
     assert answers(**changes).empty
 
 
-def test_not_knowing_about_a_relative_counts_as_no():
-    assert answers(MCQ300C=9.0).iloc[0].familyHistory == 0
+@pytest.mark.parametrize("code", [7.0, 9.0, np.nan])
+def test_refusing_or_not_knowing_about_a_relative_counts_as_no(code):
+    assert answers(MCQ300C=code).iloc[0].familyHistory == 0
+
+
+def test_each_exclusion_is_counted_once_at_its_first_failing_step():
+    raw = pd.DataFrame(
+        [
+            raw_participant(),
+            raw_participant(SEQN=2.0, RIDAGEYR=15.0, BPQ020=9.0),
+            raw_participant(SEQN=3.0, BPQ020=9.0),
+        ]
+    )
+    counts = nq.exclusion_counts(raw)
+    assert counts["participants"] == 3 and counts["included"] == 1
+    assert counts["excludedAt"]["age20OrOlder"] == 1 and counts["excludedAt"]["bloodPressureAnswered"] == 1
+    assert sum(counts["excludedAt"].values()) == 2
 
 
 def test_either_recreational_activity_counts_as_active():
@@ -157,6 +173,7 @@ def test_the_report_compares_the_model_with_the_points_on_the_same_people():
         report["model"]["estimate"] - report["bang"]["estimate"]
     )
     assert report["success"] == (report["deltaModelMinusBang"]["low"] > 0)
+    assert report["model"]["undefinedResamples"] == 0
 
 
 def test_parity_cases_carry_the_formula_logit_and_never_give_men_gestational_diabetes():
@@ -167,3 +184,13 @@ def test_parity_cases_carry_the_formula_logit_and_never_give_men_gestational_dia
     assert np.allclose(replayed, [case["logit"] for case in cases])
     assert all(case["higherRisk"] == (case["logit"] >= 0.0) for case in cases)
     assert not any(case["male"] and case["gestationalDiabetes"] for case in cases)
+
+
+def test_the_cut_matches_the_specificity_of_bang_five_or_more():
+    labels = np.array([0] * 10 + [1] * 2)
+    points = np.array([0, 1, 2, 3, 4, 5, 6, 7, 1, 2, 6, 7])
+    logits = np.arange(12, dtype=float)
+    cut = nq.matched_specificity_threshold(points, logits, labels)
+    assert np.mean(logits[labels == 0] < cut) == pytest.approx(
+        np.mean(points[labels == 0] < nq.BANG_FLAG), abs=0.1
+    )

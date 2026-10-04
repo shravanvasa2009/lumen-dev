@@ -14,8 +14,8 @@ from datasets import registry
 from export.specs import RUNS_DIR
 from train.ada_risk import ada_risk
 
-# Workspace docs/research/diabetes-fusion.md (pre-registered 2026-10-04): a questionnaire model on NHANES,
-# trained on cycles G, H and I; cycle J (2017-18) is the held-out test and is read only by eval.nhanes_test.
+# ADR 0091 (pre-registered 2026-10-04): a questionnaire model on NHANES, trained on cycles G, H and I; cycle J
+# (2017-18) is the held-out test and is read only by eval.nhanes_test.
 TRAIN_CYCLES = ("G", "H", "I")
 TEST_CYCLE = "J"
 DATASET_OF_CYCLE = {"G": "nhanes", "H": "nhanes", "I": "nhanes", "J": "nhanes-2017"}
@@ -33,35 +33,56 @@ INPUTS = [
 # ADA 2024 diagnostic cut-offs: HbA1c ≥ 6.5 % or fasting plasma glucose ≥ 126 mg/dL.
 HBA1C_DIABETES, FASTING_GLUCOSE_DIABETES = 6.5, 126.0
 MIN_AGE_YEARS = 20
+BANG_FLAG = 5
 YES, NO = 1.0, 2.0
 SEED = 20261004
 MODEL_FILE = "nhanes-questionnaire-model.json"
+EXCLUSIONS_FILE = "nhanes-exclusions.json"
 # LightGBM's monotone constraints in INPUTS order: activity lowers risk, every other answer raises it.
+# https://lightgbm.readthedocs.io/en/latest/Parameters.html#monotone_constraints
 MONOTONE = [1, 1, 1, 1, 1, -1, 1]
 
 
 def read_cycle(cycle: str) -> pd.DataFrame:
     key = DATASET_OF_CYCLE[cycle]
     folder = next(dataset for dataset in registry.DATASETS if dataset.key == key).local_dir
+    # SAS transport files, https://pandas.pydata.org/docs/reference/api/pandas.read_sas.html
     merged = pd.read_sas(folder / f"DEMO_{cycle}.xpt")
     for table in TABLES[1:]:
         merged = merged.merge(pd.read_sas(folder / f"{table}_{cycle}.xpt"), on="SEQN", how="left")
     return merged
 
 
+def inclusion_steps(raw: pd.DataFrame) -> dict[str, pd.Series]:
+    # In the order the exclusions are counted. RIDSTATR 2 = interviewed and examined; RIDEXPRG 1 = pregnant at
+    # the exam (BMI and glucose differ). A label needs a diabetes answer (borderline = 3) or a lab value.
+    bmi = raw.BMXWT / (raw.BMXHT / 100) ** 2
+    return {
+        "examined": raw.RIDSTATR == 2,
+        "age20OrOlder": raw.RIDAGEYR >= MIN_AGE_YEARS,
+        "notPregnant": raw.RIDEXPRG != 1,
+        "bmi10To100": bmi.between(10, 100),
+        "bloodPressureAnswered": raw.BPQ020.isin([YES, NO]),
+        "activityAnswered": raw.PAQ650.isin([YES, NO]) | raw.PAQ665.isin([YES, NO]),
+        "labelKnown": raw.DIQ010.isin([YES, NO, 3.0]) | raw.LBXGH.notna() | raw.LBXGLU.notna(),
+    }
+
+
+def exclusion_counts(raw: pd.DataFrame) -> dict[str, int]:
+    remaining = pd.Series(True, index=raw.index)
+    dropped = {}
+    for step, keep in inclusion_steps(raw).items():
+        dropped[step] = int((remaining & ~keep).sum())
+        remaining &= keep
+    return {"participants": len(raw), "excludedAt": dropped, "included": int(remaining.sum())}
+
+
 def answers_and_label(raw: pd.DataFrame, cycle: str) -> pd.DataFrame:
-    # RIDSTATR 2 = interviewed and examined; RIDEXPRG 1 = pregnant at the exam (BMI and glucose differ).
-    adults = raw[(raw.RIDSTATR == 2) & (raw.RIDAGEYR >= MIN_AGE_YEARS) & (raw.RIDEXPRG != 1)]
+    adults = raw[np.logical_and.reduce(list(inclusion_steps(raw).values()))]
     bmi = adults.BMXWT / (adults.BMXHT / 100) ** 2
     female = adults.RIAGENDR == 2
     diagnosed = adults.DIQ010 == YES
     lab_positive = (adults.LBXGH >= HBA1C_DIABETES) | (adults.LBXGLU >= FASTING_GLUCOSE_DIABETES)
-    answered = (
-        bmi.between(10, 100)
-        & adults.BPQ020.isin([YES, NO])
-        & (adults.PAQ650.isin([YES, NO]) | adults.PAQ665.isin([YES, NO]))
-        & (adults.DIQ010.isin([YES, NO, 3.0]) | adults.LBXGH.notna() | adults.LBXGLU.notna())
-    )
     # "Don't know" about a relative counts as no, as it would in the app's yes/no question.
     frame = pd.DataFrame(
         {
@@ -79,7 +100,7 @@ def answers_and_label(raw: pd.DataFrame, cycle: str) -> pd.DataFrame:
             "examWeight": adults.WTMEC2YR,
         }
     )
-    return frame[answered.to_numpy()].reset_index(drop=True)
+    return frame.reset_index(drop=True)
 
 
 def load(cycles: tuple[str, ...]) -> pd.DataFrame:
@@ -161,8 +182,18 @@ def frozen_form(name: str, model) -> dict:
     return {"kind": "lightgbm", "inputs": INPUTS, "booster": model.booster_.model_to_string()}
 
 
+def matched_specificity_threshold(points: np.ndarray, logits: np.ndarray, labels: np.ndarray) -> float:
+    # The logit cut whose specificity on these people matches Bang ≥ 5's, for a like-for-like sensitivity.
+    bang_specificity = float(np.mean(points[labels == 0] < BANG_FLAG))
+    return float(np.quantile(logits[labels == 0], bang_specificity))
+
+
 def main() -> None:
-    argparse.ArgumentParser(description=__doc__).parse_args()
+    argparse.ArgumentParser(description="Train and freeze the NHANES questionnaire model").parse_args()
+    exclusions = {cycle: exclusion_counts(read_cycle(cycle)) for cycle in TRAIN_CYCLES}
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    (RUNS_DIR / EXCLUSIONS_FILE).write_text(json.dumps(exclusions, indent=2), encoding="utf-8")
+    print(f"exclusions by cycle: {json.dumps(exclusions)}")
     frame = load(TRAIN_CYCLES)
     print(f"training cycles {TRAIN_CYCLES}: {len(frame)} adults, {int(frame.diabetes.sum())} with diabetes")
     scores = leave_one_cycle_out(frame)
@@ -173,10 +204,8 @@ def main() -> None:
         )
     chosen = max(CANDIDATES, key=lambda name: np.mean(scores[name]))
     model = CANDIDATES[chosen](frame)
-    points = bang_points(frame)
-    # The training threshold whose specificity matches Bang ≥ 5's, for the secondary sensitivity/specificity.
-    bang_specificity = float(np.mean(points[frame.diabetes == 0] < 5))
-    threshold = float(np.quantile(logit(model, frame)[frame.diabetes == 0], bang_specificity))
+    labels = frame.diabetes.to_numpy()
+    threshold = matched_specificity_threshold(bang_points(frame), logit(model, frame), labels)
     frozen = {
         "chosen": chosen,
         "model": frozen_form(chosen, model),
@@ -187,7 +216,6 @@ def main() -> None:
         "leaveOneCycleOut": scores,
     }
     body = json.dumps(frozen, sort_keys=True)
-    RUNS_DIR.mkdir(parents=True, exist_ok=True)
     (RUNS_DIR / MODEL_FILE).write_text(body, encoding="utf-8")
     print(f"chose {chosen}; frozen {MODEL_FILE} sha256 {hashlib.sha256(body.encode()).hexdigest()}")
 

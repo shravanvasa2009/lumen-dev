@@ -213,3 +213,36 @@ describe('urgent heart rates (SAFE-1)', () => {
     expect(await listReadings()).toEqual([]);
   });
 });
+
+describe('a failed analysis keeps the urgent flags (SAFE-1)', () => {
+  const urgent = { fastSustained: true, slowBelow40: false };
+
+  it('keeps them when the save fails', async () => {
+    jest.mocked(analyzeKeptCapture).mockImplementation(async (_capture, _request, _report, reportUrgent) => {
+      reportUrgent(urgent);
+      return { ...analysedReading(), urgent };
+    });
+    const database = await lumenDatabase();
+    jest.spyOn(database, 'runAsync').mockRejectedValueOnce(new Error('disk full'));
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('failed'));
+    expect(analysis.current).toMatchObject({ reason: 'disk full', urgent });
+  });
+
+  it('keeps them when a step after the outcome throws', async () => {
+    jest.mocked(analyzeKeptCapture).mockImplementation(async (_capture, _request, _report, reportUrgent) => {
+      reportUrgent(urgent);
+      throw new Error('rhythm model unavailable');
+    });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('failed'));
+    expect(analysis.current).toMatchObject({ reason: 'rhythm model unavailable', urgent });
+  });
+
+  it('has no flags when the failure came before the outcome', async () => {
+    jest.mocked(analyzeKeptCapture).mockRejectedValue(new Error('no frames'));
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('failed'));
+    expect(analysis.current).toMatchObject({ urgent: null });
+  });
+});

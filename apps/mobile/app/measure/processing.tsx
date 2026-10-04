@@ -20,7 +20,7 @@ export default function ProcessingScreen() {
   // SAFE-1 (ADR 0076): the urgent heart-rate flags win over the outcome kind, so a refused capture can still
   // open Emergency. A sustained fast rate goes straight there; a rate under 40 asks the symptom question first.
   const urgent =
-    analysis.phase === 'done'
+    analysis.phase === 'done' || analysis.phase === 'failed'
       ? analysis.urgent
       : analysis.phase === 'inconclusive'
         ? (analysis.outcome?.urgent ?? null)

@@ -63,7 +63,9 @@ async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs |
     if (sinus === undefined || af === undefined || other === undefined || typeof cut !== 'number')
       throw new Error('the rhythm model must score sinus, af and other and give an af threshold');
     if (!isProbabilityRow([sinus, af, other])) {
-      console.warn('rhythm model returned a row that is not a probability row; the reading has no rhythm card');
+      console.warn(
+        'rhythm model returned a row that is not a probability row; the reading has no rhythm card',
+      );
       return null;
     }
     windowProbs.push([sinus, af, other]);
@@ -106,6 +108,7 @@ export async function analyzeKeptCapture(
   capture: KeptCapture,
   request: AnalysisRequest,
   report: (progress: AnalysisProgress) => void,
+  reportUrgent: (urgent: UrgentHeartRate | null) => void,
 ): Promise<AnalysedReading | InconclusiveOutcome> {
   const recordedMs = Date.now();
   const context: ReadingContext = {
@@ -126,6 +129,8 @@ export async function analyzeKeptCapture(
   const analysis = analyzeReading({ samples: capture.samples, stats: capture.stats }, context);
   // Spec 07: too little clean signal is not a reading, so nothing past this point runs for it.
   const outcome = readingOutcome(analysis);
+  // Before any step that can throw (profile, model, save): a later failure must not hide an emergency.
+  reportUrgent(outcome.urgent);
   if (outcome.kind === 'inconclusive') return outcome;
   const detected = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');
   const counts = {

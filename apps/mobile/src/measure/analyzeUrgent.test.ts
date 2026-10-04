@@ -5,8 +5,12 @@ import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { analyzeKeptCapture } from './analyzeKeptCapture';
 import type { KeptCapture } from './keptCapture';
 
+let mockRhythmFails = false;
 jest.mock('../ml/runtime', () => ({
-  classifyRhythm: async () => ({ source: 'basic', value: null, reason: 'no model in this test' }),
+  classifyRhythm: async () => {
+    if (mockRhythmFails) throw new Error('rhythm model unavailable');
+    return { source: 'basic', value: null, reason: 'no model in this test' };
+  },
   scoreDiabetesInput: async () => ({ source: 'basic', value: null, reason: 'no model in this test' }),
 }));
 
@@ -31,21 +35,55 @@ function pulseAt(bpm: number): KeptCapture {
 
 const request = { mode: 'full', restTimerDone: true } as const;
 
-beforeEach(() => emptyMockDatabases());
+beforeEach(() => {
+  emptyMockDatabases();
+  mockRhythmFails = false;
+});
 
 describe('the outcome computed for a capture carries its urgent flags', () => {
   it('flags a sustained fast rate at rest', async () => {
-    const analysed = await analyzeKeptCapture(pulseAt(170), request, () => {});
+    const analysed = await analyzeKeptCapture(
+      pulseAt(170),
+      request,
+      () => {},
+      () => {},
+    );
     expect(analysed.urgent).toEqual({ fastSustained: true, slowBelow40: false });
   });
 
   it('flags a rate under 40', async () => {
-    const analysed = await analyzeKeptCapture(pulseAt(35), request, () => {});
+    const analysed = await analyzeKeptCapture(
+      pulseAt(35),
+      request,
+      () => {},
+      () => {},
+    );
     expect(analysed.urgent).toEqual({ fastSustained: false, slowBelow40: true });
   });
 
   it('flags nothing for an ordinary rate', async () => {
-    const analysed = await analyzeKeptCapture(pulseAt(70), request, () => {});
+    const analysed = await analyzeKeptCapture(
+      pulseAt(70),
+      request,
+      () => {},
+      () => {},
+    );
     expect(analysed.urgent).toBeNull();
+  });
+});
+
+describe('a failure after the outcome keeps the urgent flags', () => {
+  it('reports them before the rhythm step throws', async () => {
+    mockRhythmFails = true;
+    const reported: unknown[] = [];
+    await expect(
+      analyzeKeptCapture(
+        pulseAt(170),
+        request,
+        () => {},
+        (urgent) => reported.push(urgent),
+      ),
+    ).rejects.toThrow('rhythm model unavailable');
+    expect(reported).toEqual([{ fastSustained: true, slowBelow40: false }]);
   });
 });

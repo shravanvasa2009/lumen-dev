@@ -119,7 +119,7 @@ describe('processing screen', () => {
       rejectedBeats: 6,
       outputs: { afib: true, hrv: true, diabetes: false },
     };
-    mockAnalysis = { phase: 'failed', progress: finished, reason: 'kept on screen' };
+    mockAnalysis = { phase: 'failed', progress: finished, reason: 'kept on screen', urgent: null };
     renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
     expect(screen.getAllByText(en['checks.state.ready'])).toHaveLength(2);
     expect(screen.getAllByText(en['checks.state.notRun'])).toHaveLength(1);
@@ -140,7 +140,7 @@ describe('processing screen', () => {
       rejectedBeats: 6,
       outputs: { afib: true, hrv: true, diabetes: true },
     };
-    mockAnalysis = { phase: 'failed', progress: finished, reason: 'kept on screen' };
+    mockAnalysis = { phase: 'failed', progress: finished, reason: 'kept on screen', urgent: null };
     renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
     expect(screen.getAllByText(en['mode.locked60fps'])).toHaveLength(2);
     expect(screen.getAllByText(en['checks.state.ready'])).toHaveLength(1);
@@ -273,5 +273,51 @@ describe('urgent heart rates (SAFE-1, ADR 0076)', () => {
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
     expect(route.getPathname()).toBe('/measure/inconclusive');
     expect(screen.queryByText(en['safety.question'])).toBeNull();
+  });
+
+  it('dismissing the question with the scrim continues like No', () => {
+    mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo', urgent: slow };
+    const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+    fireEvent.press(screen.getByLabelText(en['safety.dismiss']));
+    expect(route.getPathname()).toBe('/results/demo');
+  });
+
+  describe('when the analysis failed after the outcome', () => {
+    const failedWith = (urgent: UrgentHeartRate | null): AnalysisState => ({
+      phase: 'failed',
+      progress: finished,
+      reason: 'disk full',
+      urgent,
+    });
+
+    it('opens Emergency for a sustained fast rate', () => {
+      mockAnalysis = failedWith(fast);
+      const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+      expect(route.getPathname()).toBe('/emergency');
+    });
+
+    it('asks the question for a rate under 40, Yes opens Emergency, No shows the failed screen', () => {
+      mockAnalysis = failedWith(slow);
+      const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+      expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+      fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+      expect(route.getPathname()).toBe('/measure/processing');
+      expect(screen.getByText(en['processing.failed'])).toBeOnTheScreen();
+    });
+
+    it('opens Emergency on Yes', () => {
+      mockAnalysis = failedWith(slow);
+      const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+      fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
+      expect(route.getPathname()).toBe('/emergency');
+    });
+
+    it('keeps the failed screen when there are no flags', () => {
+      mockAnalysis = failedWith(null);
+      const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
+      expect(route.getPathname()).toBe('/measure/processing');
+      expect(screen.queryByText(en['safety.question'])).toBeNull();
+      expect(screen.getByText(en['processing.failed'])).toBeOnTheScreen();
+    });
   });
 });

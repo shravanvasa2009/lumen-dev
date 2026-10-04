@@ -102,7 +102,8 @@ export async function replayFolder(folder, { rhythmFromLabel = false } = {}) {
   const label = rhythmFromLabel ? rhythmLabel(meta) : null;
   const context = contextFromMeta(meta, samples, label);
   const analysis = core.analyzeReading({ samples, stats }, context);
-  // As in the app (analyzeKeptCapture): a refused capture gets no ReadingResult at all, only its outcome.
+  // readingOutcome is the refusal contract (#171, ADR 0072): a refused capture is not a reading, so it gets
+  // no ReadingResult, only its outcome. The app's Inconclusive route is to apply the same contract.
   const outcome = core.readingOutcome(analysis);
   const provenance = {
     coreCommit: coreCommit(),

@@ -87,7 +87,7 @@ describe('replay on a clean synthetic capture (CLI end to end)', () => {
 });
 
 describe('replayFolder', () => {
-  it('refuses a capture with no finger as the app does: its outcome only, no ReadingResult', async () => {
+  it('refuses a capture with no finger per readingOutcome: its outcome only, no ReadingResult', async () => {
     const folder = path.join(scratch, 'finger-off');
     writeSyntheticCapture(folder, { seconds: 30, fingerOff: true });
     const { output } = await replayFolder(folder);

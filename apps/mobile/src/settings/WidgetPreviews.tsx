@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { Icon, type IconName } from '@/components/Icon';
+import { evidenceFor } from '@/evidence';
 import { useTheme } from '@/theme';
 import tokens from '@/theme/tokens.json';
 
@@ -16,6 +19,20 @@ const LOCK_CIRCLE_SIZE = 64;
 const PILL_MIN_HEIGHT = 40;
 const BUTTON_COLUMN_WIDTH = 132;
 const LOCK_DOT_SIZE = 10;
+const SMALL_CHECK_ICON_SIZE = 11;
+const MEDIUM_CHECK_ICON_SIZE = 12;
+const CHECK_NAME_SIZE = 12;
+const CHECK_TAG_SIZE = 9;
+const CHECK_GAP = 8;
+
+// Same order and shapes as the real widgets: AFib, POTS, HRV, Diabetes.
+const CHECKS = [
+  { icon: 'pulse', nameKey: 'widgets.checkAfib' },
+  { icon: 'standing', nameKey: 'widgets.checkPots' },
+  { icon: 'bars', nameKey: 'widgets.checkHrv' },
+  { icon: 'drop', nameKey: 'widgets.checkDiabetes' },
+] as const satisfies readonly { icon: IconName; nameKey: string }[];
+
 function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
   const { colors, radius, spacing } = useTheme();
   return (
@@ -67,7 +84,14 @@ export function SmallWidgetPreview({ status, detail, action }: SmallWidgetProps)
   return (
     <WidgetFrame width={SMALL_SIZE}>
       <View style={styles.spread}>
-        <LumenMark size={SMALL_MARK_SIZE} color={colors.accent} />
+        <View style={[styles.logoRow, { gap: spacing.sm }]}>
+          <LumenMark size={SMALL_MARK_SIZE} color={colors.accent} />
+          <View style={[styles.logoRow, { gap: spacing.xs }]}>
+            {CHECKS.map(({ icon }) => (
+              <Icon key={icon} name={icon} size={SMALL_CHECK_ICON_SIZE} color={colors.textDim} />
+            ))}
+          </View>
+        </View>
         <View style={[styles.dot, { backgroundColor: colors.accent, marginTop: spacing.xs }]} />
       </View>
       <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
@@ -118,7 +142,53 @@ export function MediumWidgetPreview({ name, reading, unit, status, checkNow, ful
           <PreviewPill label={fullScan} filled={false} />
         </View>
       </View>
+      <FourChecksRow />
     </WidgetFrame>
+  );
+}
+
+// The Diabetes tag is the evidence label's word and shows only while that label is Experimental (EVID-1).
+function FourChecksRow() {
+  const { t } = useTranslation();
+  const { colors, radius, spacing } = useTheme();
+  const tagged = evidenceFor('diabetes').label === 'experimental';
+  return (
+    <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+      <View style={{ height: 1, backgroundColor: colors.line }} />
+      <View style={[styles.logoRow, { gap: CHECK_GAP }]}>
+        {CHECKS.map(({ icon, nameKey }) => (
+          <View key={icon} style={[styles.logoRow, { gap: spacing.xs }]}>
+            <Icon name={icon} size={MEDIUM_CHECK_ICON_SIZE} color={colors.accent} />
+            <AppText
+              style={{ fontSize: CHECK_NAME_SIZE, lineHeight: CHECK_NAME_SIZE + 4, fontWeight: '500' }}
+            >
+              {t(nameKey)}
+            </AppText>
+          </View>
+        ))}
+        {tagged ? (
+          <View
+            style={{
+              paddingHorizontal: spacing.xs + 2,
+              paddingVertical: 1,
+              borderRadius: radius.pill,
+              backgroundColor: colors.badgeExperimentalBg,
+            }}
+          >
+            <AppText
+              style={{
+                color: colors.badgeExperimentalFg,
+                fontSize: CHECK_TAG_SIZE,
+                lineHeight: CHECK_TAG_SIZE + 4,
+                fontWeight: '600',
+              }}
+            >
+              {t('evidence.experimental')}
+            </AppText>
+          </View>
+        ) : null}
+      </View>
+    </View>
   );
 }
 

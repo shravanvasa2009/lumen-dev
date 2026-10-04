@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
@@ -23,6 +23,9 @@ import { MetricCard } from './MetricCard';
 import { PotsCard } from './PotsCard';
 import { rhythmWords } from './rhythmWords';
 import { SafetySheet } from './SafetySheet';
+
+const NARROW_WIDTH = 400;
+const LARGE_TEXT_SCALE = 1.3;
 
 function headlineText(t: TFunction, reading: FixtureReading): string {
   const { headlineKey, metrics } = reading.scan;
@@ -56,6 +59,9 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { colors, radius, spacing } = useTheme();
+  // Side by side the labels wrap on a 360 dp phone or at large text, so the buttons stack there instead.
+  const { width, fontScale } = useWindowDimensions();
+  const stackFooter = width < NARROW_WIDTH || fontScale > LARGE_TEXT_SCALE;
   const scan = reading.scan;
   const { hr, rhythm, rmssd, diabetes } = scan.metrics;
   const acuteFlag = Boolean(hr?.flag) || Boolean(rhythm?.flag);
@@ -87,15 +93,15 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   return (
     <Screen
       footer={
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
-          <View style={{ flex: 1 }}>
+        <View testID="results-footer" style={{ flexDirection: stackFooter ? 'column' : 'row', gap: spacing.md }}>
+          <View style={stackFooter ? undefined : { flex: 1 }}>
             <Button
               label={t('results.showWhy')}
               variant="secondary"
               onPress={() => router.push(`/results/${reading.id}/why`)}
             />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={stackFooter ? undefined : { flex: 1 }}>
             <Button label={t('results.share')} onPress={() => router.push(`/report/${reading.id}`)} />
           </View>
         </View>

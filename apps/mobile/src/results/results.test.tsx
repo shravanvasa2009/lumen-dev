@@ -18,6 +18,12 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => mockScheme,
 }));
 
+const mockWindow = { width: 412, fontScale: 1 };
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({ width: mockWindow.width, height: 900, scale: 2.6, fontScale: mockWindow.fontScale }),
+}));
+
 const mockEvidence = { diabetesPassed: false };
 jest.mock('@/evidence', () => {
   const actual = jest.requireActual('@/evidence');
@@ -55,6 +61,8 @@ describe.each([
 ] as const)('results in the %s theme', (scheme, colors) => {
   beforeEach(() => {
     mockScheme = scheme;
+    mockWindow.width = 412;
+    mockWindow.fontScale = 1;
     mockEvidence.diabetesPassed = false;
     mockDemo.withoutPattern = false;
   });
@@ -154,13 +162,28 @@ describe.each([
     expect(screen.getByText(en['accuracy.heartRate'])).toBeOnTheScreen();
   });
 
-  it('lets card headers shrink and keeps the badges and footer labels on one line', () => {
+  it('lets card headers shrink', () => {
     openResults('demo');
     const heading = screen.getByText(en['results.heartRhythm']);
     expect(StyleSheet.flatten(heading.props.style).flexShrink).toBe(1);
-    const label = screen.getByText(en['results.showWhy']);
-    expect(label.props.numberOfLines).toBe(1);
-    expect(label.props.adjustsFontSizeToFit).toBe(true);
+  });
+
+  it('stacks the footer buttons on a narrow phone or at large text, and keeps one row otherwise', () => {
+    const footerDirection = () =>
+      StyleSheet.flatten(screen.getByTestId('results-footer').props.style).flexDirection;
+    mockWindow.width = 360;
+    mockWindow.fontScale = 1;
+    openResults('demo');
+    expect(footerDirection()).toBe('column');
+    expect(screen.getByRole('button', { name: en['results.showWhy'] })).toBeOnTheScreen();
+    screen.unmount();
+    mockWindow.width = 412;
+    openResults('demo');
+    expect(footerDirection()).toBe('row');
+    screen.unmount();
+    mockWindow.fontScale = 1.6;
+    openResults('demo');
+    expect(footerDirection()).toBe('column');
   });
 
   it('names the AFib check on the rhythm card', () => {

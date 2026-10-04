@@ -52,8 +52,25 @@ describe('adaRisk (Bang 2009 points, twin of ml/train/ada_risk.py)', () => {
   });
 
   it('flags at 5 points or more', () => {
-    expect(score({ ageYears: 60, male: true })).toEqual({ points: 4, flagged: false });
-    expect(score({ ageYears: 60, male: true, hypertension: true })).toEqual({ points: 5, flagged: true });
+    expect(score({ ageYears: 60, male: true })).toMatchObject({ points: 4, flagged: false });
+    expect(score({ ageYears: 60, male: true, hypertension: true })).toMatchObject({
+      points: 5,
+      flagged: true,
+    });
+  });
+
+  it('breaks the points down per answer for the card, summing to points', () => {
+    const risk = score({ ageYears: 52, male: true, familyHistory: true, physicallyActive: true, bmi: 31 });
+    expect(risk?.breakdown).toEqual({
+      age: 2,
+      sex: 1,
+      familyHistory: 1,
+      hypertension: 0,
+      physicallyActive: -1,
+      bmi: 2,
+    });
+    expect(risk?.points).toBe(5);
+    expect(Object.is(score()?.breakdown.physicallyActive, 0)).toBe(true);
   });
 
   it.each([0, 13, 17, 19])('age %d has no score: never validated under 20', (ageYears) => {

@@ -26,8 +26,16 @@ export interface AdaAnswers {
 }
 
 export interface AdaRisk {
-  points: number; // −1..9
+  points: number; // −1..9, the sum of breakdown
   flagged: boolean; // points ≥ 5: the cut-off Bang 2009 validated for undiagnosed diabetes
+  breakdown: {
+    age: number;
+    sex: number;
+    familyHistory: number;
+    hypertension: number;
+    physicallyActive: number; // 0 or −1
+    bmi: number;
+  };
 }
 
 const pointsFor = (value: number, table: readonly (readonly [number, number])[]) =>
@@ -40,12 +48,14 @@ export function adaRisk(answers: AdaAnswers): AdaRisk | null {
   if (!(ageYears >= 0 && ageYears <= 130)) throw new RangeError(`ageYears must be 0-130, got ${ageYears}`);
   if (!(bmi >= 10 && bmi <= 100)) throw new RangeError(`bmi must be 10-100 kg/m², got ${bmi}`);
   if (ageYears < MIN_AGE_YEARS) return null;
-  const points =
-    pointsFor(ageYears, AGE_POINTS) +
-    Number(answers.male) +
-    Number(answers.familyHistory) +
-    Number(answers.hypertension) -
-    Number(answers.physicallyActive) +
-    pointsFor(bmi, BMI_POINTS);
-  return { points, flagged: points >= FLAG_AT };
+  const breakdown = {
+    age: pointsFor(ageYears, AGE_POINTS),
+    sex: Number(answers.male),
+    familyHistory: Number(answers.familyHistory),
+    hypertension: Number(answers.hypertension),
+    physicallyActive: answers.physicallyActive ? -1 : 0,
+    bmi: pointsFor(bmi, BMI_POINTS),
+  };
+  const points = Object.values(breakdown).reduce((sum, itemPoints) => sum + itemPoints, 0);
+  return { points, flagged: points >= FLAG_AT, breakdown };
 }

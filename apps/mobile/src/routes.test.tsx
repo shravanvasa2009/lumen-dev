@@ -39,6 +39,7 @@ const routes: readonly Route[] = [
   { file: '(onboarding)/welcome', url: '/welcome', title: 'app.name', place: 'body' },
   { file: '(onboarding)/consent', url: '/consent', title: 'consent.title', place: 'body' },
   { file: '(onboarding)/profile', url: '/profile', title: 'profile.title', place: 'body' },
+  { file: '(onboarding)/diabetes-risk', url: '/diabetes-risk', title: 'dr.title', place: 'body' },
   { file: '(onboarding)/phone-check', url: '/phone-check', title: 'phoneCheck.title', place: 'body' },
   { file: '(onboarding)/placement', url: '/placement', title: 'placement.title', place: 'body' },
   { file: '(onboarding)/practice', url: '/practice', title: 'practice.title', place: 'body' },
@@ -63,6 +64,7 @@ const routes: readonly Route[] = [
   { file: 'report/[id]', url: '/report/demo', title: 'report.title', place: 'nav' },
   { file: 'learn/[slug]', url: '/learn/what-is-afib', title: 'learn.lessonAfib', place: 'nav' },
   { file: 'settings/phone', url: '/settings/phone', title: 'phoneRating.title', place: 'nav' },
+  { file: 'settings/profile', url: '/settings/profile', title: 'profile.settingsTitle', place: 'nav' },
   { file: 'settings/lab', url: '/settings/lab', title: 'lab.title', place: 'nav' },
   { file: 'measure/fix-technique', url: '/measure/fix-technique', title: 'fix.title', place: 'nav' },
   { file: 'settings/accuracy', url: '/settings/accuracy', title: 'accuracy.title', place: 'nav' },
@@ -133,8 +135,8 @@ describe('route list', () => {
     );
   });
 
-  it('lists the 34 screens of the inventory and the Care tab (ADRs 0054, 0065)', () => {
-    expect(routes).toHaveLength(35);
+  it('lists the 34 screens of the inventory, the Care tab and the two question screens (ADRs 0054, 0065, 0090)', () => {
+    expect(routes).toHaveLength(37);
   });
 });
 
@@ -247,7 +249,10 @@ describe('navigation', () => {
     followButtons('/welcome', [['welcome.getStarted', 'consent.title']]);
     fireEvent.press(screen.getByRole('checkbox', { name: en['consent.understand'] }));
     pressThrough([['common.continue', 'profile.title']]);
-    fireEvent.changeText(screen.getByLabelText(en['profile.age']), '42');
+    fireEvent.changeText(await screen.findByLabelText(en['profile.age']), '42');
+    // Next stores the basics before it opens the second question set.
+    fireEvent.press(screen.getByRole('button', { name: en['common.next'] }));
+    expect(await screen.findByRole('header', { name: en['dr.title'] })).toBeOnTheScreen();
     pressThrough([
       ['common.continue', 'phoneCheck.title'],
       ['phoneCheck.next', 'placement.title'],

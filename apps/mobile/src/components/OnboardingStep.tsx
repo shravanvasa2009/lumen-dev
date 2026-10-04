@@ -13,13 +13,15 @@ const SEGMENT_HEIGHT = 4;
 type OnboardingStepProps = {
   // 1 to ONBOARDING_STEPS: how many progress segments are filled.
   step: number;
+  // A small line above the title, such as "Question set 1 of 2".
+  eyebrow?: string;
   title: string;
   subtitle?: string;
   children?: ReactNode;
   footer?: ReactNode;
 };
 
-export function OnboardingStep({ step, title, subtitle, children, footer }: OnboardingStepProps) {
+export function OnboardingStep({ step, eyebrow, title, subtitle, children, footer }: OnboardingStepProps) {
   const { t } = useTranslation();
   const { colors, spacing } = useTheme();
   return (
@@ -44,6 +46,11 @@ export function OnboardingStep({ step, title, subtitle, children, footer }: Onbo
       </View>
       <ScrollView contentContainerStyle={{ flexGrow: 1, gap: spacing.lg, paddingBottom: spacing.lg }}>
         <View style={{ gap: spacing.xs }}>
+          {eyebrow ? (
+            <AppText variant="caption" tone="textFaint">
+              {eyebrow}
+            </AppText>
+          ) : null}
           <AppText variant="title" accessibilityRole="header">
             {title}
           </AppText>

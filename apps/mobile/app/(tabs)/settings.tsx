@@ -59,6 +59,7 @@ export default function SettingsScreen() {
   };
   const accountRows: readonly SettingsRow[] = [
     { title: t('settings.profile'), href: '/profile' },
+    { title: t('profile.diabetesRisk'), href: '/settings/profile' },
     {
       title: t('notifications.title'),
       value: t('settings.notActiveYet'),

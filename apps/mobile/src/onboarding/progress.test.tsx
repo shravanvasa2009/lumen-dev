@@ -18,6 +18,7 @@ jest.mock('expo-notifications', () => ({
 const steps = [
   ['/consent', 1],
   ['/profile', 2],
+  ['/diabetes-risk', 2],
   ['/phone-check', 3],
   ['/placement', 4],
   ['/practice', 5],

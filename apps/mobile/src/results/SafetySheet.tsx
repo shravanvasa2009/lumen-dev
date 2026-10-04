@@ -4,19 +4,22 @@ import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { BottomSheet } from '@/components/BottomSheet';
-import { Button } from '@/components/Button';
+import { Icon } from '@/components/Icon';
 import { PressableScale } from '@/components/PressableScale';
 import { useTheme } from '@/theme';
 
 type SafetySheetProps = { visible: boolean; onDismiss: () => void };
 
+// Answer buttons are well above the 44 dp minimum so the question can be answered at a glance.
+const ANSWER_HEIGHT = 72;
+
 // SAFE-1: shown when any flag fires (heart rate, rhythm, or the diabetes pattern card, §12.5).
-// Yes opens emergency guidance; No or a tap outside closes it. The Yes button uses the flag colour,
+// Yes opens emergency guidance at once; No or a tap outside closes it. Yes uses the amber flag tokens,
 // because red belongs to the emergency screen alone.
 export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { colors, radius, spacing, control } = useTheme();
+  const { colors, radius, spacing } = useTheme();
   const openEmergency = () => {
     onDismiss();
     router.push('/emergency');
@@ -32,10 +35,24 @@ export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
           backgroundColor: colors.line2,
         }}
       />
-      <AppText variant="title" accessibilityRole="header">
-        {t('safety.title')}
-      </AppText>
-      <AppText variant="headline" style={{ fontWeight: '400' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        <View
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: radius.pill,
+            backgroundColor: colors.flagBg,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon name="warning" size={32} color={colors.flag} mark={colors.flagBg} />
+        </View>
+        <AppText variant="display" accessibilityRole="header" style={{ flex: 1 }}>
+          {t('safety.title')}
+        </AppText>
+      </View>
+      <AppText variant="title" style={{ fontWeight: '500' }}>
         {t('safety.question')}
       </AppText>
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
@@ -44,24 +61,38 @@ export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
             accessibilityRole="button"
             onPress={openEmergency}
             style={{
-              minHeight: control.primaryButtonHeight,
+              minHeight: ANSWER_HEIGHT,
               borderRadius: radius.pill,
-              borderWidth: 1,
+              borderWidth: 3,
               borderColor: colors.flag,
+              backgroundColor: colors.flagBg,
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <AppText variant="headline" style={{ color: colors.flag }}>
+            <AppText variant="title" style={{ color: colors.flag }}>
               {t('safety.yes')}
             </AppText>
           </PressableScale>
         </View>
         <View style={{ flex: 1 }}>
-          <Button label={t('safety.no')} variant="secondary" onPress={onDismiss} />
+          <PressableScale
+            accessibilityRole="button"
+            onPress={onDismiss}
+            style={{
+              minHeight: ANSWER_HEIGHT,
+              borderRadius: radius.pill,
+              borderWidth: 3,
+              borderColor: colors.line2,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <AppText variant="title">{t('safety.no')}</AppText>
+          </PressableScale>
         </View>
       </View>
-      <AppText variant="caption" tone="textDim" style={{ textAlign: 'center' }}>
+      <AppText tone="textDim" style={{ textAlign: 'center' }}>
         {t('safety.yesOpens')}
       </AppText>
     </BottomSheet>

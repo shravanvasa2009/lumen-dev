@@ -6,27 +6,32 @@ import type { Confidence } from '@lumen/core';
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
+import type { IconName } from '@/components/Icon';
 import type { EvidenceMetric } from '@/evidence';
 import { useTheme } from '@/theme';
 
+import { CheckHeading } from './CheckHeading';
 import { ConfidenceDots } from './ConfidenceDots';
 
 type MetricCardProps = {
   title: string;
+  // The short check name shown before the title, e.g. "AFib · Heart rhythm".
+  checkName?: string;
+  icon: IconName;
   evidenceMetric: EvidenceMetric;
   // Null when the metric missed its clean-data floor; that card alone says so (§6.2).
   reading: { value: string; note: string; confidence: Confidence; flagged: boolean } | null;
 };
 
-export function MetricCard({ title, evidenceMetric, reading }: MetricCardProps) {
+export function MetricCard({ title, checkName, icon, evidenceMetric, reading }: MetricCardProps) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   return (
     <Card>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <AppText tone="textDim">{title}</AppText>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm }}>
+        <CheckHeading icon={icon} name={checkName} label={title} />
         {reading ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 }}>
             {reading.flagged ? (
               <View
                 style={{

@@ -876,5 +876,19 @@
   "settings.exportEmpty": "Todavía no hay lecturas guardadas para exportar.",
   "settings.exportUnavailable": "Este teléfono no permite compartir.",
   "settings.exportFailed": "Lumen no pudo exportar tus lecturas. Inténtalo de nuevo.",
-  "settings.deleteFailed": "Lumen no pudo borrar todo, así que es posible que queden datos en este teléfono. Inténtalo de nuevo."
+  "settings.deleteFailed": "Lumen no pudo borrar todo, así que es posible que queden datos en este teléfono. Inténtalo de nuevo.",
+  "checks.afib.name": "FA",
+  "results.pulsePattern": "Patrón del pulso",
+  "results.notDiabetesTest": "No es una prueba de diabetes",
+  "results.whatExperimentalMeans": "Qué significa Experimental",
+  "evidence.experimental.explain": "Experimental significa que esta revisión todavía se está probando y aún no se ha demostrado que sea precisa.",
+  "common.gotIt": "Entendido",
+  "checks.diabetes.name": "Diabetes",
+  "checks.hrv.name": "VFC",
+  "checks.pots.name": "POTS",
+  "checks.from.standing": "Prueba de pie",
+  "results.notThisScan": "No forma parte de este escaneo",
+  "results.takeStanding": "Hacer la prueba de frecuencia cardíaca de pie ›",
+  "results.potsLabel": "Patrón de frecuencia cardíaca",
+  "common.close": "Cerrar"
 }

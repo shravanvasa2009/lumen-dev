@@ -976,5 +976,8 @@
   "dr.row.age": "Age {{age}}",
   "dr.row.bmi": "BMI {{bmi}}",
   "dr.rowTitle": "Diabetes risk",
-  "dr.demoRow": "Example reading. Your own answers are not shown here."
+  "dr.demoRow": "Example reading. Your own answers are not shown here.",
+  "dr.pulseNeedsFull": "The pulse pattern preview needs a Full Scan.",
+  "results.notDiabetesTest": "Not a diabetes test",
+  "dr.fromAnswers": "From your answers"
 }

@@ -9,6 +9,7 @@ import { useTheme } from '@/theme';
 import {
   assessRisk,
   bmiOf,
+  bmiShown,
   cmFromInches,
   HEIGHT_CM,
   inchesFromCm,
@@ -158,7 +159,7 @@ export function BasicsFields({ draft, change }: BasicsFieldsProps) {
     : WEIGHT_KG;
   const bodyUsable =
     heightCm !== null && weightKg !== null && !invalid.includes('height') && !invalid.includes('weight');
-  const bmiShown = bodyUsable ? roundToTenth(bmiOf(heightCm, weightKg)).toFixed(1) : '—';
+  const bmiText = bodyUsable ? bmiShown(bmiOf(heightCm, weightKg)) : '—';
 
   return (
     <View style={{ gap: spacing.sm }}>
@@ -227,8 +228,8 @@ export function BasicsFields({ draft, change }: BasicsFieldsProps) {
             {t('profile.bmiNote')}
           </AppText>
         </View>
-        <AppText variant="headline" accessibilityLabel={`${t('profile.bmi')} ${bmiShown}`}>
-          {bmiShown}
+        <AppText variant="headline" accessibilityLabel={`${t('profile.bmi')} ${bmiText}`}>
+          {bmiText}
         </AppText>
       </View>
       {invalid.includes('bmi') ? <Problem message={t('profile.bmiInvalid')} /> : null}

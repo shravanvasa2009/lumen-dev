@@ -13,7 +13,8 @@ import { useTheme } from '@/theme';
 
 import { CompactChecks } from './CompactChecks';
 import { DemoBanner } from './DemoBanner';
-import { DiabetesRiskRow } from './DiabetesRiskRow';
+import { showsPulseExtra } from './DiabetesCheckCard';
+import { DiabetesRiskRow, PulseExtraRow } from './DiabetesRiskRow';
 import { ExperimentalCard } from './ExperimentalCard';
 import type { FixtureReading } from './fixtures';
 import { formatClock, formatDay } from './format';
@@ -203,6 +204,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
 
         {reading.mode !== 'full' ? <CompactChecks /> : null}
         <DiabetesRiskRow readingId={reading.id} sample={reading.sample} />
+        {showsPulseExtra(reading) ? <PulseExtraRow readingId={reading.id} /> : null}
         {reading.mode === 'full' ? <PotsCard /> : null}
 
         <MetricCard

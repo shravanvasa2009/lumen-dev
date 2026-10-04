@@ -8,7 +8,8 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { ListRow } from '@/components/ListRow';
-import { bmiShown, useStoredRiskScore, type RiskScore } from '@/profile/riskScore';
+import { bmiShown } from '@/profile/diabetesRisk';
+import { useStoredRiskScore, type RiskScore } from '@/profile/riskScore';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
 

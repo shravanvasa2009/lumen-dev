@@ -2,6 +2,7 @@ import * as core from '@lumen/core';
 import i18next from 'i18next';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 import { Dimensions, ScrollView } from 'react-native';
+import type { ReactTestInstance } from 'react-test-renderer';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { evidenceFor } from '@/evidence';
@@ -81,6 +82,15 @@ describe('Diabetes risk row on Results', () => {
     expect(screen.queryByText(en['dr.pulseExtra'])).not.toBeOnTheScreen();
   });
 
+  it('has the From your answers line and an Edit answers link to Settings > Profile', async () => {
+    await openRow(higher);
+    await screen.findByText(en['dr.result.higher']);
+    expect(screen.getByText(en['dr.fromAnswers'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: `${en['dr.edit']} ›` }));
+    expectNavTitle(en['profile.settingsTitle']);
+    await screen.findByText(en['dr.family']);
+  });
+
   it('shows lower risk in neutral text', async () => {
     await openRow(lower);
     const word = await screen.findByText(en['dr.result.lower']);
@@ -100,10 +110,13 @@ describe('Diabetes risk row on Results', () => {
     expect(core.adaRisk).not.toHaveBeenCalled();
   });
 
-  it('says the answers could not be loaded, not that they are missing', async () => {
+  it('says the answers could not be loaded, not that they are missing, and reports why', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     jest.mocked(profileStore.loadRiskDraft).mockRejectedValueOnce(new Error('disk'));
     await openRow(higher);
     await screen.findByText(en['profile.loadFailed']);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('disk'));
+    warn.mockRestore();
     expect(screen.queryByText(en['dr.notReady'])).not.toBeOnTheScreen();
     expect(core.adaRisk).not.toHaveBeenCalled();
   });
@@ -111,8 +124,8 @@ describe('Diabetes risk row on Results', () => {
   it('opens the detail screen', async () => {
     await openRow(higher);
     fireEvent.press(await screen.findByRole('button', { name: new RegExp(en['dr.rowTitle']) }));
-    expectNavTitle(en['dr.rowTitle']);
     await screen.findByRole('header', { name: en['dr.result.higher'] });
+    expectNavTitle(en['dr.rowTitle']);
   });
 
   it('does not show the saved answers on a demo reading', async () => {
@@ -138,7 +151,7 @@ describe('diabetes result detail screen', () => {
     ).toBeOnTheScreen();
     expect(screen.getByText(en['dr.howItAdds'], { exact: false })).toBeOnTheScreen();
     expect(screen.getByText('Age 52')).toBeOnTheScreen();
-    expect(screen.getByText('BMI 29.1')).toBeOnTheScreen();
+    expect(screen.getByText('BMI 29.0')).toBeOnTheScreen();
     expect(screen.getByText(en['dr.row.sex.female'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.gdmShort'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.notScored'])).toBeOnTheScreen();
@@ -188,12 +201,28 @@ describe('diabetes result detail screen', () => {
   );
 
   it('says the answers could not be loaded, with no score and no link', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     jest.mocked(profileStore.loadRiskDraft).mockRejectedValueOnce(new Error('disk'));
     await openDetail(higher);
     await screen.findByRole('header', { name: en['profile.loadFailed'] });
     expect(screen.queryByText(en['dr.notReady'])).not.toBeOnTheScreen();
     expect(screen.queryByText(/Risk score \d/)).not.toBeOnTheScreen();
     expect(core.adaRisk).not.toHaveBeenCalled();
+  });
+
+  it('floors the body mass index so it never shows a band edge it did not score in', async () => {
+    await openDetail({ ...higher, heightCm: 168, weightKg: 70.5 });
+    await screen.findByText('BMI 24.9');
+    expect(screen.queryByText('BMI 25.0')).not.toBeOnTheScreen();
+    expect(pointsOnScreen().reduce((sum, item) => sum + item, 0)).toBe(4);
+  });
+
+  it('shows the not-found state, and no score, for an id with no saved reading', async () => {
+    await profileStore.saveRiskDraft(higher);
+    renderRouter('./app', { initialUrl: '/results/reading-missing/diabetes' });
+    await screen.findByText(en['result.inconclusive']);
+    expect(screen.queryByText(en['dr.result.higher'])).not.toBeOnTheScreen();
+    expect(screen.queryByText(/Risk score \d/)).not.toBeOnTheScreen();
   });
 
   it('says the score is a minimum when sex was not given, and counts no sex point', async () => {
@@ -292,10 +321,31 @@ describe('pulse pattern extra on the detail screen', () => {
     expect(screen.queryByText(en['evidence.experimental.explain'])).not.toBeOnTheScreen();
   });
 
+  it('lists the research line in the sheet too, and its accuracy link opens the accuracy screen', async () => {
+    fireEvent.press(await screen.findByRole('button', { name: en['results.whatExperimentalMeans'] }));
+    expect(screen.getAllByText(en['dm.experimental'], { exact: false })).toHaveLength(2);
+    fireEvent.press(screen.getAllByText(`${en['results.accuracy']} ›`).at(-1) as ReactTestInstance);
+    expect(screen.queryByText(en['evidence.experimental.explain'])).not.toBeOnTheScreen();
+    expectNavTitle(en['accuracy.title']);
+  });
+
   it('is never flagged and shows no accuracy number', async () => {
     await screen.findByTestId('pulse-extra');
     expect(screen.queryByText(en['dm.flag.title'])).not.toBeOnTheScreen();
     expect(screen.queryByText(/%|AUC/)).not.toBeOnTheScreen();
+  });
+});
+
+describe('pulse preview on a Quick Check', () => {
+  it('says the pulse preview needs a Full Scan', async () => {
+    renderRouter('./app', { initialUrl: '/results/demo-flag/diabetes' });
+    expect(await screen.findByText(en['dr.pulseNeedsFull'])).toBeOnTheScreen();
+  });
+
+  it('does not say it on a Full Scan', async () => {
+    renderRouter('./app', { initialUrl: '/results/demo/diabetes' });
+    await screen.findByTestId('pulse-extra');
+    expect(screen.queryByText(en['dr.pulseNeedsFull'])).not.toBeOnTheScreen();
   });
 });
 

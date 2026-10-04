@@ -94,8 +94,10 @@ describe.each([
     expect(screen.queryByText(en['dm.flag.body'])).toBeNull();
     expect(screen.getByText(en['dr.rowTitle'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.demoRow'])).toBeOnTheScreen();
-    expect(screen.queryByText(en['dr.pulseExtra'])).toBeNull();
+    expect(screen.getByText(en['dr.pulseExtra'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.notDiabetesTest'])).toBeOnTheScreen();
     expect(screen.queryByText(en['results.pulsePattern'])).toBeNull();
+    expect(screen.queryByText(/%|AUC/)).toBeNull();
     expect(screen.getByText('Experimental measurements (2)')).toBeOnTheScreen();
     expect(screen.getByText(en['results.sublineUsual'])).toBeOnTheScreen();
     expect(screen.queryByText(en['safety.title'])).toBeNull();

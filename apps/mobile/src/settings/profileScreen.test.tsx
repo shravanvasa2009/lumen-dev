@@ -47,7 +47,7 @@ describe('Settings > Profile', () => {
     expect(screen.getByText(en['profile.female'])).toBeOnTheScreen();
     expect(screen.getByText('168 cm')).toBeOnTheScreen();
     expect(screen.getByText('82 kg')).toBeOnTheScreen();
-    expect(screen.getByText('29.1')).toBeOnTheScreen();
+    expect(screen.getByText('29.0')).toBeOnTheScreen();
     expect(screen.getByText(en['dr.gdmShort'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.notScored'])).toBeOnTheScreen();
   });

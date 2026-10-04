@@ -7,6 +7,8 @@ import { loadRiskDraft } from '@/store/profile';
 
 import { assessRisk, type RiskDraft } from './diabetesRisk';
 
+const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 export type RiskScore =
   | { kind: 'notReady' }
   | { kind: 'loadFailed' }
@@ -19,8 +21,6 @@ export type RiskScore =
       // The pregnancy question is asked of Female only and never scored; the card lists it when answered.
       pregnancyAnswered: boolean;
     };
-
-export const bmiShown = (bmi: number) => (Math.round(bmi * 10) / 10).toFixed(1);
 
 // adaRisk is called only for a ready assessment: untyped or half-filled answers would give NaN points.
 export function scoreDraft(draft: RiskDraft): RiskScore {
@@ -49,7 +49,8 @@ export function useStoredRiskScore(): RiskScore | null {
           if (active) setScore(scoreDraft(stored));
         },
         // Handled by saying so on the card; asking for the answers again would be untrue.
-        () => {
+        (error: unknown) => {
+          console.warn(`Diabetes risk answers did not load: ${reasonOf(error)}`);
           if (active) setScore({ kind: 'loadFailed' });
         },
       );

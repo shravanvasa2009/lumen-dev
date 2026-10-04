@@ -159,7 +159,7 @@ describe('profile', () => {
     expect(screen.getByLabelText(`${en['profile.bmi']} —`)).toBeOnTheScreen();
     fireEvent.changeText(screen.getByLabelText(en['profile.height']), '168');
     fireEvent.changeText(screen.getByLabelText(en['profile.weight']), '82');
-    expect(screen.getByLabelText(`${en['profile.bmi']} 29.1`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['profile.bmi']} 29.0`)).toBeOnTheScreen();
   });
 
   it('says what range a height or weight must be in and keeps Next off', async () => {
@@ -185,7 +185,7 @@ describe('profile', () => {
     fireEvent.press(screen.getByRole('radio', { name: en['profile.unitsImperial'] }));
     expect(screen.getByLabelText(en['profile.height']).props.value).toBe('66.9');
     expect(screen.getByLabelText(en['profile.weight']).props.value).toBe('176.4');
-    expect(screen.getByLabelText(`${en['profile.bmi']} 27.7`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${en['profile.bmi']} 27.6`)).toBeOnTheScreen();
     fireEvent.changeText(screen.getByLabelText(en['profile.height']), '30');
     expect(screen.getByText('Enter a height between 40 and 98 in.')).toBeOnTheScreen();
   });

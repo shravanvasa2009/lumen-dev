@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ReplayCapture } from '../../modules/lumen-capture/src';
 
+import { planPhone } from '@/checks/checkPlan';
 import { isDemoActive } from '@/demo/demoSession';
 import { syntheticDemoRecording } from '@/demo/syntheticRecording';
 import { CaptureView } from '@/measure/CaptureView';
@@ -40,7 +41,7 @@ export default function CaptureScreen() {
       <CaptureView
         mode={mode}
         live={live}
-        unlocks={rating?.unlocks}
+        phone={planPhone(rating)}
         onCancel={() => router.replace('/')}
         onStop={() => router.replace(`/measure/inconclusive?mode=${mode}`)}
       />

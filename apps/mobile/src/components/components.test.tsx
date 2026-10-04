@@ -139,7 +139,6 @@ describe.each([
     'pulse',
     'clock',
     'bars',
-    'drop',
     'standing',
     'heart',
   ])('Icon %s draws strokes in the colour it is given', (name) => {

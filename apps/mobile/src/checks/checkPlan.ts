@@ -68,8 +68,8 @@ const MODE_RATING_ROW: Record<PlanMode, RatingMode> = {
 };
 
 // Spec 12 §Modes ("Produces") and spec 06 §6.2: which checks each mode can run.
-// Owner decision (a), decided (owner, 2026-10-04): Quick Check's rhythm check needs 60 s of clean signal (spec 06 §6.2) but
-// Quick is 30 s (spec 12), so AFib is not part of a Quick Check. Flip QUICK_RUNS_AFIB to change it.
+// The owner decided on 2026-10-04 that AFib is not part of a Quick Check: its rhythm check needs 60 s of clean
+// signal (spec 06 §6.2) and Quick is 30 s (spec 12). Flip QUICK_RUNS_AFIB to change it.
 const QUICK_RUNS_AFIB = false;
 const MODE_RUNS: Record<PlanMode, ReadonlySet<CheckId>> = {
   quick: new Set<CheckId>(QUICK_RUNS_AFIB ? ['afib'] : []),
@@ -88,7 +88,8 @@ function cleanSecondsFor(check: CheckId, mode: PlanMode): number | null {
 
 // Spec 05 5.2: Limited is a score of 25 to 49, or a flash that does not reach the finger. HRV and the diabetes
 // pattern need 60 fps AND a Full rating, so a Limited or Basic phone is told what it actually lacks: the flash
-// first (it defines Limited, and the mode lock in rating/modeLock.ts says it first), then the frame rate, then the rating.
+// first (it defines Limited, and the mode lock in rating/modeLock.ts says it first), then the frame rate, then
+// the rating.
 function lockFor(check: CheckId, mode: PlanMode, phone: PlanPhone): LockWhy | null {
   const { tier, ambient, fps60 } = phone;
   if (tier === 'unrated') return null;

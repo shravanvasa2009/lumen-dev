@@ -100,7 +100,7 @@ describe('replayFolder', () => {
     ]);
     assert.equal(output.outcome.kind, 'inconclusive');
     assert.equal(output.inconclusive, true);
-    assert.equal(output.outcome.cleanSeconds < output.outcome.neededCleanSeconds, true);
+    assert.ok(output.outcome.cleanSeconds < output.outcome.neededCleanSeconds);
   });
 
   it('refuses a clean capture shorter than its mode needs, and still writes its intervals', async () => {

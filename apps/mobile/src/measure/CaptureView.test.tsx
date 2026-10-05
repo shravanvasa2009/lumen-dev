@@ -15,6 +15,12 @@ import type { LiveCapture } from './useLiveCapture';
 
 import '@/i18n';
 
+const mockWindow = { width: 412 };
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({ width: mockWindow.width, height: 800, scale: 2.6, fontScale: 1 }),
+}));
+
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'dark',
@@ -197,6 +203,23 @@ describe('CaptureView', () => {
       expect(screen.queryByText(en['capture.timerNote'])).toBeNull();
       expect(screen.queryByText(en['capture.still'])).toBeNull();
       expect(screen.getByText('of 90 clean s')).toBeOnTheScreen();
+    });
+
+    it('drops the word Quality from the chip on a 360 dp phone, in Spanish too, so the title keeps room', async () => {
+      mockWindow.width = 360;
+      await act(() => i18next.changeLanguage('es'));
+      try {
+        show({ signalLevel: 0.9 }, 'full');
+        expect(screen.getByRole('header', { name: es['mode.full'] })).toBeOnTheScreen();
+        expect(
+          screen.getByLabelText(`${es['capture.quality']} ${es['capture.qualityGood']}`),
+        ).toBeOnTheScreen();
+        expect(screen.getByText(es['capture.qualityGood'])).toBeOnTheScreen();
+        expect(screen.queryByText(es['capture.quality'])).toBeNull();
+      } finally {
+        mockWindow.width = 412;
+        await act(() => i18next.changeLanguage('en'));
+      }
     });
 
     it('shows the chip in Spanish', async () => {

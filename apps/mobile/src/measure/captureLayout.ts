@@ -24,7 +24,7 @@ const MAX_TIGHT_PREVIEW = 140;
 // The ring is 0.78 of the preview, as in mockup 13, and covers this share of its own height on the preview.
 const RING_TO_PREVIEW = 0.78;
 const OVERLAP = 0.35;
-// Three text lines (count, "of 90 clean s", bpm) must fit inside the ring.
+// Two text lines (the count and "of 90 clean s") must fit inside the ring.
 const TIGHT_RING = 104;
 const TIGHT_OVERLAP = 0.5;
 

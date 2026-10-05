@@ -10,7 +10,7 @@ describe('captureSizes', () => {
     expect(captureSizes(760, false).preview).toBeGreaterThan(captureSizes(700, false).preview);
   });
 
-  it('goes tight on a short screen, with a ring that still holds three lines', () => {
+  it('goes tight on a short screen, with a ring that still holds its two lines', () => {
     const small = captureSizes(508, true);
     expect(small.tight).toBe(true);
     expect(small.ring).toBeGreaterThanOrEqual(104);

@@ -87,6 +87,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             <View style={{ minWidth: control.minTarget, alignItems: 'flex-end' }}>
               <QualityChip
                 level={live.signalLevel}
+                compact={width < COMPACT_WIDTH_DP}
                 onLayout={(event) => setChipWidth(Math.ceil(event.nativeEvent.layout.width))}
               />
             </View>

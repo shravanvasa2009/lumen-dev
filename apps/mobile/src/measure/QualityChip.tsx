@@ -10,11 +10,15 @@ const BAR_HEIGHT = 11;
 const BARS = { weak: 1, ok: 2, strong: 3 } as const;
 
 // "Quality ▮▮▮ Good" from the same Weak/OK/Strong level the practice meter shows; left out until there is one.
+// `compact` drops the word "Quality" (the screen reader still says it) so the header leaves room for the title on
+// a 360 dp phone, where "Escaneo completo" and the full chip do not fit side by side.
 export function QualityChip({
   level,
+  compact = false,
   onLayout,
 }: {
   level: number | null;
+  compact?: boolean;
   onLayout?: (event: LayoutChangeEvent) => void;
 }) {
   const { t } = useTranslation();
@@ -31,25 +35,27 @@ export function QualityChip({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.xs,
-        paddingHorizontal: spacing.md,
+        paddingHorizontal: compact ? spacing.sm : spacing.md,
         paddingVertical: spacing.xs,
         borderRadius: radius.pill,
         backgroundColor: colors.badgeCheckedBg,
       }}
     >
-      <AppText variant="caption" style={{ fontWeight: '600', color: colors.badgeCheckedFg }}>
-        {t('capture.quality')}
-      </AppText>
+      {compact ? null : (
+        <AppText variant="caption" style={{ fontWeight: '600', color: colors.badgeCheckedFg }}>
+          {t('capture.quality')}
+        </AppText>
+      )}
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2 }} accessibilityElementsHidden>
-        {[1, 2, 3].map((bar) => (
+        {[1, 2, 3].map((barNumber) => (
           <View
-            key={bar}
+            key={barNumber}
             style={{
               width: BAR_WIDTH,
               height: BAR_HEIGHT,
               borderRadius: 1,
               backgroundColor: colors.badgeCheckedFg,
-              opacity: bar <= BARS[band] ? 1 : 0.3,
+              opacity: barNumber <= BARS[band] ? 1 : 0.3,
             }}
           />
         ))}

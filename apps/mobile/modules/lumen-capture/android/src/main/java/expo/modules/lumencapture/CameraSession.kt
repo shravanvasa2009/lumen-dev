@@ -609,10 +609,47 @@ class CameraSession(
     // DSP-5: red stayed above 0.95 after the lock, so lower the exposure one step and hold it (ADR 0029). Core
     // sees the change in exposureNs and marks the span as artifact.
     private fun relieveOverexposure() {
-        val manual = lens.manualExposure ?: return
         if (!running) return
-        runCatching { scaleExposure(manual, exposureFactor(counters.lastRed ?: 1.0, settings.exposureTarget)) }
-            .onFailure { Log.e(TAG, "Lowering the exposure failed", it) }
+        val manual = lens.manualExposure
+        when {
+            manual != null ->
+                runCatching { scaleExposure(manual, exposureFactor(counters.lastRed ?: 1.0, settings.exposureTarget)) }
+                    .onFailure { Log.e(TAG, "Lowering the exposure failed", it) }
+            added.aeLock -> relieveUnderAeLock()
+        }
+    }
+
+    // The AE-lock form of the step above (ADR 0098): unlock, lower the compensation one step, let AE settle, relock.
+    // Core sees the jump in exposureNs as with a manual step.
+    private fun relieveUnderAeLock() {
+        val compensation = lens.aeCompensation
+        if (compensation == null) {
+            Log.w(TAG, "Red stays clipped under the AE lock; the lens has no AE compensation")
+            return
+        }
+        val stepEv = compensationStepEv(counters.lastRed ?: 1.0, settings.exposureTarget)
+        val index = nextCompensationIndex(added.aeCompensation, stepEv, compensation)
+        if (index == added.aeCompensation) {
+            Log.w(TAG, "Red stays clipped under the AE lock; compensation is already at its lowest (index $index)")
+            return
+        }
+        try {
+            applyRequest(added.copy(aeLock = false, aeCompensation = index))
+            val red = convergedRed(index)
+            applyRequest(added.copy(aeLock = true))
+            Log.i(
+                TAG,
+                "Overexposure relieved under AE lock: red ${redText(red)}, EV ${"%.2f".format(Locale.ROOT, index * compensation.stepEv)}, " +
+                    confirmAeLock(),
+            )
+        } catch (e: InterruptedException) {
+            // stop() interrupts the exposure thread; a stopped capture has no exposure left to adjust.
+            Thread.currentThread().interrupt()
+            Log.i(TAG, "Overexposure relief cut short by stop", e)
+        } catch (e: RuntimeException) {
+            // Reported, not rethrown: a throw would escape the exposure thread and crash the app. A reopen relocks.
+            Log.e(TAG, "Lowering the exposure under AE lock failed; exposure is ${if (added.aeLock) "locked" else "unlocked"}", e)
+        }
     }
 
     private fun scaleExposure(manual: ManualExposureRange, factor: Double) {

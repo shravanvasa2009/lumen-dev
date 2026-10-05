@@ -16,15 +16,17 @@ function secondsLost(lost: LostSeconds, cause: LostCause): number {
 
 const lostCauses: readonly LostCause[] = ['movement', 'pressure', 'light'];
 
-// Whole-number shares that add to 100 (largest remainder), so the legend never reads 99% or 101%.
+// Whole-number shares that add to 100, so the legend never reads 99% or 101%: round every share down, then give
+// each point still missing to the shares with the largest fractional part.
 function percentShares(seconds: readonly number[]): number[] {
   const total = seconds.reduce((sum, value) => sum + value, 0);
   const exact = seconds.map((value) => (value / total) * 100);
   const shares = exact.map(Math.floor);
-  const byRemainder = exact.map((value, index) => ({ index, remainder: value - shares[index]! }));
-  byRemainder.sort((a, b) => b.remainder - a.remainder);
-  for (let spare = 100 - shares.reduce((sum, value) => sum + value, 0), next = 0; spare > 0; spare--, next++)
-    shares[byRemainder[next]!.index]!++;
+  const missing = 100 - shares.reduce((sum, value) => sum + value, 0);
+  const largestFractionFirst = exact
+    .map((value, index) => ({ index, fraction: value - shares[index]! }))
+    .sort((a, b) => b.fraction - a.fraction);
+  for (const { index } of largestFractionFirst.slice(0, missing)) shares[index]!++;
   return shares;
 }
 

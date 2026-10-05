@@ -10,7 +10,7 @@
   "tabs.settings": "Settings",
   "prototype.banner": "Screening prototype — not a diagnosis, not FDA-cleared.",
   "result.notChecked": "Not checked: blood pressure, blood oxygen, heart attack.",
-  "result.inconclusive": "Not enough clean signal",
+  "result.inconclusive": "Not enough clean signal.",
   "safety.question": "Any chest pain, fainting, or severe shortness of breath right now?",
   "emergency.title": "Get help now",
   "emergency.call": "Call 911",

@@ -10,7 +10,7 @@
   "tabs.settings": "Ajustes",
   "prototype.banner": "Prototipo de detección: no es un diagnóstico ni está aprobado por la FDA.",
   "result.notChecked": "No se revisó: presión arterial, oxígeno en la sangre ni infarto.",
-  "result.inconclusive": "No hubo suficiente señal limpia",
+  "result.inconclusive": "No hubo suficiente señal limpia.",
   "safety.question": "¿Tienes ahora dolor de pecho, desmayo o mucha falta de aire?",
   "emergency.title": "Busca ayuda ahora",
   "emergency.call": "Llama al 911",

@@ -38,7 +38,7 @@ name: Home through a measurement to results, emergency, report, why, and fix-tec
 # The capture just started is kept with 0 clean seconds, so Analyzing hands it to Inconclusive (#239);
 # processing.test.tsx covers the Analyzing title and See a sample result.
 - openLink: lumen://measure/processing
-- assertVisible: 'Not enough clean signal'
+- assertVisible: 'Not enough clean signal\.'
 - openLink: lumen://results/demo
 - assertVisible: 'Results'
 # The demo reading has no heart-rate or rhythm flag, so the safety question comes from the flagged one.
@@ -56,7 +56,7 @@ name: Home through a measurement to results, emergency, report, why, and fix-tec
 - assertVisible: 'Why .regular.\?'
 - openLink: lumen://measure/capture?mode=quick
 - tapOn: 'Stop reading'
-- assertVisible: 'Not enough clean signal'
+- assertVisible: 'Not enough clean signal\.'
 - tapOn: 'Fix my technique \(2 min\)'
 - assertVisible: 'Fix my technique'
 - tapOn: 'Done — take a reading'

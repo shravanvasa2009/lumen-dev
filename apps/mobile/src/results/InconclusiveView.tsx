@@ -37,12 +37,13 @@ type Tip = { text: string; icon: IconName };
 
 // One tip per lost-time cause; the two causes that lost the most pick the two tips (§12 screen 19).
 function tipFor(t: TFunction, cause: LostCause): Tip {
-  return {
+  const tips: Record<LostCause, Tip> = {
     motion: { text: t('inconclusive.tipElbows'), icon: 'elbow' },
     pressure: { text: t('inconclusive.tipPressure'), icon: 'hint' },
     coverage: { text: t('inconclusive.tipCover'), icon: 'hint' },
     coldHands: { text: t('fix.tipWarm'), icon: 'hint' },
-  }[cause];
+  };
+  return tips[cause];
 }
 
 function tipsFor(t: TFunction, causes: readonly LostCause[]): Tip[] {

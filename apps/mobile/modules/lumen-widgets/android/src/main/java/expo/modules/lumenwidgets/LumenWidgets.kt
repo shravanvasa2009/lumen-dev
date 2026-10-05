@@ -6,6 +6,9 @@ import android.os.Build
 import android.util.Log
 import androidx.collection.intSetOf
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -474,8 +477,11 @@ class SmallWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val view = WidgetStore.read(context, System.currentTimeMillis()) ?: fallbackView(context)
-        provideContent { WidgetBody(view, medium = false) }
+        val stored = WidgetStore.read(context, System.currentTimeMillis())
+        provideContent {
+            val view by remember { WidgetStore.views(context) }.collectAsState(initial = stored)
+            WidgetBody(view ?: fallbackView(context), medium = false)
+        }
     }
 
     override suspend fun providePreview(context: Context, widgetCategory: Int) {
@@ -488,8 +494,11 @@ class MediumWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val view = WidgetStore.read(context, System.currentTimeMillis()) ?: fallbackView(context)
-        provideContent { WidgetBody(view, medium = true) }
+        val stored = WidgetStore.read(context, System.currentTimeMillis())
+        provideContent {
+            val view by remember { WidgetStore.views(context) }.collectAsState(initial = stored)
+            WidgetBody(view ?: fallbackView(context), medium = true)
+        }
     }
 
     override suspend fun providePreview(context: Context, widgetCategory: Int) {

@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 
 import { resyncNotifications } from '@/settings/applyPrefs';
 import { profileValue, setProfileValue } from '@/store/profile';
+import { publishWidgetCopy } from '@/widgets/publish';
 
 const LANGUAGES = ['en', 'es'] as const;
 export type Language = (typeof LANGUAGES)[number];
@@ -19,14 +20,21 @@ export async function chooseLanguage(code: Language): Promise<void> {
 }
 
 // Until a choice is saved the device language stays (see ./index). A failed read keeps the device language
-// too; the screens that need saved data report their own storage errors. The launch re-sync of reminders
-// follows, so their text is planned in the language the person chose. A sync missed in the background (app
+// too; the screens that need saved data report their own storage errors. The launch re-sync of reminders and
+// the widgets' copy follow, so both use the language the person chose. A sync missed in the background (app
 // closed, failure) is repaired here at the next launch.
 export function useSavedLanguage(): void {
   useEffect(() => {
     void profileValue(PROFILE_KEY)
       .then((saved) => (isLanguage(saved) ? i18next.changeLanguage(saved) : undefined))
       .catch(() => undefined)
-      .then(() => resyncNotifications());
+      .then(() => {
+        void resyncNotifications();
+        // The widgets' copy follows the language too; a failure keeps the copy they had.
+        publishWidgetCopy().catch((error: unknown) => {
+          const reason = error instanceof Error ? error.message : String(error);
+          console.warn(`Widget copy update failed: ${reason}`);
+        });
+      });
   }, []);
 }

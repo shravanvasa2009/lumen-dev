@@ -7,6 +7,7 @@ import androidx.glance.appwidget.testing.unit.runGlanceAppWidgetUnitTest
 import androidx.glance.testing.unit.hasContentDescriptionEqualTo
 import androidx.glance.testing.unit.hasTextEqualTo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,6 +35,19 @@ class EmptyWidgetTest {
         assertEquals(0xFFFFFFFFL, view.light.surface)
         assertEquals(0xFF141925L, view.dark.surface)
         assertEquals(0xFF1D7A71L, view.light.accent)
+    }
+
+    // The launch publish sends the copy alone: the widget then draws "no reading yet" with the four checks and
+    // the evidence tag, never a reading.
+    @Test
+    fun theCopyAloneDrawsTheEmptyStateWithTheFourChecks() {
+        WidgetStore.writeDisplay(context, testDisplayWithChecks())
+        val view = WidgetStore.read(context, TEST_READING_MS)!!
+        assertNull(view.status)
+        assertNull(view.bpm)
+        assertNull(view.lastCheck)
+        assertEquals(listOf("AFib", "POTS", "HRV", "Diabetes"), view.checks)
+        assertEquals("Experimental", view.diabetesTag)
     }
 
     // A widget placed before the app's first publish still draws the mark, the empty state, and its buttons.

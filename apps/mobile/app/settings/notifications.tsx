@@ -31,6 +31,12 @@ type TimeRowProps = {
   onChange: (time: ClockTime) => void;
 };
 
+// The dial follows the clock the rows are written in: en shows "7:00 AM", es "7:00".
+const usesDayPeriod = (languageTag: string) =>
+  new Intl.DateTimeFormat(languageTag, { hour: 'numeric' })
+    .formatToParts(new Date(2000, 0, 1, 7))
+    .some((part) => part.type === 'dayPeriod');
+
 // Android shows the picker as a dialog while it is mounted; iOS shows it inline under the row until the row is
 // tapped again. The date part is arbitrary: only the hour and minute are kept.
 function TimeRow({ title, time, languageTag, last = false, onChange }: TimeRowProps) {
@@ -54,6 +60,7 @@ function TimeRow({ title, time, languageTag, last = false, onChange }: TimeRowPr
           value={new Date(2000, 0, 1, time.hour, time.minute)}
           onValueChange={(_event, picked) => pick(picked)}
           onDismiss={() => setOpen(false)}
+          is24Hour={!usesDayPeriod(languageTag)}
         />
       ) : null}
     </>

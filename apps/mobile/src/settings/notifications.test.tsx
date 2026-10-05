@@ -222,6 +222,12 @@ describe('Notifications settings', () => {
       expect(first?.fireAt).toBe('2026-10-05T09:00:00-05:00');
     });
 
+    it('shows a 12-hour dial in English, matching the rows', async () => {
+      await open();
+      fireEvent.press(screen.getByRole('button', { name: en['notifications.from'] }));
+      expect(screen.getByTestId('time-picker').props.is24Hour).toBe(false);
+    });
+
     it('closes the picker without saving when it is dismissed', async () => {
       await open();
       fireEvent.press(screen.getByRole('button', { name: en['notifications.until'] }));

@@ -253,6 +253,21 @@ describe('LiveSession rejected spans and clean seconds', () => {
     expect(Math.max(...quality.map((span) => span.endS))).toBeLessThanOrEqual(24 + 1e-9);
   });
 
+  it('perfusionPct: null before a covered window, then the index the cold-hands check compares', () => {
+    const before: (number | null)[] = [];
+    const strong = play(frames({ seconds: 30 }), {
+      onBatch: (live, tS) => {
+        // The first covered window of live.perfusionWindowS ends at 4 s; the checks before it have none.
+        if (tS < DSP_CONFIG.live.perfusionWindowS - 0.05) before.push(live.perfusionPct);
+      },
+    }).session;
+    expect(before.every((pct) => pct === null)).toBe(true);
+    expect(strong.perfusionPct!).toBeGreaterThan(CONFIG.perfusionFloorPct);
+    const weak = play(frames({ seconds: 30, pulseDepth: 0.0002 })).session;
+    expect(weak.perfusionPct!).toBeLessThan(CONFIG.perfusionFloorPct);
+    expect(play(frames({ seconds: 30, fingerOff: (tS) => tS > 25 })).session.perfusionPct).toBeNull();
+  });
+
   it('cold hands: a perfusion index under the floor after 10 s pauses the reading', () => {
     const { session } = play(frames({ seconds: 30, pulseDepth: 0.0002 }));
     const [span] = spansOf(session, 'coldHands');

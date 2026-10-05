@@ -58,6 +58,7 @@ const idleSession: LiveSession = {
   pushStatus: (_status: CaptureStatus) => undefined,
   setSqi: (_windowEndS: number, _pClean: number) => undefined,
   cleanSeconds: 0,
+  perfusionPct: null,
   recentWaveform: { tS: [], ppg: [] },
   coachingKey: 'coach.cover',
   rejectedSpans: [{ startS: 3, endS: 5, reason: 'quality' }],

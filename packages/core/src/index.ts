@@ -103,6 +103,7 @@ export { SHAPE_FEATURE_NAMES, shapeFeatures } from './shape-features';
 export { HR_SUMMARY_NAMES, hrSummary } from './reading-metrics';
 export { diabetesModelInput, type DiabetesModelInput } from './diabetes-input';
 export {
+  couplingFactor,
   rateDevice,
   tierUnlocks,
   type DeviceRating,

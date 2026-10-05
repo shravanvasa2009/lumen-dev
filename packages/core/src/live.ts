@@ -110,6 +110,7 @@ class Session implements LiveSession {
   private readonly coaching = new CoachingMachine();
   // Highest true clean seconds so far, at the end of each batch: the displayed count (ADR 0042).
   private shownClean = 0;
+  private livePerfusionPct: number | null = null; // set each tick; null without a usable window
 
   constructor(config: LiveSessionConfig) {
     const { morphologyOrder, morphologyBandHz } = DSP_CONFIG.dsp6;
@@ -244,9 +245,8 @@ class Session implements LiveSession {
     if (window) this.formedEndS = window.endS;
 
     const { coldHandsAfterS, perfusionWindowS } = DSP_CONFIG.live;
-    const from =
-      tS >= coldHandsAfterS ? usableFrom(this.tS, this.covered, this.count, tS - perfusionWindowS) : null;
-    let cold = false;
+    const from = usableFrom(this.tS, this.covered, this.count, tS - perfusionWindowS);
+    this.livePerfusionPct = null;
     if (from !== null) {
       let low = Infinity;
       let high = -Infinity;
@@ -256,8 +256,13 @@ class Session implements LiveSession {
         high = Math.max(high, this.filtered[i]!);
         total += this.red[i]!;
       }
-      cold = (100 * (high - low)) / (total / (this.count - from)) < this.config.perfusionFloorPct;
+      this.livePerfusionPct = (100 * (high - low)) / (total / (this.count - from));
     }
+    // §7: cold hands only after coldHandsAfterS.
+    const cold =
+      tS >= coldHandsAfterS &&
+      this.livePerfusionPct !== null &&
+      this.livePerfusionPct < this.config.perfusionFloorPct;
     // tick runs on the newest frame, so lastNs is the frame at tS.
     if (cold && this.openColdHandsNs === null) this.openColdHandsNs = this.lastNs;
     if (!cold && this.openColdHandsNs !== null) {
@@ -350,6 +355,10 @@ class Session implements LiveSession {
       tS: Array.from(this.tS.subarray(first, this.count)),
       ppg: Array.from(this.filtered.subarray(first, this.count)),
     };
+  }
+
+  get perfusionPct(): number | null {
+    return this.livePerfusionPct;
   }
 
   get coachingKey(): CoachingKey | null {

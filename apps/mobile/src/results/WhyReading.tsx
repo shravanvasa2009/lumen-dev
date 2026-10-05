@@ -13,6 +13,7 @@ import { useTheme } from '@/theme';
 import { intervalAxis } from './axis';
 import { DemoBanner } from './DemoBanner';
 import { type FixtureReading, regularIntervalsMs } from './fixtures';
+import { roundToTenth } from './format';
 import { PoincarePlot } from './PoincarePlot';
 import { rhythmWords } from './rhythmWords';
 import { Tachogram } from './Tachogram';
@@ -126,7 +127,9 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
             <AppText tone="textDim">{t('why.extraBeats')}</AppText>
             <EvidenceBadge metric="extraBeats" />
           </View>
-          <AppText>{t('why.extraBeatsNote', { rate: reading.scan.experimental.extraBeatsPerMin })}</AppText>
+          <AppText>
+            {t('why.extraBeatsNote', { rate: roundToTenth(reading.scan.experimental.extraBeatsPerMin) })}
+          </AppText>
         </Card>
 
         <Card flush>

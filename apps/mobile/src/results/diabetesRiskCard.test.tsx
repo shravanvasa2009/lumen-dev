@@ -1,7 +1,7 @@
 import * as core from '@lumen/core';
 import i18next from 'i18next';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
-import { Dimensions, ScrollView } from 'react-native';
+import { Dimensions, ScrollView, StyleSheet } from 'react-native';
 import type { ReactTestInstance } from 'react-test-renderer';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
@@ -135,6 +135,29 @@ describe('Diabetes risk row on Results', () => {
     expect(screen.queryByText(en['dr.result.higher'])).not.toBeOnTheScreen();
     expect(screen.queryByText(/Risk score \d/)).not.toBeOnTheScreen();
     expect(core.adaRisk).not.toHaveBeenCalled();
+  });
+});
+
+describe('Diabetes risk row on a 360 by 640 phone in Spanish', () => {
+  it('lets the score cell shrink so the title and Edit answers stay readable', async () => {
+    const originalWindow = Dimensions.get('window');
+    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1.3 } }));
+    await i18next.changeLanguage('es');
+    try {
+      await openRow(higher);
+      const word = await screen.findByText(es['dr.result.higher']);
+      let cell: ReactTestInstance | null = word;
+      while (cell !== null && StyleSheet.flatten(cell.props.style)?.maxWidth === undefined)
+        cell = cell.parent;
+      const cellStyle = StyleSheet.flatten(cell?.props.style);
+      expect(cellStyle.flexShrink).toBe(1);
+      expect(cellStyle.maxWidth).toBe('50%');
+      expect(screen.getByText(es['dr.rowTitle'])).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: `${es['dr.edit']} ›` })).toBeOnTheScreen();
+    } finally {
+      await act(() => i18next.changeLanguage('en'));
+      act(() => Dimensions.set({ window: originalWindow }));
+    }
   });
 });
 

@@ -1,6 +1,8 @@
 package expo.modules.lumencapture
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
 
@@ -22,6 +24,8 @@ private class RgbaFrame(val width: Int, val height: Int, val rowStride: Int = wi
     }
 
     fun reduce() = reduceRgbaFrame(bytes, width, height, rowStride, 4)
+
+    fun downscale() = downscaleRgbaFrame(bytes, width, height, rowStride, 4)
 }
 
 // For a 40 x 20 frame the region is x 8..31 and y 4..15, sampled at x 8, 12, ..., 28 and y 4, 8, 12.
@@ -83,4 +87,77 @@ class FrameReducerTest {
     fun emptyFrameIsRejected() {
         RgbaFrame(0, 0).reduce()
     }
+
+    @Test
+    fun thumbnailIsEightyBySixtyRgbOfTheWholeFrame() {
+        val frame = RgbaFrame(320, 240).apply { fill(200, 50, 25) }
+        // The corner pixel lies outside the finger region yet counts as 1 of the 16 in its box: 15 x 200 / 16 = 187.5.
+        frame.set(0, 0, 0, 0, 0)
+        val thumbnail = frame.downscale()
+        assertEquals(80 * 60 * 3, thumbnail.size)
+        assertEquals(listOf(188, 47, 23), pixel(thumbnail, 0, 0))
+        assertEquals(listOf(200, 50, 25), pixel(thumbnail, 79, 59))
+    }
+
+    @Test
+    fun eachThumbnailPixelIsTheMeanOfItsFourByFourBox() {
+        val frame = RgbaFrame(320, 240)
+        // Red runs 0, 10, ..., 150 inside every box (mean 75); green and blue name the box's column and row.
+        for (y in 0 until 240) for (x in 0 until 320) frame.set(x, y, (x % 4 + 4 * (y % 4)) * 10, x / 4, y / 4)
+        val thumbnail = frame.downscale()
+        for (outY in 0 until 60) for (outX in 0 until 80) assertEquals(listOf(75, outX, outY), pixel(thumbnail, outX, outY))
+    }
+
+    @Test
+    fun aHalfwayMeanRoundsUp() {
+        val frame = RgbaFrame(320, 240)
+        for (y in 0 until 240) for (x in 0 until 320) frame.set(x, y, (x + y) % 2, 0, 0)
+        assertEquals(listOf(1, 0, 0), pixel(frame.downscale(), 0, 0))
+    }
+
+    @Test
+    fun anUnevenFrameSizeStillFillsEveryThumbnailPixel() {
+        // 100 x 70 splits into boxes one or two pixels wide and tall; each box is filled with its own colour.
+        val frame = RgbaFrame(100, 70)
+        for (y in 0 until 70) for (x in 0 until 100) frame.set(x, y, x * 80 / 100, y * 60 / 70, 200)
+        val thumbnail = frame.downscale()
+        for (outY in 0 until 60) for (outX in 0 until 80) assertEquals(listOf(outX, outY, 200), pixel(thumbnail, outX, outY))
+    }
+
+    @Test
+    fun thumbnailSkipsRowPadding() {
+        val frame = RgbaFrame(320, 240, rowStride = 320 * 4 + 64)
+        frame.fill(80, 40, 20)
+        for (y in 0 until 240) for (pad in 0 until 64) frame.bytes.put(y * frame.rowStride + 320 * 4 + pad, 255.toByte())
+        val thumbnail = frame.downscale()
+        assertEquals(listOf(80, 40, 20), pixel(thumbnail, 79, 0))
+        assertEquals(listOf(80, 40, 20), pixel(thumbnail, 79, 59))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun aFrameSmallerThanTheThumbnailIsRejected() {
+        RgbaFrame(40, 20).downscale()
+    }
+
+    @Test
+    fun theGateLetsTheFirstFrameAndThenEveryThirdThrough() {
+        val gate = PreviewGate()
+        assertEquals(
+            listOf(true, false, false, true, false, false, true, false, false),
+            List(9) { gate.due(enabled = true) },
+        )
+    }
+
+    @Test
+    fun theGateGivesNoFrameWhileOffAndRestartsWhenTurnedOn() {
+        val gate = PreviewGate()
+        assertTrue(gate.due(enabled = true))
+        assertFalse(gate.due(enabled = true))
+        repeat(5) { assertFalse(gate.due(enabled = false)) }
+        assertTrue(gate.due(enabled = true))
+        assertFalse(gate.due(enabled = true))
+    }
 }
+
+private fun pixel(thumbnail: ByteArray, x: Int, y: Int): List<Int> =
+    (0 until 3).map { thumbnail[(y * 80 + x) * 3 + it].toInt() and 0xFF }

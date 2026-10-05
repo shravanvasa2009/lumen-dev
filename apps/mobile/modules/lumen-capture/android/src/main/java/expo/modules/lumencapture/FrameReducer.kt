@@ -67,3 +67,72 @@ fun reduceRgbaFrame(
         clipFrac = clipped.toDouble() / count,
     )
 }
+
+// ADR 0097: the live-view thumbnail is 80 x 60 RGB8, a quarter of the 320 x 240 analysis frame on each axis.
+const val PREVIEW_WIDTH = 80
+const val PREVIEW_HEIGHT = 60
+
+// ADR 0097: at most every 3rd analysis frame gets a thumbnail, about 10 per second at 30 fps.
+const val PREVIEW_EVERY = 3
+
+// Shrinks a whole RGBA_8888 frame to PREVIEW_WIDTH x PREVIEW_HEIGHT row-major RGB8 bytes for the live view (ADR
+// 0097). Source pixel (x, y) falls in output pixel (x * 80 / width, y * 60 / height); each output pixel is the
+// rounded mean of the source pixels that fall in it, so a 320 x 240 frame averages 4 x 4 boxes.
+fun downscaleRgbaFrame(
+    pixels: ByteBuffer,
+    width: Int,
+    height: Int,
+    rowStride: Int,
+    pixelStride: Int,
+): ByteArray {
+    require(width >= PREVIEW_WIDTH && height >= PREVIEW_HEIGHT) { "frame $width x $height is smaller than the preview" }
+    val column = IntArray(width) { it * PREVIEW_WIDTH / width }
+    val boxWidth = IntArray(PREVIEW_WIDTH)
+    column.forEach { boxWidth[it]++ }
+    val thumbnail = ByteArray(PREVIEW_WIDTH * PREVIEW_HEIGHT * 3)
+    val sums = IntArray(PREVIEW_WIDTH * 3)
+    var boxRows = 0
+    for (y in 0 until height) {
+        var offset = y * rowStride
+        for (x in 0 until width) {
+            val sum = column[x] * 3
+            sums[sum] += pixels.get(offset).toInt() and 0xFF
+            sums[sum + 1] += pixels.get(offset + 1).toInt() and 0xFF
+            sums[sum + 2] += pixels.get(offset + 2).toInt() and 0xFF
+            offset += pixelStride
+        }
+        boxRows++
+        val outRow = y * PREVIEW_HEIGHT / height
+        if (y + 1 == height || (y + 1) * PREVIEW_HEIGHT / height != outRow) {
+            val rowStart = outRow * PREVIEW_WIDTH * 3
+            for (outX in 0 until PREVIEW_WIDTH) {
+                val count = boxWidth[outX] * boxRows
+                for (channel in 0 until 3) {
+                    thumbnail[rowStart + outX * 3 + channel] = ((sums[outX * 3 + channel] + count / 2) / count).toByte()
+                }
+            }
+            sums.fill(0)
+            boxRows = 0
+        }
+    }
+    return thumbnail
+}
+
+// ADR 0097: decides which analysis frames get a thumbnail. The first frame after the preview turns on gets one,
+// so the view fills at once, then every PREVIEW_EVERY-th frame. Analyzer thread only.
+class PreviewGate {
+    private var framesToSkip = 0
+
+    fun due(enabled: Boolean): Boolean {
+        if (!enabled) {
+            framesToSkip = 0
+            return false
+        }
+        if (framesToSkip > 0) {
+            framesToSkip--
+            return false
+        }
+        framesToSkip = PREVIEW_EVERY - 1
+        return true
+    }
+}

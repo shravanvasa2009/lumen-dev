@@ -52,6 +52,7 @@ class FakeCapture implements LumenCaptureModule {
     samples: new Set(),
     status: new Set(),
     lab: new Set(),
+    preview: new Set(),
   };
 
   async getCapabilities() {

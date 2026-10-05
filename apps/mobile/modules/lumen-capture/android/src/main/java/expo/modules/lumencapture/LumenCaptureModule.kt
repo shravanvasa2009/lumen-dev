@@ -35,6 +35,12 @@ private const val ANDROID_MAX_FPS = 60
 class LumenCaptureModule : Module() {
     private var session: CameraSession? = null
 
+    // ADR 0097: the preview event runs only while JS listens to it and has not turned it off. Set from Expo's
+    // async queue and read on the analyzer thread, so both are volatile.
+    @Volatile private var previewListening = false
+
+    @Volatile private var previewAllowed = true
+
     private val context
         get() = appContext.reactContext ?: throw Exceptions.ReactContextLost()
 
@@ -44,7 +50,15 @@ class LumenCaptureModule : Module() {
         ModuleDefinition {
             Name("LumenCapture")
 
-            Events("samples", "status", "lab")
+            Events("samples", "status", "lab", "preview")
+
+            // Expo calls these when the first JS listener for "preview" is added and after the last is removed
+            // (expo-modules-core 57.0.20 EventEmitter.cpp). Neither touches the running session.
+            OnStartObserving("preview") { previewListening = true }
+
+            OnStopObserving("preview") { previewListening = false }
+
+            AsyncFunction("setPreviewEnabled") { enabled: Boolean -> previewAllowed = enabled }
 
             AsyncFunction("getCapabilities") { describeCapabilities(lenses()) }
 
@@ -125,9 +139,11 @@ class LumenCaptureModule : Module() {
             exposureWindow(config.exposureTarget)
                 ?: return promise.reject(CAPTURE_ERROR, "exposureTarget must be two increasing values within 0..1", null)
         val started =
-            CameraSession(context, SessionSettings(lens, fps, torchLevel, exposureTarget, BuildConfig.DEBUG)) { name, body ->
-                sendEvent(name, body)
-            }
+            CameraSession(
+                context,
+                SessionSettings(lens, fps, torchLevel, exposureTarget, BuildConfig.DEBUG),
+                previewWanted = { previewListening && previewAllowed },
+            ) { name, body -> sendEvent(name, body) }
         session = started
         started.start(owner) { failure ->
             if (failure != null) {

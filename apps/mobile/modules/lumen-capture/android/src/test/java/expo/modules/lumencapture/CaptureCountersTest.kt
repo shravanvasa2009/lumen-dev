@@ -193,6 +193,11 @@ class ThermalNameTest {
         assertEquals("critical", thermalName(PowerManager.THERMAL_STATUS_EMERGENCY))
         assertEquals("critical", thermalName(PowerManager.THERMAL_STATUS_SHUTDOWN))
     }
+
+    @Test
+    fun thePreviewStopsAtSeriousAndCritical() {
+        assertEquals(listOf(true, true, false, false), listOf("nominal", "fair", "serious", "critical").map(::previewThermalOk))
+    }
 }
 
 class MotionWindowTest {

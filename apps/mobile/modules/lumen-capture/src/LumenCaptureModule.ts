@@ -18,6 +18,7 @@ declare class LumenCaptureNative extends NativeModule<LumenCaptureEvents> {
   stop(): Promise<CaptureSummary>;
   setTorch(level: number): Promise<void>;
   lockExposure(): Promise<void>;
+  setPreviewEnabled?(enabled: boolean): Promise<void>;
 }
 
 // The annotation is the conformance check: tsc fails if the native binding drifts from Appendix A.

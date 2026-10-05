@@ -81,11 +81,22 @@ export interface LabDiagnostics {
   locked: { exposure: boolean; whiteBalance: boolean; focus: boolean };
 }
 
+// ADR 0097 (proposed): a live-view thumbnail of the whole analysis frame, about 10 a second, sent only while JS
+// listens to 'preview' and has not called setPreviewEnabled(false). Only Android sends it for now; iOS and
+// ReplayCapture send none, so the view falls back to the sample colours. Never stored or sent off the phone.
+export interface PreviewFrame {
+  tNs: number;
+  width: number; // 80
+  height: number; // 60
+  rgb: string; // base64 of width * height * 3 bytes, row-major RGB8
+}
+
 // Event name to payload, matching the addListener overloads below; the native binding is typed with it.
 export type LumenCaptureEvents = {
   samples: (b: SampleBatch) => void;
   status: (s: CaptureStatus) => void;
   lab: (d: LabDiagnostics) => void;
+  preview: (p: PreviewFrame) => void;
 };
 
 export interface LumenCaptureModule {
@@ -97,7 +108,11 @@ export interface LumenCaptureModule {
   setTorch(level: number): Promise<void>;
   // Locks exposure, white balance, and focus together (spec §4.2 step 3; ADR 0013).
   lockExposure(): Promise<void>;
+  // ADR 0097: optional because only the Android module has it yet. Turning the preview on or off never touches
+  // the session, torch or locks.
+  setPreviewEnabled?(enabled: boolean): Promise<void>;
   addListener(e: 'samples', cb: (b: SampleBatch) => void): { remove(): void };
   addListener(e: 'status', cb: (s: CaptureStatus) => void): { remove(): void };
   addListener(e: 'lab', cb: (d: LabDiagnostics) => void): { remove(): void };
+  addListener(e: 'preview', cb: (p: PreviewFrame) => void): { remove(): void };
 }

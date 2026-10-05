@@ -58,6 +58,8 @@ export class ReplayCapture implements LumenCaptureModule {
     samples: new Set(),
     status: new Set(),
     lab: new Set(),
+    // A recording holds no images, so preview listeners are kept but never called (ADR 0097).
+    preview: new Set(),
   };
   private timers: ReturnType<typeof setInterval>[] = [];
   private sampleCursor = 0;

@@ -15,6 +15,7 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import android.util.Base64
 import android.util.Log
 import android.util.Range
 import android.util.Size
@@ -46,6 +47,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -83,6 +85,9 @@ private data class RequestState(
 
 private const val TAG = "LumenCapture"
 
+// One live-view thumbnail on its way from the analyzer thread to the event thread (ADR 0097).
+private class Thumbnail(val tNs: Long, val rgb: ByteArray)
+
 // Spec §9.2: a small analysis size; 320 x 240 keeps the per-frame reduction far below the 4 ms budget.
 private val ANALYSIS_SIZE = Size(320, 240)
 private const val BATCH_MS = 100L // samples event, spec §9.3
@@ -101,17 +106,22 @@ private const val ANALYZER_DRAIN_MS = 100L
 private const val EVENT_DRAIN_MS = 50L
 private const val FAILURE_LOG_EVERY = 100
 
+// ADR 0097: the thumbnail cost is logged once, after 30 thumbnails (90 analysis frames at one in 3).
+private const val PREVIEW_COST_LOG_AFTER = 30
+
 // start() fails when the camera has not delivered a frame and set the torch within this time of bind, instead of
 // leaving the JS promise waiting on a stuck camera. 5 s, not 3: budget HALs can take 2-3 s to open plus the torch.
 private const val START_TIMEOUT_MS = 5000L
 
 // One running capture: CameraX ImageAnalysis on a rear lens with Camera2 interop for frame rate,
 // stabilization, exposure and locks (spec §9.2). Frames are reduced to numbers on the analyzer thread and
-// never leave this class (CAP-3).
+// never leave this class (CAP-3), apart from the live-view thumbnail of ADR 0097, which is sent only while
+// `previewWanted` is true and is never stored.
 @OptIn(markerClass = [ExperimentalCamera2Interop::class])
 class CameraSession(
     private val context: Context,
     private val settings: SessionSettings,
+    private val previewWanted: () -> Boolean,
     private val emit: (String, Map<String, Any?>) -> Unit,
 ) {
     private val lens = settings.lens
@@ -164,6 +174,19 @@ class CameraSession(
     private var seenOpen = false // main thread only
     private var reopened = false // main thread only
     private val analysisFailures = AtomicInteger(0)
+
+    private val previewGate = PreviewGate() // analyzer thread only
+    private var thumbnailWorkNs = 0L // analyzer thread only
+    private var thumbnailCount = 0 // analyzer thread only
+    private var thumbnailFailures = 0 // analyzer thread only
+
+    // The newest thumbnail the event thread has not sent yet. A newer one replaces it, so a slow JS thread gets the
+    // latest picture instead of a growing queue.
+    private val pendingThumbnail = AtomicReference<Thumbnail?>(null)
+
+    // ADR 0097: at thermal serious or worse the preview stops before anything the reading needs. Updated with
+    // every status event.
+    @Volatile private var thermalAllowsPreview = true
 
     // start()'s callback until the start succeeds or fails, then null. Main thread only, like the fields below.
     private var startDone: ((Throwable?) -> Unit)? = null
@@ -284,6 +307,7 @@ class CameraSession(
         provider = cameraProvider
         analysis = useCase
         logBound()
+        thermalAllowsPreview = previewThermalOk(thermalNow())
         running = true
         sensorManager?.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)?.let {
             sensorManager.registerListener(motionListener, it, MOTION_PERIOD_US, events)
@@ -376,8 +400,11 @@ class CameraSession(
                 mainHandler.post(firstFrameArrived)
             }
             val numbers = reduceRgbaFrame(plane.buffer, it.width, it.height, plane.rowStride, plane.pixelStride)
-            val workNs = System.nanoTime() - workStart
             val tNs = it.imageInfo.timestamp
+            // ADR 0097: after the reduction, so the preview never delays the numbers. Its time counts in the Lab
+            // frame work, which spec 9.3 budgets per frame.
+            if (previewGate.due(previewWanted() && thermalAllowsPreview)) makeThumbnail(it, tNs)
+            val workNs = System.nanoTime() - workStart
             frameWidth = it.width
             frameHeight = it.height
             val overexposed =
@@ -388,6 +415,50 @@ class CameraSession(
                 )
             if (overexposed) onExposureThread(::relieveOverexposure)
         }
+    }
+
+    // A failed thumbnail is logged and skipped; the frame's numbers are already taken, so the reading loses nothing.
+    private fun makeThumbnail(image: ImageProxy, tNs: Long) {
+        val start = System.nanoTime()
+        val plane = image.planes[0]
+        val rgb =
+            try {
+                downscaleRgbaFrame(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride)
+            } catch (e: RuntimeException) {
+                thumbnailFailures++
+                if (thumbnailFailures == 1 || thumbnailFailures % FAILURE_LOG_EVERY == 0) {
+                    Log.e(TAG, "Preview thumbnail failed ($thumbnailFailures so far)", e)
+                }
+                return
+            }
+        thumbnailWorkNs += System.nanoTime() - start
+        thumbnailCount++
+        if (thumbnailCount == PREVIEW_COST_LOG_AFTER) {
+            val meanMs = thumbnailWorkNs / 1e6 / thumbnailCount
+            Log.i(
+                TAG,
+                "Preview thumbnail ${image.width}x${image.height} to ${PREVIEW_WIDTH}x$PREVIEW_HEIGHT: mean " +
+                    "${"%.3f".format(Locale.ROOT, meanMs)} ms over $thumbnailCount thumbnails, " +
+                    "${"%.3f".format(Locale.ROOT, meanMs / PREVIEW_EVERY)} ms per analysis frame",
+            )
+        }
+        if (pendingThumbnail.getAndSet(Thumbnail(tNs, rgb)) == null) events.post(::emitThumbnail)
+    }
+
+    // Event thread, so the base64 encoding and the bridge call never hold up the analyzer.
+    private fun emitThumbnail() {
+        val thumbnail = pendingThumbnail.getAndSet(null) ?: return
+        // JS may have stopped listening or turned the preview off while this waited.
+        if (!previewWanted()) return
+        emit(
+            "preview",
+            mapOf(
+                "tNs" to thumbnail.tNs.toDouble(),
+                "width" to PREVIEW_WIDTH,
+                "height" to PREVIEW_HEIGHT,
+                "rgb" to Base64.encodeToString(thumbnail.rgb, Base64.NO_WRAP),
+            ),
+        )
     }
 
     private fun onExposureThread(task: () -> Unit) {
@@ -694,12 +765,8 @@ class CameraSession(
     private fun emitStatus() {
         val nowNs = SystemClock.elapsedRealtimeNanos()
         val numbers = counters.status(nowNs)
-        val thermal =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && powerManager != null) {
-                thermalName(powerManager.currentThermalStatus)
-            } else {
-                "nominal"
-            }
+        val thermal = thermalNow()
+        thermalAllowsPreview = previewThermalOk(thermal)
         emit(
             "status",
             mapOf(
@@ -712,6 +779,13 @@ class CameraSession(
         )
         events.postDelayed(::emitStatus, STATUS_MS)
     }
+
+    private fun thermalNow(): String =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && powerManager != null) {
+            thermalName(powerManager.currentThermalStatus)
+        } else {
+            "nominal"
+        }
 
     // Release-build logcat once a second, so a phone run shows why the finger hint is on or off: the DSP-4 inputs
     // of the newest frame, with its exposure and the frame rate. Frame averages only, never a health value

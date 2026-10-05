@@ -238,6 +238,9 @@ fun thermalName(status: Int): String =
         else -> "critical"
     }
 
+// ADR 0097: the preview runs at thermal nominal and fair only.
+fun previewThermalOk(thermal: String): Boolean = thermal == "nominal" || thermal == "fair"
+
 private const val STANDARD_GRAVITY = 9.80665 // m/s² per g
 
 // ADR 0029: RMS of gravity-removed acceleration over the last 1 s, in g. Fed by TYPE_LINEAR_ACCELERATION

@@ -30,10 +30,10 @@ describe('choose a mode: footer and back chevron (mockup 11)', () => {
     mockRating = null;
   });
 
-  it('names the phone and its rating, and says every mode is available when nothing is locked', async () => {
+  it('names the phone and its rating, and says no mode is locked by the rating when nothing is locked', async () => {
     mockRating = ratingOf('full', 60);
     await open();
-    expect(screen.getByText('This phone · Full rating — all modes available')).toBeOnTheScreen();
+    expect(screen.getByText('This phone · Full rating — no modes locked by this rating')).toBeOnTheScreen();
   });
 
   it('says some modes are locked when the rating locks one', async () => {
@@ -60,7 +60,9 @@ describe('choose a mode: footer and back chevron (mockup 11)', () => {
     try {
       await open();
       expect(
-        screen.getByText('Este teléfono · calificación Completa — todos los modos disponibles'),
+        screen.getByText(
+          'Este teléfono · calificación Completa — ningún modo bloqueado por esta calificación',
+        ),
       ).toBeOnTheScreen();
     } finally {
       await act(() => i18next.changeLanguage('en'));

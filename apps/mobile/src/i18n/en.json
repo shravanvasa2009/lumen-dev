@@ -893,7 +893,7 @@
   "rating.demoOffer": "You can still try Demo mode to see how Lumen works.",
   "mode.lockedFlash": "Needs a phone whose flash reaches your finger.",
   "mode.lockedUnsupported": "Lumen can't measure a pulse on this phone.",
-  "mode.footerOpen": "{{phone}} · {{tier}} rating — all modes available",
+  "mode.footerOpen": "{{phone}} · {{tier}} rating — no modes locked by this rating",
   "mode.footerLocked": "{{phone}} · {{tier}} rating — some modes are locked",
   "mode.thisPhone": "This phone",
   "settings.deleteConfirmTitle": "Delete everything on this phone?",

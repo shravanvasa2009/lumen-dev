@@ -30,7 +30,7 @@ export function useSavedLanguage(): void {
       .catch(() => undefined)
       .then(() => {
         void resyncNotifications();
-        // The widgets' copy follows the language too; a failure keeps the copy they had.
+        // A failure keeps the copy the widgets had.
         publishWidgetCopy().catch((error: unknown) => {
           const reason = error instanceof Error ? error.message : String(error);
           console.warn(`Widget copy update failed: ${reason}`);

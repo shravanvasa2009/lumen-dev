@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
+import i18next from 'i18next';
 import * as Linking from 'expo-linking';
 
 import { ScrollView } from 'react-native';
 
 import type { PlanPhone } from '@/checks/checkPlan';
 import en from '@/i18n/en.json';
+import es from '@/i18n/es.json';
 
 import { CaptureView } from './CaptureView';
 import { CheckingRow } from './CheckingRow';
@@ -41,13 +43,7 @@ const show = (
   const onCancel = jest.fn();
   const onStop = jest.fn();
   render(
-    <CaptureView
-      mode={mode}
-      live={{ ...base, ...live }}
-      phone={phone}
-      onCancel={onCancel}
-      onStop={onStop}
-    />,
+    <CaptureView mode={mode} live={{ ...base, ...live }} phone={phone} onCancel={onCancel} onStop={onStop} />,
   );
   return { onCancel, onStop };
 };
@@ -73,6 +69,23 @@ describe('CaptureView', () => {
     fireEvent.press(screen.getByRole('button', { name: en['capture.openSettings'] }));
     expect(openSettings).toHaveBeenCalledTimes(1);
     openSettings.mockRestore();
+  });
+
+  it('puts the denied line and Open Settings above the finger preview and the waveform card, in English and Spanish', async () => {
+    show({ phase: 'denied', status: null });
+    const tree = JSON.stringify(screen.toJSON());
+    expect(tree.indexOf(en['capture.openSettings'])).toBeGreaterThan(-1);
+    expect(tree.indexOf(en['capture.openSettings'])).toBeLessThan(tree.indexOf(en['capture.noWaveform']));
+    expect(screen.getAllByText(en['capture.denied'])).toHaveLength(1);
+    screen.unmount();
+    await act(() => i18next.changeLanguage('es'));
+    try {
+      show({ phase: 'denied', status: null });
+      expect(screen.getByText(es['capture.denied'])).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: es['capture.openSettings'] })).toBeOnTheScreen();
+    } finally {
+      await act(() => i18next.changeLanguage('en'));
+    }
   });
 
   it('has no Open Settings button while the camera runs', () => {
@@ -196,7 +209,10 @@ describe('CaptureView', () => {
     });
 
     it('keeps the normal rows in a Full Scan where every check is off', () => {
-      const allOff = (['afib', 'hrv', 'diabetes', 'pots'] as const).map((id) => ({ id, state: 'off' as const }));
+      const allOff = (['afib', 'hrv', 'diabetes', 'pots'] as const).map((id) => ({
+        id,
+        state: 'off' as const,
+      }));
       render(<CheckingRow mode="full" items={allOff} />);
       expect(screen.queryByText(en['checks.quickHeartRateOnly'])).toBeNull();
       expect(screen.getAllByText(en['checks.state.off'])).toHaveLength(4);

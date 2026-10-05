@@ -6,6 +6,7 @@ import pytest
 
 from eval import nhanes_test
 from export import nhanes_parity
+from train import nhanes_cut
 from train import nhanes_questionnaire as nq
 
 
@@ -177,13 +178,12 @@ def test_the_report_compares_the_model_with_the_points_on_the_same_people():
 
 
 def test_parity_cases_carry_the_formula_logit_and_never_give_men_gestational_diabetes():
-    frame = cohort(600, 5)
-    frozen = {"model": nq.frozen_form("logistic", nq.fit_logistic(frame)), "threshold": 0.0}
-    cases = nhanes_parity.parity_cases(frozen)
-    replayed = nhanes_test.questionnaire_logit(frozen["model"], pd.DataFrame(cases))
+    formula = nq.frozen_form("logistic", nq.fit_logistic(cohort(600, 5)))
+    cases = nhanes_parity.parity_cases(formula)
+    replayed = nhanes_test.questionnaire_logit(formula, pd.DataFrame(cases))
     assert np.allclose(replayed, [case["logit"] for case in cases])
-    assert all(case["higherRisk"] == (case["logit"] >= 0.0) for case in cases)
     assert not any(case["male"] and case["gestationalDiabetes"] for case in cases)
+    assert all("higherRisk" not in case for case in cases)
 
 
 def test_the_cut_matches_the_specificity_of_bang_five_or_more():
@@ -194,3 +194,13 @@ def test_the_cut_matches_the_specificity_of_bang_five_or_more():
     assert np.mean(logits[labels == 0] < cut) == pytest.approx(
         np.mean(points[labels == 0] < nq.BANG_FLAG), abs=0.1
     )
+
+
+def test_the_floor_cut_holds_the_specificity_it_was_set_for():
+    rng = np.random.default_rng(6)
+    labels = np.r_[np.zeros(400, dtype=int), np.ones(100, dtype=int)]
+    logits = np.r_[rng.normal(0, 1, 400), rng.normal(1.5, 1, 100)]
+    cut = nhanes_cut.floor_threshold(logits, labels, nhanes_cut.SPECIFICITY_FLOOR)
+    point = nhanes_cut.operating_point(logits, labels, cut)
+    assert point["specificity"] == pytest.approx(nhanes_cut.SPECIFICITY_FLOOR, abs=0.01)
+    assert point["sensitivity"] == pytest.approx(np.mean(logits[labels == 1] >= cut))

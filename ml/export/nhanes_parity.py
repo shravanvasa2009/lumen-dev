@@ -14,7 +14,7 @@ BMIS = (18.5, 24.9, 25, 29.9, 30, 39.9, 40, 55)
 YES_NO = (0.0, 1.0)
 
 
-def parity_cases(frozen: dict) -> list[dict]:
+def parity_cases(formula: dict) -> list[dict]:
     rows = [
         {
             "ageYears": age,
@@ -30,25 +30,18 @@ def parity_cases(frozen: dict) -> list[dict]:
         if not (male and gestational)
     ]
     frame = pd.DataFrame(rows)
-    logits = questionnaire_logit(frozen["model"], frame)
-    return [
-        {**row, "logit": float(value), "higherRisk": bool(value >= frozen["threshold"])}
-        for row, value in zip(rows, logits, strict=True)
-    ]
+    logits = questionnaire_logit(formula, frame)
+    return [{**row, "logit": float(value)} for row, value in zip(rows, logits, strict=True)]
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m export.nhanes_parity")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
-    frozen = frozen_model()
-    document = {
-        "modelSha256": FROZEN_SHA256,
-        "formula": frozen["model"],
-        "threshold": frozen["threshold"],
-        "cases": parity_cases(frozen),
-    }
-    args.out.write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8")
+    # No threshold: under ML-6 the check is Experimental and never flags high or low (ADR 0091, choice 91-1).
+    formula = frozen_model()["model"]
+    document = {"modelSha256": FROZEN_SHA256, "formula": formula, "cases": parity_cases(formula)}
+    args.out.write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8", newline="\n")
     logits = [case["logit"] for case in document["cases"]]
     print(f"{len(logits)} cases, logit range {min(logits):.2f}..{max(logits):.2f}")
 

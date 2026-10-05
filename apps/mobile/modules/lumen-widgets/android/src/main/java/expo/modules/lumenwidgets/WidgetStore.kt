@@ -1,7 +1,11 @@
 package expo.modules.lumenwidgets
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 
 // Spec §9.6: Android widgets read the snapshot from SharedPreferences.
 private const val PREFS = "lumen_widgets"
@@ -57,6 +61,18 @@ object WidgetStore {
         val updatedAt = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
         return "$updatedAt|$displayJson"
     }
+
+    // Glance keeps a widget's session running for a while after it draws, and an update that arrives then
+    // recomposes that content instead of calling provideGlance again. A widget that read the store once kept the
+    // fallback after the first launch's copy publish (API 37 emulator, 2026-10-05), so the widgets watch it.
+    fun views(context: Context): Flow<WidgetView?> =
+        callbackFlow {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val listener =
+                SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(read(context, System.currentTimeMillis())) }
+            prefs.registerOnSharedPreferenceChangeListener(listener)
+            awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        }
 
     // null until the app has published its copy once (a widget added before the app ever ran), or while the stored
     // payload is one this version can't read (written by an older app until its next publish).

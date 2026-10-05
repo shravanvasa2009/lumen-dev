@@ -1,6 +1,8 @@
 import type { TFunction } from 'i18next';
-import { renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import i18n from 'i18next';
 
+import es from '@/i18n/es.json';
 import { tableRows } from '@/report/model';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
@@ -48,6 +50,20 @@ describe('results rounding', () => {
     renderRouter('./app', { initialUrl: '/results/fractional/why' });
     expect(await screen.findByText(/^0\.7 per minute/)).toBeOnTheScreen();
     expect(screen.queryByText(/0\.666/)).toBeNull();
+  });
+
+  it('writes the extra-beat rate with a decimal comma in Spanish, on Why and on Results', async () => {
+    await act(() => i18n.changeLanguage('es'));
+    try {
+      renderRouter('./app', { initialUrl: '/results/fractional/why' });
+      expect(await screen.findByText(/^0,7 por minuto/)).toBeOnTheScreen();
+      screen.unmount();
+      renderRouter('./app', { initialUrl: '/results/fractional' });
+      fireEvent.press(screen.getByText(es['results.extraAndShape']));
+      expect(screen.getByText('Latidos extra u omitidos: 0,7 por minuto')).toBeOnTheScreen();
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 
   it('floors clean seconds and rounds bpm in the report table', () => {

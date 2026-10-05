@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { formatNumber } from '@/i18n/formatNumber';
 import { useTheme } from '@/theme';
 
 import type { NearbyClinic } from './clinics';
@@ -27,9 +28,9 @@ export function ClinicCard({
   onCall,
   onDirections,
 }: ClinicCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors, radius, spacing } = useTheme();
-  const miles = t('careMap.miles', { miles: clinic.miles.toFixed(1) });
+  const miles = t('careMap.miles', { miles: formatNumber(clinic.miles, i18n.language, 1, 1) });
   // OpenStreetMap sites often lack a street, city or ZIP; only the parts present are shown.
   const address = [clinic.street, clinic.city, [clinic.state, clinic.zip].filter(Boolean).join(' ')]
     .filter(Boolean)

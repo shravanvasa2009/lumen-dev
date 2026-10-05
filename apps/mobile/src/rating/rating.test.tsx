@@ -1,6 +1,7 @@
 import { type FrameStat, rateDevice, type RatingMeasures, type Sample } from '@lumen/core';
 import { screen } from '@testing-library/react-native';
-import { renderRouter } from 'expo-router/testing-library';
+import i18n from 'i18next';
+import { act, renderRouter } from 'expo-router/testing-library';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { checkCell, planPhone } from '@/checks/checkPlan';
@@ -173,6 +174,22 @@ describe('the rating from the probe and practice', () => {
     expect(screen.getByLabelText('94, Full')).toBeOnTheScreen();
     expect(screen.getAllByTestId('rating-bar')).toHaveLength(4);
     expect(screen.queryByTestId('not-tested-tile')).toBeNull();
+  });
+
+  it('writes the perfusion index and the jitter with a decimal comma in Spanish', async () => {
+    await saveDeviceRating(rateDevice(sixtyFpsPhone, practiceOf(60)), {
+      ...DETAILS,
+      lensId: 'main',
+      practice: { achievedFps: 60, frameIntervalSdMs: 0.5, perfusionIndexPct: 1.2, snrDb: 14 },
+    });
+    await act(() => i18n.changeLanguage('es'));
+    try {
+      renderRouter('./app', { initialUrl: '/settings/phone' });
+      expect(await screen.findByText('Índice de perfusión 1,2 %')).toBeOnTheScreen();
+      expect(screen.getByText('Variación 0,5 ms')).toBeOnTheScreen();
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 
   it('says the phone is not rated yet when neither the probe nor a stored rating gives one', async () => {

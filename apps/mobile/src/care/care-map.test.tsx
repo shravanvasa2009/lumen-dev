@@ -1,6 +1,7 @@
 import { requireOptionalNativeModule } from 'expo';
 import * as Location from 'expo-location';
 import { render } from '@testing-library/react-native';
+import i18n from 'i18next';
 import { act, fireEvent, renderHook, renderRouter, screen, within } from 'expo-router/testing-library';
 import { Dimensions, Keyboard, Linking, Platform, StyleSheet } from 'react-native';
 
@@ -594,6 +595,25 @@ describe('clinic card', () => {
       />,
     );
     expect(screen.getByText('TX 77002 · 1.3 mi')).toBeOnTheScreen();
+  });
+
+  it('writes the distance with a decimal comma in Spanish', async () => {
+    await act(() => i18n.changeLanguage('es'));
+    try {
+      render(
+        <ClinicCard
+          clinic={{ ...nearestClinics(HOUSTON)[10]!, street: '', city: '', state: 'TX', zip: '77002', miles: 1.25 }}
+          selected={false}
+          callFailed={false}
+          directionsFailed={false}
+          onCall={jest.fn()}
+          onDirections={jest.fn()}
+        />,
+      );
+      expect(screen.getByText('TX 77002 · 1,3 mi')).toBeOnTheScreen();
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 });
 

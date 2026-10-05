@@ -7,6 +7,7 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
+import { formatNumber } from '@/i18n/formatNumber';
 import { BasicsFields } from '@/profile/BasicsFields';
 import { basicsAcceptable, bmiOf, bmiShown } from '@/profile/diabetesRisk';
 import { DiabetesRiskForm } from '@/profile/DiabetesRiskForm';
@@ -16,7 +17,7 @@ import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
 
 export default function SettingsProfileScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors, spacing } = useTheme();
   const risk = useRiskDraft();
   const [editing, setEditing] = useState(false);
@@ -42,11 +43,11 @@ export default function SettingsProfileScreen() {
       shown: draft.ageYears === null ? notAnswered : `${draft.ageYears} ${t('profile.years')}`,
     },
     { title: t('profile.sex'), shown: draft.sex === null ? notAnswered : sexNames[draft.sex] },
-    { title: t('profile.height'), shown: draft.heightCm === null ? notAnswered : `${draft.heightCm} cm` },
-    { title: t('profile.weight'), shown: draft.weightKg === null ? notAnswered : `${draft.weightKg} kg` },
+    { title: t('profile.height'), shown: draft.heightCm === null ? notAnswered : `${formatNumber(draft.heightCm, i18n.language)} cm` },
+    { title: t('profile.weight'), shown: draft.weightKg === null ? notAnswered : `${formatNumber(draft.weightKg, i18n.language)} kg` },
     {
       title: t('profile.bmi'),
-      shown: heightCm !== null && weightKg !== null ? bmiShown(bmiOf(heightCm, weightKg)) : notAnswered,
+      shown: heightCm !== null && weightKg !== null ? bmiShown(bmiOf(heightCm, weightKg), i18n.language) : notAnswered,
     },
   ];
   const questionRows = [

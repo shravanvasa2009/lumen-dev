@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { formatNumber } from '@/i18n/formatNumber';
 import { Segmented } from '@/settings/Segmented';
 import { useTheme } from '@/theme';
 
@@ -30,18 +31,18 @@ type BasicsFieldsProps = {
 
 const roundToTenth = (value: number) => Math.round(value * 10) / 10;
 
-function numberText(value: number | null): string {
-  return value === null ? '' : String(roundToTenth(value));
+function numberText(value: number | null, language: string): string {
+  return value === null ? '' : formatNumber(value, language);
 }
 
-// A lone "." has no value yet.
+// A lone "." has no value yet. A Spanish keyboard types a comma for the decimal mark, so either one counts.
 function parseTyped(text: string): number | null {
-  const parsed = Number(text);
+  const parsed = Number(text.replace(',', '.'));
   return text === '' || Number.isNaN(parsed) ? null : parsed;
 }
 
-// Digits and at most one decimal point.
-const cleanTyped = (text: string) => text.replace(/[^0-9.]/g, '').replace(/(\..*)\./, '$1');
+// Digits and at most one decimal mark, a point or a comma.
+const cleanTyped = (text: string) => text.replace(/[^0-9.,]/g, '').replace(/([.,].*)[.,]/, '$1');
 
 type FieldRowProps = {
   label: string;
@@ -111,12 +112,12 @@ function Problem({ message }: { message: string }) {
 // Age, sex, height and weight with a live body mass index. Typed text stays here in the unit shown;
 // the draft always holds metric, and the body mass index is worked out for display and never stored.
 export function BasicsFields({ draft, change }: BasicsFieldsProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { spacing } = useTheme();
   const [units, setUnits] = useState<Units>('metric');
-  const [ageText, setAgeText] = useState(numberText(draft.ageYears));
-  const [heightText, setHeightText] = useState(numberText(draft.heightCm));
-  const [weightText, setWeightText] = useState(numberText(draft.weightKg));
+  const [ageText, setAgeText] = useState(numberText(draft.ageYears, i18n.language));
+  const [heightText, setHeightText] = useState(numberText(draft.heightCm, i18n.language));
+  const [weightText, setWeightText] = useState(numberText(draft.weightKg, i18n.language));
   const imperial = units === 'imperial';
   const heightUnit = imperial ? 'in' : 'cm';
   const weightUnit = imperial ? 'lb' : 'kg';
@@ -127,8 +128,12 @@ export function BasicsFields({ draft, change }: BasicsFieldsProps) {
   function showUnits(next: Units) {
     setUnits(next);
     const toImperial = next === 'imperial';
-    setHeightText(numberText(heightCm === null ? null : toImperial ? inchesFromCm(heightCm) : heightCm));
-    setWeightText(numberText(weightKg === null ? null : toImperial ? poundsFromKg(weightKg) : weightKg));
+    setHeightText(
+      numberText(heightCm === null ? null : toImperial ? inchesFromCm(heightCm) : heightCm, i18n.language),
+    );
+    setWeightText(
+      numberText(weightKg === null ? null : toImperial ? poundsFromKg(weightKg) : weightKg, i18n.language),
+    );
   }
 
   function typeAge(text: string) {
@@ -159,7 +164,7 @@ export function BasicsFields({ draft, change }: BasicsFieldsProps) {
     : WEIGHT_KG;
   const bodyUsable =
     heightCm !== null && weightKg !== null && !invalid.includes('height') && !invalid.includes('weight');
-  const bmiText = bodyUsable ? bmiShown(bmiOf(heightCm, weightKg)) : '—';
+  const bmiText = bodyUsable ? bmiShown(bmiOf(heightCm, weightKg), i18n.language) : '—';
 
   return (
     <View style={{ gap: spacing.sm }}>

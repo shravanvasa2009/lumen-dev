@@ -8,12 +8,12 @@ import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
+import { formatNumber } from '@/i18n/formatNumber';
 import { useTheme } from '@/theme';
 
 import { intervalAxis } from './axis';
 import { DemoBanner } from './DemoBanner';
 import { type FixtureReading, regularIntervalsMs } from './fixtures';
-import { roundToTenth } from './format';
 import { PoincarePlot } from './PoincarePlot';
 import { rhythmWords } from './rhythmWords';
 import { Tachogram } from './Tachogram';
@@ -27,7 +27,7 @@ function SectionCaption({ text }: { text: string }) {
 }
 
 export function WhyReading({ reading }: { reading: FixtureReading }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const [poincareOpen, setPoincareOpen] = useState(false);
   const { colors, radius, spacing, control } = useTheme();
@@ -128,7 +128,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
             <EvidenceBadge metric="extraBeats" />
           </View>
           <AppText>
-            {t('why.extraBeatsNote', { rate: roundToTenth(reading.scan.experimental.extraBeatsPerMin) })}
+            {t('why.extraBeatsNote', { rate: formatNumber(reading.scan.experimental.extraBeatsPerMin, i18n.language) })}
           </AppText>
         </Card>
 

@@ -71,12 +71,16 @@ private data class ResultSnapshot(
     val awbLocked: Boolean,
     val afLocked: Boolean,
     val focusDistance: Float?,
+    // CONTROL_AE_EXPOSURE_COMPENSATION as the camera applied it, so the log shows whether the steering took hold.
+    val aeCompensation: Int?,
 )
 
 // The Camera2 options this session adds on top of CameraX's own request. Changed only on the exposure thread.
 private data class RequestState(
     val manual: ExposureSetting? = null,
     val aeLock: Boolean = false,
+    // CONTROL_AE_EXPOSURE_COMPENSATION index; steers AE on lenses that only take an AE lock (ADR 0098).
+    val aeCompensation: Int = 0,
     val awbLock: Boolean = false,
     val focusDistance: Float? = null,
 )
@@ -466,7 +470,7 @@ class CameraSession(
                     "manual (AE off)"
                 }
                 ExposureHold.AE_LOCK -> {
-                    freshRed(firstWaitMs)
+                    steerAeCompensation(firstWaitMs)
                     aeLockWanted = true
                     applyRequest(added.copy(aeLock = true))
                     confirmAeLock()
@@ -557,6 +561,51 @@ class CameraSession(
         Log.i(TAG, "Exposure held after $steps steps: red $red, ${added.manual}")
     }
 
+    // DSP-5 on a lens with only an AE lock (ADR 0098): AE meters overall brightness, which a finger makes mostly
+    // dark green, so it runs to its longest exposure and clips red. Exposure compensation moves AE's target until
+    // the red mean sits inside exposureTarget; the lock then holds that exposure.
+    private fun steerAeCompensation(firstWaitMs: Long) {
+        var red = freshRed(firstWaitMs)
+        val compensation = lens.aeCompensation
+        if (compensation == null) {
+            Log.i(TAG, "Exposure not compensated: the lens has no AE compensation range; red ${redText(red)}")
+            return
+        }
+        var steps = 0
+        while (red !in settings.exposureTarget && steps < MAX_EXPOSURE_STEPS) {
+            val index = nextCompensationIndex(added.aeCompensation, compensationStepEv(red, settings.exposureTarget), compensation)
+            if (index == added.aeCompensation) break
+            applyRequest(added.copy(aeCompensation = index))
+            steps++
+            red = convergedRed(index)
+        }
+        val ev = added.aeCompensation * compensation.stepEv
+        Log.i(
+            TAG,
+            "Exposure compensated after $steps steps: red ${redText(red)}, EV ${"%.2f".format(Locale.ROOT, ev)} " +
+                "(index ${added.aeCompensation}, result index ${latest?.aeCompensation ?: "not reported"}, " +
+                "range ${compensation.minIndex}..${compensation.maxIndex}), exposureNs ${latest?.exposureNs}",
+        )
+    }
+
+    // AE takes several frames to follow a new compensation, longer than EXPOSURE_LATENCY_MS. Waits until the results
+    // carry the new index, then the latency (AE leaves CONVERGED), then for CONVERGED or FLASH_REQUIRED (AE's settled
+    // state when it wants more light than it can reach; CaptureResult.CONTROL_AE_STATE docs). Each wait is bounded
+    // by the lock wait, so a HAL that reports neither still moves on.
+    private fun convergedRed(index: Int): Double {
+        val waitMs = lockWaitMs(counters.lockIntervalNs())
+        var deadline = SystemClock.elapsedRealtime() + waitMs
+        while (latest?.aeCompensation != index && SystemClock.elapsedRealtime() < deadline) Thread.sleep(FRESH_FRAME_POLL_MS)
+        Thread.sleep(EXPOSURE_LATENCY_MS)
+        deadline = SystemClock.elapsedRealtime() + waitMs
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val state = latest?.aeState
+            if (state == CaptureResult.CONTROL_AE_STATE_CONVERGED || state == CaptureResult.CONTROL_AE_STATE_FLASH_REQUIRED) break
+            Thread.sleep(FRESH_FRAME_POLL_MS)
+        }
+        return freshRed(0)
+    }
+
     // DSP-5: red stayed above 0.95 after the lock, so lower the exposure one step and hold it (ADR 0029). Core
     // sees the change in exposureNs and marks the span as artifact.
     private fun relieveOverexposure() {
@@ -606,6 +655,9 @@ class CameraSession(
                 .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, manual.iso.roundToInt())
                 .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, frameIntervalNs)
         }
+        if (next.aeCompensation != 0) {
+            options.setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, next.aeCompensation)
+        }
         if (next.aeLock) options.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, true)
         if (next.awbLock) options.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_LOCK, true)
         next.focusDistance?.let {
@@ -652,6 +704,7 @@ class CameraSession(
                                 afState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED ||
                                 afState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED,
                         focusDistance = captureResult.get(CaptureResult.LENS_FOCUS_DISTANCE),
+                        aeCompensation = captureResult.get(CaptureResult.CONTROL_AE_EXPOSURE_COMPENSATION),
                     )
             }
         }
@@ -799,6 +852,8 @@ class CameraSession(
         }, mainExecutor)
     }
 }
+
+private fun redText(red: Double): String = "%.3f".format(Locale.ROOT, red)
 
 // CaptureResult.CONTROL_AE_STATE values, for the lock log line.
 private fun aeStateName(state: Int?): String =

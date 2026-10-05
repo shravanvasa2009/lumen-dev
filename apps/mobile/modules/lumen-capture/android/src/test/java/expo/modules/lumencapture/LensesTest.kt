@@ -125,6 +125,7 @@ class LensExposureHoldTest {
             fixedFocus = false,
             minimumFocusDistance = 10f,
             manualExposure = manual,
+            aeCompensation = null,
             realtimeTimestamps = true,
             hardwareLevel = INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED,
         )
@@ -136,5 +137,16 @@ class LensExposureHoldTest {
         assertEquals(ExposureHold.MANUAL, lens(manual, aeLock = true).exposureHold)
         assertEquals(ExposureHold.AE_LOCK, lens(null, aeLock = true).exposureHold)
         assertEquals(ExposureHold.NONE, lens(null, aeLock = false).exposureHold)
+    }
+}
+
+class AeCompensationTest {
+    @Test
+    fun compensationNeedsANonEmptyRangeAndAStep() {
+        assertEquals(AeCompensation(-40, 40, 0.1), aeCompensation(-40, 40, 0.1))
+        assertNull(aeCompensation(0, 0, 0.1)) // [0, 0]: not supported (CameraCharacteristics docs)
+        assertNull(aeCompensation(null, 40, 0.1))
+        assertNull(aeCompensation(-40, 40, null))
+        assertNull(aeCompensation(-40, 40, 0.0))
     }
 }

@@ -3,6 +3,7 @@ package expo.modules.lumencapture
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import kotlin.math.log2
 import kotlin.math.pow
 
 // Mirrors the Swift CapturePlanTests exposure cases (PR #34), in ns instead of s.
@@ -75,5 +76,33 @@ class ExposurePlanTest {
         assertEquals(ExposureHold.MANUAL, exposureHold(manualExposure = true, aeLockAvailable = false))
         assertEquals(ExposureHold.AE_LOCK, exposureHold(manualExposure = false, aeLockAvailable = true))
         assertEquals(ExposureHold.NONE, exposureHold(manualExposure = false, aeLockAvailable = false))
+    }
+
+    // The Galaxy A17's rear lens: CONTROL_AE_COMPENSATION_RANGE [-40, 40] in 1/10 EV steps (dumpsys, 2026-10-05).
+    private val a17 = AeCompensation(minIndex = -40, maxIndex = 40, stepEv = 0.1)
+
+    @Test
+    fun compensationStepIsFixedWhenRedClipsElseExposureFactorInEv() {
+        val window = DEFAULT_EXPOSURE_TARGET
+        assertEquals(-2.0, compensationStepEv(1.0, window), 0.0)
+        assertEquals(-2.0, compensationStepEv(0.95, window), 0.0)
+        assertEquals(2.2 * log2(0.675 / 0.9), compensationStepEv(0.9, window), 1e-12)
+        assertEquals(2.2 * log2(0.675 / 0.3), compensationStepEv(0.3, window), 1e-12)
+        assertEquals(0.0, compensationStepEv(0.675, window), 1e-12)
+        assertEquals(3.0, compensationStepEv(0.0, window), 1e-12) // exposureFactor's 3-stop cap
+    }
+
+    @Test
+    fun compensationIndexStepsInLensUnitsWithinTheRange() {
+        assertEquals(-20, nextCompensationIndex(0, -2.0, a17))
+        assertEquals(-40, nextCompensationIndex(-30, -2.0, a17))
+        assertEquals(-40, nextCompensationIndex(-40, -2.0, a17)) // range edge: no further step
+        assertEquals(13, nextCompensationIndex(0, 1.26, a17))
+        // A step smaller than one index still moves one index, so steering never stalls inside the range.
+        assertEquals(-1, nextCompensationIndex(0, -0.01, a17))
+        assertEquals(1, nextCompensationIndex(0, 0.01, a17))
+        assertEquals(5, nextCompensationIndex(5, 0.0, a17))
+        // A coarser lens (1/3 EV steps, range +-6).
+        assertEquals(-6, nextCompensationIndex(0, -2.0, AeCompensation(-6, 6, 1.0 / 3)))
     }
 }

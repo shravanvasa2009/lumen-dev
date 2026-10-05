@@ -1,6 +1,8 @@
 package expo.modules.lumencapture
 
+import kotlin.math.log2
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 // DSP-5 (spec §10) and Appendix A: lock when the red mean is 0.55–0.80 of full scale unless the caller asks
@@ -76,3 +78,29 @@ fun exposureHold(manualExposure: Boolean, aeLockAvailable: Boolean): ExposureHol
         aeLockAvailable -> ExposureHold.AE_LOCK
         else -> ExposureHold.NONE
     }
+
+// CONTROL_AE_COMPENSATION_RANGE in steps of CONTROL_AE_COMPENSATION_STEP EV. Lenses where the range is [0, 0] (no
+// compensation) carry none.
+data class AeCompensation(val minIndex: Int, val maxIndex: Int, val stepEv: Double)
+
+// A red mean at or above this is clipped and says nothing about how far over the window it is (as in DSP-5's
+// overexposure watch).
+private const val CLIPPED_RED = 0.95
+
+// The step taken on a clipped red: 2 EV, more than exposureFactor() gives at red 1.0 (about 1.25 EV), so a fully
+// white frame leaves clipping in one or two steps instead of creeping down (Galaxy A17 log, 2026-10-05).
+private const val CLIPPED_STEP_EV = -2.0
+
+// DSP-5 for lenses that only take an AE lock (ADR 0098): the exposure change exposureFactor() asks for, in EV,
+// a fixed step down when red is clipped.
+fun compensationStepEv(red: Double, target: ClosedFloatingPointRange<Double>): Double =
+    if (red >= CLIPPED_RED) CLIPPED_STEP_EV else log2(exposureFactor(red, target))
+
+// The next CONTROL_AE_EXPOSURE_COMPENSATION index: at least one index in the wanted direction, within the lens range.
+// Equal to `current` only for a zero step or at the range edge.
+fun nextCompensationIndex(current: Int, stepEv: Double, compensation: AeCompensation): Int {
+    if (stepEv == 0.0) return current
+    val indices = stepEv / compensation.stepEv
+    val step = if (indices < 0) minOf(indices.roundToInt(), -1) else maxOf(indices.roundToInt(), 1)
+    return (current + step).coerceIn(compensation.minIndex, compensation.maxIndex)
+}

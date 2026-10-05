@@ -4,6 +4,7 @@ import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-li
 
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
+import { expectNavTitle } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import { startOnboarded } from '@/testing/onboarded';
 import { makeReading } from '@/testing/reading';
@@ -65,7 +66,7 @@ describe('Home with a saved reading', () => {
     renderRouter('./app', { initialUrl: '/' });
     await waitFor(() => expect(screen.getByText('48 ms')).toBeOnTheScreen());
     fireEvent.press(screen.getAllByRole('button', { name: `${en['checks.hrv.name']}: 48 ms` })[0]!);
-    await waitFor(() => expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen());
+    await waitFor(() => expectNavTitle(en['results.title']));
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
   });
 
@@ -105,7 +106,7 @@ describe('Results for a saved reading id', () => {
   it('shows the saved reading without the sample-data banner', async () => {
     await saveHeartRate(71);
     renderRouter('./app', { initialUrl: `/results/${ID}` });
-    await waitFor(() => expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen());
+    await waitFor(() => expectNavTitle(en['results.title']));
     expect(screen.getByText('71 bpm')).toBeOnTheScreen();
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
   });

@@ -59,7 +59,7 @@ const routes: readonly Route[] = [
   { file: 'measure/capture', url: '/measure/capture?mode=full', title: 'mode.full', place: 'body' },
   { file: 'measure/capture', url: '/measure/capture?mode=quick', title: 'mode.quick', place: 'body' },
   { file: 'measure/processing', url: '/measure/processing', title: 'processing.title', place: 'body' },
-  { file: 'results/[id]/index', url: '/results/demo', title: 'results.title', place: 'body' },
+  { file: 'results/[id]/index', url: '/results/demo', title: 'results.title', place: 'nav' },
   { file: 'results/[id]/diabetes', url: '/results/demo/diabetes', title: 'dr.rowTitle', place: 'nav' },
   { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.titleRegular', place: 'body' },
   { file: 'measure/inconclusive', url: '/measure/inconclusive', title: 'result.inconclusive', place: 'body' },
@@ -330,7 +330,7 @@ describe('navigation', () => {
     // by its route.
     act(() => router.push('/measure/processing'));
     fireEvent.press(screen.getByRole('button', { name: en['processing.seeSample'] }));
-    expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
+    expectTitleOnScreen('results.title');
   });
 
   it('opens the emergency screen from the safety sheet of a flagged result', () => {

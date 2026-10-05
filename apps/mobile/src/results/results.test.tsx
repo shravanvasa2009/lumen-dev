@@ -5,6 +5,7 @@ import { Modal, StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import diabetes from '@/i18n/diabetes.json';
 import es from '@/i18n/es.json';
+import { focusedNavHeader } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
@@ -77,8 +78,8 @@ describe.each([
     expect(screen.getByText('64 bpm')).toBeOnTheScreen();
     expect(screen.getByText('48 ms')).toBeOnTheScreen();
     expect(screen.getByText(en['result.notChecked'], { exact: false })).toBeOnTheScreen();
-    const heading = screen.getByRole('header', { name: en['results.title'] });
-    expect(StyleSheet.flatten(heading.props.style)).toMatchObject({ color: colors.text });
+    expect(focusedNavHeader()).toMatchObject({ title: en['results.title'], titleColor: colors.text });
+    expect(screen.queryByRole('header', { name: en['results.title'] })).toBeNull();
   });
 
   it('spells the meta line from the reading', () => {
@@ -119,6 +120,31 @@ describe.each([
     const drawn = JSON.stringify(screen.toJSON());
     expect(drawn.includes('RNSVGLinearGradient')).toBe(true);
     expect(drawn.includes('"width":320')).toBe(true);
+  });
+
+  it('orders the Full Scan as in v2 16: banner, headline, AFib, HRV, Diabetes, POTS, Heart rate, Experimental, Not checked', () => {
+    openResults('demo');
+    const drawn = JSON.stringify(screen.toJSON());
+    const order = [
+      en['demo.banner'],
+      'Regular rhythm, 64 bpm.',
+      en['results.heartRhythm'],
+      en['results.hrv'],
+      en['dr.rowTitle'],
+      en['checks.pots.name'],
+      en['results.heartRate'],
+      'Experimental measurements',
+      en['result.notChecked'],
+    ].map((text) => drawn.indexOf(text));
+    expect(order.every((position) => position > -1)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(drawn.indexOf(en['result.notChecked'])).toBeLessThan(drawn.indexOf(en['results.showWhy']));
+  });
+
+  it('draws the Results title in the nav bar only, not again in the body', () => {
+    openResults('demo');
+    expect(screen.queryAllByText(en['results.title'])).toHaveLength(0);
+    expect(focusedNavHeader()).toMatchObject({ title: en['results.title'] });
   });
 
   it('says POTS is not part of a Full Scan and links to the Standing test (ADR 0082)', () => {

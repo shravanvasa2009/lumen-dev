@@ -33,6 +33,8 @@ function RowFrame({ readingId, look }: { readingId: string; look: RowLook }) {
   );
 }
 
+// The score cell may take at most half the row, so "Riesgo más alto" at large text wraps instead of
+// pushing the title off a 360 dp screen.
 function StoredAnswersRow({ readingId }: { readingId: string }) {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -47,7 +49,7 @@ function StoredAnswersRow({ readingId }: { readingId: string }) {
           subtitle: t('dr.fromAnswers'),
           editable: true,
           trailing: (
-            <View style={{ alignItems: 'flex-end' }}>
+            <View style={{ alignItems: 'flex-end', flexShrink: 1, maxWidth: '50%' }}>
               <AppText variant="headline" style={flagged ? { color: colors.flag } : undefined}>
                 {flagged ? t('dr.result.higher') : t('dr.result.lower')}
               </AppText>

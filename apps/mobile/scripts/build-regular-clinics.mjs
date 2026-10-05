@@ -138,10 +138,57 @@ out center tags qt;`;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// An answer can come back 200 with no remark and still hold only part of a state: the TX file behind #197 had
+// 699 sites, none north of Houston, so Austin and the whole TX-31 area showed no regular clinics (WA was short
+// too). HRSA health centers with several others nearby mark towns, and a complete answer has an OSM clinic or
+// doctor's office near nearly all of them (0.97 to 1.00 on fresh TX and WA, 2026-10-04; the short files scored
+// 0.45 and 0.68). Rural HRSA sites are left out, since AK and ND are sparse in OSM itself. A short answer is
+// retried like a busy one, and a short cached one is fetched again.
+const COVERAGE_MILES = 30;
+const TOWN_NEIGHBOURS = 5;
+const MIN_TOWNS = 50;
+const MIN_COVERAGE = 0.85;
+const COVERAGE_GRID_DEGREES = 0.5;
+const coverageMetres = COVERAGE_MILES * 1609.344;
+const elementPoint = (element) => ({
+  lat: element.lat ?? element.center?.lat,
+  lon: element.lon ?? element.center?.lon,
+});
+function coverage(elements, state) {
+  const centres = hrsa.filter((site) => site.state === state);
+  const towns = centres.filter(
+    (centre) =>
+      centres.filter((other) => other !== centre && metresApart(centre, other) <= coverageMetres).length >=
+      TOWN_NEIGHBOURS,
+  );
+  if (towns.length < MIN_TOWNS) return 1;
+  const grid = new Map();
+  for (const point of elements.map(elementPoint).filter(({ lat }) => Number.isFinite(lat))) {
+    const cell = `${Math.floor(point.lat / COVERAGE_GRID_DEGREES)}:${Math.floor(point.lon / COVERAGE_GRID_DEGREES)}`;
+    grid.set(cell, [...(grid.get(cell) ?? []), point]);
+  }
+  const covered = towns.filter((town) => {
+    const latCell = Math.floor(town.lat / COVERAGE_GRID_DEGREES);
+    const lonCell = Math.floor(town.lon / COVERAGE_GRID_DEGREES);
+    for (let latStep = -1; latStep <= 1; latStep += 1) {
+      for (let lonStep = -1; lonStep <= 1; lonStep += 1) {
+        const near = grid.get(`${latCell + latStep}:${lonCell + lonStep}`) ?? [];
+        if (near.some((point) => metresApart(town, point) <= coverageMetres)) return true;
+      }
+    }
+    return false;
+  });
+  return covered.length / towns.length;
+}
+
 async function fetchState(state) {
   const cached = path.join(CACHE, `${state}.json`);
-  if (existsSync(cached))
-    return { elements: JSON.parse(readFileSync(cached, 'utf8')).elements, fresh: false };
+  if (existsSync(cached)) {
+    const { elements } = JSON.parse(readFileSync(cached, 'utf8'));
+    const share = coverage(elements, state);
+    if (share >= MIN_COVERAGE) return { elements, fresh: false, share };
+    console.warn(`Overpass ${state}: cached answer covers ${share.toFixed(2)} of HRSA sites; fetching again.`);
+  }
   for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
     const url = OVERPASS_URLS[(attempt - 1) % OVERPASS_URLS.length];
     const response = await fetch(url, {
@@ -153,11 +200,14 @@ async function fetchState(state) {
       const text = await response.text();
       const answer = JSON.parse(text);
       // A query that runs out of time still answers 200, with a remark and only part of the sites.
-      if (!answer.remark) {
+      const share = coverage(answer.elements, state);
+      if (!answer.remark && share >= MIN_COVERAGE) {
         writeFileSync(cached, text);
-        return { elements: answer.elements, fresh: true };
+        return { elements: answer.elements, fresh: true, share };
       }
-      console.warn(`Overpass ${state}: incomplete answer from ${url} (${answer.remark}).`);
+      console.warn(
+        `Overpass ${state}: incomplete answer from ${url} (${answer.remark ?? `covers ${share.toFixed(2)} of HRSA sites`}).`,
+      );
     } else if (!BUSY_STATUSES.has(response.status)) {
       throw new Error(`Overpass ${state}: ${response.status} ${response.statusText}`);
     } else {
@@ -259,6 +309,7 @@ function toSite(element, state) {
 mkdirSync(CACHE, { recursive: true });
 const hrsa = JSON.parse(readFileSync(HRSA_FILE, 'utf8')).rows.map((row) => ({
   name: String(row[0]),
+  state: String(row[3]),
   phone: String(row[5]),
   lat: Number(row[6]),
   lon: Number(row[7]),
@@ -270,7 +321,7 @@ const kept = [];
 let seen = 0;
 let duplicates = 0;
 for (const state of STATES) {
-  const { elements, fresh } = await fetchState(state);
+  const { elements, fresh, share } = await fetchState(state);
   if (elements.length === 0) console.warn(`Warning: no sites for ${state}; check its area query.`);
   let stateKept = 0;
   for (const element of elements) {
@@ -285,7 +336,7 @@ for (const state of STATES) {
     kept.push(site);
     stateKept += 1;
   }
-  console.log(`${state}: ${elements.length} from OSM, ${stateKept} kept`);
+  console.log(`${state}: ${elements.length} from OSM, ${stateKept} kept, HRSA coverage ${share.toFixed(2)}`);
   if (fresh) await wait(PAUSE_MS);
 }
 

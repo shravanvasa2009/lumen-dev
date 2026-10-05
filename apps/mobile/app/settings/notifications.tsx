@@ -1,14 +1,16 @@
+import { DateTimePicker } from '@expo/ui/community/datetime-picker';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { Fragment, useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
-import type { NotificationType } from '@/notifications/plan';
+import type { ClockTime } from '@/notifications/localTime';
+import type { NotificationPrefs, NotificationType } from '@/notifications/plan';
 import { loadNotificationPrefs } from '@/notifications/prefs';
 import {
   askPermission,
@@ -20,6 +22,52 @@ import { formatClock } from '@/settings/formatClock';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { Toggle } from '@/settings/Toggle';
 import { setPreference, usePreferences } from '@/theme/preferences';
+
+type TimeRowProps = {
+  title: string;
+  time: ClockTime;
+  languageTag: string;
+  last?: boolean;
+  onChange: (time: ClockTime) => void;
+};
+
+// The dial follows the clock the rows are written in: en shows "7:00 AM", es "7:00". Android takes is24Hour;
+// iOS follows the locale, so both are passed.
+const usesDayPeriod = (languageTag: string) =>
+  new Intl.DateTimeFormat(languageTag, { hour: 'numeric' })
+    .formatToParts(new Date(2000, 0, 1, 7))
+    .some((part) => part.type === 'dayPeriod');
+
+// Android shows the picker as a dialog while it is mounted; iOS shows it inline under the row until the row is
+// tapped again. The date part is arbitrary: only the hour and minute are kept.
+function TimeRow({ title, time, languageTag, last = false, onChange }: TimeRowProps) {
+  const [open, setOpen] = useState(false);
+  const pick = (picked: Date) => {
+    if (Platform.OS === 'android') setOpen(false);
+    onChange({ hour: picked.getHours(), minute: picked.getMinutes() });
+  };
+  return (
+    <>
+      <ListRow
+        title={title}
+        last={last && !open}
+        expanded={open}
+        onPress={() => setOpen((shown) => !shown)}
+        trailing={<AppText tone="textDim">{formatClock(time, languageTag)}</AppText>}
+      />
+      {open ? (
+        <DateTimePicker
+          mode="time"
+          value={new Date(2000, 0, 1, time.hour, time.minute)}
+          onValueChange={(_event, picked) => pick(picked)}
+          onDismiss={() => setOpen(false)}
+          is24Hour={!usesDayPeriod(languageTag)}
+          locale={languageTag}
+        />
+      ) : null}
+    </>
+  );
+}
 
 export default function NotificationsScreen() {
   const { t, i18n } = useTranslation();
@@ -53,15 +101,15 @@ export default function NotificationsScreen() {
     }, [i18n.language]),
   );
 
-  async function setReminder(type: NotificationType, on: boolean) {
+  async function savePrefs(change: (previous: NotificationPrefs) => NotificationPrefs, asking: boolean) {
     const previous = latestPrefs.current;
-    const next = { ...previous, enabled: { ...previous.enabled, [type]: on } };
+    const next = change(previous);
     latestPrefs.current = next;
     setPrefs(next);
     setFailed(false);
     try {
       let answer = permission ?? (await currentPermission());
-      if (on && answer === 'undetermined') answer = await askPermission();
+      if (asking && answer === 'undetermined') answer = await askPermission();
       knownPermission.current = answer;
       setPermission(answer);
       await saveAndSyncNotifications(next, i18n.language, answer);
@@ -71,6 +119,12 @@ export default function NotificationsScreen() {
       setFailed(true);
     }
   }
+
+  const setReminder = (type: NotificationType, on: boolean) =>
+    savePrefs((previous) => ({ ...previous, enabled: { ...previous.enabled, [type]: on } }), on);
+  const setDailyTime = (dailyTime: ClockTime) => savePrefs((previous) => ({ ...previous, dailyTime }), false);
+  const setQuietHours = (edge: 'start' | 'end', time: ClockTime) =>
+    savePrefs((previous) => ({ ...previous, quietHours: { ...previous.quietHours, [edge]: time } }), false);
 
   const reminders: readonly { type: NotificationType; title: string; subtitle?: string }[] = [
     { type: 'daily', title: t('notifications.daily') },
@@ -95,32 +149,45 @@ export default function NotificationsScreen() {
       {failed ? <AppText tone="textDim">{t('notifications.updateFailed')}</AppText> : null}
       <Card flush>
         {reminders.map(({ type, title, subtitle }, index) => (
-          <ListRow
-            key={type}
-            title={title}
-            subtitle={subtitle}
-            last={index === reminders.length - 1}
-            trailing={
-              <Toggle
-                label={title}
-                value={prefs.enabled[type] && !denied}
-                disabled={denied}
-                onValueChange={(on) => void setReminder(type, on)}
+          <Fragment key={type}>
+            <ListRow
+              title={title}
+              subtitle={subtitle}
+              last={index === reminders.length - 1}
+              trailing={
+                <Toggle
+                  label={title}
+                  value={prefs.enabled[type] && !denied}
+                  disabled={denied}
+                  onValueChange={(on) => void setReminder(type, on)}
+                />
+              }
+            />
+            {type === 'daily' && prefs.enabled.daily && !denied ? (
+              <TimeRow
+                title={t('notifications.dailyTime')}
+                time={prefs.dailyTime}
+                languageTag={i18n.language}
+                onChange={(time) => void setDailyTime(time)}
               />
-            }
-          />
+            ) : null}
+          </Fragment>
         ))}
       </Card>
       <SectionLabel>{t('notifications.quietHours')}</SectionLabel>
       <Card flush>
-        <ListRow
+        <TimeRow
           title={t('notifications.from')}
-          trailing={<AppText tone="textDim">{formatClock(prefs.quietHours.start, i18n.language)}</AppText>}
+          time={prefs.quietHours.start}
+          languageTag={i18n.language}
+          onChange={(time) => void setQuietHours('start', time)}
         />
-        <ListRow
+        <TimeRow
           title={t('notifications.until')}
+          time={prefs.quietHours.end}
+          languageTag={i18n.language}
           last
-          trailing={<AppText tone="textDim">{formatClock(prefs.quietHours.end, i18n.language)}</AppText>}
+          onChange={(time) => void setQuietHours('end', time)}
         />
       </Card>
       <Card flush>

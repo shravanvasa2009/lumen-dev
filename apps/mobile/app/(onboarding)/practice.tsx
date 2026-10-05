@@ -5,9 +5,9 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
+import { CameraDeniedNotice } from '@/measure/CameraDeniedNotice';
 import { coachingText } from '@/measure/coachingText';
 import { LiveWaveform } from '@/measure/LiveWaveform';
-import { OpenSettingsButton } from '@/measure/OpenSettingsButton';
 import { phaseCaption } from '@/measure/phaseCaption';
 import { useLiveCapture } from '@/measure/useLiveCapture';
 import { FingerPreview, ProgressRing, SignalMeter, SignalScale } from '@/onboarding/practiceParts';
@@ -51,6 +51,7 @@ export default function PracticeScreen() {
         </>
       }
     >
+      <CameraDeniedNotice live={live} />
       <View style={{ alignItems: 'center', gap: spacing.md }}>
         <FingerPreview detected={fingerOn} />
         {coachingKey ? (
@@ -76,10 +77,11 @@ export default function PracticeScreen() {
       <Card>
         <LiveWaveform red={live.recentRed} />
       </Card>
-      <AppText variant="caption" tone="textDim">
-        {caption}
-      </AppText>
-      <OpenSettingsButton live={live} />
+      {live.phase === 'denied' ? null : (
+        <AppText variant="caption" tone="textDim">
+          {caption}
+        </AppText>
+      )}
     </OnboardingStep>
   );
 }

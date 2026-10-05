@@ -1,4 +1,5 @@
-import { renderRouter, screen } from 'expo-router/testing-library';
+import * as Linking from 'expo-linking';
+import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import type { LiveCapture } from '@/measure/useLiveCapture';
@@ -7,6 +8,11 @@ import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'dark',
+}));
+
+jest.mock('expo-linking', () => ({
+  ...jest.requireActual<typeof import('expo-linking')>('expo-linking'),
+  openSettings: jest.fn(),
 }));
 
 let mockLive: LiveCapture;
@@ -69,5 +75,18 @@ describe('practice with a running capture', () => {
     mockLive = { ...running, signalLevel: 0.9, status: { ...running.status!, fingerCovered: false } };
     renderRouter('./app', { initialUrl: '/practice' });
     expect(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.cx).toBe('4%');
+  });
+});
+
+describe('practice with the camera denied', () => {
+  it('shows the denied line once, with Open Settings above the finger preview and the waveform', () => {
+    jest.mocked(Linking.openSettings).mockClear();
+    mockLive = { ...running, phase: 'denied', status: null };
+    renderRouter('./app', { initialUrl: '/practice' });
+    expect(screen.getAllByText(en['capture.denied'])).toHaveLength(1);
+    const tree = JSON.stringify(screen.toJSON());
+    expect(tree.indexOf(en['capture.openSettings'])).toBeLessThan(tree.indexOf('live-waveform'));
+    fireEvent.press(screen.getByRole('button', { name: en['capture.openSettings'] }));
+    expect(Linking.openSettings).toHaveBeenCalledTimes(1);
   });
 });

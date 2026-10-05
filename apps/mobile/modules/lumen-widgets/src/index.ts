@@ -26,6 +26,8 @@ declare class LumenWidgetsNative extends NativeModule {
   // snapshotJson is the Appendix B snapshot; displayJson holds the localized labels and the palette, so the
   // native widget code holds no copy.
   publishSnapshot(snapshotJson: string, displayJson: string): Promise<void>;
+  // The copy alone (no reading), sent at every launch.
+  publishDisplay(displayJson: string): Promise<void>;
   startStandingTimer(content: StandingTimerContent): Promise<void>;
   updateStandingTimer(content: StandingTimerContent): Promise<void>;
   endStandingTimer(): Promise<void>;

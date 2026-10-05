@@ -1,13 +1,24 @@
 package expo.modules.lumenwidgets
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 
 // Spec §9.6: Android widgets read the snapshot from SharedPreferences.
 private const val PREFS = "lumen_widgets"
 private const val SNAPSHOT_KEY = "snapshot"
 private const val DISPLAY_KEY = "display"
 private const val PREVIEWED_DISPLAY_KEY = "previewedDisplay"
+
+// Appendix B snapshot for "no reading yet", drawn when the app has published its copy but no snapshot: the app
+// publishes the copy at every launch, the snapshot only after a reading or a widget setting changes.
+internal const val NO_READING_SNAPSHOT =
+    """{"v":1,"updatedAt":"1970-01-01T00:00:00Z","lastReadingAt":null,"status":null,"hrBpm":null,""" +
+        """"rhythmFlag":false,"diabetesFlag":false,"nextConfirmationAt":null,"streakDays":0,"hideValues":true,""" +
+        """"theme":"system"}"""
 
 object WidgetStore {
     // commit, not apply: the widgets re-read the store right after this returns.
@@ -20,6 +31,11 @@ object WidgetStore {
                 .putString(DISPLAY_KEY, displayJson)
                 .commit()
         check(saved) { "Could not save the widget snapshot." }
+    }
+
+    fun writeDisplay(context: Context, displayJson: String) {
+        val saved = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(DISPLAY_KEY, displayJson).commit()
+        check(saved) { "Could not save the widget copy." }
     }
 
     // The published copy, palette and checks: what the picker's generated preview draws with a sample reading.
@@ -46,12 +62,26 @@ object WidgetStore {
         return "$updatedAt|$displayJson"
     }
 
-    // null until the app has published once (a widget added before the app ever ran), or while the stored
+    // Glance keeps a widget's session running for a while after it draws, and an update that arrives then
+    // recomposes that content instead of calling provideGlance again. A widget that read the store once kept the
+    // fallback after the first launch's copy publish (API 37 emulator, 2026-10-05), so the widgets watch it.
+    fun views(context: Context): Flow<WidgetView?> =
+        callbackFlow {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val listener =
+                SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(read(context, System.currentTimeMillis())) }
+            prefs.registerOnSharedPreferenceChangeListener(listener)
+            // A write between provideGlance's first read and the line above would otherwise never be drawn.
+            trySend(read(context, System.currentTimeMillis()))
+            awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        }
+
+    // null until the app has published its copy once (a widget added before the app ever ran), or while the stored
     // payload is one this version can't read (written by an older app until its next publish).
     fun read(context: Context, nowMs: Long): WidgetView? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val snapshotJson = prefs.getString(SNAPSHOT_KEY, null) ?: return null
         val displayJson = prefs.getString(DISPLAY_KEY, null) ?: return null
+        val snapshotJson = prefs.getString(SNAPSHOT_KEY, null) ?: NO_READING_SNAPSHOT
         return try {
             widgetView(snapshotJson, displayJson, nowMs)
         } catch (error: Exception) {

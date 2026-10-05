@@ -84,10 +84,9 @@ export default function ModeScreen() {
       />
       {rating ? (
         <AppText variant="caption" tone="textDim" style={{ textAlign: 'center' }}>
-          {t(anyLocked ? 'mode.footerLocked' : 'mode.footerOpen', {
-            phone: t('mode.thisPhone'),
-            tier: tierLabel(t, rating.tier),
-          })}
+          {anyLocked
+            ? t('mode.footerLocked', { phone: t('mode.thisPhone'), tier: tierLabel(t, rating.tier) })
+            : t('mode.footerOpen', { phone: t('mode.thisPhone'), tier: tierLabel(t, rating.tier) })}
         </AppText>
       ) : null}
     </RouteShell>

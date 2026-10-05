@@ -85,6 +85,9 @@ class LumenCaptureModule : Module() {
                 running.lockExposure { failure -> settle(promise, failure) }
             }.runOnQueue(Queues.MAIN)
 
+            // ADR 0099: the live fingertip view. It shows the running capture's preview and never opens a camera.
+            View(LumenPreviewView::class) {}
+
             // CameraX unbinding must happen on the main thread.
             OnDestroy {
                 val running = session ?: return@OnDestroy

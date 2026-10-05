@@ -19,6 +19,7 @@ import android.util.Log
 import android.util.Range
 import android.util.Size
 import androidx.annotation.OptIn
+import androidx.annotation.RequiresApi
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.Camera2Interop
@@ -29,6 +30,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -95,6 +97,11 @@ private const val TAG = "LumenCapture"
 
 // Spec §9.2: a small analysis size; 320 x 240 keeps the per-frame reduction far below the 4 ms budget.
 private val ANALYSIS_SIZE = Size(320, 240)
+
+// The live view (ADR 0099) is a 176 dp circle, about 460 px on a 2.6x screen; 640 x 480 or smaller keeps the
+// second stream cheap. 4:3 like the analysis stream, which is CameraX's default aspect-ratio strategy.
+private val PREVIEW_SIZE = Size(640, 480)
+
 private const val BATCH_MS = 100L // samples event, spec §9.3
 private const val STATUS_MS = 250L // status event at 4 Hz
 private const val LAB_MS = 1000L // lab event at 1 Hz (ADR 0013)
@@ -115,9 +122,9 @@ private const val FAILURE_LOG_EVERY = 100
 // leaving the JS promise waiting on a stuck camera. 5 s, not 3: budget HALs can take 2-3 s to open plus the torch.
 private const val START_TIMEOUT_MS = 5000L
 
-// One running capture: CameraX ImageAnalysis on a rear lens with Camera2 interop for frame rate,
-// stabilization, exposure and locks (spec §9.2). Frames are reduced to numbers on the analyzer thread and
-// never leave this class (CAP-3).
+// One running capture: CameraX ImageAnalysis on a rear lens with Camera2 interop for frame rate, stabilization,
+// exposure and locks (spec §9.2), plus the live view's Preview stream, which only a native view draws (ADR 0099).
+// Frames are reduced to numbers on the analyzer thread and never leave this class (CAP-3).
 @OptIn(markerClass = [ExperimentalCamera2Interop::class])
 class CameraSession(
     private val context: Context,
@@ -170,6 +177,7 @@ class CameraSession(
     private var startedNs = 0L
     private var provider: ProcessCameraProvider? = null
     private var analysis: ImageAnalysis? = null
+    private var preview: Preview? = null
     private var stopped = false // main thread only
     private var seenOpen = false // main thread only
     private var reopened = false // main thread only
@@ -275,32 +283,24 @@ class CameraSession(
                             ResolutionStrategy(ANALYSIS_SIZE, ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
                         ).build(),
                 )
-        val interop =
-            Camera2Interop.Extender(builder)
-                .setCaptureRequestOption(
-                    CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-                    Range(settings.fps.lower, settings.fps.upper),
-                ).setCaptureRequestOption(
-                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
-                ).setSessionCaptureCallback(resultListener)
-        if (lens.physicalId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            interop.setPhysicalCameraId(lens.physicalId)
-        }
+        sameRequest(Camera2Interop.Extender(builder)).setSessionCaptureCallback(resultListener)
         val useCase = builder.build()
         useCase.setAnalyzer(analyzerThread, ::analyze)
+        val livePreview = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) buildPreview() else null
         val selector =
             CameraSelector.Builder()
                 .requireLensFacing(CameraSelector.LENS_FACING_BACK)
                 .addCameraFilter { infos -> infos.filter { Camera2CameraInfo.from(it).getCameraId() == lens.cameraId } }
                 .build()
         startedNs = frameClockNs()
-        val bound = cameraProvider.bindToLifecycle(owner, selector, useCase)
+        // One bind for both use cases, so the session is configured once with both streams (ADR 0099).
+        val bound = cameraProvider.bindToLifecycle(owner, selector, *listOfNotNull(useCase, livePreview).toTypedArray())
         // Recorded straight after binding, so a stop() from here on unbinds the camera, which closes it and puts
         // the torch out.
         camera = bound
         provider = cameraProvider
         analysis = useCase
+        preview = livePreview
         logBound()
         running = true
         sensorManager?.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)?.let {
@@ -314,6 +314,32 @@ class CameraSession(
         bound.cameraInfo.cameraState.observe(owner, cameraStateObserver)
     }
 
+    // Every use case gets the same frame-rate range, stabilization and lens, so the request CameraX merges from them
+    // carries one value of each (spec §9.2).
+    private fun <T> sameRequest(interop: Camera2Interop.Extender<T>): Camera2Interop.Extender<T> {
+        interop
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(settings.fps.lower, settings.fps.upper))
+            .setCaptureRequestOption(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
+        if (lens.physicalId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            interop.setPhysicalCameraId(lens.physicalId)
+        }
+        return interop
+    }
+
+    // The live view's stream (ADR 0099). Its surface provider is set here, before binding, and never changed: in
+    // CameraX 1.6.2 a provider set on a bound Preview rebuilds the camera session (see LivePreview).
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun buildPreview(): Preview {
+        val builder =
+            Preview.Builder().setResolutionSelector(
+                ResolutionSelector.Builder()
+                    .setResolutionStrategy(ResolutionStrategy(PREVIEW_SIZE, ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER))
+                    .build(),
+            )
+        sameRequest(Camera2Interop.Extender(builder))
+        return builder.build().apply { setSurfaceProvider(mainExecutor, LivePreview::provide) }
+    }
+
     // Logcat in release builds too, so a first run on a new phone shows which camera path it took. Camera
     // settings only; never a health value (CAP-3 keeps frames native, and no reading is computed here).
     private fun logBound() {
@@ -324,7 +350,8 @@ class CameraSession(
             TAG,
             "Camera bound: lens ${lens.id} (${lens.kind}), cameraId ${lens.cameraId}, physicalId ${lens.physicalId ?: "none"}, " +
                 "fps range ${settings.fps.lower}-${settings.fps.upper}, manual exposure $manual, AE lock $aeLock, " +
-                "hardware level ${hardwareLevelName(lens.hardwareLevel)}, timestamps $clock",
+                "hardware level ${hardwareLevelName(lens.hardwareLevel)}, timestamps $clock, " +
+                "preview stream ${preview?.resolutionInfo?.resolution ?: "not bound"}",
         )
     }
 
@@ -339,10 +366,8 @@ class CameraSession(
         // below clears startDone, so the late note finds no start to finish.
         mainHandler.removeCallbacks(firstFrameArrived)
         camera?.cameraInfo?.cameraState?.removeObserver(cameraStateObserver)
-        analysis?.let { useCase ->
-            useCase.clearAnalyzer()
-            provider?.unbind(useCase)
-        }
+        analysis?.clearAnalyzer()
+        provider?.unbind(*listOfNotNull(analysis, preview).toTypedArray())
         sensorManager?.unregisterListener(motionListener)
         events.removeCallbacksAndMessages(null)
         analyzerThread.shutdown()

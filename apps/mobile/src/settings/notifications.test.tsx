@@ -1,9 +1,12 @@
 import { getPermissionsAsync, requestPermissionsAsync } from 'expo-notifications';
 import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import i18next from 'i18next';
 import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
+import es from '@/i18n/es.json';
 import * as prefsStore from '@/notifications/prefs';
+import { planNotifications } from '@/notifications/plan';
 import { loadNotificationPrefs } from '@/notifications/prefs';
 import { syncNotifications } from '@/notifications/scheduler';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
@@ -14,6 +17,11 @@ import { setPreference } from '@/theme/preferences';
 fixClockAtMorning();
 
 jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').mockFileSystem);
+// The native picker can't render in Jest; this stand-in passes a picked time through the same callback.
+jest.mock('@expo/ui/community/datetime-picker', () => {
+  const { View } = jest.requireActual('react-native');
+  return { DateTimePicker: (props: object) => <View testID="time-picker" {...props} /> };
+});
 jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
 jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(),
@@ -168,5 +176,87 @@ describe('Notifications settings', () => {
     permissionNow.mockRejectedValue(new Error('no permission module'));
     renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
     expect(await screen.findByText(en['notifications.updateFailed'])).toBeOnTheScreen();
+  });
+
+  describe('times', () => {
+    const pickTime = (hour: number, minute: number) =>
+      act(async () => {
+        fireEvent(screen.getByTestId('time-picker'), 'valueChange', {}, new Date(2000, 0, 1, hour, minute));
+      });
+
+    it('saves a new quiet-hours start and syncs once', async () => {
+      await open();
+      fireEvent.press(screen.getByRole('button', { name: en['notifications.from'] }));
+      await pickTime(22, 30);
+      expect(loadNotificationPrefs().quietHours.start).toEqual({ hour: 22, minute: 30 });
+      expect(sync).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('10:30 PM')).toBeOnTheScreen();
+    });
+
+    it('shows the reminder time only while the daily check is on, and saves a new one', async () => {
+      await open();
+      expect(screen.queryByRole('button', { name: en['notifications.dailyTime'] })).toBeNull();
+      fireEvent.press(switchNamed('notifications.daily'));
+      await act(async () => undefined);
+      fireEvent.press(screen.getByRole('button', { name: en['notifications.dailyTime'] }));
+      await pickTime(9, 15);
+      expect(loadNotificationPrefs().dailyTime).toEqual({ hour: 9, minute: 15 });
+      expect(screen.getByText('9:15 AM')).toBeOnTheScreen();
+    });
+
+    // NOTIF-1: quiet hours that now cover 8:00 move the 8:00 daily reminder to their end.
+    it('moves the daily reminder to the end of quiet hours that now cover it', async () => {
+      await open();
+      fireEvent.press(switchNamed('notifications.daily'));
+      await act(async () => undefined);
+      sync.mockClear();
+      fireEvent.press(screen.getByRole('button', { name: en['notifications.until'] }));
+      await pickTime(9, 0);
+      const { prefs } = sync.mock.calls[0]![0];
+      expect(prefs.quietHours.end).toEqual({ hour: 9, minute: 0 });
+      const [first] = planNotifications({
+        prefs,
+        triggers: { confirmationFor: null, doctorFollowupFor: null, standingStartedAt: null, lastPhoneCheckAt: null },
+        now: Date.parse('2026-10-05T05:00:00-05:00'),
+        timeZone: 'America/Chicago',
+        previousSchedule: [],
+      });
+      expect(first?.fireAt).toBe('2026-10-05T09:00:00-05:00');
+    });
+
+    it('shows a 12-hour dial in English, matching the rows', async () => {
+      await open();
+      fireEvent.press(screen.getByRole('button', { name: en['notifications.from'] }));
+      expect(screen.getByTestId('time-picker').props.is24Hour).toBe(false);
+    });
+
+    it('shows a 24-hour dial and 24-hour rows in Spanish', async () => {
+      await act(async () => {
+        await i18next.changeLanguage('es');
+      });
+      try {
+        renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
+        await screen.findByRole('switch', { name: es['notifications.daily'] });
+        expect(screen.getByText('21:00')).toBeOnTheScreen();
+        fireEvent.press(screen.getByRole('button', { name: es['notifications.from'] }));
+        const picker = screen.getByTestId('time-picker');
+        expect(picker.props.is24Hour).toBe(true);
+        expect(picker.props.locale).toBe('es');
+      } finally {
+        await act(async () => {
+          await i18next.changeLanguage('en');
+        });
+      }
+    });
+
+    it('closes the picker without saving when it is dismissed', async () => {
+      await open();
+      fireEvent.press(screen.getByRole('button', { name: en['notifications.until'] }));
+      await act(async () => {
+        fireEvent(screen.getByTestId('time-picker'), 'dismiss');
+      });
+      expect(screen.queryByTestId('time-picker')).toBeNull();
+      expect(sync).not.toHaveBeenCalled();
+    });
   });
 });

@@ -96,6 +96,7 @@
   "notifications.doctor": "Doctor follow-up",
   "notifications.standing": "Standing-test timer",
   "notifications.retest": "Phone re-test",
+  "notifications.dailyTime": "Reminder time",
   "notifications.quietHours": "Quiet hours",
   "notifications.from": "From",
   "notifications.until": "Until",

@@ -25,8 +25,13 @@ const complete: RiskDraft = {
 
 describe('body mass index', () => {
   it('is shown floored to one decimal, so 70.5 kg at 168 cm reads 24.9 and not the 25.0 band edge', () => {
-    expect(bmiShown(bmiOf(168, 70.5))).toBe('24.9');
-    expect(bmiShown(bmiOf(168, 82))).toBe('29.0');
+    expect(bmiShown(bmiOf(168, 70.5), 'en')).toBe('24.9');
+    expect(bmiShown(bmiOf(168, 82), 'en')).toBe('29.0');
+  });
+
+  it('is written with the decimal comma in Spanish', () => {
+    expect(bmiShown(bmiOf(168, 70.5), 'es')).toBe('24,9');
+    expect(bmiShown(bmiOf(168, 82), 'es')).toBe('29,0');
   });
 
   it('is kilograms over metres squared', () => {

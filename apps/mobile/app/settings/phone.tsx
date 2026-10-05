@@ -7,6 +7,7 @@ import { Card } from '@/components/Card';
 import { Icon, type IconName } from '@/components/Icon';
 import { NavButton } from '@/components/NavButton';
 import { RouteShell } from '@/components/RouteShell';
+import { formatNumber } from '@/i18n/formatNumber';
 import { tierLabel } from '@/rating/labels';
 import { RatingGauge } from '@/settings/RatingGauge';
 import { SectionLabel } from '@/settings/SectionLabel';
@@ -28,7 +29,7 @@ type ComponentLine = {
   detail: string | null;
 };
 
-function componentLines(rating: StoredRating | null, t: TFunction): ComponentLine[] {
+function componentLines(rating: StoredRating | null, t: TFunction, language: string): ComponentLine[] {
   const { components, fpsLevel, practice } = rating ?? {};
   const pi = practice?.perfusionIndexPct;
   const jitter = practice?.frameIntervalSdMs;
@@ -51,7 +52,7 @@ function componentLines(rating: StoredRating | null, t: TFunction): ComponentLin
           ? null
           : pi == null
             ? t('phoneRating.notMeasured')
-            : t('phoneRating.couplingDetail', { pi: pi.toFixed(1) }),
+            : t('phoneRating.couplingDetail', { pi: formatNumber(pi, language, 1, 1) }),
     },
     {
       icon: 'lock',
@@ -70,7 +71,7 @@ function componentLines(rating: StoredRating | null, t: TFunction): ComponentLin
           ? null
           : jitter == null
             ? t('phoneRating.notMeasured')
-            : t('phoneRating.timingDetail', { ms: jitter.toFixed(1) }),
+            : t('phoneRating.timingDetail', { ms: formatNumber(jitter, language, 1, 1) }),
     },
   ];
 }
@@ -79,7 +80,7 @@ export default function PhoneRatingScreen() {
   const { t, i18n } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   const rating = useStoredRating() ?? null;
-  const lines = componentLines(rating, t);
+  const lines = componentLines(rating, t, i18n.language);
   const retest = <NavButton label={t('phoneRating.retest')} href="/phone-check" />;
   return (
     <RouteShell

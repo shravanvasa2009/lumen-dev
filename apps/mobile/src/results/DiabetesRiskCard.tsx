@@ -16,7 +16,7 @@ import { useTheme } from '@/theme';
 type Scored = Extract<RiskScore, { kind: 'scored' }>;
 
 // The label shows the person's own value; the points come from adaRisk's breakdown and nowhere else.
-function breakdownRows(t: TFunction, score: Scored): { label: string; points: number }[] {
+function breakdownRows(t: TFunction, language: string, score: Scored): { label: string; points: number }[] {
   const { answers, risk, sexNotGiven } = score;
   const { breakdown } = risk;
   const yesNo = (answer: boolean) => (answer ? t('common.yes') : t('common.no'));
@@ -34,14 +34,14 @@ function breakdownRows(t: TFunction, score: Scored): { label: string; points: nu
       label: t('dr.row.active', { answer: yesNo(answers.physicallyActive) }),
       points: breakdown.physicallyActive,
     },
-    { label: t('dr.row.bmi', { bmi: bmiShown(answers.bmi) }), points: breakdown.bmi },
+    { label: t('dr.row.bmi', { bmi: bmiShown(answers.bmi, language) }), points: breakdown.bmi },
   ];
 }
 
 // ADR 0087, 0090: the questionnaire is the diabetes result. The higher-risk heading uses the amber flag
 // tokens and never red (SAFE-1); the tag comes from the evidence reader (EVID-1).
 export function DiabetesRiskCard() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { colors, spacing } = useTheme();
   const score = useStoredRiskScore();
@@ -107,7 +107,7 @@ export function DiabetesRiskCard() {
             <View style={{ gap: spacing.sm }}>
               <SectionLabel>{t('dr.howItAdds')}</SectionLabel>
               <Card flush>
-                {breakdownRows(t, score).map(({ label, points }, index, rows) => (
+                {breakdownRows(t, i18n.language, score).map(({ label, points }, index, rows) => (
                   <ListRow
                     key={label}
                     title={label}

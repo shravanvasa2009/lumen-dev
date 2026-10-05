@@ -1,5 +1,6 @@
 import { renderHook } from '@testing-library/react-native';
 import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
+import i18n from 'i18next';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import en from '@/i18n/en.json';
@@ -160,6 +161,19 @@ describe('profile', () => {
     fireEvent.changeText(screen.getByLabelText(en['profile.height']), '168');
     fireEvent.changeText(screen.getByLabelText(en['profile.weight']), '82');
     expect(screen.getByLabelText(`${en['profile.bmi']} 29.0`)).toBeOnTheScreen();
+  });
+
+  it('takes a decimal comma and shows the body mass index with one in Spanish', async () => {
+    await act(() => i18n.changeLanguage('es'));
+    try {
+      renderRouter('./app', { initialUrl: '/profile' });
+      fireEvent.changeText(await screen.findByLabelText(es['profile.age']), '52');
+      fireEvent.changeText(screen.getByLabelText(es['profile.height']), '168');
+      fireEvent.changeText(screen.getByLabelText(es['profile.weight']), '70,5');
+      expect(screen.getByLabelText(`${es['profile.bmi']} 24,9`)).toBeOnTheScreen();
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 
   it('says what range a height or weight must be in and keeps Next off', async () => {

@@ -1,8 +1,9 @@
 import type { TFunction } from 'i18next';
 
 import type { EvidenceMetric } from '@/evidence';
+import { formatNumber } from '@/i18n/formatNumber';
 
-import { formatNumber, formatPercent } from './format';
+import { formatPercent } from './format';
 import type { AccuracyFigures } from './readAccuracy';
 
 type AccuracyLines = { headline: string; details: readonly string[] };

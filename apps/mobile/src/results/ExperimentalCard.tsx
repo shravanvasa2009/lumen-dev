@@ -8,9 +8,8 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { ListRow } from '@/components/ListRow';
+import { formatNumber } from '@/i18n/formatNumber';
 import { useTheme } from '@/theme';
-
-import { roundToTenth } from './format';
 
 type ExperimentalCardProps = {
   experimental: ReadingResult['experimental'];
@@ -18,7 +17,7 @@ type ExperimentalCardProps = {
 
 // §6.3: grey badges, no flags. Collapsed by default; the row opens the extra-beats and pulse-shape detail.
 export function ExperimentalCard({ experimental }: ExperimentalCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors, spacing } = useTheme();
   const [open, setOpen] = useState(false);
   return (
@@ -48,7 +47,9 @@ export function ExperimentalCard({ experimental }: ExperimentalCardProps) {
       {open ? (
         <View style={{ padding: spacing.lg, paddingTop: 0, gap: spacing.xs }}>
           <AppText>
-            {t('results.extraBeatsRate', { rate: roundToTenth(experimental.extraBeatsPerMin) })}
+            {t('results.extraBeatsRate', {
+              rate: formatNumber(experimental.extraBeatsPerMin, i18n.language),
+            })}
           </AppText>
           <AppText>
             {experimental.pulseShape.available ? t('results.shapeAvailable') : t('results.shapeUnavailable')}

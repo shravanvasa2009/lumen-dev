@@ -1,4 +1,5 @@
 import { act, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
+import i18n from 'i18next';
 import { Dimensions, ScrollView } from 'react-native';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
@@ -50,6 +51,22 @@ describe('Settings > Profile', () => {
     expect(screen.getByText('29.0')).toBeOnTheScreen();
     expect(screen.getByText(en['dr.gdmShort'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.notScored'])).toBeOnTheScreen();
+  });
+
+  it('writes the body mass index and a decimal weight with a decimal comma in Spanish', async () => {
+    await saveRiskDraft(saved);
+    await act(() => i18n.changeLanguage('es'));
+    try {
+      renderRouter('./app', { initialUrl: '/settings/profile' });
+      expect(await screen.findByText('29,0')).toBeOnTheScreen();
+      screen.unmount();
+      await saveRiskDraft({ ...saved, weightKg: 70.5 });
+      renderRouter('./app', { initialUrl: '/settings/profile' });
+      expect(await screen.findByText('70,5 kg')).toBeOnTheScreen();
+      expect(screen.getByText('24,9')).toBeOnTheScreen();
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 
   it('shows Not answered for what was never asked, and hides the pregnancy row unless Female', async () => {

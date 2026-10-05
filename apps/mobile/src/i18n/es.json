@@ -96,6 +96,7 @@
   "notifications.doctor": "Seguimiento con el médico",
   "notifications.standing": "Temporizador de la prueba de pie",
   "notifications.retest": "Nueva prueba del teléfono",
+  "notifications.dailyTime": "Hora del recordatorio",
   "notifications.quietHours": "Horas de silencio",
   "notifications.from": "Desde",
   "notifications.until": "Hasta",

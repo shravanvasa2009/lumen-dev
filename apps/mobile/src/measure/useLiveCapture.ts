@@ -4,6 +4,7 @@ import {
   type CoachingKey,
   type LiveSession,
   type RejectedSpan,
+  type Sample,
   type SqiWindow,
 } from '@lumen/core';
 import { useEffect, useState } from 'react';
@@ -20,9 +21,13 @@ import {
 } from '../../modules/lumen-capture/src';
 import { scoreSqiWindow, sqiThreshold } from '../ml/runtime';
 import { keepCapture, keepLiveCapture, liveCaptureChanged } from './keptCapture';
+import { livePerfusionPct, signalLevel } from './signalLevel';
 
 // The live waveform card shows the last 6 s (spec §12).
 const WAVEFORM_WINDOW_NS = 6e9;
+// The signal meter is re-read once per second of frames; its spectrum needs the last liveHr.windowS seconds.
+const LEVEL_EVERY_NS = 1e9;
+const LEVEL_WINDOW_NS = DSP_CONFIG.liveHr.windowS * 1e9;
 // Spec §9.2 (Locks) and §4.2 step 3: with the finger on the phone, auto-exposure settles for 1 s, then
 // exposure, white balance and focus are locked. Native adds its own short wait before steering (DSP-5).
 const EXPOSURE_SETTLE_MS = 1000;
@@ -45,6 +50,9 @@ export interface LiveCapture {
   // The session's filtered pulse of the last 6 s, and the spans it greyed out, in seconds from the first frame.
   recentWaveform: { tS: number[]; ppg: number[] };
   rejectedSpans: RejectedSpan[];
+  // Where the Weak to Strong meter sits, 0 to 1, from the live perfusion index and pulse SNR (spec 04 section 4.2);
+  // null until the session has a pulse window.
+  signalLevel: number | null;
 }
 
 const idle = (phase: LivePhase): LiveCapture => ({
@@ -57,6 +65,7 @@ const idle = (phase: LivePhase): LiveCapture => ({
   coachingKey: null,
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
+  signalLevel: null,
 });
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -121,6 +130,9 @@ export function useLiveCapture(
     let started = false;
     let subscriptions: { remove(): void }[] = [];
     let recent: { tNs: number; r: number }[] = [];
+    let levelFrames: Sample[] = [];
+    let levelAtNs = -Infinity;
+    let level: number | null = null;
     let firstNs: number | null = null;
     let session: LiveSession | null = null;
     let captureFps = 0;
@@ -224,8 +236,15 @@ export function useLiveCapture(
       recent = [...recent, ...batch.samples.map(({ tNs, r }) => ({ tNs, r }))].filter(
         (sample) => newest.tNs - sample.tNs <= WAVEFORM_WINDOW_NS,
       );
+      levelFrames = [...levelFrames, ...batch.samples].filter(
+        (sample) => newest.tNs - sample.tNs <= LEVEL_WINDOW_NS,
+      );
       const hadSession = session !== null;
       const refusal = feedSession(batch);
+      if (session && newest.tNs - levelAtNs >= LEVEL_EVERY_NS) {
+        levelAtNs = newest.tNs;
+        level = signalLevel(livePerfusionPct(session.recentWaveform, recent), levelFrames, newest.tNs);
+      }
       setLive((previous) => ({
         ...previous,
         recentRed: recent.map((sample) => sample.r),
@@ -236,9 +255,10 @@ export function useLiveCapture(
               coachingKey: session.coachingKey,
               recentWaveform: session.recentWaveform,
               rejectedSpans: session.rejectedSpans,
+              signalLevel: level,
             }
           : hadSession
-            ? { cleanSeconds: null, coachingKey: null, failure: refusal }
+            ? { cleanSeconds: null, coachingKey: null, signalLevel: null, failure: refusal }
             : {}),
       }));
     };

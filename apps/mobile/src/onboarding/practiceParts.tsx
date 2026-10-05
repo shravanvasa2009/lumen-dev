@@ -77,20 +77,29 @@ export function SignalMeter({ level = null }: { level?: number | null }) {
   );
 }
 
-// The Weak, OK, Strong labels under the meter.
-export function SignalScale() {
+// The label under the marker, by thirds of the bar; none while there is no level.
+function labelAt(level: number | null): 'weak' | 'ok' | 'strong' | null {
+  if (level === null) return null;
+  if (level < 1 / 3) return 'weak';
+  return level < 2 / 3 ? 'ok' : 'strong';
+}
+
+// The Weak, OK, Strong labels under the meter; the one the marker is over is emphasised.
+export function SignalScale({ level = null }: { level?: number | null }) {
   const { t } = useTranslation();
+  const current = labelAt(level);
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-      <AppText variant="caption" tone="textDim">
-        {t('signal.weak')}
-      </AppText>
-      <AppText variant="caption" tone="textDim">
-        {t('signal.ok')}
-      </AppText>
-      <AppText variant="caption" tone="accent" style={{ fontWeight: '600' }}>
-        {t('signal.strong')}
-      </AppText>
+      {(['weak', 'ok', 'strong'] as const).map((name) => (
+        <AppText
+          key={name}
+          variant="caption"
+          tone={current === name ? 'accent' : 'textDim'}
+          style={current === name ? { fontWeight: '600' } : undefined}
+        >
+          {t(`signal.${name}`)}
+        </AppText>
+      ))}
     </View>
   );
 }

@@ -26,6 +26,8 @@ export default function PracticeScreen() {
       ? t('practice.pending')
       : (phaseCaption(t, live) ??
         (live.cleanSeconds === null ? t('capture.waiting') : t('capture.timerNote')));
+  // No finger is the weakest signal whatever the frames say; until the session has a window there is no marker.
+  const meterLevel = live.signalLevel === null ? null : fingerOn ? live.signalLevel : 0;
   // With no finger the module's own contact flag is the coaching: Cover the lens and the flash.
   const coachingKey = live.coachingKey ?? (fingerOn ? null : 'coach.cover');
   return (
@@ -68,8 +70,8 @@ export default function PracticeScreen() {
         ) : null}
       </View>
       <View style={{ gap: spacing.xs }}>
-        <SignalMeter />
-        <SignalScale />
+        <SignalMeter level={meterLevel} />
+        <SignalScale level={meterLevel} />
       </View>
       <Card>
         <LiveWaveform red={live.recentRed} />

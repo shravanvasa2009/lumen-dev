@@ -63,3 +63,16 @@ fun planExposure(current: ExposureSetting, factor: Double, limits: ExposureLimit
     val iso = (total / duration).coerceIn(limits.minIso, limits.maxIso)
     return ExposureSetting(duration, iso)
 }
+
+// How lockExposure() holds exposure after the settle (spec §9.2 Locks, §4.2 step 3): a manual exposure where the
+// lens takes one (MANUAL_SENSOR, needed for DSP-5 steering), else CONTROL_AE_LOCK where the lens reports
+// CONTROL_AE_LOCK_AVAILABLE, else nothing. That key is guaranteed only with MANUAL_SENSOR or BURST_CAPTURE
+// (CameraCharacteristics docs), so a LIMITED phone without either can land on NONE.
+enum class ExposureHold { MANUAL, AE_LOCK, NONE }
+
+fun exposureHold(manualExposure: Boolean, aeLockAvailable: Boolean): ExposureHold =
+    when {
+        manualExposure -> ExposureHold.MANUAL
+        aeLockAvailable -> ExposureHold.AE_LOCK
+        else -> ExposureHold.NONE
+    }

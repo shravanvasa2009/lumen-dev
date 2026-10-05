@@ -34,6 +34,9 @@ data class RearLens(
 ) {
     val maxFps: Int
         get() = fpsRanges.maxOfOrNull { it.upper }?.coerceAtMost(MAX_FPS) ?: 0
+
+    val exposureHold: ExposureHold
+        get() = exposureHold(manualExposure != null, exposureLock)
 }
 
 // Spec §9.2 caps the frame rate at 240 fps.

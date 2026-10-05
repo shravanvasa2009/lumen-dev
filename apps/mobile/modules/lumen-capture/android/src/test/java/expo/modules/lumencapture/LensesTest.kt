@@ -108,3 +108,33 @@ class FocusTest {
         assertFalse(focusHolds(autofocus, false, 10f, INFO_SUPPORTED_HARDWARE_LEVEL_FULL))
     }
 }
+
+class LensExposureHoldTest {
+    private fun lens(manual: ManualExposureRange?, aeLock: Boolean) =
+        RearLens(
+            id = "0",
+            cameraId = "0",
+            physicalId = null,
+            kind = "wide",
+            fpsRanges = listOf(FpsRange(30, 30)),
+            torchUsable = true,
+            torchLevels = false,
+            exposureLock = aeLock,
+            whiteBalanceLock = true,
+            focusLock = true,
+            fixedFocus = false,
+            minimumFocusDistance = 10f,
+            manualExposure = manual,
+            realtimeTimestamps = true,
+            hardwareLevel = INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED,
+        )
+
+    // A LIMITED camera without MANUAL_SENSOR, like the Galaxy A17's: only CONTROL_AE_LOCK can hold exposure.
+    @Test
+    fun lensHoldFollowsItsCharacteristics() {
+        val manual = ManualExposureRange(10_000L, 100_000_000L, 50, 3200)
+        assertEquals(ExposureHold.MANUAL, lens(manual, aeLock = true).exposureHold)
+        assertEquals(ExposureHold.AE_LOCK, lens(null, aeLock = true).exposureHold)
+        assertEquals(ExposureHold.NONE, lens(null, aeLock = false).exposureHold)
+    }
+}

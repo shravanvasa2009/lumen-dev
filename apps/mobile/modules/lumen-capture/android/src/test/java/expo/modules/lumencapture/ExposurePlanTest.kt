@@ -68,4 +68,12 @@ class ExposurePlanTest {
         assertEquals(1e4, floor.durationNs, 1e-9)
         assertEquals(50.0, floor.iso, 1e-9)
     }
+
+    @Test
+    fun exposureHoldPrefersManualThenAeLock() {
+        assertEquals(ExposureHold.MANUAL, exposureHold(manualExposure = true, aeLockAvailable = true))
+        assertEquals(ExposureHold.MANUAL, exposureHold(manualExposure = true, aeLockAvailable = false))
+        assertEquals(ExposureHold.AE_LOCK, exposureHold(manualExposure = false, aeLockAvailable = true))
+        assertEquals(ExposureHold.NONE, exposureHold(manualExposure = false, aeLockAvailable = false))
+    }
 }

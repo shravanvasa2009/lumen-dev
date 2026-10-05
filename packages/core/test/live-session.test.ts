@@ -257,7 +257,8 @@ describe('LiveSession rejected spans and clean seconds', () => {
     const before: (number | null)[] = [];
     const strong = play(frames({ seconds: 30 }), {
       onBatch: (live, tS) => {
-        if (tS < 0.5) before.push(live.perfusionPct);
+        // The first covered window of live.perfusionWindowS ends at 4 s; the checks before it have none.
+        if (tS < DSP_CONFIG.live.perfusionWindowS - 0.05) before.push(live.perfusionPct);
       },
     }).session;
     expect(before.every((pct) => pct === null)).toBe(true);

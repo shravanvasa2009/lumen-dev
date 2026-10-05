@@ -258,7 +258,7 @@ class Session implements LiveSession {
       }
       this.livePerfusionPct = (100 * (high - low)) / (total / (this.count - from));
     }
-    // §7: cold hands only after coldHandsAfterS, so the filter has settled.
+    // §7: cold hands only after coldHandsAfterS.
     const cold =
       tS >= coldHandsAfterS &&
       this.livePerfusionPct !== null &&

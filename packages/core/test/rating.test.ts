@@ -99,12 +99,15 @@ describe('§5.1 flash-to-lens coupling points', () => {
     expect(rating.components.coupling).toBe(points);
   });
 
-  it.each(cases)(
-    'PI %p %%, SNR %p dB: the points are 35 × couplingFactor, floored',
-    (perfusionIndexPct, snrDb, points) => {
-      expect(Math.floor(35 * couplingFactor(perfusionIndexPct, snrDb))).toBe(points);
-    },
-  );
+  // Red team PR #271: exact whole points must not floor a point away (35 × (PI × SNR) gave 6, 6, 13).
+  it.each([
+    [0.3, 8, 7],
+    [0.6, 4, 7],
+    [0.6, 8, 14],
+  ])('PI %p %%, SNR %p dB: exactly %d points', (perfusionIndexPct, snrDb, points) => {
+    const rating = rateDevice(phone(60), practice({ coupling: { perfusionIndexPct, snrDb } }));
+    expect(rating.components.coupling).toBe(points);
+  });
 
   it('couplingFactor is 0..1, and 0 without a pulse (null SNR) for the practice meter', () => {
     expect(couplingFactor(1, 12)).toBe(1);

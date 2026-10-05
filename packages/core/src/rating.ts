@@ -82,22 +82,27 @@ function frameRateLevel(
   return reached ?? null;
 }
 
-/**
- * §5.1 coupling factor, min(1, PI / full PI) × min(1, SNR / full SNR) in 0..1: the rating's coupling points and the
- * practice meter (spec 04 §4.2 technique 4) share it. A null SNR (no pulse found) gives 0.
- */
-export function couplingFactor(perfusionIndexPct: number, snrDb: number | null): number {
+function couplingFactors(perfusionIndexPct: number, snrDb: number): [number, number] {
   const config = DSP_CONFIG.rating;
-  if (snrDb === null) return 0;
   const piFactor = Math.min(1, Math.max(0, perfusionIndexPct / config.couplingFullPiPct));
   // Negative SNR (pulse below the noise) scores 0, not negative points (ADR 0058).
   const snrFactor = Math.min(1, Math.max(0, snrDb / config.couplingFullSnrDb));
+  return [piFactor, snrFactor];
+}
+
+/** §5.1 coupling level in 0..1 for the practice meter (spec 04 §4.2 technique 4); 0 with no pulse (null SNR). */
+export function couplingFactor(perfusionIndexPct: number, snrDb: number | null): number {
+  if (snrDb === null) return 0;
+  const [piFactor, snrFactor] = couplingFactors(perfusionIndexPct, snrDb);
   return piFactor * snrFactor;
 }
 
 function couplingPoints(perfusionIndexPct: number, snrDb: number): number {
-  // Floored so whole-point components add up to the stored integer score and never round up a tier.
-  return Math.floor(DSP_CONFIG.rating.couplingPoints * couplingFactor(perfusionIndexPct, snrDb));
+  const [piFactor, snrFactor] = couplingFactors(perfusionIndexPct, snrDb);
+  // (points × PI) × SNR, in this order: 35 × (PI × SNR) can land just under an exact whole number and floor a
+  // point away (red team PR #271: PI 0.6 %, SNR 8 dB gives 13, not 14). Floored so whole-point components add
+  // up to the stored integer score and never round up a tier.
+  return Math.floor(DSP_CONFIG.rating.couplingPoints * piFactor * snrFactor);
 }
 
 function lockPoints(locks: RatingCapabilities['locks']): number {

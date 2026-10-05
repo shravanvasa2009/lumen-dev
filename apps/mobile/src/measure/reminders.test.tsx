@@ -32,6 +32,7 @@ const running: LiveCapture = {
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
+  heartRateBpm: null,
 };
 
 const FIRST_TAKEN_AT = new Date(2026, 9, 1, 6, 30).getTime();

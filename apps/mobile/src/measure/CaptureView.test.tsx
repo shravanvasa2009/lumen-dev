@@ -31,6 +31,7 @@ const base: LiveCapture = {
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
+  heartRateBpm: null,
 };
 
 const FULL_PHONE: PlanPhone = { tier: 'full', ambient: false, fps60: true };
@@ -146,6 +147,79 @@ describe('CaptureView', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
     fireEvent.press(screen.getByRole('button', { name: en['capture.stop'] }));
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  describe('layout (mockup 13)', () => {
+    const indexOf = (text: string) => JSON.stringify(screen.toJSON()).indexOf(text);
+
+    it('puts the Quality chip in the header row, after the close button and the title', () => {
+      show({ signalLevel: 0.9 }, 'full');
+      expect(
+        screen.getByLabelText(`${en['capture.quality']} ${en['capture.qualityGood']}`),
+      ).toBeOnTheScreen();
+      expect(indexOf(en['capture.cancel'])).toBeLessThan(indexOf(en['mode.full']));
+      expect(indexOf(en['mode.full'])).toBeLessThan(indexOf(en['capture.quality']));
+      expect(indexOf(en['capture.quality'])).toBeLessThan(indexOf(en['capture.fingerDetected']));
+    });
+
+    it('names weaker levels Weak and OK, and leaves the chip out until there is a level', () => {
+      show({ signalLevel: 0.1 });
+      expect(screen.getByLabelText(`${en['capture.quality']} ${en['signal.weak']}`)).toBeOnTheScreen();
+      screen.unmount();
+      show({ signalLevel: 0.5 });
+      expect(screen.getByLabelText(`${en['capture.quality']} ${en['signal.ok']}`)).toBeOnTheScreen();
+      screen.unmount();
+      show({ signalLevel: null });
+      expect(screen.queryByText(en['capture.quality'])).toBeNull();
+    });
+
+    it('shows the live bpm under the clean-seconds label, and nothing while there is no estimate', () => {
+      show({ cleanSeconds: 40, heartRateBpm: 63 }, 'full');
+      expect(screen.getByText('63 bpm')).toBeOnTheScreen();
+      expect(indexOf('of 90 clean s')).toBeLessThan(indexOf('63 bpm'));
+      screen.unmount();
+      show({ cleanSeconds: 40, heartRateBpm: null }, 'full');
+      expect(screen.queryByText(/bpm$/)).toBeNull();
+    });
+
+    it('orders the pill, ring, message, waveform, labels and the Checking panel as in the mockup', () => {
+      show({ cleanSeconds: 40, signalLevel: 0.9 }, 'full');
+      const order = [
+        en['capture.fingerDetected'],
+        'of 90 clean s',
+        en['capture.good'],
+        en['capture.pulse'],
+        en['capture.still'],
+        en['checks.checking'],
+      ].map(indexOf);
+      expect(order).toEqual([...order].sort((a, b) => a - b));
+      expect(order.every((position) => position > -1)).toBe(true);
+    });
+
+    it('keeps the whole Checking panel inside the scrolling body on a 360 x 640 screen', () => {
+      show({ cleanSeconds: 40 }, 'full');
+      fireEvent(screen.UNSAFE_getByType(ScrollView), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 508 } },
+      });
+      const scroll = within(screen.UNSAFE_getByType(ScrollView));
+      expect(scroll.getAllByText(en['checks.checking'])[0]).toBeOnTheScreen();
+      expect(scroll.getByLabelText(en['checks.pots.standingNote'])).toBeOnTheScreen();
+      expect(screen.queryByText(en['capture.timerNote'])).toBeNull();
+      expect(screen.queryByText(en['capture.still'])).toBeNull();
+      expect(screen.getByText('of 90 clean s')).toBeOnTheScreen();
+    });
+
+    it('shows the chip in Spanish', async () => {
+      await act(() => i18next.changeLanguage('es'));
+      try {
+        show({ signalLevel: 0.9 });
+        expect(
+          screen.getByLabelText(`${es['capture.quality']} ${es['capture.qualityGood']}`),
+        ).toBeOnTheScreen();
+      } finally {
+        await act(() => i18next.changeLanguage('en'));
+      }
+    });
   });
 
   describe('checking row', () => {

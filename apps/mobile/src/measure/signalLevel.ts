@@ -14,3 +14,9 @@ export function signalLevel(perfusionPct: number | null, frames: readonly Sample
   );
   return Number.isFinite(level) ? level : 0;
 }
+
+// Whole bpm of the same covered frames, or null while the estimator has none (below its SNR limit or segment length).
+export function liveBpm(frames: readonly Sample[]): number | null {
+  const estimate = estimateLiveHeartRate([...frames]);
+  return estimate ? Math.round(estimate.bpm) : null;
+}

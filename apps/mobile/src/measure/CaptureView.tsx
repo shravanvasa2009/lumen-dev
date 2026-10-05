@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
 import type { PlanPhone } from '@/checks/checkPlan';
 import { AppText } from '@/components/AppText';
@@ -13,19 +13,19 @@ import { useTheme } from '@/theme';
 import { StillMotion } from '@/theme/motion';
 
 import { CameraDeniedNotice } from './CameraDeniedNotice';
-import { CheckingRow } from './CheckingRow';
+import { CheckingRow, COMPACT_WIDTH_DP } from './CheckingRow';
 import { TipsSheet } from './TipsSheet';
 import { checkingItems } from './checkingItems';
+import { captureSizes } from './captureLayout';
 import { LiveWaveform } from './LiveWaveform';
 import { coachingText } from './coachingText';
 import { cleanSecondsNeeded, type MeasureMode } from './mode';
 import { phaseCaption } from './phaseCaption';
+import { QualityChip } from './QualityChip';
 import type { LiveCapture } from './useLiveCapture';
 
-const RING_SIZE = 150;
 const RING_STROKE = 10;
-// Share of the ring that sits on the finger preview, as in mockups 13 and 14.
-const RING_OVERLAP = 0.35;
+const TIGHT_RING_STROKE = 8;
 const NO_VALUE = '—';
 
 type CaptureViewProps = {
@@ -40,6 +40,12 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
   const { t } = useTranslation();
   const { colors, spacing, radius, control } = useTheme();
   const [tipsOpen, setTipsOpen] = useState(false);
+  const [viewport, setViewport] = useState(0);
+  const [chipWidth, setChipWidth] = useState(0);
+  const { width } = useWindowDimensions();
+  const sizes = captureSizes(viewport, width < COMPACT_WIDTH_DP);
+  const { tight } = sizes;
+  const rowGap = tight ? spacing.sm : spacing.md;
   const total = cleanSecondsNeeded(mode);
   const running = live.phase === 'running';
   const counting = running && live.cleanSeconds !== null;
@@ -56,39 +62,39 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
   return (
     <StillMotion.Provider value>
       <Screen headerless footer={<Button variant="secondary" label={t('capture.stop')} onPress={onStop} />}>
-        <ScrollView contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('capture.cancel')}
-              onPress={onCancel}
-              style={{ minWidth: control.minTarget, minHeight: control.minTarget, justifyContent: 'center' }}
+        <ScrollView
+          onLayout={(event) => setViewport(Math.floor(event.nativeEvent.layout.height))}
+          contentContainerStyle={{ gap: rowGap, paddingBottom: spacing.sm }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: Math.max(control.minTarget, chipWidth) }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('capture.cancel')}
+                onPress={onCancel}
+                style={{ width: control.minTarget, minHeight: control.minTarget, justifyContent: 'center' }}
+              >
+                <Icon name="close" size={24} color={colors.textDim} />
+              </Pressable>
+            </View>
+            <AppText
+              variant={width < COMPACT_WIDTH_DP ? 'headline' : 'title'}
+              accessibilityRole="header"
+              style={{ flex: 1, textAlign: 'center' }}
             >
-              <Icon name="close" size={24} color={colors.textDim} />
-            </Pressable>
-            <AppText variant="title" accessibilityRole="header" style={{ flex: 1 }}>
               {mode === 'quick' ? t('mode.quick') : t('mode.full')}
             </AppText>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('capture.tips')}
-              onPress={() => setTipsOpen(true)}
-              style={{
-                minWidth: control.minTarget,
-                minHeight: control.minTarget,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <AppText variant="headline" tone="textDim">
-                ?
-              </AppText>
-            </Pressable>
+            <View style={{ minWidth: control.minTarget, alignItems: 'flex-end' }}>
+              <QualityChip
+                level={live.signalLevel}
+                onLayout={(event) => setChipWidth(Math.ceil(event.nativeEvent.layout.width))}
+              />
+            </View>
           </View>
           <TipsSheet visible={tipsOpen} onDismiss={() => setTipsOpen(false)} />
           <CameraDeniedNotice live={live} centered />
 
-          <View style={{ alignItems: 'center', gap: spacing.md }}>
+          <View style={{ alignItems: 'center', justifyContent: 'center', minHeight: 26 }}>
             {live.status ? (
               <View
                 style={{
@@ -106,7 +112,20 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
                 </AppText>
               </View>
             ) : null}
-            <FingerPreview detected={fingerOn} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('capture.tips')}
+              hitSlop={control.minTarget / 4}
+              onPress={() => setTipsOpen(true)}
+              style={{ position: 'absolute', right: 0, paddingHorizontal: spacing.md }}
+            >
+              <AppText variant="headline" tone="textDim">
+                ?
+              </AppText>
+            </Pressable>
+          </View>
+          <View style={{ alignItems: 'center' }}>
+            <FingerPreview detected={fingerOn} size={sizes.preview} />
           </View>
           <View
             accessible
@@ -115,13 +134,13 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
               alignItems: 'center',
               justifyContent: 'center',
               alignSelf: 'center',
-              marginTop: -RING_SIZE * RING_OVERLAP,
+              marginTop: -sizes.ring * sizes.overlap,
             }}
           >
             <ProgressRing
               fraction={done === null ? 0 : done / total}
-              size={RING_SIZE}
-              strokeWidth={RING_STROKE}
+              size={sizes.ring}
+              strokeWidth={tight ? TIGHT_RING_STROKE : RING_STROKE}
               paused={paused}
             />
             <View style={{ position: 'absolute', alignItems: 'center' }}>
@@ -129,6 +148,11 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
               <AppText variant="caption" tone="textDim">
                 {paused ? t('capture.pausedOf', { total }) : t('capture.cleanOf', { total })}
               </AppText>
+              {live.heartRateBpm === null ? null : (
+                <AppText variant="headline" tone="accent">
+                  {t('results.bpm', { value: live.heartRateBpm })}
+                </AppText>
+              )}
             </View>
           </View>
           {coaching ? (
@@ -156,7 +180,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             </AppText>
           ) : null}
 
-          {live.phase === 'denied' ? null : (
+          {live.phase === 'denied' || (tight && counting) ? null : (
             <AppText tone="textDim" style={{ textAlign: 'center' }}>
               {caption}
             </AppText>
@@ -168,12 +192,12 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             </AppText>
           )}
 
-          <Card>
+          <Card dense={tight}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <AppText tone="textDim">{t('capture.pulse')}</AppText>
               <AppText tone="textDim">{t('capture.last6s')}</AppText>
             </View>
-            <LiveWaveform red={live.recentRed} />
+            <LiveWaveform red={live.recentRed} height={sizes.waveformHeight} />
             {running ? null : (
               <AppText variant="caption" tone="textDim">
                 {t('capture.noWaveform')}
@@ -181,7 +205,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             )}
           </Card>
 
-          {live.status ? (
+          {live.status && !tight ? (
             <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl }}>
               <CheckLabel label={t('capture.finger')} passing={fingerOn} />
               {counting ? (

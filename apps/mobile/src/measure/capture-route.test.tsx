@@ -24,6 +24,7 @@ const unavailable: LiveCapture = {
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
+  heartRateBpm: null,
 };
 
 preloadAppRoutes();

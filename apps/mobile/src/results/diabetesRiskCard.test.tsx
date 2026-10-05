@@ -185,6 +185,16 @@ describe('diabetes result detail screen', () => {
     expect(points.reduce((sum, item) => sum + item, 0)).toBe(5);
   });
 
+  it('writes the body mass index row with a decimal comma in Spanish', async () => {
+    await i18next.changeLanguage('es');
+    try {
+      await openDetail(higher);
+      expect(await screen.findByText('IMC 29,0')).toBeOnTheScreen();
+    } finally {
+      await act(() => i18next.changeLanguage('en'));
+    }
+  });
+
   it('shows lower risk in neutral text, and a negative row still sums to the score', async () => {
     await openDetail(lower);
     const title = await screen.findByRole('header', { name: en['dr.result.lower'] });

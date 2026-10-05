@@ -1,5 +1,7 @@
 import type { AdaAnswers } from '@lumen/core';
 
+import { formatNumber } from '@/i18n/formatNumber';
+
 export type Sex = 'female' | 'male' | 'preferNot';
 
 export type RiskDraft = {
@@ -45,7 +47,8 @@ export const poundsFromKg = (kg: number) => kg / KG_PER_POUND;
 export const bmiOf = (heightCm: number, weightKg: number) => weightKg / (heightCm / 100) ** 2;
 
 // Floored, not rounded: a shown value must not reach a band edge (25, 30, 40) the score did not use.
-export const bmiShown = (bmi: number) => (Math.floor(bmi * 10) / 10).toFixed(1);
+export const bmiShown = (bmi: number, language: string) =>
+  formatNumber(Math.floor(bmi * 10) / 10, language, 1, 1);
 
 type RiskField = 'age' | 'height' | 'weight' | 'bmi';
 

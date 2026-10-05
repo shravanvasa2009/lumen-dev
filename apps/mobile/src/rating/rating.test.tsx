@@ -1,6 +1,7 @@
 import { type FrameStat, rateDevice, type RatingMeasures, type Sample } from '@lumen/core';
 import { screen } from '@testing-library/react-native';
-import { renderRouter } from 'expo-router/testing-library';
+import { act, renderRouter } from 'expo-router/testing-library';
+import i18n from 'i18next';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { checkCell, planPhone } from '@/checks/checkPlan';
@@ -141,7 +142,9 @@ describe('the rating from the probe and practice', () => {
     expect(screen.getByText(en['ratingMode.deepHrv'])).toBeOnTheScreen();
     expect(screen.getByText(en['ratingMode.fullScan'])).toBeOnTheScreen();
     expect(screen.getByText(en['rating.checksHere'])).toBeOnTheScreen();
-    expect(screen.getByLabelText(`${en['checks.diabetes.name']}: ${en['checks.diabetes.what']}`)).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText(`${en['checks.diabetes.name']}: ${en['checks.diabetes.what']}`),
+    ).toBeOnTheScreen();
     expect(screen.queryByText(en['mode.locked60fps'])).toBeNull();
 
     const stored = await loadDeviceRating();
@@ -173,6 +176,22 @@ describe('the rating from the probe and practice', () => {
     expect(screen.getByLabelText('94, Full')).toBeOnTheScreen();
     expect(screen.getAllByTestId('rating-bar')).toHaveLength(4);
     expect(screen.queryByTestId('not-tested-tile')).toBeNull();
+  });
+
+  it('writes the perfusion index and the jitter with a decimal comma in Spanish', async () => {
+    await saveDeviceRating(rateDevice(sixtyFpsPhone, practiceOf(60)), {
+      ...DETAILS,
+      lensId: 'main',
+      practice: { achievedFps: 60, frameIntervalSdMs: 0.5, perfusionIndexPct: 1.2, snrDb: 14 },
+    });
+    await act(() => i18n.changeLanguage('es'));
+    try {
+      renderRouter('./app', { initialUrl: '/settings/phone' });
+      expect(await screen.findByText('Índice de perfusión 1,2 %')).toBeOnTheScreen();
+      expect(screen.getByText('Variación 0,5 ms')).toBeOnTheScreen();
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 
   it('says the phone is not rated yet when neither the probe nor a stored rating gives one', async () => {
@@ -333,7 +352,12 @@ describe('mode picker gating', () => {
     await storeRating(noFlashPhone, { ...practiceOf(60), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
     expect((await loadDeviceRating())?.tier).toBe('limited');
     renderRouter('./app', { initialUrl: '/rating' });
-    for (const name of ['checks.hrv.name', 'checks.diabetes.name', 'checks.pots.name', 'checks.afib.name'] as const) {
+    for (const name of [
+      'checks.hrv.name',
+      'checks.diabetes.name',
+      'checks.pots.name',
+      'checks.afib.name',
+    ] as const) {
       expect(await screen.findByLabelText(`${en[name]}: ${en['mode.lockedFlash']}`)).toBeOnTheScreen();
     }
   });
@@ -341,7 +365,9 @@ describe('mode picker gating', () => {
   it('opens POTS on a Basic phone and gives HRV and Diabetes the 60 fps reason', async () => {
     await storeRating(thirtyFpsPhone, practiceOf(30));
     renderRouter('./app', { initialUrl: '/rating' });
-    expect(await screen.findByLabelText(`${en['checks.pots.name']}: ${en['checks.pots.whatShort']}`)).toBeOnTheScreen();
+    expect(
+      await screen.findByLabelText(`${en['checks.pots.name']}: ${en['checks.pots.whatShort']}`),
+    ).toBeOnTheScreen();
     expect(screen.getByLabelText(`${en['checks.afib.name']}: ${en['checks.afib.what']}`)).toBeOnTheScreen();
     expect(screen.getByLabelText(`${en['checks.hrv.name']}: ${en['mode.locked60fps']}`)).toBeOnTheScreen();
   });

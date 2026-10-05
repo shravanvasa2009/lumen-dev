@@ -1,8 +1,3 @@
-// Numbers come from evidence.json; this only turns them into text in the app language.
-export function formatNumber(value: number, language: string, maximumFractionDigits = 1): string {
-  return new Intl.NumberFormat(language, { maximumFractionDigits }).format(value);
-}
-
 // A rate under one percent reads "<1%" so a small but real rate is never shown as zero.
 export function formatPercent(fraction: number, language: string): string {
   const format = new Intl.NumberFormat(language, { style: 'percent', maximumFractionDigits: 0 });

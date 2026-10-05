@@ -53,7 +53,7 @@ describe('how to sit', () => {
     }
   });
 
-  it('fits a 360 by 640 phone: the figure scales to the card and Continue stays in reach', () => {
+  it('sizes the figure to its container on a 360 by 640 window and still renders Continue', () => {
     const originalWindow = Dimensions.get('window');
     act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
     try {

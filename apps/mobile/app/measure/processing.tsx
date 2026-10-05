@@ -29,9 +29,10 @@ export default function ProcessingScreen() {
         : null;
 
   // SAFE-1: only this screen routes on an urgent rate, so it cannot be left until the rules have run (urgent
-  // is undefined until then). The Android back press is eaten here. The header back and iOS swipe-back are
-  // off for this route in the root layout, set once: flipping them while the screen hands over closed the app
-  // on Android (e2e on main 711c4a7). After that the routing needs no analysis step, so leaving is harmless.
+  // is undefined until then). The header back and iOS swipe-back are off for this route in the root layout,
+  // set once: flipping them while the screen hands over closed the app on Android (e2e on main 711c4a7).
+  // The effect below eats the Android back press only, and only while analysing; after that the routing
+  // needs no analysis step, so back is allowed again.
   const analysing = analysis.phase === 'running' && urgent === undefined;
   useEffect(() => {
     if (!analysing) return;

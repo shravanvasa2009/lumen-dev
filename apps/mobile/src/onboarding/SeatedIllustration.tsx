@@ -9,8 +9,8 @@ const INSET_LABEL_SIZE = 4.4;
 // Only used to shade the figure's own colours; page colours always come from the theme.
 const BLACK = '#000000';
 const WHITE = '#ffffff';
-// The chair back leans 2 degrees about its seat joint.
-const CHAIR_PIVOT = '-12.7, -45';
+// The chair back leans about its seat joint.
+const CHAIR_PIVOT = '-12.7 -45';
 const LINE_WIDTH = 0.45;
 const LONG_LABEL = 22;
 const LABEL_LINE_HEIGHT = 6.6;
@@ -49,16 +49,15 @@ function splitLabel(label: string): string[] {
 // index fingertip on the rear camera. Scales with its container: the viewBox sets the shape, not the pixels.
 export function SeatedIllustration({ phoneLabel, elbowLabel, pressInset }: SeatedIllustrationProps) {
   const { colors } = useTheme();
-  const figure = seatedFigure;
-  const { viewBox, inset } = figure;
+  const { viewBox, inset } = seatedFigure;
   const skinShade = darken(colors.illustrationSkin, 0.84);
   const shirt = mix(colors.illustrationTorso, colors.surface3, 0.55);
   const sleeve = darken(shirt, 0.88);
   const pants = mix(colors.textDim, colors.surface3, 0.6);
   const deviceFace = lighten(colors.illustrationDevice, 0.86);
   const bumpFill = lighten(colors.illustrationDevice, 0.62);
-  const [camX, camY] = figure.camera;
-  const [phoneX, phoneY] = figure.phoneMid;
+  const [camX, camY] = seatedFigure.camera;
+  const [phoneX, phoneY] = seatedFigure.phoneMid;
   const [insetX, insetY] = inset.centre;
   const insetLabels = pressInset
     ? ([
@@ -84,7 +83,7 @@ export function SeatedIllustration({ phoneLabel, elbowLabel, pressInset }: Seate
         stroke={colors.line2}
         strokeWidth={0.7}
       />
-      {figure.chair.map((part) => (
+      {seatedFigure.chair.map((part) => (
         <Rect
           key={`${part.x}-${part.y}`}
           x={part.x}
@@ -93,11 +92,10 @@ export function SeatedIllustration({ phoneLabel, elbowLabel, pressInset }: Seate
           height={part.height}
           rx={part.rx}
           fill={colors.line2}
-          rotation={part.tilt}
-          origin={part.tilt ? CHAIR_PIVOT : undefined}
+          transform={part.tilt ? `rotate(${part.tilt} ${CHAIR_PIVOT})` : undefined}
         />
       ))}
-      {figure.table.map((part) => (
+      {seatedFigure.table.map((part) => (
         <Rect
           key={`${part.x}-${part.y}`}
           x={part.x}
@@ -108,45 +106,45 @@ export function SeatedIllustration({ phoneLabel, elbowLabel, pressInset }: Seate
           fill={colors.line2}
         />
       ))}
-      <Path d={figure.legs} fill={pants} />
-      <Path d={figure.shoe} fill={colors.illustrationShoe} />
-      <Path d={figure.torso} fill={shirt} />
-      <Path d={figure.neck} fill={skinShade} />
-      <G transform={`translate(${figure.head.x} ${figure.head.y}) rotate(${figure.head.tilt})`}>
-        <Path d={figure.face} fill={colors.illustrationSkin} />
-        <Path d={figure.hair} fill={colors.illustrationHair} />
+      <Path d={seatedFigure.legs} fill={pants} />
+      <Path d={seatedFigure.shoe} fill={colors.illustrationShoe} />
+      <Path d={seatedFigure.torso} fill={shirt} />
+      <Path d={seatedFigure.neck} fill={skinShade} />
+      <G transform={`translate(${seatedFigure.head.x} ${seatedFigure.head.y}) rotate(${seatedFigure.head.tilt})`}>
+        <Path d={seatedFigure.face} fill={colors.illustrationSkin} />
+        <Path d={seatedFigure.hair} fill={colors.illustrationHair} />
         <Ellipse cx={-2.6} cy={0.6} rx={1.9} ry={2.8} fill={skinShade} />
-        <Circle cx={6.6} cy={-1.6} r={0.75} fill={colors.illustrationShoe} />
+        <Circle cx={6.6} cy={-1.6} r={0.75} fill={BLACK} />
       </G>
-      <Path d={figure.forearm} fill={colors.illustrationSkin} />
-      <Circle cx={figure.wrist[0]} cy={figure.wrist[1]} r={2.3} fill={colors.illustrationSkin} />
-      <Circle cx={figure.elbow[0]} cy={figure.elbow[1]} r={3.5} fill={colors.illustrationSkin} />
-      <Path d={figure.sleeve} fill={sleeve} />
-      <Circle cx={figure.shoulder[0]} cy={figure.shoulder[1]} r={4.7} fill={sleeve} />
-      <Circle cx={figure.elbow[0]} cy={figure.elbow[1]} r={4.2} fill={sleeve} />
+      <Path d={seatedFigure.forearm} fill={colors.illustrationSkin} />
+      <Circle cx={seatedFigure.wrist[0]} cy={seatedFigure.wrist[1]} r={2.3} fill={colors.illustrationSkin} />
+      <Circle cx={seatedFigure.elbow[0]} cy={seatedFigure.elbow[1]} r={3.5} fill={colors.illustrationSkin} />
+      <Path d={seatedFigure.sleeve} fill={sleeve} />
+      <Circle cx={seatedFigure.shoulder[0]} cy={seatedFigure.shoulder[1]} r={4.7} fill={sleeve} />
+      <Circle cx={seatedFigure.elbow[0]} cy={seatedFigure.elbow[1]} r={4.2} fill={sleeve} />
       <Ellipse
-        cx={figure.elbow[0]}
+        cx={seatedFigure.elbow[0]}
         cy={-73.3}
         rx={5}
         ry={0.5}
-        fill={colors.illustrationShoe}
+        fill={BLACK}
         opacity={0.12}
       />
       <Path
-        d={figure.phoneEdge}
+        d={seatedFigure.phoneEdge}
         fill={colors.illustrationDevice}
         stroke={colors.illustrationDeviceLine}
         strokeWidth={0.3}
       />
-      <Path d={figure.phoneBack} fill={deviceFace} />
-      <Path d={figure.phoneRim} fill={colors.illustrationDeviceLine} />
-      <Path d={figure.cameraBump} fill={bumpFill} />
-      <Path d={figure.palm} fill={colors.illustrationSkin} />
-      <Path d={figure.index} fill={colors.illustrationSkin} />
-      <Path d={figure.thumb} fill={darken(colors.illustrationSkin, 0.93)} />
-      <Path d={figure.fingernail} fill={colors.illustrationOnDevice} opacity={0.28} />
+      <Path d={seatedFigure.phoneBack} fill={deviceFace} />
+      <Path d={seatedFigure.phoneRim} fill={colors.illustrationDeviceLine} />
+      <Path d={seatedFigure.cameraBump} fill={bumpFill} />
+      <Path d={seatedFigure.palm} fill={colors.illustrationSkin} />
+      <Path d={seatedFigure.index} fill={colors.illustrationSkin} />
+      <Path d={seatedFigure.thumb} fill={darken(colors.illustrationSkin, 0.93)} />
+      <Path d={seatedFigure.fingernail} fill={WHITE} opacity={0.28} />
       <Path
-        d={`M${figure.elbowLabelFrom} -75.6 H58`}
+        d={`M${seatedFigure.elbowLabelFrom} -75.6 H58`}
         stroke={colors.textDim}
         strokeWidth={LINE_WIDTH}
         strokeDasharray="1 1"
@@ -216,7 +214,7 @@ export function SeatedIllustration({ phoneLabel, elbowLabel, pressInset }: Seate
               cy={inset.lens[1]}
               r={0.55 * inset.magnify}
               fill="none"
-              stroke={colors.illustrationOnDevice}
+              stroke={colors.text}
               strokeWidth={1}
               strokeDasharray="1.6 1.1"
             />
@@ -225,7 +223,7 @@ export function SeatedIllustration({ phoneLabel, elbowLabel, pressInset }: Seate
               cy={inset.flash[1]}
               r={0.25 * inset.magnify}
               fill="none"
-              stroke={colors.illustrationOnDevice}
+              stroke={colors.text}
               strokeWidth={1}
               strokeDasharray="1.2 0.9"
             />

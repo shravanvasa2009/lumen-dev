@@ -43,6 +43,9 @@ export interface LiveSession {
   // exactly), or a pClean outside [0, 1].
   setSqi(windowEndS: number, pClean: number): void;
   readonly cleanSeconds: number;
+  // Live perfusion index in % over the last live.perfusionWindowS of covered, gap-free frames (the cold-hands
+  // check's window); null until such a window exists. For the practice meter (couplingFactor).
+  readonly perfusionPct: number | null;
   readonly recentWaveform: { tS: number[]; ppg: number[] }; // last 6 s
   readonly coachingKey: CoachingKey | null;
   readonly rejectedSpans: RejectedSpan[];

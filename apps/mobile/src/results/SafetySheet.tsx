@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -8,24 +8,31 @@ import { Icon } from '@/components/Icon';
 import { PressableScale } from '@/components/PressableScale';
 import { useTheme } from '@/theme';
 
-type SafetySheetProps = { visible: boolean; onDismiss: () => void };
+// A caller that must replace its own screen with the emergency screen (Processing) passes onYes; the Results
+// screen stays underneath and takes the default push.
+type SafetySheetProps = { visible: boolean; onNo: () => void; onYes?: () => void };
 
 // Answer buttons are well above the 44 dp minimum so the question can be answered at a glance.
 const ANSWER_HEIGHT = 72;
 
 // SAFE-1: shown when any flag fires (heart rate, rhythm, or the diabetes pattern card, §12.5).
-// Yes opens emergency guidance at once; No or a tap outside closes it. Yes uses the amber flag tokens,
+// Yes opens emergency guidance at once; No closes it. A tap outside and Android Back do nothing, so a slip
+// cannot skip the question (ADR 0093). Yes uses the amber flag tokens,
 // because red belongs to the emergency screen alone.
-export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
+export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors, radius, spacing } = useTheme();
   const openEmergency = () => {
-    onDismiss();
+    if (onYes !== undefined) {
+      onYes();
+      return;
+    }
+    onNo();
     router.push('/emergency');
   };
   return (
-    <BottomSheet visible={visible} onDismiss={onDismiss} dismissLabel={t('safety.dismiss')}>
+    <BottomSheet visible={visible}>
       <View
         style={{
           alignSelf: 'center',
@@ -35,26 +42,30 @@ export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
           backgroundColor: colors.line2,
         }}
       />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-        <View
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: radius.pill,
-            backgroundColor: colors.flagBg,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icon name="warning" size={32} color={colors.flag} mark={colors.flagBg} />
+      {/* Only the title and question scroll: at the largest font on a 360x640 phone they are taller than the
+          sheet, and Yes and No must stay on screen below them. */}
+      <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.lg }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: radius.pill,
+              backgroundColor: colors.flagBg,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Icon name="warning" size={32} color={colors.flag} mark={colors.flagBg} />
+          </View>
+          <AppText variant="display" accessibilityRole="header" style={{ flex: 1 }}>
+            {t('safety.title')}
+          </AppText>
         </View>
-        <AppText variant="display" accessibilityRole="header" style={{ flex: 1 }}>
-          {t('safety.title')}
+        <AppText variant="title" style={{ fontWeight: '500' }}>
+          {t('safety.question')}
         </AppText>
-      </View>
-      <AppText variant="title" style={{ fontWeight: '500' }}>
-        {t('safety.question')}
-      </AppText>
+      </ScrollView>
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
         <View style={{ flex: 1 }}>
           <PressableScale
@@ -78,7 +89,7 @@ export function SafetySheet({ visible, onDismiss }: SafetySheetProps) {
         <View style={{ flex: 1 }}>
           <PressableScale
             accessibilityRole="button"
-            onPress={onDismiss}
+            onPress={onNo}
             style={{
               minHeight: ANSWER_HEIGHT,
               borderRadius: radius.pill,

@@ -10,6 +10,8 @@ import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { ListRow } from '@/components/ListRow';
 import { useTheme } from '@/theme';
 
+import { roundToTenth } from './format';
+
 type ExperimentalCardProps = {
   experimental: ReadingResult['experimental'];
 };
@@ -45,7 +47,9 @@ export function ExperimentalCard({ experimental }: ExperimentalCardProps) {
       </View>
       {open ? (
         <View style={{ padding: spacing.lg, paddingTop: 0, gap: spacing.xs }}>
-          <AppText>{t('results.extraBeatsRate', { rate: experimental.extraBeatsPerMin })}</AppText>
+          <AppText>
+            {t('results.extraBeatsRate', { rate: roundToTenth(experimental.extraBeatsPerMin) })}
+          </AppText>
           <AppText>
             {experimental.pulseShape.available ? t('results.shapeAvailable') : t('results.shapeUnavailable')}
           </AppText>

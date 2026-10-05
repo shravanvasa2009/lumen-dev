@@ -21,6 +21,9 @@ const RING = 4;
 // Android only delivers touches inside the parent's bounds, so the lift is small enough that most of the
 // circle stays inside the bar.
 const LIFT = 14;
+// The tab row must hold the raised circle's visible part plus the label. The demo bar removes the bottom
+// inset the bar would otherwise get, so this height is set outright instead of left to the default.
+export const TAB_ROW_HEIGHT = CIRCLE + RING * 2 - LIFT - RING + 24;
 
 export function CareTabButton({
   label,

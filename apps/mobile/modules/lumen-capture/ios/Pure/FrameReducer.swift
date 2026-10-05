@@ -10,8 +10,12 @@ struct FrameReduction {
 
   // DSP-4 initial contact values (spec §10), hard-coded because native code cannot read config.ts. This is
   // only a live hint; core recomputes contact from the samples and is authoritative (ADR 0013, ADR 0029).
+  // Same test as core's frameProblem(): clipping above 5% is a separate "clipping" cause on a covered frame, so
+  // it does not clear the hint (a clipping finger otherwise never settles and is never locked). A channel
+  // outside 0...1 or a non-finite stat is not covered, as in core.
   var coversLens: Bool {
-    r >= 2.0 * (g + b) && r >= 0.30 && spatialStdR <= 0.10 && clipFrac <= 0.05
+    [r, g, b].allSatisfy { (0.0...1.0).contains($0) } && spatialStdR.isFinite && clipFrac.isFinite
+      && r >= 2.0 * (g + b) && r >= 0.30 && spatialStdR <= 0.10
   }
 }
 

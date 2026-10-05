@@ -3,6 +3,9 @@ package expo.modules.lumencapture
 import android.hardware.camera2.CameraMetadata.CONTROL_AF_MODE_AUTO
 import android.hardware.camera2.CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE
 import android.hardware.camera2.CameraMetadata.CONTROL_AF_MODE_OFF
+import android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_FULL
+import android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY
+import android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -50,6 +53,17 @@ class PickFpsRangeTest {
     }
 }
 
+class HardwareLevelNameTest {
+    @Test
+    fun namesEveryLevelAndAMissingKey() {
+        assertEquals("LEGACY", hardwareLevelName(INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY))
+        assertEquals("LIMITED", hardwareLevelName(INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED))
+        assertEquals("FULL", hardwareLevelName(INFO_SUPPORTED_HARDWARE_LEVEL_FULL))
+        assertEquals("unknown", hardwareLevelName(null))
+        assertEquals("level 9", hardwareLevelName(9))
+    }
+}
+
 // Spec §5.1 counts a fixed-focus lens like a focus lock (ADR 0058 item 5).
 class FocusTest {
     private val autofocus = intArrayOf(CONTROL_AF_MODE_AUTO, CONTROL_AF_MODE_CONTINUOUS_PICTURE)
@@ -71,10 +85,56 @@ class FocusTest {
         assertFalse(isFixedFocus(IntArray(0), null))
     }
 
+    private val manual = intArrayOf(CONTROL_AF_MODE_OFF) + autofocus
+
     @Test
-    fun focusHoldsWhenFixedOrManual() {
-        assertTrue(focusHolds(IntArray(0), fixedFocus = true))
-        assertTrue(focusHolds(intArrayOf(CONTROL_AF_MODE_OFF) + autofocus, fixedFocus = false))
-        assertFalse(focusHolds(autofocus, fixedFocus = false))
+    fun fixedFocusAlwaysHolds() {
+        assertTrue(focusHolds(IntArray(0), fixedFocus = true, minimumFocusDistance = null, hardwareLevel = null))
+        assertTrue(focusHolds(IntArray(0), true, 0f, INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY))
+    }
+
+    @Test
+    fun manualFocusHoldsWithAKnownRangeAboveLegacy() {
+        assertTrue(focusHolds(manual, false, 10f, INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED))
+        assertTrue(focusHolds(manual, false, 10f, INFO_SUPPORTED_HARDWARE_LEVEL_FULL))
+    }
+
+    // The audit case: a budget LEGACY camera lists AF mode OFF, but nothing shows a set distance is honored.
+    @Test
+    fun legacyUnknownRangeOrNoAfOffDoesNotHold() {
+        assertFalse(focusHolds(manual, false, 10f, INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY))
+        assertFalse(focusHolds(manual, false, null, INFO_SUPPORTED_HARDWARE_LEVEL_FULL))
+        assertFalse(focusHolds(manual, false, 10f, null))
+        assertFalse(focusHolds(autofocus, false, 10f, INFO_SUPPORTED_HARDWARE_LEVEL_FULL))
+    }
+}
+
+class LensExposureHoldTest {
+    private fun lens(manual: ManualExposureRange?, aeLock: Boolean) =
+        RearLens(
+            id = "0",
+            cameraId = "0",
+            physicalId = null,
+            kind = "wide",
+            fpsRanges = listOf(FpsRange(30, 30)),
+            torchUsable = true,
+            torchLevels = false,
+            exposureLock = aeLock,
+            whiteBalanceLock = true,
+            focusLock = true,
+            fixedFocus = false,
+            minimumFocusDistance = 10f,
+            manualExposure = manual,
+            realtimeTimestamps = true,
+            hardwareLevel = INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED,
+        )
+
+    // A LIMITED camera without MANUAL_SENSOR, like the Galaxy A17's: only CONTROL_AE_LOCK can hold exposure.
+    @Test
+    fun lensHoldFollowsItsCharacteristics() {
+        val manual = ManualExposureRange(10_000L, 100_000_000L, 50, 3200)
+        assertEquals(ExposureHold.MANUAL, lens(manual, aeLock = true).exposureHold)
+        assertEquals(ExposureHold.AE_LOCK, lens(null, aeLock = true).exposureHold)
+        assertEquals(ExposureHold.NONE, lens(null, aeLock = false).exposureHold)
     }
 }

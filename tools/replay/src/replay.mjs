@@ -28,7 +28,7 @@ function readCsv(folder, name, header) {
   });
 }
 
-function readCapture(folder) {
+export function readCapture(folder) {
   const samples = readCsv(folder, 'samples.csv', 't_ns,r,g,b').map(([tNs, r, g, b]) => ({ tNs, r, g, b }));
   const stats = readCsv(folder, 'stats.csv', 't_ns,spatial_std_r,clip_frac,exposure_ns').map(
     ([tNs, spatialStdR, clipFrac, exposureNs]) => ({ tNs, spatialStdR, clipFrac, exposureNs }),
@@ -50,7 +50,7 @@ function rhythmLabel(meta) {
 
 // Lab captures (Appendix B meta) may lack fps and rating. Without fps, the format rate is taken as the
 // whole number nearest the median frame rate; without a rating the phone is unrated (ADR 0041).
-function contextFromMeta(meta, samples, validationRhythmLabel) {
+export function contextFromMeta(meta, samples, validationRhythmLabel) {
   let captureFps = meta.fps;
   if (typeof captureFps !== 'number') {
     const gaps = samples

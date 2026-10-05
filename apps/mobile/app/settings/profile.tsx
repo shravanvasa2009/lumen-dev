@@ -8,15 +8,16 @@ import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
 import { BasicsFields } from '@/profile/BasicsFields';
-import { basicsAcceptable, bmiOf } from '@/profile/diabetesRisk';
+import { basicsAcceptable, bmiOf, bmiShown } from '@/profile/diabetesRisk';
 import { DiabetesRiskForm } from '@/profile/DiabetesRiskForm';
+import { scoreDraft } from '@/profile/riskScore';
 import { useRiskDraft } from '@/profile/useRiskDraft';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
 
 export default function SettingsProfileScreen() {
   const { t } = useTranslation();
-  const { spacing } = useTheme();
+  const { colors, spacing } = useTheme();
   const risk = useRiskDraft();
   const [editing, setEditing] = useState(false);
   const { draft } = risk;
@@ -45,10 +46,7 @@ export default function SettingsProfileScreen() {
     { title: t('profile.weight'), shown: draft.weightKg === null ? notAnswered : `${draft.weightKg} kg` },
     {
       title: t('profile.bmi'),
-      shown:
-        heightCm !== null && weightKg !== null
-          ? (Math.round(bmiOf(heightCm, weightKg) * 10) / 10).toFixed(1)
-          : notAnswered,
+      shown: heightCm !== null && weightKg !== null ? bmiShown(bmiOf(heightCm, weightKg)) : notAnswered,
     },
   ];
   const questionRows = [
@@ -59,6 +57,27 @@ export default function SettingsProfileScreen() {
       ? [{ title: t('dr.gdmShort'), shown: yesNo(draft.gestationalDiabetes), subtitle: t('dr.notScored') }]
       : []),
   ];
+
+  const score = scoreDraft(draft);
+  const flagged = score.kind === 'scored' && score.risk.flagged;
+  const scoreRow =
+    score.kind === 'scored'
+      ? {
+          subtitle: [t('dr.cutoff'), score.sexNotGiven ? t('dr.minimum') : null].filter(Boolean).join(' · '),
+          trailing: (
+            <View style={{ alignItems: 'flex-end' }}>
+              <AppText variant="headline" style={flagged ? { color: colors.flag } : undefined}>
+                {flagged ? t('dr.result.higher') : t('dr.result.lower')}
+              </AppText>
+              <AppText variant="caption" tone="textDim">
+                {t('dr.score', { points: score.risk.points })}
+              </AppText>
+            </View>
+          ),
+        }
+      : score.kind === 'under20'
+        ? { subtitle: undefined, trailing: value(t('dr.noScore')) }
+        : { subtitle: t('dr.notReady'), trailing: undefined };
 
   return (
     <RouteShell title={t('profile.settingsTitle')}>
@@ -103,18 +122,21 @@ export default function SettingsProfileScreen() {
           <View style={{ gap: spacing.sm }}>
             <SectionLabel>{t('profile.diabetesRisk')}</SectionLabel>
             <Card flush>
-              {questionRows.map(({ title, shown, subtitle }, index) => (
-                <ListRow
-                  key={title}
-                  title={title}
-                  subtitle={subtitle}
-                  last={index === questionRows.length - 1}
-                  trailing={value(shown)}
-                />
+              {questionRows.map(({ title, shown, subtitle }) => (
+                <ListRow key={title} title={title} subtitle={subtitle} trailing={value(shown)} />
               ))}
+              <ListRow
+                last
+                title={t('dr.lastScore')}
+                subtitle={scoreRow.subtitle}
+                trailing={scoreRow.trailing}
+              />
             </Card>
           </View>
           <Button variant="link" label={t('dr.edit')} onPress={() => setEditing(true)} />
+          <AppText variant="caption" tone="textDim">
+            {t('dr.screeningNote')}
+          </AppText>
         </View>
       )}
       {risk.loadFailed ? (

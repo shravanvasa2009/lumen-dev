@@ -164,7 +164,7 @@ private fun describeCapabilities(lenses: List<RearLens>): Map<String, Any?> {
         "locks" to
             mapOf(
                 // lockExposure() holds a manual exposure where the lens allows it, else an AE lock (as Swift).
-                "exposure" to (main != null && (main.manualExposure != null || main.exposureLock)),
+                "exposure" to (main != null && main.exposureHold != ExposureHold.NONE),
                 "whiteBalance" to (main?.whiteBalanceLock ?: false),
                 "focus" to (main?.focusLock ?: false),
             ),

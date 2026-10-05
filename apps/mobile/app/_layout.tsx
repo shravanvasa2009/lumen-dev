@@ -45,6 +45,11 @@ export default function RootLayout() {
       >
         <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        {/* SAFE-1: Processing moves on by itself and must not be left before its urgent check. */}
+        <Stack.Screen
+          name="measure/processing"
+          options={{ headerBackVisible: false, gestureEnabled: false }}
+        />
         <Stack.Screen
           name="follow-up"
           options={{

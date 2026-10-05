@@ -2,6 +2,7 @@ import {
   assessRisk,
   basicsAcceptable,
   bmiOf,
+  bmiShown,
   cmFromInches,
   EMPTY_RISK_DRAFT,
   inchesFromCm,
@@ -23,6 +24,11 @@ const complete: RiskDraft = {
 };
 
 describe('body mass index', () => {
+  it('is shown floored to one decimal, so 70.5 kg at 168 cm reads 24.9 and not the 25.0 band edge', () => {
+    expect(bmiShown(bmiOf(168, 70.5))).toBe('24.9');
+    expect(bmiShown(bmiOf(168, 82))).toBe('29.0');
+  });
+
   it('is kilograms over metres squared', () => {
     expect(bmiOf(168, 82)).toBeCloseTo(29.05, 2);
     expect(bmiOf(200, 80)).toBe(20);

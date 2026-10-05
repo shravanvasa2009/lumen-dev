@@ -106,3 +106,11 @@ export async function publishWidgets(preferences: WidgetPreferences, now = Date.
     JSON.stringify(widgetDisplay(i18next.language)),
   );
 }
+
+// At every launch: without it, a widget placed before the first reading draws the native fallback, which has no
+// four-checks row (seen on the owner's Samsung, 2026-10-04), and the picker has no generated preview. Only the
+// copy goes: "hide values" isn't saved across launches yet, so re-sending the snapshot could show a hidden bpm.
+export async function publishWidgetCopy(): Promise<void> {
+  if (!LumenWidgets) return;
+  await LumenWidgets.publishDisplay(JSON.stringify(widgetDisplay(i18next.language)));
+}

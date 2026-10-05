@@ -159,7 +159,26 @@ class ContactHintTest {
         assertFalse(fingerCovered(COVERED.copy(g = 0.2, b = 0.11))) // R/(G+B) < 2
         assertFalse(fingerCovered(FrameNumbers(r = 0.29, g = 0.0, b = 0.0, spatialStdR = 0.0, clipFrac = 0.0)))
         assertFalse(fingerCovered(COVERED.copy(spatialStdR = 0.11)))
-        assertFalse(fingerCovered(COVERED.copy(clipFrac = 0.06)))
+    }
+
+    // Core's frameProblem() calls such a frame covered with a "clipping" cause, so the hint must say covered too.
+    @Test
+    fun clippedButCoveredFrameIsCovered() {
+        assertTrue(fingerCovered(COVERED.copy(clipFrac = 0.06)))
+        assertTrue(fingerCovered(COVERED.copy(r = 0.99, clipFrac = 0.6)))
+        val counters = CaptureCounters(INTERVAL_NS)
+        counters.frameAt(0, numbers = COVERED.copy(clipFrac = 0.4))
+        assertTrue(counters.status(0).fingerCovered)
+    }
+
+    @Test
+    fun brokenNumbersAreNotCovered() {
+        assertFalse(fingerCovered(COVERED.copy(r = Double.POSITIVE_INFINITY)))
+        assertFalse(fingerCovered(COVERED.copy(r = 1.2)))
+        assertFalse(fingerCovered(COVERED.copy(g = -0.01)))
+        assertFalse(fingerCovered(COVERED.copy(b = Double.NaN)))
+        assertFalse(fingerCovered(COVERED.copy(spatialStdR = Double.NaN)))
+        assertFalse(fingerCovered(COVERED.copy(clipFrac = Double.NaN)))
     }
 }
 

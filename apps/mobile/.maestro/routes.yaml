@@ -62,12 +62,16 @@ name: Every route opens
 - assertVisible: 'Full Scan'
 - openLink: lumen://measure/capture?mode=quick
 - assertVisible: 'Quick Check'
+# Onboarding's practice and the captures opened above are kept with 0 clean seconds, so Analyzing hands
+# them to Inconclusive (#239); processing.test.tsx covers the Analyzing title and See a sample result.
 - openLink: lumen://measure/processing
-- assertVisible: 'Analyzing your reading'
+- assertVisible: 'Not enough clean signal\.'
 - openLink: lumen://results/demo
 - assertVisible: 'Results'
 - openLink: lumen://results/demo-flag
 - assertVisible: 'Quick safety check'
+- openLink: lumen://results/demo/diabetes
+- assertVisible: 'Diabetes risk'
 - openLink: lumen://results/demo/why
 - assertVisible: 'Why .regular.\?'
 - openLink: lumen://results/demo-flag/why

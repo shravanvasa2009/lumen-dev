@@ -21,7 +21,11 @@ jest.mock('../ml/runtime', () => ({
     scores: mockRhythmScores,
     threshold: { af: 0.5 },
   }),
-  scoreDiabetesInput: async () => ({ source: 'basic', value: null, reason: 'no diabetes model in this test' }),
+  scoreDiabetesInput: async () => ({
+    source: 'basic',
+    value: null,
+    reason: 'no diabetes model in this test',
+  }),
 }));
 
 jest.setTimeout(60_000);
@@ -55,7 +59,12 @@ function emptyLens(): KeptCapture {
 const request = { mode: 'full', restTimerDone: true } as const;
 
 async function analyse() {
-  const analysed = await analyzeKeptCapture(slowPulse(), request, () => {});
+  const analysed = await analyzeKeptCapture(
+    slowPulse(),
+    request,
+    () => {},
+    () => {},
+  );
   if ('kind' in analysed) throw new Error(`the capture was refused: ${analysed.reasons.join(', ')}`);
   return analysed;
 }
@@ -113,7 +122,12 @@ describe('analysis reads the saved profile', () => {
 describe('a capture with too little clean signal', () => {
   it('ends inconclusive with its clean seconds, and builds no reading', async () => {
     jest.mocked(buildReadingResult).mockClear();
-    const analysed = await analyzeKeptCapture(emptyLens(), request, () => {});
+    const analysed = await analyzeKeptCapture(
+      emptyLens(),
+      request,
+      () => {},
+      () => {},
+    );
     expect(analysed).toMatchObject({ kind: 'inconclusive', cleanSeconds: 0, neededCleanSeconds: 90 });
     expect(buildReadingResult).not.toHaveBeenCalled();
   });

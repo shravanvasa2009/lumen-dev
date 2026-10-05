@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
+import { enterDemo, exitDemo } from '@/demo/demoSession';
 import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
@@ -57,6 +58,7 @@ const routes: readonly Route[] = [
   { file: 'measure/capture', url: '/measure/capture?mode=quick', title: 'mode.quick', place: 'body' },
   { file: 'measure/processing', url: '/measure/processing', title: 'processing.title', place: 'body' },
   { file: 'results/[id]/index', url: '/results/demo', title: 'results.title', place: 'body' },
+  { file: 'results/[id]/diabetes', url: '/results/demo/diabetes', title: 'dr.rowTitle', place: 'nav' },
   { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.titleRegular', place: 'body' },
   { file: 'measure/inconclusive', url: '/measure/inconclusive', title: 'result.inconclusive', place: 'body' },
   { file: 'emergency', url: '/emergency', title: 'emergency.title', place: 'body' },
@@ -135,8 +137,8 @@ describe('route list', () => {
     );
   });
 
-  it('lists the 34 screens of the inventory, the Care tab and the two question screens (ADRs 0054, 0065, 0090)', () => {
-    expect(routes).toHaveLength(37);
+  it('lists the 34 screens of the inventory, the Care tab, the two question screens and the diabetes result (ADRs 0054, 0065, 0090)', () => {
+    expect(routes).toHaveLength(38);
   });
 });
 
@@ -205,6 +207,19 @@ describe('tab bar', () => {
       (node) => StyleSheet.flatten(node.props.style)?.backgroundColor === tokens.dark.accentFill,
     );
     expect(circle).not.toHaveLength(0);
+  });
+
+  it.each(['light', 'dark'] as const)('keeps the whole Care label inside the bar while the demo bar is up (%s)', (scheme) => {
+    mockScheme = scheme;
+    act(() => enterDemo());
+    renderRouter(appDirectory, { initialUrl: '/' });
+    expect(screen.getByText(en['demo.bar'])).toBeOnTheScreen();
+    let tabRow = screen.getByLabelText(careLabel).parent;
+    while (tabRow && StyleSheet.flatten(tabRow.props.style)?.height === undefined) tabRow = tabRow.parent;
+    const barStyle = StyleSheet.flatten(tabRow?.props.style);
+    // Circle (60) minus its lift (18) plus a 24 dp label line; the bar may not be shorter than that.
+    expect(barStyle.height).toBeGreaterThanOrEqual(66);
+    act(() => exitDemo());
   });
 
   it.each(['light', 'dark'] as const)('keeps a 44 dp Care target in the %s theme', (scheme) => {

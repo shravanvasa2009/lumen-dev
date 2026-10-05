@@ -8,6 +8,7 @@ import { loadRiskDraft, profileValue, saveRiskDraft } from '@/store/profile';
 import { expectNavTitle } from '@/testing/navHeader';
 import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import tokens from '@/theme/tokens.json';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
@@ -38,7 +39,7 @@ describe('Settings > Profile', () => {
     expectNavTitle(en['profile.settingsTitle']);
   });
 
-  it('shows the saved answers and the body mass index, with no score', async () => {
+  it('shows the saved answers and the body mass index', async () => {
     await saveRiskDraft(saved);
     renderRouter('./app', { initialUrl: '/settings/profile' });
     expect(await screen.findByText(en['dr.family'])).toBeOnTheScreen();
@@ -46,10 +47,9 @@ describe('Settings > Profile', () => {
     expect(screen.getByText(en['profile.female'])).toBeOnTheScreen();
     expect(screen.getByText('168 cm')).toBeOnTheScreen();
     expect(screen.getByText('82 kg')).toBeOnTheScreen();
-    expect(screen.getByText('29.1')).toBeOnTheScreen();
+    expect(screen.getByText('29.0')).toBeOnTheScreen();
     expect(screen.getByText(en['dr.gdmShort'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.notScored'])).toBeOnTheScreen();
-    expect(screen.queryByText(/risk score|higher risk|lower risk/i)).not.toBeOnTheScreen();
   });
 
   it('shows Not answered for what was never asked, and hides the pregnancy row unless Female', async () => {
@@ -101,6 +101,58 @@ describe('Settings > Profile', () => {
     fireEvent.press(screen.getByRole('button', { name: en['common.done'] }));
     await screen.findByText('52 years');
     expect((await loadRiskDraft()).gestationalDiabetes).toBeNull();
+    expect(await profileValue('gestationalDiabetes')).toBeNull();
+  });
+
+  it('shows the latest score from the saved answers, in amber for higher risk', async () => {
+    await saveRiskDraft(saved);
+    renderRouter('./app', { initialUrl: '/settings/profile' });
+    const label = await screen.findByText(en['dr.lastScore']);
+    expect(label).toBeOnTheScreen();
+    const higher = screen.getByText(en['dr.result.higher']);
+    expect(JSON.stringify(higher.props.style)).toContain(tokens.dark.flag);
+    expect(screen.getByText('Risk score 5')).toBeOnTheScreen();
+    expect(screen.getByText(en['dr.cutoff'])).toBeOnTheScreen();
+    expect(screen.getByText(en['dr.screeningNote'])).toBeOnTheScreen();
+  });
+
+  it('shows lower risk, and a minimum note when sex was not given', async () => {
+    await saveRiskDraft({ ...saved, sex: 'preferNot', familyHistory: false, hypertension: false });
+    renderRouter('./app', { initialUrl: '/settings/profile' });
+    await screen.findByText(en['dr.lastScore']);
+    expect(screen.getByText(en['dr.result.lower'])).toBeOnTheScreen();
+    expect(screen.getByText('Risk score 3')).toBeOnTheScreen();
+    expect(screen.getByText(`${en['dr.cutoff']} · ${en['dr.minimum']}`)).toBeOnTheScreen();
+  });
+
+  it('shows no number on the latest score until every question is answered', async () => {
+    await saveRiskDraft({ ...saved, hypertension: null });
+    renderRouter('./app', { initialUrl: '/settings/profile' });
+    await screen.findByText(en['dr.lastScore']);
+    expect(screen.getByText(en['dr.notReady'])).toBeOnTheScreen();
+    expect(screen.queryByText(/Risk score \d/)).not.toBeOnTheScreen();
+  });
+
+  it('shows no number on the latest score under age 20', async () => {
+    await saveRiskDraft({ ...saved, ageYears: 15 });
+    renderRouter('./app', { initialUrl: '/settings/profile' });
+    await screen.findByText(en['dr.lastScore']);
+    expect(screen.getByText(en['dr.noScore'])).toBeOnTheScreen();
+    expect(screen.queryByText(/Risk score \d/)).not.toBeOnTheScreen();
+  });
+
+  it('keeps the stored pregnancy answer when a question is tapped after changing sex, until Done', async () => {
+    await saveRiskDraft({ ...saved, gestationalDiabetes: true });
+    renderRouter('./app', { initialUrl: '/settings/profile' });
+    fireEvent.press(await screen.findByRole('button', { name: en['dr.edit'] }));
+    fireEvent.press(screen.getByRole('radio', { name: en['profile.male'] }));
+    const family = screen.getByLabelText(en['dr.family']);
+    fireEvent.press(within(family).getByRole('radio', { name: en['common.no'] }));
+    await waitFor(async () => expect((await loadRiskDraft()).familyHistory).toBe(false));
+    expect(await profileValue('gestationalDiabetes')).toBe('true');
+    expect((await loadRiskDraft()).sex).toBe('female');
+    fireEvent.press(screen.getByRole('button', { name: en['common.done'] }));
+    await screen.findByText('52 years');
     expect(await profileValue('gestationalDiabetes')).toBeNull();
   });
 

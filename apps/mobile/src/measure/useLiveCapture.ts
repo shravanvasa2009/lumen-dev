@@ -1,12 +1,15 @@
 import {
   createLiveSession,
   DSP_CONFIG,
+  frameProblem,
   type CoachingKey,
   type LiveSession,
   type RejectedSpan,
+  type Sample,
   type SqiWindow,
 } from '@lumen/core';
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 import {
   LumenCapture,
@@ -19,9 +22,16 @@ import {
 } from '../../modules/lumen-capture/src';
 import { scoreSqiWindow, sqiThreshold } from '../ml/runtime';
 import { keepCapture, keepLiveCapture, liveCaptureChanged } from './keptCapture';
+import { signalLevel } from './signalLevel';
 
 // The live waveform card shows the last 6 s (spec §12).
 const WAVEFORM_WINDOW_NS = 6e9;
+// The signal meter is re-read once per second of frames; its spectrum needs the last liveHr.windowS seconds.
+const LEVEL_EVERY_NS = 1e9;
+const LEVEL_WINDOW_NS = DSP_CONFIG.liveHr.windowS * 1e9;
+// Spec §9.2 (Locks) and §4.2 step 3: with the finger on the phone, auto-exposure settles for 1 s, then
+// exposure, white balance and focus are locked. Native adds its own short wait before steering (DSP-5).
+const EXPOSURE_SETTLE_MS = 1000;
 
 type LivePhase =
   // The capture module is not linked (Jest, Expo Go).
@@ -41,6 +51,9 @@ export interface LiveCapture {
   // The session's filtered pulse of the last 6 s, and the spans it greyed out, in seconds from the first frame.
   recentWaveform: { tS: number[]; ppg: number[] };
   rejectedSpans: RejectedSpan[];
+  // Where the Weak to Strong meter sits, 0 to 1, from the live perfusion index and pulse SNR (spec 04 section 4.2);
+  // null until the session has a pulse window.
+  signalLevel: number | null;
 }
 
 const idle = (phase: LivePhase): LiveCapture => ({
@@ -53,6 +66,7 @@ const idle = (phase: LivePhase): LiveCapture => ({
   coachingKey: null,
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
+  signalLevel: null,
 });
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -65,8 +79,7 @@ function chosenLens(capabilities: Capabilities): LensInfo | undefined {
 }
 
 // Spec 09-architecture §9.2 (frame rate): iOS up to 120 fps where formats allow (native caps iOS at 120 too);
-// Android requests 60. Native never reports the rate it chose, so the rate is chosen here, sent as targetFps,
-// and given to the live session and the reading's context unchanged.
+// Android requests 60. This is only the request; the session uses the rate start() reports (ADR 0067).
 const CAPTURE_FPS_CEILING: Record<Capabilities['platform'], number> = { ios: 120, android: 60 };
 
 const captureFpsFor = (platform: Capabilities['platform'], lens: LensInfo): number =>
@@ -87,6 +100,30 @@ export function useLiveCapture(
   { demo = false }: { demo?: boolean } = {},
 ): LiveCapture {
   const [live, setLive] = useState<LiveCapture>(idle(capture ? 'starting' : 'unavailable'));
+  // Raised when the user comes back from Settings with the camera allowed, to start the capture again.
+  const [permissionGrants, setPermissionGrants] = useState(0);
+
+  // After a denial the system may not ask again (Android 11+ asks once more), so the user can turn the camera
+  // on in Settings. getPermission does not prompt, which keeps the dialog from raising another foreground event.
+  useEffect(() => {
+    if (!capture || live.phase !== 'denied') return;
+    let mounted = true;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      capture
+        .getPermission()
+        .then((permission) => {
+          if (!mounted || !permission.granted) return;
+          setLive(idle('starting'));
+          setPermissionGrants((count) => count + 1);
+        })
+        .catch((error: unknown) => console.warn(`Camera permission check failed: ${reasonOf(error)}`));
+    });
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, [capture, live.phase]);
 
   useEffect(() => {
     if (!capture) return;
@@ -94,6 +131,11 @@ export function useLiveCapture(
     let started = false;
     let subscriptions: { remove(): void }[] = [];
     let recent: { tNs: number; r: number }[] = [];
+    let levelFrames: Sample[] = [];
+    // When the current unbroken run of covered frames began; the filter's step when a finger goes on is not a pulse.
+    let coveredSinceNs: number | null = null;
+    let levelAtNs = -Infinity;
+    let level: number | null = null;
     let firstNs: number | null = null;
     let session: LiveSession | null = null;
     let captureFps = 0;
@@ -104,8 +146,36 @@ export function useLiveCapture(
     const threshold = sqiThreshold();
     let scoredEndS: number | null = null;
     let scoring = false;
+    // Only a torch capture is locked here. A dark capture is not: spec §4.4 asks ambient mode for a different
+    // plan (unlocked for 2 s, then locked at a brighter target), which this path does not implement yet.
+    let lockWanted = false;
+    let lockTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const cancelLock = () => {
+      if (lockTimer) clearTimeout(lockTimer);
+      lockTimer = null;
+    };
+
+    // Every exposure change greys out the next second (DSP-5), so a capture left on auto-exposure may never
+    // count clean seconds. The lock is asked for once; a finger lifted during the settle restarts it.
+    const lockAfterSettle = (status: CaptureStatus) => {
+      if (!started || !lockWanted) return;
+      if (!status.fingerCovered) {
+        cancelLock();
+        return;
+      }
+      lockTimer ??= setTimeout(() => {
+        lockTimer = null;
+        lockWanted = false;
+        capture
+          .lockExposure()
+          .catch((error: unknown) => console.warn(`Exposure did not lock: ${reasonOf(error)}`));
+      }, EXPOSURE_SETTLE_MS);
+    };
 
     const stopCamera = () => {
+      cancelLock();
+      lockWanted = false;
       subscriptions.forEach((subscription) => subscription.remove());
       subscriptions = [];
       if (started)
@@ -137,6 +207,8 @@ export function useLiveCapture(
         session.pushSamples(batch);
       } catch (error) {
         session = null;
+        level = null;
+        levelAtNs = -Infinity;
         return reasonOf(error);
       }
       // Nothing is kept for Processing until the first frames have reached the session.
@@ -159,16 +231,35 @@ export function useLiveCapture(
       return null;
     };
 
+    // Batches from before start() resolves are not shown either: on Android they can be dark frames from before
+    // the torch was on, and the elapsed time counts from the first frame shown.
     const onSamples = (batch: SampleBatch) => {
       const newest = batch.samples[batch.samples.length - 1];
-      if (!newest) return;
+      if (!started || !newest) return;
       firstNs ??= batch.samples[0]?.tNs ?? newest.tNs;
       const startNs = firstNs;
       recent = [...recent, ...batch.samples.map(({ tNs, r }) => ({ tNs, r }))].filter(
         (sample) => newest.tNs - sample.tNs <= WAVEFORM_WINDOW_NS,
       );
+      batch.samples.forEach((sample, index) => {
+        const stat = batch.stats[index];
+        const covered = stat === undefined || frameProblem(sample, stat) !== 'coverage';
+        coveredSinceNs = covered ? (coveredSinceNs ?? sample.tNs) : null;
+      });
+      levelFrames = [...levelFrames, ...batch.samples].filter(
+        (sample) =>
+          newest.tNs - sample.tNs <= LEVEL_WINDOW_NS && coveredSinceNs !== null && sample.tNs >= coveredSinceNs,
+      );
       const hadSession = session !== null;
       const refusal = feedSession(batch);
+      if (session && newest.tNs - levelAtNs >= LEVEL_EVERY_NS) {
+        levelAtNs = newest.tNs;
+        // Core's perfusionPct counts covered frames only, but the band filter still rings for about one window
+        // after a finger goes on, and that ringing reads as a strong pulse; so the level waits for a second window.
+        const settled =
+          coveredSinceNs !== null && newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
+        level = settled ? signalLevel(session.perfusionPct, levelFrames) : null;
+      }
       setLive((previous) => ({
         ...previous,
         recentRed: recent.map((sample) => sample.r),
@@ -179,9 +270,10 @@ export function useLiveCapture(
               coachingKey: session.coachingKey,
               recentWaveform: session.recentWaveform,
               rejectedSpans: session.rejectedSpans,
+              signalLevel: level,
             }
           : hadSession
-            ? { cleanSeconds: null, coachingKey: null, failure: refusal }
+            ? { cleanSeconds: null, coachingKey: null, signalLevel: null, failure: refusal }
             : {}),
       }));
     };
@@ -197,34 +289,42 @@ export function useLiveCapture(
         const capabilities = await capture.getCapabilities();
         if (!mounted) return;
         const lens = chosenLens(capabilities);
-        // With no torch-capable lens there is no rate to ask for or to give the session, so that phone runs
-        // without clean seconds rather than with a guessed rate.
+        const requestedFps = lens ? captureFpsFor(capabilities.platform, lens) : 0;
+        keepCapture(null);
+        subscriptions = [
+          capture.addListener('samples', onSamples),
+          capture.addListener('status', (status) => {
+            session?.pushStatus(status);
+            lockAfterSettle(status);
+            if (keptFrames) liveCaptureChanged();
+            setLive((previous) => ({ ...previous, status }));
+          }),
+        ];
+        const { activeFps } = await capture.start(captureConfig(capabilities, lens, requestedFps));
+        started = true;
+        // The screen closed while the camera was starting, so its cleanup had nothing to stop yet.
+        if (!mounted) {
+          stopCamera();
+          return;
+        }
+        // The live filter is designed for the rate the camera runs at, which can be below the request (ADR
+        // 0067), so the session starts only now. Batches before this are not fed to it; on Android they can
+        // arrive before the torch is on. With no torch-capable lens the module runs its own default lens dark and no
+        // session is started, as before ADR 0067.
         if (lens) {
-          captureFps = captureFpsFor(capabilities.platform, lens);
+          captureFps = activeFps;
           lensId = lens.id;
+          lockWanted = true;
           session = createLiveSession({
             captureFps,
             sqiThreshold: threshold ?? 0,
             perfusionFloorPct: DSP_CONFIG.live.defaultPerfusionFloorPct,
           });
         }
-        keepCapture(null);
-        subscriptions = [
-          capture.addListener('samples', onSamples),
-          capture.addListener('status', (status) => {
-            session?.pushStatus(status);
-            if (keptFrames) liveCaptureChanged();
-            setLive((previous) => ({ ...previous, status }));
-          }),
-        ];
-        await capture.start(captureConfig(capabilities, lens, captureFps));
-        started = true;
-        // The screen closed while the camera was starting, so its cleanup had nothing to stop yet.
-        if (!mounted) stopCamera();
-        else setLive((previous) => ({ ...previous, phase: 'running' }));
+        setLive((previous) => ({ ...previous, phase: 'running' }));
       } catch (error) {
-        subscriptions.forEach((subscription) => subscription.remove());
-        subscriptions = [];
+        // A session the reported rate cannot support fails after the camera started, so it is stopped too.
+        stopCamera();
         if (mounted) setLive({ ...idle('failed'), failure: reasonOf(error) });
         else console.warn(`Capture failed after the screen closed: ${reasonOf(error)}`);
       }
@@ -235,7 +335,7 @@ export function useLiveCapture(
       mounted = false;
       stopCamera();
     };
-  }, [capture, demo]);
+  }, [capture, demo, permissionGrants]);
 
   return live;
 }

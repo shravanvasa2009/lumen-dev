@@ -110,9 +110,9 @@ export function tableRows(
     cells: [
       formatClock(row.createdAt, language),
       row.mode === 'full' ? t('report.modeFull') : t('report.modeQuick'),
-      row.scan.metrics.hr ? String(row.scan.metrics.hr.value) : '—',
+      row.scan.metrics.hr ? String(Math.round(row.scan.metrics.hr.value)) : '—',
       row.scan.metrics.rhythm ? rhythmWords(t, row.scan.metrics.rhythm).value : '—',
-      String(row.scan.cleanSeconds),
+      String(Math.floor(row.scan.cleanSeconds)),
     ],
   }));
 }

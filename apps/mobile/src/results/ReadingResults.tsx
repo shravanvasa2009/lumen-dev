@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import type { TFunction } from 'i18next';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
@@ -13,7 +13,8 @@ import { useTheme } from '@/theme';
 
 import { CompactChecks } from './CompactChecks';
 import { DemoBanner } from './DemoBanner';
-import { DiabetesCheckCard } from './DiabetesCheckCard';
+import { showsPulseExtra } from './DiabetesCheckCard';
+import { DiabetesRiskRow, PulseExtraRow } from './DiabetesRiskRow';
 import { ExperimentalCard } from './ExperimentalCard';
 import type { FixtureReading } from './fixtures';
 import { formatClock, formatDay } from './format';
@@ -23,6 +24,7 @@ import { MetricCard } from './MetricCard';
 import { PotsCard } from './PotsCard';
 import { rhythmWords } from './rhythmWords';
 import { SafetySheet } from './SafetySheet';
+import { clearSymptomsAsked, symptomsAskedFor } from './symptomsAsked';
 
 const NARROW_WIDTH = 400;
 const LARGE_TEXT_SCALE = 1.3;
@@ -31,7 +33,9 @@ function headlineText(t: TFunction, reading: FixtureReading): string {
   const { headlineKey, metrics } = reading.scan;
   switch (headlineKey) {
     case 'result.regular':
-      return metrics.hr ? t('result.regular', { hr: metrics.hr.value }) : t('result.inconclusive');
+      return metrics.hr
+        ? t('result.regular', { hr: Math.round(metrics.hr.value) })
+        : t('result.inconclusive');
     case 'result.irregularRetake':
       return t('result.irregularRetake');
     case 'result.possibleAf':
@@ -69,9 +73,10 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   // ADR 0046, §12.5: the amber card needs the flag and a passed accuracy criterion. Without the passed
   // criterion the estimate gets the quiet Experimental card (ADR 0082); with it and no flag, nothing is shown.
   const diabetesCard = diabetes?.flag === 'pattern' && evidenceFor('diabetes').measured ? diabetes : null;
-  const diabetesExperimental = diabetes !== null && !evidenceFor('diabetes').measured;
   const anyFlag = acuteFlag || diabetesCard !== null;
-  const [sheetOpen, setSheetOpen] = useState(anyFlag);
+  // Processing already asked the question for this reading just now; a reading opened later asks again.
+  const [sheetOpen, setSheetOpen] = useState(anyFlag && !symptomsAskedFor(reading.id));
+  useEffect(() => clearSymptomsAsked(reading.id), [reading.id]);
 
   const subline = sublineText(t, reading, anyFlag);
   const when = t('results.dayAt', {
@@ -82,7 +87,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const metaParts = [
     reading.repeat ? t('results.readingOf', { number: reading.repeat.number, of: reading.repeat.of }) : null,
     reading.mode === 'full' ? t('mode.full') : t('mode.quick'),
-    t('results.cleanSeconds', { seconds: scan.cleanSeconds }),
+    t('results.cleanSeconds', { seconds: Math.floor(scan.cleanSeconds) }),
     reading.repeat ? null : when,
   ].filter((part) => part !== null);
 
@@ -93,7 +98,10 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   return (
     <Screen
       footer={
-        <View testID="results-footer" style={{ flexDirection: stackFooter ? 'column' : 'row', gap: spacing.md }}>
+        <View
+          testID="results-footer"
+          style={{ flexDirection: stackFooter ? 'column' : 'row', gap: spacing.md }}
+        >
           <View style={stackFooter ? undefined : { flex: 1 }}>
             <Button
               label={t('results.showWhy')}
@@ -188,9 +196,9 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
             evidenceMetric="hrv"
             reading={
               rmssd && {
-                value: t('results.ms', { value: rmssd.value }),
+                value: t('results.ms', { value: Math.round(rmssd.value) }),
                 note: rmssd.band
-                  ? t('results.yourBand', { low: rmssd.band[0], high: rmssd.band[1] })
+                  ? t('results.yourBand', { low: Math.round(rmssd.band[0]), high: Math.round(rmssd.band[1]) })
                   : t('results.learningBand'),
                 confidence: rmssd.confidence,
                 flagged: false,
@@ -200,7 +208,8 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
         ) : null}
 
         {reading.mode !== 'full' ? <CompactChecks /> : null}
-        {diabetesExperimental ? <DiabetesCheckCard /> : null}
+        <DiabetesRiskRow readingId={reading.id} sample={reading.sample} />
+        {showsPulseExtra(reading) ? <PulseExtraRow readingId={reading.id} /> : null}
         {reading.mode === 'full' ? <PotsCard /> : null}
 
         <MetricCard
@@ -209,7 +218,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           evidenceMetric="hr"
           reading={
             hr && {
-              value: t('results.bpm', { value: hr.value }),
+              value: t('results.bpm', { value: Math.round(hr.value) }),
               note: t('results.noteResting'),
               confidence: hr.confidence,
               flagged: hr.flag !== null,
@@ -226,7 +235,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           </AppText>
         </AppText>
       </ScrollView>
-      <SafetySheet visible={sheetOpen} onDismiss={() => setSheetOpen(false)} />
+      <SafetySheet visible={sheetOpen} onNo={() => setSheetOpen(false)} />
     </Screen>
   );
 }

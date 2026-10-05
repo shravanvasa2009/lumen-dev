@@ -35,6 +35,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import com.google.common.util.concurrent.ListenableFuture
+import java.util.Locale
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executor
@@ -64,6 +65,9 @@ private data class ResultSnapshot(
     val exposureNs: Long,
     val torchOn: Boolean,
     val aeLocked: Boolean,
+    // CONTROL_AE_LOCK as the camera applied it, and CONTROL_AE_STATE; they show whether an AE lock took hold.
+    val aeLockOn: Boolean,
+    val aeState: Int?,
     val awbLocked: Boolean,
     val afLocked: Boolean,
     val focusDistance: Float?,
@@ -84,6 +88,7 @@ private val ANALYSIS_SIZE = Size(320, 240)
 private const val BATCH_MS = 100L // samples event, spec §9.3
 private const val STATUS_MS = 250L // status event at 4 Hz
 private const val LAB_MS = 1000L // lab event at 1 Hz (ADR 0013)
+private const val CONTACT_LOG_MS = 1000L
 private const val MOTION_PERIOD_US = 20_000 // 50 Hz (ADR 0029)
 
 // ADR 0029 addendum, same values as the Swift module: at most 4 exposure steps, each judged on 3 frames
@@ -91,9 +96,14 @@ private const val MOTION_PERIOD_US = 20_000 // 50 Hz (ADR 0029)
 private const val MAX_EXPOSURE_STEPS = 4
 private const val FRESH_FRAMES = 3
 private const val FRESH_FRAME_POLL_MS = 20L
+private const val POST_LOCK_FRAMES = 10
 private const val ANALYZER_DRAIN_MS = 100L
 private const val EVENT_DRAIN_MS = 50L
 private const val FAILURE_LOG_EVERY = 100
+
+// start() fails when the camera has not delivered a frame and set the torch within this time of bind, instead of
+// leaving the JS promise waiting on a stuck camera. 5 s, not 3: budget HALs can take 2-3 s to open plus the torch.
+private const val START_TIMEOUT_MS = 5000L
 
 // One running capture: CameraX ImageAnalysis on a rear lens with Camera2 interop for frame rate,
 // stabilization, exposure and locks (spec §9.2). Frames are reduced to numbers on the analyzer thread and
@@ -116,6 +126,9 @@ class CameraSession(
     private val eventThread = HandlerThread("LumenCaptureEvents").apply { start() }
     private val events = Handler(eventThread.looper)
     private val mainExecutor = Executor { Handler(Looper.getMainLooper()).post(it) }
+
+    // Only this session's start timer and first-frame note are posted here, so stop() can cancel just those.
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val sensorManager = context.getSystemService(SensorManager::class.java)
     private val powerManager = context.getSystemService(PowerManager::class.java)
 
@@ -140,6 +153,10 @@ class CameraSession(
 
     @Volatile private var camera: Camera? = null
     private var added = RequestState()
+
+    // Set once lockExposure() has chosen an AE lock. Kept apart from `added`, which a failed restore can leave
+    // unlocked, so a later reopen still knows to lock again. Exposure thread only.
+    private var aeLockWanted = false
     private var startedNs = 0L
     private var provider: ProcessCameraProvider? = null
     private var analysis: ImageAnalysis? = null
@@ -148,11 +165,45 @@ class CameraSession(
     private var reopened = false // main thread only
     private val analysisFailures = AtomicInteger(0)
 
+    // start()'s callback until the start succeeds or fails, then null. Main thread only, like the fields below.
+    private var startDone: ((Throwable?) -> Unit)? = null
+    private var torchReady = false
+    private var frameReady = false
+    private var lastCameraError: CameraState.StateError? = null
+    private var summary: SessionSummary? = null
+
+    private val startTimeout =
+        Runnable {
+            val missing = if (!frameReady) "delivered no frames" else "did not set the torch"
+            val lastError = lastCameraError?.let { "; last camera error: ${cameraErrorText(it.code)}" } ?: ""
+            finishStart(IllegalStateException("The camera $missing within ${START_TIMEOUT_MS / 1000} s of opening$lastError"))
+        }
+
+    private val firstFrameArrived =
+        Runnable {
+            frameReady = true
+            if (torchReady) finishStart(null)
+        }
+
     // CameraX 1.6.2 resets its torch control when the use cases detach (lifecycle STOP), so the camera
     // reopens dark after the app returns from the background (PR #47 review, javap on camera-camera2 1.6.2).
     // Swift restores the torch after an interruption the same way.
     private val cameraStateObserver =
         Observer<CameraState> { state ->
+            val error = state.error
+            if (error == null) {
+                Log.i(TAG, "Camera state ${state.type}")
+            } else {
+                Log.e(TAG, "Camera state ${state.type}, ${error.type} error: ${cameraErrorText(error.code)}", error.cause)
+                lastCameraError = error
+                // CameraX retries a RECOVERABLE error itself, so a start fails on one only through the timeout.
+                // Posted, not called: LiveData can deliver its current value inside observe(), and failing the start
+                // there would run the caller's stop() in the middle of bind().
+                if (error.type == CameraState.ErrorType.CRITICAL) {
+                    val failure = IllegalStateException("Camera error: ${cameraErrorText(error.code)}", error.cause)
+                    mainHandler.post { finishStart(failure) }
+                }
+            }
             if (state.type == CameraState.Type.OPEN) {
                 if (reopened) restoreAfterReopen()
                 seenOpen = true
@@ -162,18 +213,37 @@ class CameraSession(
             }
         }
 
-    // On failure the caller still calls stop(), which releases whatever was set up.
+    // Main thread. `done` runs once: when the torch is set and the first frame has arrived, or with the failure (a
+    // bind error, a critical camera error, a torch error, START_TIMEOUT_MS, or stop()). On failure the caller
+    // still calls stop(), which unbinds the camera; closing the camera turns the torch off.
     fun start(owner: LifecycleOwner, done: (Throwable?) -> Unit) {
+        startDone = done
         val providerFuture = ProcessCameraProvider.getInstance(context)
         providerFuture.addListener({
-            if (stopped) return@addListener done(IllegalStateException("capture stopped before the camera opened"))
+            // stop() has already failed this start.
+            if (stopped) return@addListener
             val outcome = runCatching { bind(owner, providerFuture.get()) }
             outcome.exceptionOrNull()?.let {
-                done(it)
+                finishStart(it)
                 return@addListener
             }
-            setTorch(settings.torchLevel, done)
+            // stop() ran while binding: it has unbound the camera, so no torch and no timer for a dead session.
+            if (stopped) return@addListener
+            mainHandler.postDelayed(startTimeout, START_TIMEOUT_MS)
+            setTorch(settings.torchLevel) { failure ->
+                if (failure != null) return@setTorch finishStart(failure)
+                torchReady = true
+                if (frameReady) finishStart(null)
+            }
         }, mainExecutor)
+    }
+
+    private fun finishStart(failure: Throwable?) {
+        val done = startDone ?: return
+        startDone = null
+        mainHandler.removeCallbacks(startTimeout)
+        if (failure == null) Log.i(TAG, "Capture started") else Log.e(TAG, "Capture start failed", failure)
+        done(failure)
     }
 
     private fun bind(owner: LifecycleOwner, cameraProvider: ProcessCameraProvider) {
@@ -208,10 +278,12 @@ class CameraSession(
                 .build()
         startedNs = frameClockNs()
         val bound = cameraProvider.bindToLifecycle(owner, selector, useCase)
+        // Recorded straight after binding, so a stop() from here on unbinds the camera, which closes it and puts
+        // the torch out.
         camera = bound
-        bound.cameraInfo.cameraState.observe(owner, cameraStateObserver)
         provider = cameraProvider
         analysis = useCase
+        logBound()
         running = true
         sensorManager?.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)?.let {
             sensorManager.registerListener(motionListener, it, MOTION_PERIOD_US, events)
@@ -219,12 +291,35 @@ class CameraSession(
         events.postDelayed(::emitBatch, BATCH_MS)
         events.postDelayed(::emitStatus, STATUS_MS)
         if (settings.labEvents) events.postDelayed(::emitLab, LAB_MS)
+        events.postDelayed(::logContactInputs, CONTACT_LOG_MS)
+        // Last, once the session is fully set up: observe() can call the observer at once with the current state.
+        bound.cameraInfo.cameraState.observe(owner, cameraStateObserver)
+    }
+
+    // Logcat in release builds too, so a first run on a new phone shows which camera path it took. Camera
+    // settings only; never a health value (CAP-3 keeps frames native, and no reading is computed here).
+    private fun logBound() {
+        val manual = if (lens.manualExposure != null) "on" else "off"
+        val aeLock = if (lens.exposureLock) "available" else "not available"
+        val clock = if (lens.realtimeTimestamps) "realtime" else "unknown"
+        Log.i(
+            TAG,
+            "Camera bound: lens ${lens.id} (${lens.kind}), cameraId ${lens.cameraId}, physicalId ${lens.physicalId ?: "none"}, " +
+                "fps range ${settings.fps.lower}-${settings.fps.upper}, manual exposure $manual, AE lock $aeLock, " +
+                "hardware level ${hardwareLevelName(lens.hardwareLevel)}, timestamps $clock",
+        )
     }
 
     // Main thread. The last samples batch goes out before this returns, so stop() loses no frame (as in Swift).
+    // A second call (the failed-start callback stops again) returns the same summary.
     fun stop(): SessionSummary {
+        summary?.let { return it }
         stopped = true
         running = false
+        mainHandler.removeCallbacks(startTimeout)
+        // A frame still in analyze() can post firstFrameArrived after this; it is harmless because finishStart()
+        // below clears startDone, so the late note finds no start to finish.
+        mainHandler.removeCallbacks(firstFrameArrived)
         camera?.cameraInfo?.cameraState?.removeObserver(cameraStateObserver)
         analysis?.let { useCase ->
             useCase.clearAnalyzer()
@@ -241,7 +336,10 @@ class CameraSession(
         emitBatchNow()
         // Interrupts a lockExposure() that is waiting for frames, so its promise rejects.
         exposureThread.shutdownNow()
-        return SessionSummary(startedNs, frameClockNs(), lens.id, counters.frames, counters.dropped)
+        val finished = SessionSummary(startedNs, frameClockNs(), lens.id, counters.frames, counters.dropped)
+        summary = finished
+        finishStart(IllegalStateException("capture stopped before the camera started"))
+        return finished
     }
 
     // Runs on the exposure thread so stop() never waits for it; stop() interrupts it and the promise rejects.
@@ -269,10 +367,14 @@ class CameraSession(
     }
 
     private fun reduceAndCount(image: ImageProxy) {
-        if (firstFrameRealtimeNs == null) firstFrameRealtimeNs = SystemClock.elapsedRealtimeNanos()
         image.use {
             val workStart = System.nanoTime()
             val plane = it.planes[0]
+            if (firstFrameRealtimeNs == null) {
+                firstFrameRealtimeNs = SystemClock.elapsedRealtimeNanos()
+                Log.i(TAG, "First frame: ${it.width}x${it.height}, rowStride ${plane.rowStride}, pixelStride ${plane.pixelStride}")
+                mainHandler.post(firstFrameArrived)
+            }
             val numbers = reduceRgbaFrame(plane.buffer, it.width, it.height, plane.rowStride, plane.pixelStride)
             val workNs = System.nanoTime() - workStart
             val tNs = it.imageInfo.timestamp
@@ -299,13 +401,53 @@ class CameraSession(
 
     // Main thread, when the camera is OPEN again after an interruption.
     private fun restoreAfterReopen() {
-        setTorch(requestedTorch) { failure -> failure?.let { Log.e(TAG, "Restoring the torch failed", it) } }
-        // Camera2 interop options should survive a reopen; re-sending the held exposure and locks is cheap.
-        onExposureThread {
-            if (added != RequestState()) {
-                runCatching { applyRequest(added) }.onFailure { Log.e(TAG, "Restoring the exposure lock failed", it) }
+        // Results from before the interruption would make the torch and lock checks below pass early.
+        latest = null
+        setTorch(requestedTorch) { failure ->
+            when {
+                failure == null -> Unit
+                isSupersededTorchRequest(failure) ->
+                    Log.i(TAG, "Torch restore superseded (${failure.message}); the newer request or the next reopen sets it")
+                else -> Log.e(TAG, "Restoring the torch failed", failure)
             }
         }
+        onExposureThread(::restoreExposureAfterReopen)
+    }
+
+    // Exposure thread. A manual exposure is re-sent as it was. An AE lock is not: AE restarts with the camera and
+    // the torch comes back asynchronously, so a lock sent at once would hold the first dark, unsettled exposure.
+    // AE runs free until the torch is back and the lock wait (at least the spec's 1 s settle) has passed, then the
+    // lock is sent again and confirmed, as in lockExposure().
+    private fun restoreExposureAfterReopen() {
+        val held = added.copy(aeLock = aeLockWanted)
+        if (held == RequestState()) return
+        try {
+            if (!held.aeLock) {
+                applyRequest(held)
+                return
+            }
+            applyRequest(held.copy(aeLock = false))
+            awaitTorchOn()
+            freshRed(lockWaitMs(counters.lockIntervalNs()))
+            applyRequest(held)
+            Log.i(TAG, "Exposure relocked after reopen: ${confirmAeLock()}")
+            logExposureAfterLock()
+        } catch (e: InterruptedException) {
+            // stop() interrupts the exposure thread; a stopped capture has no lock to restore.
+            Thread.currentThread().interrupt()
+            Log.i(TAG, "Exposure lock restore cut short by stop", e)
+        } catch (e: RuntimeException) {
+            // Reported, not rethrown: a throw would escape the exposure thread and crash the app.
+            Log.e(TAG, "Restoring the exposure lock failed; exposure is ${if (added.aeLock) "locked" else "unlocked"}", e)
+        }
+    }
+
+    // Capture results report FLASH_MODE TORCH once the restored torch is in the request. Past the lock wait the
+    // settle goes ahead anyway: the torch restore logs its own failure.
+    private fun awaitTorchOn() {
+        if (requestedTorch <= 0) return
+        val deadline = SystemClock.elapsedRealtime() + lockWaitMs(counters.lockIntervalNs())
+        while (latest?.torchOn != true && SystemClock.elapsedRealtime() < deadline) Thread.sleep(FRESH_FRAME_POLL_MS)
     }
 
     // DSP-5 as decided in ADR 0029 and its addendum: steer exposure until the red mean sits inside
@@ -316,17 +458,90 @@ class CameraSession(
         // wait (at least 1 s, longer on a slow camera).
         val firstWaitMs =
             settleWaitMs(lockWaitMs(counters.lockIntervalNs()), firstFrameRealtimeNs, SystemClock.elapsedRealtimeNanos())
-        val manual = lens.manualExposure
-        if (manual != null) {
-            steerExposure(manual, firstWaitMs)
-        } else {
-            // As in Swift, the settle ends with a fresh-frame read, so a stalled camera rejects instead of locking.
-            freshRed(firstWaitMs)
-            if (lens.exposureLock) applyRequest(added.copy(aeLock = true))
-        }
-        val focusDistance = if (lens.focusLock && !lens.fixedFocus) latest?.focusDistance else null
+        // As in Swift, every path reads fresh frames after the settle, so a stalled camera rejects instead of locking.
+        val exposure =
+            when (lens.exposureHold) {
+                ExposureHold.MANUAL -> {
+                    steerExposure(checkNotNull(lens.manualExposure), firstWaitMs)
+                    "manual (AE off)"
+                }
+                ExposureHold.AE_LOCK -> {
+                    freshRed(firstWaitMs)
+                    aeLockWanted = true
+                    applyRequest(added.copy(aeLock = true))
+                    confirmAeLock()
+                }
+                ExposureHold.NONE -> {
+                    freshRed(firstWaitMs)
+                    Log.w(
+                        TAG,
+                        "Exposure cannot be locked on this lens: no MANUAL_SENSOR and CONTROL_AE_LOCK_AVAILABLE is " +
+                            "not true, so auto-exposure keeps adjusting during the reading",
+                    )
+                    "not available"
+                }
+            }
+        // getCapabilities() reported locks.focus for this lens, so a distance is always set: the one autofocus
+        // reached on the finger, else the closest the lens can focus (the finger touches the lens).
+        val focusDistance =
+            if (lens.focusLock && !lens.fixedFocus) latest?.focusDistance ?: lens.minimumFocusDistance else null
         applyRequest(added.copy(awbLock = lens.whiteBalanceLock, focusDistance = focusDistance))
+        Log.i(
+            TAG,
+            "Locks applied: exposure $exposure, white balance ${lens.whiteBalanceLock}, focus distance ${focusDistance ?: "not set"}",
+        )
         counters.armOverexposureWatch()
+        // Queued, so the lockExposure() promise resolves first and this never delays the reading.
+        onExposureThread(::logExposureAfterLock)
+    }
+
+    // Core greys out a second of signal on every change in SENSOR_EXPOSURE_TIME (DSP-5), so the phone log shows
+    // the first frames' exposure after the lock: a held lock repeats one value.
+    private fun logExposureAfterLock() {
+        val values = mutableListOf<Long>()
+        val deadline = SystemClock.elapsedRealtime() + lockWaitMs(counters.lockIntervalNs())
+        var seenFrames = counters.frames
+        try {
+            while (values.size < POST_LOCK_FRAMES && SystemClock.elapsedRealtime() < deadline) {
+                val frames = counters.frames
+                if (frames != seenFrames) {
+                    seenFrames = frames
+                    latest?.let { values.add(it.exposureNs) }
+                }
+                Thread.sleep(FRESH_FRAME_POLL_MS)
+            }
+        } catch (e: InterruptedException) {
+            // stop() interrupts the exposure thread; a stopped capture has no exposure left to report.
+            Thread.currentThread().interrupt()
+            Log.i(TAG, "Post-lock exposure check cut short by stop", e)
+            return
+        }
+        val verdict =
+            when {
+                values.isEmpty() -> "no capture results"
+                values.distinct().size == 1 -> "steady"
+                else -> "changing"
+            }
+        Log.i(TAG, "Exposure after lock, ${values.size} frames: ${values.joinToString()} ns ($verdict)")
+    }
+
+    // The settings future completes once CameraX has sent the request; only the capture results show whether the
+    // camera holds the lock (CaptureResult.CONTROL_AE_LOCK and CONTROL_AE_STATE docs). A lock the results never
+    // confirm is logged, not rejected: white balance and focus still lock, and the Lab event shows the AE state.
+    private fun confirmAeLock(): String {
+        val waitMs = lockWaitMs(counters.lockIntervalNs())
+        val deadline = SystemClock.elapsedRealtime() + waitMs
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val snapshot = latest
+            if (snapshot?.aeLockOn == true && snapshot.aeState == CaptureResult.CONTROL_AE_STATE_LOCKED) {
+                return "locked (AE lock confirmed by capture result, AE state LOCKED)"
+            }
+            Thread.sleep(FRESH_FRAME_POLL_MS)
+        }
+        val snapshot = latest
+        val seen = "AE lock ${if (snapshot?.aeLockOn == true) "on" else "off"}, AE state ${aeStateName(snapshot?.aeState)}"
+        Log.w(TAG, "Exposure lock sent, but after $waitMs ms the capture result reports $seen")
+        return "lock sent, not confirmed ($seen)"
     }
 
     private fun steerExposure(manual: ManualExposureRange, firstWaitMs: Long) {
@@ -428,6 +643,8 @@ class CameraSession(
                         aeLocked =
                             captureResult.get(CaptureResult.CONTROL_AE_MODE) == CaptureResult.CONTROL_AE_MODE_OFF ||
                                 captureResult.get(CaptureResult.CONTROL_AE_STATE) == CaptureResult.CONTROL_AE_STATE_LOCKED,
+                        aeLockOn = captureResult.get(CaptureResult.CONTROL_AE_LOCK) == true,
+                        aeState = captureResult.get(CaptureResult.CONTROL_AE_STATE),
                         awbLocked = captureResult.get(CaptureResult.CONTROL_AWB_STATE) == CaptureResult.CONTROL_AWB_STATE_LOCKED,
                         afLocked =
                             lens.fixedFocus ||
@@ -496,6 +713,25 @@ class CameraSession(
         events.postDelayed(::emitStatus, STATUS_MS)
     }
 
+    // Release-build logcat once a second, so a phone run shows why the finger hint is on or off: the DSP-4 inputs
+    // of the newest frame, with its exposure and the frame rate. Frame averages only, never a health value
+    // (CAP-3 keeps frames native).
+    private fun logContactInputs() {
+        counters.lastFrame?.let { frame ->
+            val numbers = frame.numbers
+            val sumGb = numbers.g + numbers.b
+            val ratio = if (sumGb > 0) "%.2f".format(Locale.ROOT, numbers.r / sumGb) else "inf"
+            Log.i(
+                TAG,
+                "Contact inputs: R/(G+B) $ratio, mean R ${"%.3f".format(Locale.ROOT, numbers.r)}, " +
+                    "spatialStdR ${"%.3f".format(Locale.ROOT, numbers.spatialStdR)}, " +
+                    "clipFrac ${"%.3f".format(Locale.ROOT, numbers.clipFrac)}, covered ${fingerCovered(numbers)}, " +
+                    "exposureNs ${frame.exposureNs}, fps ${counters.recentFps(SystemClock.elapsedRealtimeNanos()).roundToInt()}",
+            )
+        }
+        events.postDelayed(::logContactInputs, CONTACT_LOG_MS)
+    }
+
     private fun emitLab() {
         val work = counters.takeFrameWork()
         val snapshot = latest
@@ -529,9 +765,11 @@ class CameraSession(
         val control = active.cameraControl
         val cameraInfo = active.cameraInfo
         if (!cameraInfo.hasFlashUnit()) {
+            Log.i(TAG, "Torch: the camera reports no flash unit")
             return done(if (level > 0) UnsupportedOperationException("this lens has no torch") else null)
         }
         control.enableTorch(level > 0).whenDone { failure ->
+            Log.i(TAG, "Torch ${if (level > 0) "on" else "off"}: ${torchOutcomeText(failure)}")
             if (failure != null || level <= 0 || !cameraInfo.isTorchStrengthSupported) {
                 if (failure == null) torchLevel = if (level > 0) 1.0 else 0.0
                 return@whenDone done(failure)
@@ -539,6 +777,7 @@ class CameraSession(
             val maxLevel = cameraInfo.maxTorchStrengthLevel
             val strength = (level * maxLevel).roundToInt().coerceIn(1, maxLevel)
             control.setTorchStrengthLevel(strength).whenDone { strengthFailure ->
+                Log.i(TAG, "Torch strength $strength of $maxLevel: ${torchOutcomeText(strengthFailure)}")
                 if (strengthFailure == null) torchLevel = strength.toDouble() / maxLevel
                 done(strengthFailure)
             }
@@ -560,3 +799,31 @@ class CameraSession(
         }, mainExecutor)
     }
 }
+
+// CaptureResult.CONTROL_AE_STATE values, for the lock log line.
+private fun aeStateName(state: Int?): String =
+    when (state) {
+        null -> "not reported"
+        CaptureResult.CONTROL_AE_STATE_INACTIVE -> "INACTIVE"
+        CaptureResult.CONTROL_AE_STATE_SEARCHING -> "SEARCHING"
+        CaptureResult.CONTROL_AE_STATE_CONVERGED -> "CONVERGED"
+        CaptureResult.CONTROL_AE_STATE_LOCKED -> "LOCKED"
+        CaptureResult.CONTROL_AE_STATE_FLASH_REQUIRED -> "FLASH_REQUIRED"
+        CaptureResult.CONTROL_AE_STATE_PRECAPTURE -> "PRECAPTURE"
+        else -> "state $state"
+    }
+
+// CameraState.ERROR_* codes (CameraX 1.6.2) in words the failure message carries to JS.
+private fun cameraErrorText(code: Int): String =
+    when (code) {
+        CameraState.ERROR_MAX_CAMERAS_IN_USE -> "too many cameras are open (ERROR_MAX_CAMERAS_IN_USE)"
+        CameraState.ERROR_CAMERA_IN_USE -> "another app is using the camera (ERROR_CAMERA_IN_USE)"
+        CameraState.ERROR_OTHER_RECOVERABLE_ERROR -> "the camera closed unexpectedly (ERROR_OTHER_RECOVERABLE_ERROR)"
+        CameraState.ERROR_STREAM_CONFIG -> "the camera rejected the stream setup (ERROR_STREAM_CONFIG)"
+        CameraState.ERROR_CAMERA_DISABLED -> "the camera is disabled by a device policy (ERROR_CAMERA_DISABLED)"
+        CameraState.ERROR_CAMERA_FATAL_ERROR -> "the camera hit a fatal error; restarting the phone may help (ERROR_CAMERA_FATAL_ERROR)"
+        CameraState.ERROR_DO_NOT_DISTURB_MODE_ENABLED ->
+            "the camera cannot open while Do Not Disturb is on (ERROR_DO_NOT_DISTURB_MODE_ENABLED)"
+        CameraState.ERROR_CAMERA_REMOVED -> "the camera was disconnected (ERROR_CAMERA_REMOVED)"
+        else -> "camera error code $code"
+    }

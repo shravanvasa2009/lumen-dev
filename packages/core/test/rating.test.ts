@@ -1,4 +1,10 @@
-import { rateDevice, tierUnlocks, type RatingCapabilities, type RatingMeasures } from '../src';
+import {
+  couplingFactor,
+  rateDevice,
+  tierUnlocks,
+  type RatingCapabilities,
+  type RatingMeasures,
+} from '../src';
 
 // Hand-computed cases for spec §5.1 (points) and §5.2 (tiers and unlocks), ADR 0058.
 
@@ -91,6 +97,23 @@ describe('§5.1 flash-to-lens coupling points', () => {
   it.each(cases)('PI %p %%, SNR %p dB: %d points', (perfusionIndexPct, snrDb, points) => {
     const rating = rateDevice(phone(60), practice({ coupling: { perfusionIndexPct, snrDb } }));
     expect(rating.components.coupling).toBe(points);
+  });
+
+  // Red team PR #271: exact whole points must not floor a point away (35 × (PI × SNR) gave 6, 6, 13).
+  it.each([
+    [0.3, 8, 7],
+    [0.6, 4, 7],
+    [0.6, 8, 14],
+  ])('PI %p %%, SNR %p dB: exactly %d points', (perfusionIndexPct, snrDb, points) => {
+    const rating = rateDevice(phone(60), practice({ coupling: { perfusionIndexPct, snrDb } }));
+    expect(rating.components.coupling).toBe(points);
+  });
+
+  it('couplingFactor is 0..1, and 0 without a pulse (null SNR) for the practice meter', () => {
+    expect(couplingFactor(1, 12)).toBe(1);
+    expect(couplingFactor(0.5, 6)).toBe(0.25);
+    expect(couplingFactor(2, null)).toBe(0);
+    expect(couplingFactor(3, 40)).toBe(1);
   });
 
   it('is null until the practice step', () => {

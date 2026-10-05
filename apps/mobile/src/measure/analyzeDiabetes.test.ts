@@ -39,7 +39,12 @@ function steadyPulse(fps: number): KeptCapture {
 }
 
 async function analyse(capture: KeptCapture, mode: 'full' | 'quick') {
-  const analysed = await analyzeKeptCapture(capture, { mode, restTimerDone: true }, () => {});
+  const analysed = await analyzeKeptCapture(
+    capture,
+    { mode, restTimerDone: true },
+    () => {},
+    () => {},
+  );
   if ('kind' in analysed) throw new Error(`the capture was refused: ${analysed.reasons.join(', ')}`);
   return analysed;
 }

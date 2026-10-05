@@ -39,7 +39,8 @@ for (const name of ['lint', 'typecheck', 'test:changed']) {
     else console.log(`skip ${name}: app not bootstrapped yet`);
     continue;
   }
-  // Jest prints every console warning; past spawnSync's 1 MB default the run is killed and reported as a failure.
+  // Jest prints every console warning; past spawnSync's 1 MB default the run is killed and reported as a
+  // failure.
   const step = run('npm', ['run', name], { cwd: root, maxBuffer: 256 * 1024 * 1024 });
   if (step.code !== 0)
     failures.push(

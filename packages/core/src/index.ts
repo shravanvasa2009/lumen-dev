@@ -29,6 +29,7 @@ export type {
 } from './results';
 export { adaRisk, type AdaAnswers, type AdaRisk } from './ada-risk';
 export { DSP_CONFIG } from './config';
+export { frameProblem } from './contact';
 export { buildTimebase, type Timebase } from './timebase';
 export { resampleCubic, type ResampledSegment } from './resample';
 export { dcLevel, fingerSignals, sqiModelInput, zScoreWindow, type FingerSignals } from './finger-signal';
@@ -96,11 +97,13 @@ export {
   type LostCause,
   type ReadingOutcome,
 } from './reading-outcome';
+export { emergencyHeartRate, type UrgentHeartRate } from './emergency';
 export { createLiveSession, type LiveSessionConfig } from './live';
 export { SHAPE_FEATURE_NAMES, shapeFeatures } from './shape-features';
 export { HR_SUMMARY_NAMES, hrSummary } from './reading-metrics';
 export { diabetesModelInput, type DiabetesModelInput } from './diabetes-input';
 export {
+  couplingFactor,
   rateDevice,
   tierUnlocks,
   type DeviceRating,

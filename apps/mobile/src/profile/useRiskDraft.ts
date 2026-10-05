@@ -4,6 +4,13 @@ import { loadRiskDraft, type RiskScope, saveRiskDraft } from '@/store/profile';
 
 import { EMPTY_RISK_DRAFT, type RiskDraft, storableDraft } from './diabetesRisk';
 
+// A question save must not act on a sex that is not stored yet: only a save that writes the basics may
+// remove the pregnancy answer because of it (Done applies the sex-based removal).
+function storableForScope(draft: RiskDraft, only: RiskScope): RiskDraft {
+  const storable = storableDraft(draft);
+  return only === 'questions' ? { ...storable, gestationalDiabetes: draft.gestationalDiabetes } : storable;
+}
+
 export type RiskDraftState = {
   draft: RiskDraft;
   // False until the stored answers have been read, so a field is never filled in over what was typed.
@@ -15,7 +22,8 @@ export type RiskDraftState = {
   persist: (only?: RiskScope) => Promise<boolean>;
 };
 
-// scope is what persist writes: a screen that edits only part of the profile saves only that part.
+// scope is the part of the profile persist writes by default, so a screen that edits only part saves only
+// that part; persist(only) overrides it for one save.
 export function useRiskDraft(scope: RiskScope = 'all'): RiskDraftState {
   const [draft, setDraft] = useState<RiskDraft>(EMPTY_RISK_DRAFT);
   const [loaded, setLoaded] = useState(false);
@@ -52,7 +60,7 @@ export function useRiskDraft(scope: RiskScope = 'all'): RiskDraftState {
 
   const persist = useCallback(
     (only: RiskScope = scope) => {
-      const saving = lastSave.current.then(() => saveRiskDraft(storableDraft(latest.current), only));
+      const saving = lastSave.current.then(() => saveRiskDraft(storableForScope(latest.current, only), only));
       lastSave.current = saving.catch(() => undefined);
       return saving.then(
         () => {

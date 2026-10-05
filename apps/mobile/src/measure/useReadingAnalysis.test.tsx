@@ -1,5 +1,5 @@
 import type { InconclusiveOutcome } from '@lumen/core';
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import '@/i18n';
@@ -55,6 +55,7 @@ function analysedReading(): AnalysedReading {
     models: { rhythm: null, diabetes: null },
     reading: makeReading(TAKEN_AT, 64, 48).outcome,
     progress: finishedProgress,
+    urgent: null,
   };
 }
 
@@ -96,6 +97,7 @@ const refusal: InconclusiveOutcome = {
   lostSeconds: { motion: 20, pressure: 0, coverage: 0, coldHands: 0 },
   otherLostSeconds: 0,
   causes: ['motion'],
+  urgent: null,
 };
 
 describe('a capture the analysis refuses', () => {
@@ -189,5 +191,96 @@ describe('updating the widgets', () => {
     );
     expect(analysis.current.phase).toBe('done');
     expect(await listReadings()).toHaveLength(1);
+  });
+});
+
+describe('urgent heart rates (SAFE-1)', () => {
+  const urgent = { fastSustained: true, slowBelow40: false };
+
+  it('hands the flags of a reading on and still saves the reading', async () => {
+    jest.mocked(analyzeKeptCapture).mockResolvedValue({ ...analysedReading(), urgent });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('done'));
+    expect(analysis.current).toMatchObject({ urgent });
+    expect(await listReadings()).toHaveLength(1);
+  });
+
+  it('hands the flags of a refused capture on and saves nothing', async () => {
+    jest.mocked(analyzeKeptCapture).mockResolvedValue({ ...refusal, urgent });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('inconclusive'));
+    expect(analysis.current).toMatchObject({ outcome: { urgent } });
+    expect(await listReadings()).toEqual([]);
+  });
+});
+
+describe('a failed analysis keeps the urgent flags (SAFE-1)', () => {
+  const urgent = { fastSustained: true, slowBelow40: false };
+
+  it('keeps them when the save fails', async () => {
+    jest.mocked(analyzeKeptCapture).mockImplementation(async (_capture, _request, _report, reportUrgent) => {
+      reportUrgent(urgent);
+      return { ...analysedReading(), urgent };
+    });
+    const database = await lumenDatabase();
+    jest.spyOn(database, 'runAsync').mockRejectedValueOnce(new Error('disk full'));
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('failed'));
+    expect(analysis.current).toMatchObject({ reason: 'disk full', urgent });
+  });
+
+  it('keeps them when a step after the outcome throws', async () => {
+    jest.mocked(analyzeKeptCapture).mockImplementation(async (_capture, _request, _report, reportUrgent) => {
+      reportUrgent(urgent);
+      throw new Error('rhythm model unavailable');
+    });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('failed'));
+    expect(analysis.current).toMatchObject({ reason: 'rhythm model unavailable', urgent });
+  });
+
+  it('has no flags when the failure came before the outcome', async () => {
+    jest.mocked(analyzeKeptCapture).mockRejectedValue(new Error('no frames'));
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('failed'));
+    expect(analysis.current).toMatchObject({ urgent: null });
+  });
+});
+
+describe('the flags show while the analysis still runs (SAFE-1)', () => {
+  const urgent = { fastSustained: true, slowBelow40: false };
+
+  it('is unknown at first, then known before the analysis resolves', async () => {
+    let finish: (reading: AnalysedReading) => void = () => {};
+    jest.mocked(analyzeKeptCapture).mockImplementation(
+      (_capture, _request, _report, reportUrgent) =>
+        new Promise((resolve) => {
+          reportUrgent(urgent);
+          finish = resolve;
+        }),
+    );
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current).toMatchObject({ phase: 'running', urgent }));
+    finish({ ...analysedReading(), urgent });
+    await waitFor(() => expect(analysis.current.phase).toBe('done'));
+  });
+
+  it('notifies the screen when the flags arrive after it subscribed', async () => {
+    let report: (flags: typeof urgent) => void = () => {};
+    jest.mocked(analyzeKeptCapture).mockImplementation((_capture, _request, _report, reportUrgent) => {
+      report = reportUrgent;
+      return new Promise(() => {});
+    });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current).toMatchObject({ phase: 'running', urgent: undefined }));
+    act(() => report(urgent));
+    expect(analysis.current).toMatchObject({ phase: 'running', urgent });
+  });
+
+  it('leaves it undefined while the rules have not run', async () => {
+    jest.mocked(analyzeKeptCapture).mockImplementation(() => new Promise(() => {}));
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('running'));
+    expect(analysis.current).toMatchObject({ urgent: undefined });
   });
 });

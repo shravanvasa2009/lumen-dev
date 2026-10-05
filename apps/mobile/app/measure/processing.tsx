@@ -1,10 +1,13 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { BackHandler } from 'react-native';
 
 import { handOverInconclusive } from '@/measure/inconclusiveHandoff';
 import { parseMode } from '@/measure/mode';
 import { ProcessingView } from '@/measure/ProcessingView';
 import { useReadingAnalysis } from '@/measure/useReadingAnalysis';
+import { SafetySheet } from '@/results/SafetySheet';
+import { markSymptomsAsked } from '@/results/symptomsAsked';
 
 export default function ProcessingScreen() {
   const router = useRouter();
@@ -14,19 +17,60 @@ export default function ProcessingScreen() {
     mode,
     restTimerDone: params.restDone === 'true',
   });
+  const [symptomsAnswered, setSymptomsAnswered] = useState(false);
+
+  // SAFE-1 (ADR 0076): the urgent heart-rate flags win over the outcome kind, so a refused capture can still
+  // open Emergency. A sustained fast rate goes straight there; a rate under 40 asks the symptom question first.
+  const urgent =
+    analysis.phase === 'done' || analysis.phase === 'failed' || analysis.phase === 'running'
+      ? analysis.urgent
+      : analysis.phase === 'inconclusive'
+        ? (analysis.outcome?.urgent ?? null)
+        : null;
+
+  // SAFE-1: only this screen routes on an urgent rate, so it cannot be left until the rules have run (urgent
+  // is undefined until then). The Android back press is eaten here. The header back and iOS swipe-back are
+  // off for this route in the root layout, set once: flipping them while the screen hands over closed the app
+  // on Android (e2e on main 711c4a7). After that the routing needs no analysis step, so leaving is harmless.
+  const analysing = analysis.phase === 'running' && urgent === undefined;
+  useEffect(() => {
+    if (!analysing) return;
+    const block = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => block.remove();
+  }, [analysing]);
+  const emergencyNow = urgent?.fastSustained === true;
+  const askSymptoms = !emergencyNow && urgent?.slowBelow40 === true && !symptomsAnswered;
+  useEffect(() => {
+    if (emergencyNow) router.replace('/emergency');
+  }, [emergencyNow, router]);
+
+  const mayContinue = !emergencyNow && !askSymptoms;
+  const askedHere = urgent?.slowBelow40 === true && symptomsAnswered;
 
   const readingId = analysis.phase === 'done' ? analysis.readingId : null;
   useEffect(() => {
-    if (readingId !== null) router.replace(`/results/${readingId}`);
-  }, [readingId, router]);
+    if (readingId === null || !mayContinue) return;
+    // Results asks the same question for a flagged rate, so it is told this reading was already asked.
+    if (askedHere) markSymptomsAsked(readingId);
+    router.replace(`/results/${readingId}`);
+  }, [readingId, mayContinue, askedHere, router]);
 
   const refused = analysis.phase === 'inconclusive';
   const outcome = analysis.phase === 'inconclusive' ? analysis.outcome : null;
   useEffect(() => {
-    if (!refused) return;
+    if (!refused || !mayContinue) return;
     handOverInconclusive(outcome);
     router.replace(`/measure/inconclusive?mode=${mode}`);
-  }, [refused, outcome, mode, router]);
+  }, [refused, mayContinue, outcome, mode, router]);
 
-  return <ProcessingView analysis={analysis} mode={mode} />;
+  return (
+    <>
+      <ProcessingView analysis={analysis} mode={mode} />
+      <SafetySheet
+        visible={askSymptoms}
+        onNo={() => setSymptomsAnswered(true)}
+        onYes={() => router.replace('/emergency')}
+      />
+    </>
+  );
 }

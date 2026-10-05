@@ -177,13 +177,12 @@ def test_the_report_compares_the_model_with_the_points_on_the_same_people():
 
 
 def test_parity_cases_carry_the_formula_logit_and_never_give_men_gestational_diabetes():
-    frame = cohort(600, 5)
-    frozen = {"model": nq.frozen_form("logistic", nq.fit_logistic(frame)), "threshold": 0.0}
-    cases = nhanes_parity.parity_cases(frozen)
-    replayed = nhanes_test.questionnaire_logit(frozen["model"], pd.DataFrame(cases))
+    formula = nq.frozen_form("logistic", nq.fit_logistic(cohort(600, 5)))
+    cases = nhanes_parity.parity_cases(formula)
+    replayed = nhanes_test.questionnaire_logit(formula, pd.DataFrame(cases))
     assert np.allclose(replayed, [case["logit"] for case in cases])
-    assert all(case["higherRisk"] == (case["logit"] >= 0.0) for case in cases)
     assert not any(case["male"] and case["gestationalDiabetes"] for case in cases)
+    assert all("higherRisk" not in case for case in cases)
 
 
 def test_the_cut_matches_the_specificity_of_bang_five_or_more():

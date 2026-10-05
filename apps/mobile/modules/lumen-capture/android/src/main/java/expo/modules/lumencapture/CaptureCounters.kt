@@ -48,6 +48,11 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
         @Synchronized get
         private set
 
+    // The newest frame, for the once-a-second contact log; unlike newestSinceStatus, reading it changes nothing.
+    var lastFrame: CapturedFrame? = null
+        @Synchronized get
+        private set
+
     init {
         require(nominalIntervalNs > 0) { "nominal frame interval must be positive" }
     }
@@ -58,6 +63,7 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
         countDropped(frame.tNs)
         frames++
         lastRed = frame.numbers.r
+        lastFrame = frame
         pending.add(frame)
         newestSinceStatus = frame.numbers
         arrivalsNs.addLast(arrivalNs)
@@ -101,6 +107,13 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
             fps = arrivalsNs.size.toDouble(),
             droppedFrac = if (seen > 0) dropped.toDouble() / seen else 0.0,
         )
+    }
+
+    // Frames that arrived in the last 1 s, the same count status() reports as fps.
+    @Synchronized
+    fun recentFps(nowNs: Long): Double {
+        dropOldArrivals(nowNs)
+        return arrivalsNs.size.toDouble()
     }
 
     // Per-frame reduction time since the previous call, for the Lab event (budget < 4 ms at 60 fps, §9.3).
@@ -200,13 +213,19 @@ fun medianIntervalNs(intervalsNs: Collection<Long>): Double? {
 private const val CONTACT_MIN_RED_RATIO = 2.0
 private const val CONTACT_MIN_RED = 0.30
 private const val CONTACT_MAX_STD_R = 0.10
-private const val CONTACT_MAX_CLIP = 0.05
 
+// The same test as core's frameProblem() (packages/core/src/contact.ts): DSP-4's ratio, red level and spatial
+// spread decide contact. Clipping above 5% is a separate problem there (a covered frame with the "clipping"
+// cause), so it does not clear the hint: with the torch on and exposure not yet locked, a covered finger can
+// clip, and a hint that said "not covered" kept JS from ever asking for the lock. Clipping still reaches JS in
+// every frame's clipFrac. As in core, a channel outside 0..1 or a non-finite stat is not covered.
 fun fingerCovered(frame: FrameNumbers): Boolean =
-    frame.r >= CONTACT_MIN_RED_RATIO * (frame.g + frame.b) &&
+    listOf(frame.r, frame.g, frame.b).all { it in 0.0..1.0 } &&
+        frame.spatialStdR.isFinite() &&
+        frame.clipFrac.isFinite() &&
+        frame.r >= CONTACT_MIN_RED_RATIO * (frame.g + frame.b) &&
         frame.r >= CONTACT_MIN_RED &&
-        frame.spatialStdR <= CONTACT_MAX_STD_R &&
-        frame.clipFrac <= CONTACT_MAX_CLIP
+        frame.spatialStdR <= CONTACT_MAX_STD_R
 
 // Android has seven thermal levels and the contract has iOS's four. PowerManager docs: LIGHT and MODERATE
 // throttle "where UX is not (largely) impacted", like iOS "fair"; SEVERE "where UX is largely impacted",

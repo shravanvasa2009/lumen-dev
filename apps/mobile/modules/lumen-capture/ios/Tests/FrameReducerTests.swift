@@ -82,7 +82,8 @@ final class FrameReducerTests: XCTestCase {
     XCTAssertNil(reduction)
   }
 
-  // DSP-4 initial values: R/(G+B) ≥ 2.0, R ≥ 0.30, spatial std ≤ 0.10, clipped ≤ 5%.
+  // DSP-4 initial values as core applies them: R/(G+B) ≥ 2.0, R ≥ 0.30, spatial std ≤ 0.10; clipping is not
+  // a contact test.
   func testContactHintFollowsDsp4() {
     let covered = FrameReduction(r: 0.6, g: 0.1, b: 0.1, spatialStdR: 0.05, clipFrac: 0.01)
     XCTAssertTrue(covered.coversLens)
@@ -90,6 +91,8 @@ final class FrameReducerTests: XCTestCase {
     XCTAssertFalse(FrameReduction(r: 0.6, g: 0.2, b: 0.2, spatialStdR: 0.05, clipFrac: 0.01).coversLens)
     XCTAssertFalse(FrameReduction(r: 0.29, g: 0.05, b: 0.05, spatialStdR: 0.05, clipFrac: 0.01).coversLens)
     XCTAssertFalse(FrameReduction(r: 0.6, g: 0.1, b: 0.1, spatialStdR: 0.11, clipFrac: 0.01).coversLens)
-    XCTAssertFalse(FrameReduction(r: 0.6, g: 0.1, b: 0.1, spatialStdR: 0.05, clipFrac: 0.06).coversLens)
+    XCTAssertTrue(FrameReduction(r: 0.6, g: 0.1, b: 0.1, spatialStdR: 0.05, clipFrac: 0.06).coversLens)
+    XCTAssertFalse(FrameReduction(r: 1.2, g: 0.1, b: 0.1, spatialStdR: 0.05, clipFrac: 0.01).coversLens)
+    XCTAssertFalse(FrameReduction(r: 0.6, g: 0.1, b: 0.1, spatialStdR: .nan, clipFrac: 0.01).coversLens)
   }
 }

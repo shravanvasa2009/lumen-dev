@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import type { TFunction } from 'i18next';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -115,22 +115,23 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
         </View>
       }
     >
+      <Stack.Screen
+        options={{
+          title: t('results.title'),
+          headerRight: () => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('results.shareResult')}
+              hitSlop={spacing.md}
+              onPress={() => router.push(`/report/${reading.id}`)}
+            >
+              <Icon name="share" size={24} color={colors.accent} />
+            </Pressable>
+          ),
+        }}
+      />
       <ScrollView contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xxl }}>
         {reading.sample ? <DemoBanner synthetic={reading.synthetic} /> : null}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <AppText variant="title" accessibilityRole="header">
-            {t('results.title')}
-          </AppText>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('results.shareResult')}
-            hitSlop={spacing.md}
-            onPress={() => router.push(`/report/${reading.id}`)}
-          >
-            <Icon name="share" size={24} color={colors.accent} />
-          </Pressable>
-        </View>
-
         <HeadlineCard fill={headlineTone.fill} edge={headlineTone.edge}>
           <AppText variant="title">{headlineText(t, reading)}</AppText>
           {subline ? <AppText>{subline}</AppText> : null}

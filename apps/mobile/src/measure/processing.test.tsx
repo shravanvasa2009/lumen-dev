@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { BackHandler, Modal } from 'react-native';
 
 import en from '@/i18n/en.json';
+import { expectNavTitle } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import { keepCapture } from './keptCapture';
@@ -74,7 +75,7 @@ describe('processing screen', () => {
   it('opens the sample result from See a sample result', () => {
     renderRouter('./app', { initialUrl: '/measure/processing' });
     fireEvent.press(screen.getByRole('button', { name: en['processing.seeSample'] }));
-    expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
+    expectNavTitle(en['results.title']);
   });
 
   it('goes back to Home', () => {

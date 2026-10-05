@@ -5,6 +5,7 @@ import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { enterDemo, exitDemo } from '@/demo/demoSession';
 import { readingById } from '@/results/fixtures';
+import { expectNavTitle } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
 
@@ -144,7 +145,7 @@ describe('Trends content', () => {
     expect(rows).toHaveLength(2);
     expect(readingById('demo')).toBeDefined();
     fireEvent.press(rows[1]!);
-    expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen();
+    expectNavTitle(en['results.title']);
   });
 
   it('tags only the synthetic fixture row, in both languages', () => {

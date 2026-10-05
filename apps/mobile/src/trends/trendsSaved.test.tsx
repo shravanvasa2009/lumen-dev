@@ -4,6 +4,7 @@ import { enterDemo, exitDemo } from '@/demo/demoSession';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { startOnboarded } from '@/testing/onboarded';
+import { expectNavTitle } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import { makeReading } from '@/testing/reading';
 import { saveTestReading } from '@/testing/savedReading';
@@ -53,7 +54,7 @@ describe('Trends from readings saved on this phone', () => {
     const row = await screen.findByRole('button', { name: /^Today / });
     expect(screen.getByText('Learning your baseline: 1 of 7')).toBeOnTheScreen();
     fireEvent.press(row);
-    await waitFor(() => expect(screen.getByRole('header', { name: en['results.title'] })).toBeOnTheScreen());
+    await waitFor(() => expectNavTitle(en['results.title']));
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
   });
 

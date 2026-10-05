@@ -41,7 +41,7 @@ def main() -> None:
     # No threshold: under ML-6 the check is Experimental and never flags high or low (ADR 0091, choice 91-1).
     formula = frozen_model()["model"]
     document = {"modelSha256": FROZEN_SHA256, "formula": formula, "cases": parity_cases(formula)}
-    args.out.write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8")
+    args.out.write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8", newline="\n")
     logits = [case["logit"] for case in document["cases"]]
     print(f"{len(logits)} cases, logit range {min(logits):.2f}..{max(logits):.2f}")
 

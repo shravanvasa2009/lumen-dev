@@ -6,6 +6,7 @@ import pytest
 
 from eval import nhanes_test
 from export import nhanes_parity
+from train import nhanes_cut
 from train import nhanes_questionnaire as nq
 
 
@@ -193,3 +194,13 @@ def test_the_cut_matches_the_specificity_of_bang_five_or_more():
     assert np.mean(logits[labels == 0] < cut) == pytest.approx(
         np.mean(points[labels == 0] < nq.BANG_FLAG), abs=0.1
     )
+
+
+def test_the_floor_cut_holds_the_specificity_it_was_set_for():
+    rng = np.random.default_rng(6)
+    labels = np.r_[np.zeros(400, dtype=int), np.ones(100, dtype=int)]
+    logits = np.r_[rng.normal(0, 1, 400), rng.normal(1.5, 1, 100)]
+    cut = nhanes_cut.floor_threshold(logits, labels, nhanes_cut.SPECIFICITY_FLOOR)
+    point = nhanes_cut.operating_point(logits, labels, cut)
+    assert point["specificity"] == pytest.approx(nhanes_cut.SPECIFICITY_FLOOR, abs=0.01)
+    assert point["sensitivity"] == pytest.approx(np.mean(logits[labels == 1] >= cut))

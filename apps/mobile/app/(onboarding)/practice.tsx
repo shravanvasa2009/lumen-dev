@@ -69,8 +69,8 @@ export default function PracticeScreen() {
         ) : null}
       </View>
       <View style={{ gap: spacing.xs }}>
-        <SignalMeter />
-        <SignalScale />
+        <SignalMeter level={live.signalLevel} />
+        <SignalScale level={live.signalLevel} />
       </View>
       <Card>
         <LiveWaveform red={live.recentRed} />

@@ -336,6 +336,36 @@ describe('useLiveCapture', () => {
     });
   });
 
+  it('drops the meter level when the session refuses a batch', async () => {
+    const fake = new FakeCapture();
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    // SYNTHETIC: 60 fps, a 1.2 Hz pulse in red on a covered lens, 0.1 s per batch.
+    const pulseBatch = (index: number): SampleBatch => {
+      const times = Array.from({ length: 6 }, (_, i) => (index * 6 + i) / 60);
+      return {
+        samples: times.map((tS) => ({
+          tNs: 1e12 + tS * 1e9,
+          r: 0.7 - 0.012 * Math.sin(2 * Math.PI * 1.2 * tS),
+          g: 0.1,
+          b: 0.1,
+        })),
+        stats: times.map((tS) => ({
+          tNs: 1e12 + tS * 1e9,
+          spatialStdR: 0.02,
+          clipFrac: 0,
+          exposureNs: 8e6,
+        })),
+      };
+    };
+    for (let index = 0; index < 200; index++) act(() => fake.emitSamples(pulseBatch(index)));
+    expect(live.current.signalLevel).not.toBeNull();
+    // Time going backwards ends the session's counting (see feedSession).
+    act(() => fake.emitSamples(pulseBatch(0)));
+    expect(live.current.signalLevel).toBeNull();
+    expect(live.current.failure).not.toBeNull();
+  });
+
   it('shows nothing from batches that arrive before start() resolves', async () => {
     const fake = new FakeCapture();
     let release = () => {};

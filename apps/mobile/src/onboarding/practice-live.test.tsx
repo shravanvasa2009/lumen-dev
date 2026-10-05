@@ -28,6 +28,7 @@ const running: LiveCapture = {
   coachingKey: null,
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
+  signalLevel: null,
 };
 
 preloadAppRoutes();
@@ -53,6 +54,23 @@ describe('practice with a running capture', () => {
     renderRouter('./app', { initialUrl: '/practice' });
     expect(screen.getByText('9 of 30 steady seconds')).toBeOnTheScreen();
     expect(screen.getByText(en['coach.still'])).toBeOnTheScreen();
+  });
+  it('puts the meter marker where the live signal level says', () => {
+    const marker = () =>
+      parseFloat(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.cx);
+    mockLive = { ...running, signalLevel: 0.1 };
+    const { unmount } = renderRouter('./app', { initialUrl: '/practice' });
+    expect(marker()).toBeCloseTo(13.2, 6);
+    unmount();
+    mockLive = { ...running, signalLevel: 0.9 };
+    renderRouter('./app', { initialUrl: '/practice' });
+    expect(marker()).toBeCloseTo(86.8, 6);
+  });
+
+  it('draws no marker while the session has no level, as with no finger on the lens', () => {
+    mockLive = { ...running, status: { ...running.status!, fingerCovered: false } };
+    renderRouter('./app', { initialUrl: '/practice' });
+    expect(screen.queryByTestId('signal-marker', { includeHiddenElements: true })).toBeNull();
   });
 });
 

@@ -20,6 +20,17 @@ function withHuntingExposure(folder) {
   fs.writeFileSync(file, `${[header, ...changed].join('\n')}\n`);
 }
 
+// Sets every frame's spatial spread and clip fraction (stats.csv columns 2 and 3).
+function withFrameStats(folder, spatialStdR, clipFrac) {
+  const file = path.join(folder, 'stats.csv');
+  const [header, ...rows] = fs.readFileSync(file, 'utf8').trimEnd().split('\n');
+  const changed = rows.map((row) => {
+    const [tNs, , , exposureNs] = row.split(',');
+    return `${tNs},${spatialStdR},${clipFrac},${exposureNs}`;
+  });
+  fs.writeFileSync(file, `${[header, ...changed].join('\n')}\n`);
+}
+
 describe('diagnose: where the heart rate goes wrong in a capture', () => {
   it('a clean capture: every rate within 5 bpm of the reference, nothing lost', async () => {
     const folder = path.join(scratch, 'clean');
@@ -59,6 +70,26 @@ describe('diagnose: where the heart rate goes wrong in a capture', () => {
     assert.ok(Math.abs(report.rates.saved - 100) <= 5, `${report.rates.saved}`);
     assert.ok(report.verdicts.some((line) => line.includes('each beat found twice')));
     assert.ok(report.verdicts.some((line) => line.includes('in beat detection (DSP-7/9)')));
+  });
+
+  it('a saturated finger still counts as covered: clipping is counted apart from contact (DSP-4)', async () => {
+    const folder = path.join(scratch, 'clipped');
+    writeSyntheticCapture(folder, { seconds: 40, bpm: 70 });
+    withFrameStats(folder, 0.02, 0.1);
+    const report = await diagnoseFolder(folder, { referenceBpm: 70 });
+    assert.equal(report.contact.uncovered, 0);
+    assert.equal(report.contact.clipped, report.capture.frames);
+    assert.equal(report.contact.clippedButCovered, report.capture.frames);
+  });
+
+  it('a wide red gradient across the region fails contact, and the verdict names the spatial spread test', async () => {
+    const folder = path.join(scratch, 'spread');
+    writeSyntheticCapture(folder, { seconds: 40, bpm: 70 });
+    withFrameStats(folder, 0.2, 0);
+    const report = await diagnoseFolder(folder, { referenceBpm: 70 });
+    assert.equal(report.contact.uncovered, report.capture.frames);
+    assert.equal(report.contact.failed.spatialSpread, report.capture.frames);
+    assert.ok(report.verdicts.some((line) => line.includes('mostly the spatialSpread test')));
   });
 
   it('without a reference it asks for one instead of judging the rates', async () => {

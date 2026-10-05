@@ -103,6 +103,27 @@ function liveRates(core, samples) {
   return { rates, errors };
 }
 
+// DSP-4 per frame, one count per failed test (a frame can fail several): which test keeps the finger from
+// counting as on the lens. Clipping alone leaves a frame covered (contact.ts frameProblem), so it is counted
+// apart. On the A17 the native hint also required no clipping, so the exposure lock never armed.
+function contactTests(core, samples, stats) {
+  const { minRedRatio, minRedMean, maxSpatialStdR, maxClipFrac } = core.DSP_CONFIG.dsp4;
+  const failed = { redRatio: 0, redLevel: 0, spatialSpread: 0 };
+  let uncovered = 0;
+  let clippedButCovered = 0;
+  samples.forEach((sample, i) => {
+    const stat = stats[i];
+    const problem = core.frameProblem(sample, stat);
+    if (problem === 'coverage') uncovered++;
+    if (problem === 'clipping') clippedButCovered++;
+    if (!(sample.r >= minRedRatio * (sample.g + sample.b))) failed.redRatio++;
+    if (!(sample.r >= minRedMean)) failed.redLevel++;
+    if (!(stat.spatialStdR <= maxSpatialStdR)) failed.spatialSpread++;
+  });
+  const clipped = stats.filter((stat) => stat.clipFrac > maxClipFrac).length;
+  return { uncovered, failed, clipped, clippedButCovered };
+}
+
 // Per reason; spans of different reasons overlap, so the reasons can add up to more than the time lost.
 function lostByReason(core, analysis) {
   const lost = {};
@@ -114,6 +135,8 @@ function lostByReason(core, analysis) {
 }
 
 function verdicts({
+  contact,
+  frames,
   referenceBpm,
   savedBpm,
   spectral,
@@ -124,6 +147,12 @@ function verdicts({
   pulsePct,
 }) {
   const lines = [];
+  if (contact.uncovered > MOSTLY_LOST * frames) {
+    const [test] = Object.entries(contact.failed).sort(([, x], [, y]) => y - x)[0];
+    lines.push(
+      `${((100 * contact.uncovered) / frames).toFixed(0)}% of frames fail DSP-4 contact, mostly the ${test} test: the finger does not count as on the lens`,
+    );
+  }
   const exposureRefuses = exposureLostS > MOSTLY_LOST * durationS;
   if (exposureRefuses)
     lines.push(
@@ -242,8 +271,8 @@ export async function diagnoseFolder(folder, { referenceBpm = null } = {}) {
       gaps: intervalsMs.filter((ms) => ms > core.DSP_CONFIG.dsp2.maxGapS * 1000).length,
       exposureValues: new Set(stats.map((stat) => stat.exposureNs)).size,
       exposureChanges,
-      clippedFrames: stats.filter((stat) => stat.clipFrac > core.DSP_CONFIG.dsp4.maxClipFrac).length,
     },
+    contact: contactTests(core, samples, stats),
     signal: { redLevel: median(Array.from(red)), pulsePct },
     clean: {
       seconds: analysis.cleanSeconds,
@@ -264,6 +293,8 @@ export async function diagnoseFolder(folder, { referenceBpm = null } = {}) {
     outcome,
   };
   report.verdicts = verdicts({
+    contact: report.contact,
+    frames: samples.length,
     referenceBpm: reference,
     savedBpm: analysis.heartRateBpm,
     spectral: band,
@@ -284,7 +315,8 @@ export function formatReport(report) {
   return [
     report.folder,
     `  Capture   ${capture.durationS.toFixed(1)} s, ${capture.frames} frames, ${capture.medianFps.toFixed(1)} fps median, interval sd ${capture.intervalSdMs.toFixed(1)} ms, ${capture.gaps} gaps over DSP-2's limit`,
-    `  Exposure  ${capture.exposureValues === 1 ? 'one value (locked)' : `${capture.exposureValues} values, ${capture.exposureChanges} changes (${(capture.exposureChanges / capture.durationS).toFixed(2)}/s)`}; clipped frames ${capture.clippedFrames}`,
+    `  Exposure  ${capture.exposureValues === 1 ? 'one value (locked)' : `${capture.exposureValues} values, ${capture.exposureChanges} changes (${(capture.exposureChanges / capture.durationS).toFixed(2)}/s)`}`,
+    `  Contact   ${report.contact.uncovered} of ${capture.frames} frames not covered (DSP-4); failing red ratio ${report.contact.failed.redRatio}, red level ${report.contact.failed.redLevel}, spatial spread ${report.contact.failed.spatialSpread}; clipped ${report.contact.clipped} (${report.contact.clippedButCovered} of them still covered)`,
     `  Signal    red level ${signal.redLevel.toFixed(3)}, pulse ${signal.pulsePct === null ? '—' : `${signal.pulsePct.toFixed(2)}%`} of it`,
     `  Clean     ${clean.seconds.toFixed(1)} s${clean.needed === null ? '' : ` (needs ${clean.needed})`}; lost (reasons overlap): ${lost || 'none'}`,
     `  Beats     ${

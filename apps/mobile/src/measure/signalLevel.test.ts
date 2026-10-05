@@ -118,6 +118,24 @@ describe.each([
     expect(strong!).toBeGreaterThan(0.9);
   });
 
+  // Core's perfusionPct is peak-to-peak, so noise on a weak pulse inflates it (order A.C_TASK-live-pi-noise). With
+  // noise at 0.0004 a steady weak finger still reads Weak (about 0.30), but with auto-exposure-like brightness
+  // drift added the same finger reads 0.35 (OK). This pins today's reading, not the wanted one: when core
+  // handles noise, flip the assertion to < 1 / 3.
+  it('known limitation: a weak, noisy finger with drifting brightness reads OK, because core PI is peak-to-peak (A.C_TASK-live-pi-noise)', async () => {
+    const noisyWeak = await levelAfter(
+      {
+        fps,
+        seconds: 20,
+        amplitudeAt: () => WEAK,
+        noise: 0.0004,
+        levelAt: (tS) => 0.5 + 0.2 * Math.min(1, tS / 20),
+      },
+      14,
+    );
+    expect(noisyWeak!).toBeGreaterThanOrEqual(1 / 3);
+  });
+
   it('follows the signal down when the finger slips and the pulse fades', async () => {
     const fading = await levelAfter({ fps, seconds: 30, amplitudeAt: (tS) => (tS < 12 ? STRONG : WEAK), noise: NOISE }, 26);
     expect(fading!).toBeLessThan(1 / 3);

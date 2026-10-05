@@ -13,12 +13,15 @@ const BANNED = [
   /glucosa/i,
 ];
 const REQUIRED = { en: /not a diabetes test/i, es: /no es una prueba de diabetes/i };
-// The diabetes questionnaire (dr.*), result card (dm.*) and every other diabetes string live in en.json
+// The diabetes questionnaire (dr.*), result card (dm.*) and the other known diabetes strings live in en.json
 // and es.json, outside diabetes.json, so the same ban must cover them.
+// A diabetes string under a prefix not listed here is not checked; add its prefix when adding such copy.
 const DIABETES_KEY_PREFIXES = [
   'dr.',
   'dm.',
   'checks.diabetes',
+  'checks.status.dm',
+  'followUp.whatToAskBody',
   'profile.diabetes',
   'results.diabetes',
   'results.notDiabetesTest',

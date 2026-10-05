@@ -38,13 +38,15 @@ for (const [file, key, text] of [
   ['es.json', 'dr.result.high', 'Tienes un riesgo alto de diabetes.'],
   ['en.json', 'dm.flag.title', 'Your glucose is high'],
   ['es.json', 'profile.diabetesRisk', 'Diagnosticada con diabetes'],
+  ['en.json', 'followUp.whatToAskBody', 'You have diabetes. Ask for an A1c blood test.'],
+  ['es.json', 'checks.status.dmDone', 'Tienes diabetes'],
 ]) {
   test(`banned wording in ${file} ${key} is caught`, () => {
     const files = cleanFiles();
     files[file][key] = text;
     const run = runCheck(files);
     assert.equal(run.status, 1);
-    assert.match(run.stderr, new RegExp(`${file} ${key.replace(/\./g, '\.')}`));
+    assert.ok(run.stderr.includes(`${file} ${key}:`));
   });
 }
 

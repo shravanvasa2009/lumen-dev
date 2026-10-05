@@ -14,12 +14,12 @@ const RING_STROKE = 5;
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // The lit fingertip as the camera sees it. Dim while no finger is detected.
-export function FingerPreview({ detected }: { detected: boolean }) {
+export function FingerPreview({ detected, size = PREVIEW_SIZE }: { detected: boolean; size?: number }) {
   const { colors } = useTheme();
   return (
     <Svg
-      width={PREVIEW_SIZE}
-      height={PREVIEW_SIZE}
+      width={size}
+      height={size}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
@@ -30,9 +30,9 @@ export function FingerPreview({ detected }: { detected: boolean }) {
         </RadialGradient>
       </Defs>
       <Circle
-        cx={PREVIEW_SIZE / 2}
-        cy={PREVIEW_SIZE / 2}
-        r={PREVIEW_SIZE / 2}
+        cx={size / 2}
+        cy={size / 2}
+        r={size / 2}
         fill="url(#finger-glow)"
         opacity={detected ? 1 : 0.3}
       />
@@ -78,7 +78,7 @@ export function SignalMeter({ level = null }: { level?: number | null }) {
 }
 
 // The label under the marker, by thirds of the bar; none while there is no level.
-function labelAt(level: number | null): 'weak' | 'ok' | 'strong' | null {
+export function labelAt(level: number | null): 'weak' | 'ok' | 'strong' | null {
   if (level === null) return null;
   if (level < 1 / 3) return 'weak';
   return level < 2 / 3 ? 'ok' : 'strong';

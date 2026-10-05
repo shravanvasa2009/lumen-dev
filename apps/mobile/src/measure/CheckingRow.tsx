@@ -10,7 +10,7 @@ import type { CheckingItem } from './checkingItems';
 import type { MeasureMode } from './mode';
 
 // Below this width the checks stack as a list with the state on the right (mockup 13 at 360 x 640).
-const COMPACT_WIDTH_DP = 400;
+export const COMPACT_WIDTH_DP = 400;
 
 // Only colour and the icon change as a check fills in: nothing moves on the capture screen (ADR 0075).
 // While coaching is showing, `dimmed` greys the whole panel with the quiet text token so it never competes.

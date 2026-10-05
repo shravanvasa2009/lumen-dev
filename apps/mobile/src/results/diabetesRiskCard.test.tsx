@@ -344,6 +344,14 @@ describe('pulse pattern extra on the detail screen', () => {
     expect(screen.queryByText(en['evidence.experimental.explain'])).not.toBeOnTheScreen();
   });
 
+  it('scrolls the explainer body and keeps Got it outside the scroll', async () => {
+    fireEvent.press(await screen.findByRole('button', { name: en['results.whatExperimentalMeans'] }));
+    const sheetScroll = screen.UNSAFE_getAllByType(ScrollView).at(-1) as ReactTestInstance;
+    expect(within(sheetScroll).getByText(en['evidence.experimental.explain'])).toBeOnTheScreen();
+    expect(within(sheetScroll).queryByRole('button', { name: en['common.gotIt'] })).toBeNull();
+    expect(screen.getByRole('button', { name: en['common.gotIt'] })).toBeOnTheScreen();
+  });
+
   it('lists the research line in the sheet too, and its accuracy link opens the accuracy screen', async () => {
     fireEvent.press(await screen.findByRole('button', { name: en['results.whatExperimentalMeans'] }));
     expect(screen.getAllByText(en['dm.experimental'], { exact: false })).toHaveLength(2);

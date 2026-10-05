@@ -12,13 +12,13 @@ import { FingerPreview, ProgressRing } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
 import { StillMotion } from '@/theme/motion';
 
+import { CameraDeniedNotice } from './CameraDeniedNotice';
 import { CheckingRow } from './CheckingRow';
 import { TipsSheet } from './TipsSheet';
 import { checkingItems } from './checkingItems';
 import { LiveWaveform } from './LiveWaveform';
 import { coachingText } from './coachingText';
 import { cleanSecondsNeeded, type MeasureMode } from './mode';
-import { OpenSettingsButton } from './OpenSettingsButton';
 import { phaseCaption } from './phaseCaption';
 import type { LiveCapture } from './useLiveCapture';
 
@@ -86,6 +86,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             </Pressable>
           </View>
           <TipsSheet visible={tipsOpen} onDismiss={() => setTipsOpen(false)} />
+          <CameraDeniedNotice live={live} centered />
 
           <View style={{ alignItems: 'center', gap: spacing.md }}>
             {live.status ? (
@@ -155,10 +156,11 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             </AppText>
           ) : null}
 
-          <AppText tone="textDim" style={{ textAlign: 'center' }}>
-            {caption}
-          </AppText>
-          <OpenSettingsButton live={live} />
+          {live.phase === 'denied' ? null : (
+            <AppText tone="textDim" style={{ textAlign: 'center' }}>
+              {caption}
+            </AppText>
+          )}
 
           {fingerOn ? null : (
             <AppText tone="textDim" style={{ textAlign: 'center' }}>

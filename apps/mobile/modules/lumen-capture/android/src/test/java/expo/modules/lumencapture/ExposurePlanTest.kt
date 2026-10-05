@@ -2,6 +2,7 @@ package expo.modules.lumencapture
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.log2
 import kotlin.math.pow
@@ -82,14 +83,14 @@ class ExposurePlanTest {
     private val a17 = AeCompensation(minIndex = -40, maxIndex = 40, stepEv = 0.1)
 
     @Test
-    fun compensationStepIsFixedWhenRedClipsElseExposureFactorInEv() {
+    fun compensationStepIsSmallWhenRedClipsElseExposureFactorInEvCappedAtOne() {
         val window = DEFAULT_EXPOSURE_TARGET
-        assertEquals(-2.0, compensationStepEv(1.0, window), 0.0)
-        assertEquals(-2.0, compensationStepEv(0.95, window), 0.0)
-        assertEquals(2.2 * log2(0.675 / 0.9), compensationStepEv(0.9, window), 1e-12)
-        assertEquals(2.2 * log2(0.675 / 0.3), compensationStepEv(0.3, window), 1e-12)
-        assertEquals(0.0, compensationStepEv(0.675, window), 1e-12)
-        assertEquals(3.0, compensationStepEv(0.0, window), 1e-12) // exposureFactor's 3-stop cap
+        assertEquals(-0.5, compensationStepEv(1.0, window, clippedBefore = false), 0.0)
+        assertEquals(-0.5, compensationStepEv(0.95, window, clippedBefore = false), 0.0)
+        assertEquals(-1.0, compensationStepEv(1.0, window, clippedBefore = true), 0.0)
+        assertEquals(2.2 * log2(0.675 / 0.9), compensationStepEv(0.9, window, clippedBefore = true), 1e-12)
+        assertEquals(1.0, compensationStepEv(0.3, window, clippedBefore = false), 0.0) // 2.6 EV asked, capped
+        assertEquals(0.0, compensationStepEv(0.675, window, clippedBefore = false), 1e-12)
     }
 
     @Test
@@ -104,5 +105,42 @@ class ExposurePlanTest {
         assertEquals(5, nextCompensationIndex(5, 0.0, a17))
         // A coarser lens (1/3 EV steps, range +-6).
         assertEquals(-6, nextCompensationIndex(0, -2.0, AeCompensation(-6, 6, 1.0 / 3)))
+    }
+
+    // A sensor model fitted to the A17 log: red 0.615 at -1.0 EV and 0.288 at -3.0 EV, so red scales with
+    // 2^(EV / 1.83); `atZero` is red at 0 EV before clipping at 1.
+    private fun sensor(atZero: Double, gamma: Double = 1.83): (Int) -> Double =
+        { index -> minOf(1.0, atZero * 2.0.pow(index * a17.stepEv / gamma)) }
+
+    private fun steer(startIndex: Int, model: (Int) -> Double) =
+        steerCompensation(CompensationStep(startIndex, model(startIndex)), DEFAULT_EXPOSURE_TARGET, a17, 4, model)
+
+    @Test
+    fun steeringEndsInsideTheWindowWithoutDippingUnderIt() {
+        // From the A17's pre-lock state (red about 0.9 at 0 EV), a clipped finger, and a very bright one.
+        for (atZero in listOf(0.9, 1.1, 2.0, 3.0)) {
+            val path = steer(0, sensor(atZero))
+            assertTrue("$atZero: $path", path.last().red in DEFAULT_EXPOSURE_TARGET)
+            assertTrue("$atZero: $path", path.all { it.red >= DEFAULT_EXPOSURE_TARGET.start })
+            assertTrue("$atZero: $path", path.size <= 5)
+        }
+    }
+
+    @Test
+    fun reliefWithRedBackInsideTakesNoStep() {
+        // The A17 relief of 2026-10-05: locked at -1.0 EV with red 0.615, a press clipped red for a moment. Measured
+        // afresh after the unlock, red is inside again, so the compensation stays.
+        val path = steer(-10, sensor(0.615 * 2.0.pow(1.0 / 1.83)))
+        assertEquals(listOf(CompensationStep(-10, path.single().red)), path)
+    }
+
+    @Test
+    fun steeringStepsBackUpFromADarkRedAndStopsAtTheRangeEdge() {
+        val dark = steer(-30, sensor(0.615 * 2.0.pow(1.0 / 1.83)))
+        assertTrue("$dark", dark.last().red in DEFAULT_EXPOSURE_TARGET)
+        assertTrue("$dark", dark.zipWithNext().all { (a, b) -> b.index > a.index })
+        // Too bright even at -4 EV: stops at the edge instead of looping.
+        val edge = steer(-40, sensor(100.0))
+        assertEquals(1, edge.size)
     }
 }

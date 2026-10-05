@@ -584,27 +584,30 @@ class CameraSession(
     // dark green, so it runs to its longest exposure and clips red. Exposure compensation moves AE's target until
     // the red mean sits inside exposureTarget; the lock then holds that exposure.
     private fun steerAeCompensation(firstWaitMs: Long) {
-        var red = freshRed(firstWaitMs)
+        val red = freshRed(firstWaitMs)
         val compensation = lens.aeCompensation
         if (compensation == null) {
             Log.i(TAG, "Exposure not compensated: the lens has no AE compensation range; red ${redText(red)}")
             return
         }
-        var steps = 0
-        while (red !in settings.exposureTarget && steps < MAX_EXPOSURE_STEPS) {
-            val index = nextCompensationIndex(added.aeCompensation, compensationStepEv(red, settings.exposureTarget), compensation)
-            if (index == added.aeCompensation) break
+        val path = steerAndApply(CompensationStep(added.aeCompensation, red), compensation)
+        Log.i(TAG, "Exposure compensated after ${path.size - 1} steps: ${compensationText(path, compensation)}")
+    }
+
+    // Exposure thread, with AE unlocked: each step is applied and judged on the settled red mean (ADR 0098).
+    private fun steerAndApply(start: CompensationStep, compensation: AeCompensation): List<CompensationStep> =
+        steerCompensation(start, settings.exposureTarget, compensation, MAX_EXPOSURE_STEPS) { index ->
             applyRequest(added.copy(aeCompensation = index))
-            steps++
-            red = convergedRed(index)
+            convergedRed(index)
         }
-        val ev = added.aeCompensation * compensation.stepEv
-        Log.i(
-            TAG,
-            "Exposure compensated after $steps steps: red ${redText(red)}, EV ${"%.2f".format(Locale.ROOT, ev)} " +
-                "(index ${added.aeCompensation}, result index ${latest?.aeCompensation ?: "not reported"}, " +
-                "range ${compensation.minIndex}..${compensation.maxIndex}), exposureNs ${latest?.exposureNs}",
-        )
+
+    // For the log: the final red and EV, then every step, so a phone log shows how the steering got there.
+    private fun compensationText(path: List<CompensationStep>, compensation: AeCompensation): String {
+        val last = path.last()
+        val steps = path.joinToString(" -> ") { "${evText(it.index * compensation.stepEv)} EV: ${redText(it.red)}" }
+        return "red ${redText(last.red)}, EV ${evText(last.index * compensation.stepEv)} (index ${last.index}, " +
+            "result index ${latest?.aeCompensation ?: "not reported"}, range ${compensation.minIndex}..${compensation.maxIndex}), " +
+            "exposureNs ${latest?.exposureNs}; steps $steps"
     }
 
     // AE takes several frames to follow a new compensation, longer than EXPOSURE_LATENCY_MS. Waits until the results
@@ -625,8 +628,8 @@ class CameraSession(
         return freshRed(0)
     }
 
-    // DSP-5: red stayed above 0.95 after the lock, so lower the exposure one step and hold it (ADR 0029). Core
-    // sees the change in exposureNs and marks the span as artifact.
+    // DSP-5: red stayed above 0.95 after the lock, so lower the exposure and hold it (ADR 0029; AE-lock lenses steer
+    // back into the window, ADR 0098). Core sees the change in exposureNs and marks the span as artifact.
     private fun relieveOverexposure() {
         if (!running) return
         val manual = lens.manualExposure
@@ -638,27 +641,23 @@ class CameraSession(
         }
     }
 
-    // The AE-lock form of the step above (ADR 0098): unlock, lower the compensation one step, let AE settle, relock.
-    // Core sees the jump in exposureNs as with a manual step.
+    // The AE-lock form of the step above (ADR 0098): unlock, let AE settle at the current compensation, steer back
+    // into exposureTarget as before the lock, relock. Red is measured afresh after the unlock because a press that
+    // clipped red can pass; steering from the stale clipped value overshot on the Galaxy A17. Core sees the jump in
+    // exposureNs as with a manual step.
     private fun relieveUnderAeLock() {
         val compensation = lens.aeCompensation
         if (compensation == null) {
             Log.w(TAG, "Red stays clipped under the AE lock; the lens has no AE compensation")
             return
         }
-        val stepEv = compensationStepEv(counters.lastRed ?: 1.0, settings.exposureTarget)
-        val index = nextCompensationIndex(added.aeCompensation, stepEv, compensation)
-        if (index == added.aeCompensation) {
-            Log.w(TAG, "Red stays clipped under the AE lock; compensation is already at its lowest (index $index)")
-            return
-        }
         try {
-            applyRequest(added.copy(aeLock = false, aeCompensation = index))
-            val red = convergedRed(index)
+            applyRequest(added.copy(aeLock = false))
+            val path = steerAndApply(CompensationStep(added.aeCompensation, convergedRed(added.aeCompensation)), compensation)
             applyRequest(added.copy(aeLock = true))
             Log.i(
                 TAG,
-                "Overexposure relieved under AE lock: red ${redText(red)}, EV ${"%.2f".format(Locale.ROOT, index * compensation.stepEv)}, " +
+                "Overexposure relieved under AE lock after ${path.size - 1} steps: ${compensationText(path, compensation)}; " +
                     confirmAeLock(),
             )
         } catch (e: InterruptedException) {
@@ -925,6 +924,8 @@ class CameraSession(
 }
 
 private fun redText(red: Double): String = "%.3f".format(Locale.ROOT, red)
+
+private fun evText(ev: Double): String = "%.2f".format(Locale.ROOT, ev)
 
 private fun msText(ms: Double): String = "%.1f".format(Locale.ROOT, ms)
 

@@ -1,11 +1,11 @@
 import { act, fireEvent, getMockContext, renderRouter, screen, within } from 'expo-router/testing-library';
 import { router } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
+import { enterDemo, exitDemo } from '@/demo/demoSession';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
-import { enterDemo, exitDemo } from '@/demo/demoSession';
 import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
@@ -209,17 +209,36 @@ describe('tab bar', () => {
     expect(circle).not.toHaveLength(0);
   });
 
-  it.each(['light', 'dark'] as const)('keeps the whole Care label inside the bar while the demo bar is up (%s)', (scheme) => {
-    mockScheme = scheme;
-    act(() => enterDemo());
-    renderRouter(appDirectory, { initialUrl: '/' });
-    expect(screen.getByText(en['demo.bar'])).toBeOnTheScreen();
-    let tabRow = screen.getByLabelText(careLabel).parent;
-    while (tabRow && StyleSheet.flatten(tabRow.props.style)?.height === undefined) tabRow = tabRow.parent;
-    const barStyle = StyleSheet.flatten(tabRow?.props.style);
-    // Circle (60) minus its lift (18) plus a 24 dp label line; the bar may not be shorter than that.
-    expect(barStyle.height).toBeGreaterThanOrEqual(66);
-    act(() => exitDemo());
+  it.each(['light', 'dark'] as const)(
+    'keeps the whole Care label inside the bar while the demo bar is up (%s)',
+    (scheme) => {
+      mockScheme = scheme;
+      act(() => enterDemo());
+      renderRouter(appDirectory, { initialUrl: '/' });
+      expect(screen.getByText(en['demo.bar'])).toBeOnTheScreen();
+      let tabRow = screen.getByLabelText(careLabel).parent;
+      while (tabRow && StyleSheet.flatten(tabRow.props.style)?.height === undefined) tabRow = tabRow.parent;
+      const barStyle = StyleSheet.flatten(tabRow?.props.style);
+      // The visible 42 dp of the circle plus a 6 dp gap and the 18 dp caption line.
+      expect(barStyle.height).toBeGreaterThanOrEqual(66);
+      act(() => exitDemo());
+    },
+  );
+
+  it('grows the tab row with the system font size so the Care label never clips', () => {
+    mockScheme = 'light';
+    const originalWindow = Dimensions.get('window');
+    act(() => Dimensions.set({ window: { ...originalWindow, fontScale: 2 } }));
+    try {
+      renderRouter(appDirectory, { initialUrl: '/' });
+      let tabRow = screen.getByLabelText(careLabel).parent;
+      while (tabRow && StyleSheet.flatten(tabRow.props.style)?.height === undefined) tabRow = tabRow.parent;
+      const scaledLabelLine = tokens.type.caption.lineHeight * 2;
+      const circleLift = 42;
+      expect(StyleSheet.flatten(tabRow?.props.style).height).toBeGreaterThan(scaledLabelLine + circleLift);
+    } finally {
+      act(() => Dimensions.set({ window: originalWindow }));
+    }
   });
 
   it.each(['light', 'dark'] as const)('keeps a 44 dp Care target in the %s theme', (scheme) => {

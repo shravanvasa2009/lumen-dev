@@ -188,7 +188,7 @@ async function fetchState(state) {
     const { elements } = JSON.parse(readFileSync(cached, 'utf8'));
     const share = coverage(elements, state);
     if (share >= MIN_COVERAGE) return { elements, fresh: false, share };
-    console.warn(`Overpass ${state}: cached answer covers ${share.toFixed(2)} of HRSA sites; fetching again.`);
+    console.warn(`Overpass ${state}: cached answer covers ${share.toFixed(2)} of HRSA towns; fetching again.`);
   }
   // The last short answer's coverage, so a run that never gets a complete one says why it stopped.
   let lastShare = null;
@@ -210,7 +210,7 @@ async function fetchState(state) {
       }
       if (!answer.remark) lastShare = share;
       console.warn(
-        `Overpass ${state}: incomplete answer from ${url} (${answer.remark ?? `covers ${share.toFixed(2)} of HRSA sites`}).`,
+        `Overpass ${state}: incomplete answer from ${url} (${answer.remark ?? `covers ${share.toFixed(2)} of HRSA towns`}).`,
       );
     } else if (!BUSY_STATUSES.has(response.status)) {
       throw new Error(`Overpass ${state}: ${response.status} ${response.statusText}`);
@@ -224,7 +224,7 @@ async function fetchState(state) {
   if (lastShare !== null) {
     throw new Error(
       `Overpass ${state}: answers cover only ${lastShare.toFixed(2)} of HRSA towns (need ${MIN_COVERAGE}). ` +
-        'If OSM itself is that sparse there, lower MIN_COVERAGE for this state only after checking the map.',
+        'Run again to retry. If OSM itself is that sparse there, check the map and ask the owner before changing MIN_COVERAGE.',
     );
   }
   throw new Error(`Overpass ${state}: still busy after ${ATTEMPTS} attempts. Run again to resume.`);

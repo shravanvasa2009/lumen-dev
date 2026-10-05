@@ -16,6 +16,8 @@ const LIVE_FRAME = 2 * (4 + 3) + 8 + 20;
 const TIGHT_BELOW_VIEWPORT = 600;
 const TIGHT_WAVEFORM_HEIGHT = 40;
 const TIGHT_CARD_CHROME = 38;
+// The raw-signal caption, its 24 dp trace and the gaps between the two traces' rows.
+const TIGHT_RAW_TRACE = 48;
 const TIGHT_ROW_GAP = 8;
 const TIGHT_ROWS = 5;
 const MIN_TIGHT_PREVIEW = 88;
@@ -43,6 +45,7 @@ export function captureSizes(viewport: number, stackedChecks: boolean): CaptureS
     MESSAGE +
     TIGHT_CARD_CHROME +
     TIGHT_WAVEFORM_HEIGHT +
+    TIGHT_RAW_TRACE +
     panel +
     TIGHT_ROW_GAP * TIGHT_ROWS +
     TIGHT_RING +

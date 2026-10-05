@@ -79,7 +79,7 @@ export default function PracticeScreen() {
         <SignalScale level={verdict.level} />
       </View>
       <Card>
-        <LiveWaveform red={live.recentRed} />
+        <LiveWaveform pulse={live.recentPulse} red={live.recentRed} />
       </Card>
       {live.phase === 'denied' ? null : (
         <AppText variant="caption" tone="textDim">

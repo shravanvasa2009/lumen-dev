@@ -19,7 +19,7 @@ describe('captureSizes', () => {
   });
 
   it('gives a taller short screen a larger view, up to the tight maximum', () => {
-    expect(captureSizes(590, false).preview).toBeGreaterThan(captureSizes(508, false).preview);
+    expect(captureSizes(599, false).preview).toBeGreaterThan(captureSizes(508, false).preview);
     expect(captureSizes(599, false).preview).toBeLessThanOrEqual(140);
   });
 });

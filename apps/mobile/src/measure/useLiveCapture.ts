@@ -49,6 +49,8 @@ export interface LiveCapture {
   status: CaptureStatus | null;
   // Raw red means of the last 6 s, as the module reports them; the screen only scales them to fit.
   recentRed: readonly number[];
+  // The session's causal band-pass filtered pulse of the same 6 s (a beat is a peak); empty without a session.
+  recentPulse: readonly number[];
   // Seconds on the frames' own clock since the first frame; not a timer.
   elapsedS: number;
   // The live session's own values (ADR 0042), never estimated here; null while it is not running.
@@ -76,6 +78,7 @@ const idle = (phase: LivePhase): LiveState => ({
   failure: null,
   status: null,
   recentRed: [],
+  recentPulse: [],
   elapsedS: 0,
   cleanSeconds: null,
   coachingKey: null,
@@ -286,21 +289,23 @@ export function useLiveCapture(
       if (session && session.cleanSeconds > lastCleanS) lastRiseNs = newest.tNs;
       lastCleanS = session?.cleanSeconds ?? 0;
       const advancing = lastRiseNs !== null && newest.tNs - lastRiseNs <= ADVANCE_HOLD_NS;
+      const waveform = session?.recentWaveform ?? null;
       setLive((previous) => ({
         ...previous,
         advancing: session !== null && advancing,
         recentRed: recent.map((sample) => sample.r),
         elapsedS: (newest.tNs - startNs) / 1e9,
-        ...(session
+        ...(session && waveform
           ? {
               cleanSeconds: session.cleanSeconds,
               coachingKey: session.coachingKey,
-              recentWaveform: session.recentWaveform,
+              recentWaveform: waveform,
+              recentPulse: waveform.ppg,
               rejectedSpans: session.rejectedSpans,
               signalLevel: level,
             }
           : hadSession
-            ? { cleanSeconds: null, coachingKey: null, signalLevel: null, failure: refusal }
+            ? { cleanSeconds: null, coachingKey: null, signalLevel: null, recentPulse: [], failure: refusal }
             : {}),
       }));
     };

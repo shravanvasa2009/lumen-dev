@@ -191,11 +191,12 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
           )}
 
           <Card dense={tight}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <AppText tone="textDim">{t('capture.pulse')}</AppText>
-              <AppText tone="textDim">{t('capture.last6s')}</AppText>
-            </View>
-            <LiveWaveform red={live.recentRed} height={sizes.waveformHeight} />
+            <LiveWaveform
+              pulse={live.recentPulse}
+              red={live.recentRed}
+              height={sizes.waveformHeight}
+              withFact={!tight}
+            />
             {running ? null : (
               <AppText variant="caption" tone="textDim">
                 {t('capture.noWaveform')}

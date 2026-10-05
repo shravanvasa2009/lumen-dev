@@ -23,6 +23,7 @@ const running: LiveCapture = {
   failure: null,
   status: { fingerCovered: true, motionRms: 0, thermal: 'nominal', fps: 60, droppedFrac: 0 },
   recentRed: [0.6, 0.62, 0.58, 0.61],
+  recentPulse: [0.1, 0.4, -0.1, 0.2],
   elapsedS: 5,
   cleanSeconds: null,
   coachingKey: null,

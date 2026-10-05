@@ -26,6 +26,7 @@ const running: LiveCapture = {
   failure: null,
   status: null,
   recentRed: [],
+  recentPulse: [],
   elapsedS: 5,
   cleanSeconds: null,
   coachingKey: null,

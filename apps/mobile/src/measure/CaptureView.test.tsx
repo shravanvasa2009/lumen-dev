@@ -38,6 +38,7 @@ const base: LiveCapture = {
   failure: null,
   status: { fingerCovered: true, motionRms: 0, thermal: 'nominal', fps: 60, droppedFrac: 0 },
   recentRed: [],
+  recentPulse: [],
   elapsedS: 12.4,
   cleanSeconds: null,
   coachingKey: null,
@@ -136,8 +137,9 @@ describe('CaptureView', () => {
   });
 
   it('draws the pulse from the module samples', () => {
-    show({ recentRed: [0.6, 0.62, 0.58, 0.61] });
+    show({ recentRed: [0.6, 0.62, 0.58, 0.61], recentPulse: [0.1, 0.4, -0.1, 0.2] });
     expect(screen.getByTestId('live-waveform', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByTestId('live-waveform-raw', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.queryByText(en['capture.noWaveform'])).toBeNull();
   });
 
@@ -162,6 +164,42 @@ describe('CaptureView', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
     fireEvent.press(screen.getByRole('button', { name: en['capture.stop'] }));
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('labels the filtered pulse above the raw camera signal, in English and Spanish', async () => {
+    show({});
+    expect(screen.getByText(en['capture.wavePulse'])).toBeOnTheScreen();
+    expect(screen.getByText(en['capture.waveRaw'])).toBeOnTheScreen();
+    expect(JSON.stringify(screen.toJSON()).indexOf(en['capture.wavePulse'])).toBeLessThan(
+      JSON.stringify(screen.toJSON()).indexOf(en['capture.waveRaw']),
+    );
+    screen.unmount();
+    await act(() => i18next.changeLanguage('es'));
+    try {
+      show({});
+      expect(screen.getByText(es['capture.wavePulse'])).toBeOnTheScreen();
+      expect(screen.getByText(es['capture.waveRaw'])).toBeOnTheScreen();
+    } finally {
+      await act(() => i18next.changeLanguage('en'));
+    }
+  });
+
+  it('adds the dicrotic fun fact under the raw trace, except on a short screen', () => {
+    show({});
+    expect(screen.getByText(en['capture.waveFact'])).toBeOnTheScreen();
+    expect(JSON.stringify(screen.toJSON()).indexOf(en['capture.waveRaw'])).toBeLessThan(
+      JSON.stringify(screen.toJSON()).indexOf(en['capture.waveFact']),
+    );
+    fireEvent(screen.UNSAFE_getByType(ScrollView), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 508 } },
+    });
+    expect(screen.queryByText(en['capture.waveFact'])).toBeNull();
+  });
+
+  it('draws a flat line for both traces before there is data', () => {
+    show({});
+    expect(screen.queryByTestId('live-waveform', { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByTestId('live-waveform-raw', { includeHiddenElements: true })).toBeNull();
   });
 
   describe('live view', () => {
@@ -229,7 +267,7 @@ describe('CaptureView', () => {
     it('says the signal state once: the header chip, with no second line under the ring', () => {
       show({ cleanSeconds: 40, signalLevel: 0.9, advancing: true });
       expect(screen.getByText(en['capture.qualityGood'])).toBeOnTheScreen();
-      expect(screen.queryByText(/signal/i)).toBeNull();
+      expect(screen.queryByText(/great signal|good signal/i)).toBeNull();
     });
 
     it('orders the pill, ring, message, waveform, labels and the Checking panel as in the mockup', () => {
@@ -237,7 +275,7 @@ describe('CaptureView', () => {
       const order = [
         en['capture.fingerDetected'],
         'of 90 clean s',
-        en['capture.pulse'],
+        en['capture.wavePulse'],
         en['capture.still'],
         en['checks.checking'],
       ].map(indexOf);

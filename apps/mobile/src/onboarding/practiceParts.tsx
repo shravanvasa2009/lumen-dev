@@ -88,18 +88,20 @@ function labelAt(level: number | null): 'weak' | 'ok' | 'strong' | null {
 export function SignalScale({ level = null }: { level?: number | null }) {
   const { t } = useTranslation();
   const current = labelAt(level);
+  const label = (name: 'weak' | 'ok' | 'strong', text: string) => (
+    <AppText
+      variant="caption"
+      tone={current === name ? 'accent' : 'textDim'}
+      style={current === name ? { fontWeight: '600' } : undefined}
+    >
+      {text}
+    </AppText>
+  );
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-      {(['weak', 'ok', 'strong'] as const).map((name) => (
-        <AppText
-          key={name}
-          variant="caption"
-          tone={current === name ? 'accent' : 'textDim'}
-          style={current === name ? { fontWeight: '600' } : undefined}
-        >
-          {t(`signal.${name}`)}
-        </AppText>
-      ))}
+      {label('weak', t('signal.weak'))}
+      {label('ok', t('signal.ok'))}
+      {label('strong', t('signal.strong'))}
     </View>
   );
 }

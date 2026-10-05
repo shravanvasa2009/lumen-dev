@@ -1,6 +1,7 @@
 import {
   createLiveSession,
   DSP_CONFIG,
+  frameProblem,
   type CoachingKey,
   type LiveSession,
   type RejectedSpan,
@@ -131,6 +132,8 @@ export function useLiveCapture(
     let subscriptions: { remove(): void }[] = [];
     let recent: { tNs: number; r: number }[] = [];
     let levelFrames: Sample[] = [];
+    // When the current unbroken run of covered frames began; the filter's step when a finger goes on is not a pulse.
+    let coveredSinceNs: number | null = null;
     let levelAtNs = -Infinity;
     let level: number | null = null;
     let firstNs: number | null = null;
@@ -236,14 +239,26 @@ export function useLiveCapture(
       recent = [...recent, ...batch.samples.map(({ tNs, r }) => ({ tNs, r }))].filter(
         (sample) => newest.tNs - sample.tNs <= WAVEFORM_WINDOW_NS,
       );
+      batch.samples.forEach((sample, index) => {
+        const stat = batch.stats[index];
+        const covered = stat === undefined || frameProblem(sample, stat) !== 'coverage';
+        coveredSinceNs = covered ? (coveredSinceNs ?? sample.tNs) : null;
+      });
       levelFrames = [...levelFrames, ...batch.samples].filter(
-        (sample) => newest.tNs - sample.tNs <= LEVEL_WINDOW_NS,
+        (sample) =>
+          newest.tNs - sample.tNs <= LEVEL_WINDOW_NS && coveredSinceNs !== null && sample.tNs >= coveredSinceNs,
       );
       const hadSession = session !== null;
       const refusal = feedSession(batch);
       if (session && newest.tNs - levelAtNs >= LEVEL_EVERY_NS) {
         levelAtNs = newest.tNs;
-        level = signalLevel(livePerfusionPct(session.recentWaveform, recent), levelFrames, newest.tNs);
+        // Interim until core exposes its own covered-window perfusion: the first perfusionWindowS after the finger
+        // goes on is the filter settling, so the 4 s window is read only from the second one on.
+        const settled =
+          coveredSinceNs !== null && newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
+        level = settled
+          ? signalLevel(livePerfusionPct(session.recentWaveform, recent), levelFrames, newest.tNs)
+          : null;
       }
       setLive((previous) => ({
         ...previous,

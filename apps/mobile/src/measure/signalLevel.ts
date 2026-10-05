@@ -24,9 +24,10 @@ export function livePerfusionPct(
 }
 
 // The practice meter's 0 to 1 position: the coupling factors of spec 05 section 5.1 (PI over 1.0 % and SNR over
-// 12 dB, each capped at 1), fed live as spec 04 section 4.2 technique 4 says. The pulse's SNR needs a
-// minSegmentS stretch of frames; until then the perfusion index alone moves the bar. Once the estimator has
-// that stretch and still finds no pulse, the SNR factor is 0, as the rating treats an unfound pulse.
+// 12 dB, each capped at 1), read as the live feed spec 04 section 4.2 technique 4 asks for (ADR 0095).
+// The pulse's SNR needs liveHr.minSegmentS of frames (ADR 0027); until then the perfusion index alone moves the
+// bar. After that, the estimator returns null below its own 6 dB limit, so the SNR factor falls from 0.5 to 0
+// there; the bar is a coarse guide, not a smooth SNR readout.
 export function signalLevel(
   perfusionPct: number | null,
   frames: readonly Sample[],

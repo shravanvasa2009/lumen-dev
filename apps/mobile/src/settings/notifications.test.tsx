@@ -1,8 +1,10 @@
 import { getPermissionsAsync, requestPermissionsAsync } from 'expo-notifications';
 import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import i18next from 'i18next';
 import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
+import es from '@/i18n/es.json';
 import * as prefsStore from '@/notifications/prefs';
 import { planNotifications } from '@/notifications/plan';
 import { loadNotificationPrefs } from '@/notifications/prefs';
@@ -226,6 +228,25 @@ describe('Notifications settings', () => {
       await open();
       fireEvent.press(screen.getByRole('button', { name: en['notifications.from'] }));
       expect(screen.getByTestId('time-picker').props.is24Hour).toBe(false);
+    });
+
+    it('shows a 24-hour dial and 24-hour rows in Spanish', async () => {
+      await act(async () => {
+        await i18next.changeLanguage('es');
+      });
+      try {
+        renderRouter(appDirectory, { initialUrl: '/settings/notifications' });
+        await screen.findByRole('switch', { name: es['notifications.daily'] });
+        expect(screen.getByText('21:00')).toBeOnTheScreen();
+        fireEvent.press(screen.getByRole('button', { name: es['notifications.from'] }));
+        const picker = screen.getByTestId('time-picker');
+        expect(picker.props.is24Hour).toBe(true);
+        expect(picker.props.locale).toBe('es');
+      } finally {
+        await act(async () => {
+          await i18next.changeLanguage('en');
+        });
+      }
     });
 
     it('closes the picker without saving when it is dismissed', async () => {

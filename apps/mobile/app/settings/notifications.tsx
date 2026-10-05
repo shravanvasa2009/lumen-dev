@@ -31,7 +31,8 @@ type TimeRowProps = {
   onChange: (time: ClockTime) => void;
 };
 
-// The dial follows the clock the rows are written in: en shows "7:00 AM", es "7:00".
+// The dial follows the clock the rows are written in: en shows "7:00 AM", es "7:00". Android takes is24Hour;
+// iOS follows the locale, so both are passed.
 const usesDayPeriod = (languageTag: string) =>
   new Intl.DateTimeFormat(languageTag, { hour: 'numeric' })
     .formatToParts(new Date(2000, 0, 1, 7))
@@ -61,6 +62,7 @@ function TimeRow({ title, time, languageTag, last = false, onChange }: TimeRowPr
           onValueChange={(_event, picked) => pick(picked)}
           onDismiss={() => setOpen(false)}
           is24Hour={!usesDayPeriod(languageTag)}
+          locale={languageTag}
         />
       ) : null}
     </>

@@ -46,6 +46,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -73,6 +74,11 @@ private data class ResultSnapshot(
     val focusDistance: Float?,
     // CONTROL_AE_EXPOSURE_COMPENSATION as the camera applied it, so the log shows whether the steering took hold.
     val aeCompensation: Int?,
+    // SENSOR_FRAME_DURATION: the sensor's real frame interval, which tells a slow sensor from frames lost on the way
+    // to the analyzer.
+    val frameDurationNs: Long?,
+    // CONTROL_AE_TARGET_FPS_RANGE as the camera applied it, to check the requested range reached the camera.
+    val aeFpsRange: Range<Int>?,
 )
 
 // The Camera2 options this session adds on top of CameraX's own request. Changed only on the exposure thread.
@@ -168,6 +174,14 @@ class CameraSession(
     private var seenOpen = false // main thread only
     private var reopened = false // main thread only
     private val analysisFailures = AtomicInteger(0)
+
+    // For the contact log: capture results per second against analyzed frames per second, the whole analyze() time,
+    // and the delay from the sensor timestamp to analyze() (CameraX's queue and RGBA conversion run in between).
+    private val captureResults = AtomicLong(0)
+    private var loggedResults = 0L // event thread only
+    private var loggedResultsNs = 0L // event thread only
+    private val analyzeTiming = TimingWindow()
+    private val queueTiming = TimingWindow()
 
     // start()'s callback until the start succeeds or fails, then null. Main thread only, like the fields below.
     private var startDone: ((Throwable?) -> Unit)? = null
@@ -362,11 +376,16 @@ class CameraSession(
     // A throw here would escape CameraX's analyzer executor and crash the app, so a failed frame is counted,
     // logged, and skipped; the skipped frame then shows up as a dropped frame.
     private fun analyze(image: ImageProxy) {
+        val entryNs = System.nanoTime()
+        // Sensor timestamps share elapsedRealtimeNanos() only with a realtime timestamp source.
+        if (lens.realtimeTimestamps) queueTiming.add(SystemClock.elapsedRealtimeNanos() - image.imageInfo.timestamp)
         try {
             reduceAndCount(image)
         } catch (e: RuntimeException) {
             val failures = analysisFailures.incrementAndGet()
             if (failures == 1 || failures % FAILURE_LOG_EVERY == 0) Log.e(TAG, "Frame reduction failed ($failures so far)", e)
+        } finally {
+            analyzeTiming.add(System.nanoTime() - entryNs)
         }
     }
 
@@ -720,6 +739,7 @@ class CameraSession(
                 request: CaptureRequest,
                 captureResult: TotalCaptureResult,
             ) {
+                captureResults.incrementAndGet()
                 val exposureNs = captureResult.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: 0L
                 captureResult.get(CaptureResult.SENSOR_TIMESTAMP)?.let { exposureLog.record(it, exposureNs) }
                 val afState = captureResult.get(CaptureResult.CONTROL_AF_STATE)
@@ -742,6 +762,8 @@ class CameraSession(
                                 afState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED,
                         focusDistance = captureResult.get(CaptureResult.LENS_FOCUS_DISTANCE),
                         aeCompensation = captureResult.get(CaptureResult.CONTROL_AE_EXPOSURE_COMPENSATION),
+                        frameDurationNs = captureResult.get(CaptureResult.SENSOR_FRAME_DURATION),
+                        aeFpsRange = captureResult.get(CaptureResult.CONTROL_AE_TARGET_FPS_RANGE),
                     )
             }
         }
@@ -807,6 +829,13 @@ class CameraSession(
     // of the newest frame, with its exposure and the frame rate. Frame averages only, never a health value
     // (CAP-3 keeps frames native).
     private fun logContactInputs() {
+        val nowNs = SystemClock.elapsedRealtimeNanos()
+        val results = captureResults.get()
+        val resultsPerS = if (loggedResultsNs == 0L) 0.0 else (results - loggedResults) * 1e9 / (nowNs - loggedResultsNs)
+        loggedResults = results
+        loggedResultsNs = nowNs
+        val analyzeMs = analyzeTiming.take()
+        val queueMs = queueTiming.take()
         counters.lastFrame?.let { frame ->
             val numbers = frame.numbers
             val sumGb = numbers.g + numbers.b
@@ -816,7 +845,12 @@ class CameraSession(
                 "Contact inputs: R/(G+B) $ratio, mean R ${"%.3f".format(Locale.ROOT, numbers.r)}, " +
                     "spatialStdR ${"%.3f".format(Locale.ROOT, numbers.spatialStdR)}, " +
                     "clipFrac ${"%.3f".format(Locale.ROOT, numbers.clipFrac)}, covered ${fingerCovered(numbers)}, " +
-                    "exposureNs ${frame.exposureNs}, fps ${counters.recentFps(SystemClock.elapsedRealtimeNanos()).roundToInt()}",
+                    "exposureNs ${frame.exposureNs}, fps ${counters.recentFps(nowNs).roundToInt()}, " +
+                    "results/s ${resultsPerS.roundToInt()}, frameDurationNs ${latest?.frameDurationNs ?: "not reported"}, " +
+                    "AE fps range ${latest?.aeFpsRange ?: "not reported"}, " +
+                    "median interval ms ${msText(counters.lockIntervalNs() / 1e6)}, dropped ${counters.dropped}, " +
+                    "analyze ms ${msText(analyzeMs.mean)}/${msText(analyzeMs.max)}, " +
+                    "queue ms ${if (lens.realtimeTimestamps) "${msText(queueMs.mean)}/${msText(queueMs.max)}" else "n/a"}",
             )
         }
         events.postDelayed(::logContactInputs, CONTACT_LOG_MS)
@@ -891,6 +925,8 @@ class CameraSession(
 }
 
 private fun redText(red: Double): String = "%.3f".format(Locale.ROOT, red)
+
+private fun msText(ms: Double): String = "%.1f".format(Locale.ROOT, ms)
 
 // CaptureResult.CONTROL_AE_STATE values, for the lock log line.
 private fun aeStateName(state: Int?): String =

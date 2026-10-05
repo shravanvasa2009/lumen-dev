@@ -17,7 +17,8 @@ interface Recipe {
   amplitudeAt: (tS: number) => number;
   // Mean red at second `tS`; a camera whose auto-exposure is still adapting drifts here.
   levelAt?: (tS: number) => number;
-  // Standard deviation of the frame-to-frame noise in red, 0 to 1 scale.
+  // Scale of the frame-to-frame noise in red, 0 to 1 scale. noiseAt (four uniforms minus 2) has a standard
+  // deviation of about 0.577, so the real standard deviation is about 0.577 times this setting.
   noise?: number;
   // The lens is uncovered (bright, no red dominance) until this second, then the finger goes on.
   fingerOnAtS?: number;
@@ -134,6 +135,7 @@ describe.each([
       14,
     );
     expect(noisyWeak!).toBeGreaterThanOrEqual(1 / 3);
+    expect(noisyWeak!).toBeLessThan(2 / 3);
   });
 
   it('follows the signal down when the finger slips and the pulse fades', async () => {

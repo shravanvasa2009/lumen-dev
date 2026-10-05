@@ -11,8 +11,10 @@ export function validChannels(sample: Sample): boolean {
   return [sample.r, sample.g, sample.b].every((channel) => channel >= 0 && channel <= 1);
 }
 
-// DSP-4 per frame: null when covered; "clipping" when only the clip limit fails; else "coverage".
-// A broken frame or a non-finite stat is "coverage": +Infinity red would otherwise pass the ratio test.
+/**
+ * DSP-4 per frame: null when covered; "clipping" when only the clip limit fails; else "coverage". A broken
+ * frame or a non-finite stat is "coverage": +Infinity red would otherwise pass the ratio test.
+ */
 export function frameProblem(sample: Sample, stat: FrameStat): RejectionReason | null {
   const { minRedRatio, minRedMean, maxSpatialStdR, maxClipFrac } = DSP_CONFIG.dsp4;
   const covered =

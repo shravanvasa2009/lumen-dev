@@ -65,7 +65,7 @@ name: Every route opens
 # Onboarding's practice and the captures opened above are kept with 0 clean seconds, so Analyzing hands
 # them to Inconclusive (#239); processing.test.tsx covers the Analyzing title and See a sample result.
 - openLink: lumen://measure/processing
-- assertVisible: 'Not enough clean signal\.'
+- assertVisible: 'Not enough clean signal'
 - openLink: lumen://results/demo
 - assertVisible: 'Results'
 - openLink: lumen://results/demo-flag
@@ -77,7 +77,7 @@ name: Every route opens
 - openLink: lumen://results/demo-flag/why
 - assertVisible: 'Why .irregular.\?'
 - openLink: lumen://measure/inconclusive
-- assertVisible: 'Not enough clean signal\.'
+- assertVisible: 'Not enough clean signal'
 - openLink: lumen://measure/inconclusive?id=demo-inconclusive
 - assertVisible: 'We got 38 clean seconds\. Most of the lost time was movement\.'
 - openLink: lumen://emergency

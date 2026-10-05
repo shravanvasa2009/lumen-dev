@@ -185,7 +185,7 @@ describe('processing screen', () => {
     expect(screen.getByRole('header', { name: en['result.inconclusive'] })).toBeOnTheScreen();
     expect(screen.getByText('We got 0 clean seconds. Most of the lost time was light.')).toBeOnTheScreen();
     expect(screen.getByText('This check needs at least 90 clean seconds.')).toBeOnTheScreen();
-    expect(screen.getByText('Light 12 s')).toBeOnTheScreen();
+    expect(screen.getByText('Light 100%')).toBeOnTheScreen();
     expect(screen.getByText(en['inconclusive.tipCover'])).toBeOnTheScreen();
     expect(screen.getByText(en['inconclusive.tipElbows'])).toBeOnTheScreen();
     expect(screen.queryByText(en['demo.banner'])).toBeNull();

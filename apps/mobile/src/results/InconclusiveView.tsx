@@ -16,7 +16,7 @@ import { useTheme } from '@/theme';
 
 import type { FixtureReading } from './fixtures';
 import { DemoBanner } from './DemoBanner';
-import { Icon } from '@/components/Icon';
+import { Icon, type IconName } from '@/components/Icon';
 import { LostTime } from './LostTime';
 
 const causeWord = (t: TFunction, cause: LostCause) =>
@@ -33,20 +33,23 @@ function summary(t: TFunction, seconds: number, biggest: LostCause | null): stri
     : t('inconclusive.got', { seconds, cause: causeWord(t, biggest) });
 }
 
+type Tip = { text: string; icon: IconName };
+
 // One tip per lost-time cause; the two causes that lost the most pick the two tips (§12 screen 19).
-function tipFor(t: TFunction, cause: LostCause): string {
+function tipFor(t: TFunction, cause: LostCause): Tip {
   return {
-    motion: t('inconclusive.tipElbows'),
-    pressure: t('inconclusive.tipPressure'),
-    coverage: t('inconclusive.tipCover'),
-    coldHands: t('fix.tipWarm'),
+    motion: { text: t('inconclusive.tipElbows'), icon: 'elbow' },
+    pressure: { text: t('inconclusive.tipPressure'), icon: 'hint' },
+    coverage: { text: t('inconclusive.tipCover'), icon: 'hint' },
+    coldHands: { text: t('fix.tipWarm'), icon: 'hint' },
   }[cause];
 }
 
-function tipsFor(t: TFunction, causes: readonly LostCause[]): string[] {
+function tipsFor(t: TFunction, causes: readonly LostCause[]): Tip[] {
   const tips = causes.slice(0, 2).map((cause) => tipFor(t, cause));
-  for (const fallback of [t('inconclusive.tipElbows'), t('inconclusive.tipBreathe')])
-    if (tips.length < 2 && !tips.includes(fallback)) tips.push(fallback);
+  const fallbacks: Tip[] = [tipFor(t, 'motion'), { text: t('inconclusive.tipBreathe'), icon: 'hint' }];
+  for (const fallback of fallbacks)
+    if (tips.length < 2 && !tips.some((tip) => tip.text === fallback.text)) tips.push(fallback);
   return tips;
 }
 
@@ -115,11 +118,21 @@ export function InconclusiveView({ reading, outcome, mode }: InconclusiveViewPro
             ) : null}
           </View>
           <LostTime lost={lost} />
-          <Card>
-            {tips.map((tip) => (
-              <View key={tip} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-                <Icon name="hint" size={20} color={colors.accent} />
-                <AppText style={{ flex: 1 }}>{tip}</AppText>
+          <Card flush>
+            {tips.map((tip, index) => (
+              <View
+                key={tip.text}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.md,
+                  padding: spacing.lg,
+                  borderTopWidth: index === 0 ? 0 : 1,
+                  borderTopColor: colors.line,
+                }}
+              >
+                <Icon name={tip.icon} size={20} color={colors.accent} />
+                <AppText style={{ flex: 1 }}>{tip.text}</AppText>
               </View>
             ))}
           </Card>

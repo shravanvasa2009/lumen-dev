@@ -105,10 +105,11 @@ function liveRates(core, samples) {
 
 // DSP-4 per frame, one count per failed test (a frame can fail several): which test keeps the finger from
 // counting as on the lens. Clipping alone leaves a frame covered (contact.ts frameProblem), so it is counted
-// apart. On the A17 the native hint also required no clipping, so the exposure lock never armed.
+// apart. A frame uncovered by none of the three tests has values DSP-4 refuses (a channel outside 0..1, a
+// non-finite stat): it gets its own count.
 function contactTests(core, samples, stats) {
   const { minRedRatio, minRedMean, maxSpatialStdR, maxClipFrac } = core.DSP_CONFIG.dsp4;
-  const failed = { redRatio: 0, redLevel: 0, spatialSpread: 0 };
+  const failed = { invalidValues: 0, redRatio: 0, redLevel: 0, spatialSpread: 0 };
   let uncovered = 0;
   let clippedButCovered = 0;
   samples.forEach((sample, i) => {
@@ -116,9 +117,14 @@ function contactTests(core, samples, stats) {
     const problem = core.frameProblem(sample, stat);
     if (problem === 'coverage') uncovered++;
     if (problem === 'clipping') clippedButCovered++;
-    if (!(sample.r >= minRedRatio * (sample.g + sample.b))) failed.redRatio++;
-    if (!(sample.r >= minRedMean)) failed.redLevel++;
-    if (!(stat.spatialStdR <= maxSpatialStdR)) failed.spatialSpread++;
+    const ratioFails = !(sample.r >= minRedRatio * (sample.g + sample.b));
+    const levelFails = !(sample.r >= minRedMean);
+    const spreadFails = !(stat.spatialStdR <= maxSpatialStdR);
+    if (ratioFails) failed.redRatio++;
+    if (levelFails) failed.redLevel++;
+    if (spreadFails) failed.spatialSpread++;
+    // Uncovered by none of the three tests: frameProblem refused the values themselves.
+    if (problem === 'coverage' && !ratioFails && !levelFails && !spreadFails) failed.invalidValues++;
   });
   const clipped = stats.filter((stat) => stat.clipFrac > maxClipFrac).length;
   return { uncovered, failed, clipped, clippedButCovered };
@@ -148,9 +154,9 @@ function verdicts({
 }) {
   const lines = [];
   if (contact.uncovered > MOSTLY_LOST * frames) {
-    const [test] = Object.entries(contact.failed).sort(([, x], [, y]) => y - x)[0];
+    const [test, count] = Object.entries(contact.failed).sort(([, x], [, y]) => y - x)[0];
     lines.push(
-      `${((100 * contact.uncovered) / frames).toFixed(0)}% of frames fail DSP-4 contact, mostly the ${test} test: the finger does not count as on the lens`,
+      `${((100 * contact.uncovered) / frames).toFixed(0)}% of frames fail DSP-4 contact${count > 0 ? `, mostly ${test === 'invalidValues' ? 'on values outside 0..1 or non-finite stats (a capture format problem)' : `the ${test} test`}` : ''}: the finger does not count as on the lens`,
     );
   }
   const exposureRefuses = exposureLostS > MOSTLY_LOST * durationS;
@@ -316,7 +322,7 @@ export function formatReport(report) {
     report.folder,
     `  Capture   ${capture.durationS.toFixed(1)} s, ${capture.frames} frames, ${capture.medianFps.toFixed(1)} fps median, interval sd ${capture.intervalSdMs.toFixed(1)} ms, ${capture.gaps} gaps over DSP-2's limit`,
     `  Exposure  ${capture.exposureValues === 1 ? 'one value (locked)' : `${capture.exposureValues} values, ${capture.exposureChanges} changes (${(capture.exposureChanges / capture.durationS).toFixed(2)}/s)`}`,
-    `  Contact   ${report.contact.uncovered} of ${capture.frames} frames not covered (DSP-4); failing red ratio ${report.contact.failed.redRatio}, red level ${report.contact.failed.redLevel}, spatial spread ${report.contact.failed.spatialSpread}; clipped ${report.contact.clipped} (${report.contact.clippedButCovered} of them still covered)`,
+    `  Contact   ${report.contact.uncovered} of ${capture.frames} frames not covered (DSP-4); failing red ratio ${report.contact.failed.redRatio}, invalid values ${report.contact.failed.invalidValues}, red level ${report.contact.failed.redLevel}, spatial spread ${report.contact.failed.spatialSpread}; clipped ${report.contact.clipped} (${report.contact.clippedButCovered} of them still covered)`,
     `  Signal    red level ${signal.redLevel.toFixed(3)}, pulse ${signal.pulsePct === null ? '—' : `${signal.pulsePct.toFixed(2)}%`} of it`,
     `  Clean     ${clean.seconds.toFixed(1)} s${clean.needed === null ? '' : ` (needs ${clean.needed})`}; lost (reasons overlap): ${lost || 'none'}`,
     `  Beats     ${

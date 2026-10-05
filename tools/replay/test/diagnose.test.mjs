@@ -92,6 +92,21 @@ describe('diagnose: where the heart rate goes wrong in a capture', () => {
     assert.ok(report.verdicts.some((line) => line.includes('mostly the spatialSpread test')));
   });
 
+  it('colour means on a 0–255 scale are named as a capture format problem, not a contact test', async () => {
+    const folder = path.join(scratch, 'scale255');
+    writeSyntheticCapture(folder, { seconds: 40, bpm: 70 });
+    const file = path.join(folder, 'samples.csv');
+    const [header, ...rows] = fs.readFileSync(file, 'utf8').trimEnd().split('\n');
+    const scaled = rows.map((row) => {
+      const [tNs, ...channels] = row.split(',');
+      return [tNs, ...channels.map((value) => Number(value) * 255)].join(',');
+    });
+    fs.writeFileSync(file, `${[header, ...scaled].join('\n')}\n`);
+    const report = await diagnoseFolder(folder, { referenceBpm: 70 });
+    assert.equal(report.contact.failed.invalidValues, report.capture.frames);
+    assert.ok(report.verdicts.some((line) => line.includes('a capture format problem')));
+  });
+
   it('without a reference it asks for one instead of judging the rates', async () => {
     const folder = path.join(scratch, 'noref');
     writeSyntheticCapture(folder, { seconds: 40, bpm: 60 });

@@ -23,7 +23,7 @@ const RING = 4;
 const LIFT = 14;
 // Part of the circle that sits inside the bar: the circle with its ring, less the lift and one ring width.
 const CIRCLE_IN_ROW = CIRCLE + RING * 2 - LIFT - RING;
-// Space between the circle and the label line so the two do not touch.
+// Room left below the one-line label so its descenders are not cut by the bar's edge.
 const LABEL_GAP = 6;
 
 // The tab row must hold the raised circle's visible part plus the label. The demo bar removes the bottom
@@ -67,7 +67,13 @@ export function CareTabButton({
       >
         <Icon name="care" size={28} color={colors.onAccentFill} />
       </View>
-      <AppText variant="caption" tone="accent" style={{ fontWeight: selected ? '700' : '500' }}>
+      <AppText
+        variant="caption"
+        tone="accent"
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        style={{ fontWeight: selected ? '700' : '500' }}
+      >
         {label}
       </AppText>
     </PressableScale>

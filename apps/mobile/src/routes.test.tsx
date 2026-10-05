@@ -1,9 +1,11 @@
 import { act, fireEvent, getMockContext, renderRouter, screen, within } from 'expo-router/testing-library';
+import i18next from 'i18next';
 import { router } from 'expo-router';
 import { Dimensions, StyleSheet } from 'react-native';
 
 import { enterDemo, exitDemo } from '@/demo/demoSession';
 import en from '@/i18n/en.json';
+import es from '@/i18n/es.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
 import { startOnboarded } from '@/testing/onboarded';
@@ -225,7 +227,23 @@ describe('tab bar', () => {
     },
   );
 
-  it('grows the tab row with the system font size so the Care label never clips', () => {
+  it('keeps the Care label on one line, shrunk to fit, in Spanish at font scale 2', async () => {
+    mockScheme = 'light';
+    const originalWindow = Dimensions.get('window');
+    act(() => Dimensions.set({ window: { ...originalWindow, fontScale: 2 } }));
+    await act(() => i18next.changeLanguage('es'));
+    try {
+      renderRouter(appDirectory, { initialUrl: '/' });
+      const label = within(screen.getByLabelText(es['tabs.careLabel'])).getByText(es['tabs.care']);
+      expect(label.props.numberOfLines).toBe(1);
+      expect(label.props.adjustsFontSizeToFit).toBe(true);
+    } finally {
+      await act(() => i18next.changeLanguage('en'));
+      act(() => Dimensions.set({ window: originalWindow }));
+    }
+  });
+
+  it('grows the tab row with the font scale', () => {
     mockScheme = 'light';
     const originalWindow = Dimensions.get('window');
     act(() => Dimensions.set({ window: { ...originalWindow, fontScale: 2 } }));
@@ -234,8 +252,8 @@ describe('tab bar', () => {
       let tabRow = screen.getByLabelText(careLabel).parent;
       while (tabRow && StyleSheet.flatten(tabRow.props.style)?.height === undefined) tabRow = tabRow.parent;
       const scaledLabelLine = tokens.type.caption.lineHeight * 2;
-      const circleLift = 42;
-      expect(StyleSheet.flatten(tabRow?.props.style).height).toBeGreaterThan(scaledLabelLine + circleLift);
+      const circleInRow = 42;
+      expect(StyleSheet.flatten(tabRow?.props.style).height).toBeGreaterThan(scaledLabelLine + circleInRow);
     } finally {
       act(() => Dimensions.set({ window: originalWindow }));
     }

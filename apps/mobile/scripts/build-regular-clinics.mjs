@@ -162,17 +162,18 @@ function coverage(elements, state) {
       TOWN_NEIGHBOURS,
   );
   if (towns.length < MIN_TOWNS) return 1;
-  const grid = new Map();
+  const osmCells = new Map();
   for (const point of elements.map(elementPoint).filter(({ lat }) => Number.isFinite(lat))) {
     const cell = `${Math.floor(point.lat / COVERAGE_GRID_DEGREES)}:${Math.floor(point.lon / COVERAGE_GRID_DEGREES)}`;
-    grid.set(cell, [...(grid.get(cell) ?? []), point]);
+    if (!osmCells.has(cell)) osmCells.set(cell, []);
+    osmCells.get(cell).push(point);
   }
   const covered = towns.filter((town) => {
     const latCell = Math.floor(town.lat / COVERAGE_GRID_DEGREES);
     const lonCell = Math.floor(town.lon / COVERAGE_GRID_DEGREES);
     for (let latStep = -1; latStep <= 1; latStep += 1) {
       for (let lonStep = -1; lonStep <= 1; lonStep += 1) {
-        const near = grid.get(`${latCell + latStep}:${lonCell + lonStep}`) ?? [];
+        const near = osmCells.get(`${latCell + latStep}:${lonCell + lonStep}`) ?? [];
         if (near.some((point) => metresApart(town, point) <= coverageMetres)) return true;
       }
     }
@@ -189,6 +190,8 @@ async function fetchState(state) {
     if (share >= MIN_COVERAGE) return { elements, fresh: false, share };
     console.warn(`Overpass ${state}: cached answer covers ${share.toFixed(2)} of HRSA sites; fetching again.`);
   }
+  // The last short answer's coverage, so a run that never gets a complete one says why it stopped.
+  let lastShare = null;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
     const url = OVERPASS_URLS[(attempt - 1) % OVERPASS_URLS.length];
     const response = await fetch(url, {
@@ -205,6 +208,7 @@ async function fetchState(state) {
         writeFileSync(cached, text);
         return { elements: answer.elements, fresh: true, share };
       }
+      if (!answer.remark) lastShare = share;
       console.warn(
         `Overpass ${state}: incomplete answer from ${url} (${answer.remark ?? `covers ${share.toFixed(2)} of HRSA sites`}).`,
       );
@@ -216,6 +220,12 @@ async function fetchState(state) {
       );
     }
     await wait(BUSY_PAUSE_MS);
+  }
+  if (lastShare !== null) {
+    throw new Error(
+      `Overpass ${state}: answers cover only ${lastShare.toFixed(2)} of HRSA towns (need ${MIN_COVERAGE}). ` +
+        'If OSM itself is that sparse there, lower MIN_COVERAGE for this state only after checking the map.',
+    );
   }
   throw new Error(`Overpass ${state}: still busy after ${ATTEMPTS} attempts. Run again to resume.`);
 }

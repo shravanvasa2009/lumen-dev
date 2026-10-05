@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle, focusedNavHeader } from '@/testing/navHeader';
+import { enterDemo, exitDemo } from '@/demo/demoSession';
 import { startOnboarded } from '@/testing/onboarded';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 import tokens from '@/theme/tokens.json';
@@ -206,6 +207,19 @@ describe('tab bar', () => {
       (node) => StyleSheet.flatten(node.props.style)?.backgroundColor === tokens.dark.accentFill,
     );
     expect(circle).not.toHaveLength(0);
+  });
+
+  it.each(['light', 'dark'] as const)('keeps the whole Care label inside the bar while the demo bar is up (%s)', (scheme) => {
+    mockScheme = scheme;
+    act(() => enterDemo());
+    renderRouter(appDirectory, { initialUrl: '/' });
+    expect(screen.getByText(en['demo.bar'])).toBeOnTheScreen();
+    let tabRow = screen.getByLabelText(careLabel).parent;
+    while (tabRow && StyleSheet.flatten(tabRow.props.style)?.height === undefined) tabRow = tabRow.parent;
+    const barStyle = StyleSheet.flatten(tabRow?.props.style);
+    // Circle (60) minus its lift (18) plus a 24 dp label line; the bar may not be shorter than that.
+    expect(barStyle.height).toBeGreaterThanOrEqual(66);
+    act(() => exitDemo());
   });
 
   it.each(['light', 'dark'] as const)('keeps a 44 dp Care target in the %s theme', (scheme) => {

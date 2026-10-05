@@ -1,8 +1,9 @@
 import { Tabs } from 'expo-router';
 import { Easing } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CareTabButton } from '@/components/CareTabButton';
+import { CareTabButton, TAB_ROW_HEIGHT } from '@/components/CareTabButton';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
 import { motion, useReduceMotion } from '@/theme/motion';
@@ -11,6 +12,7 @@ export default function TabsLayout() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
+  const { bottom } = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={{
@@ -23,7 +25,11 @@ export default function TabsLayout() {
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textDim,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.line,
+          height: TAB_ROW_HEIGHT + bottom,
+        },
       }}
     >
       <Tabs.Screen

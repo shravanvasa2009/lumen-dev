@@ -265,6 +265,42 @@ describe('useLiveCapture', () => {
       expect(fake.locks).toBe(1);
     });
 
+    // The contract's status carries only the module's own hint; the frames' clip fraction rides in the batch.
+    // Native no longer folds clipping into the hint, so a covered but clipping finger must still reach the lock.
+    const clippingBatch = (fromS: number): SampleBatch => ({
+      samples: Array.from({ length: 10 }, (_, i) => ({ tNs: (fromS + i / 10) * 1e9, r: 0.98, g: 0.1, b: 0.1 })),
+      stats: Array.from({ length: 10 }, (_, i) => ({
+        tNs: (fromS + i / 10) * 1e9,
+        spatialStdR: 0.02,
+        clipFrac: 0.4,
+        exposureNs: 8e6,
+      })),
+    });
+
+    it('locks 1 s after a covered status even while the frames clip', async () => {
+      const fake = new FakeCapture();
+      await running(fake);
+      act(() => {
+        fake.emitSamples(clippingBatch(100));
+        fake.emitStatus(statusWith(true));
+      });
+      await after(999);
+      expect(fake.locks).toBe(0);
+      await after(1);
+      expect(fake.locks).toBe(1);
+    });
+
+    it('does not lock while the status says the lens is uncovered, whatever the frames show', async () => {
+      const fake = new FakeCapture();
+      await running(fake);
+      act(() => {
+        fake.emitSamples(clippingBatch(100));
+        fake.emitStatus(statusWith(false));
+      });
+      await after(5000);
+      expect(fake.locks).toBe(0);
+    });
+
     it('restarts the settle when the finger lifts before it ends', async () => {
       const fake = new FakeCapture();
       await running(fake);

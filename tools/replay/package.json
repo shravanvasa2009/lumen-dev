@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "replay": "node src/cli.mjs",
-    "test": "node --test test/replay.test.mjs"
+    "test": "node --test test/replay.test.mjs test/diagnose.test.mjs",
+    "diagnose": "node src/diagnose-cli.mjs"
   }
 }

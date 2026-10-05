@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
 
@@ -27,5 +28,16 @@ describe('SignalScale', () => {
     render(<SignalScale />);
     for (const key of ['signal.weak', 'signal.ok', 'signal.strong'] as const)
       expect(screen.getByText(en[key])).toBeOnTheScreen();
+  });
+
+  it('emphasises the label under the marker, and none without a level', () => {
+    const weight = (key: 'signal.weak' | 'signal.ok' | 'signal.strong') =>
+      StyleSheet.flatten(screen.getByText(en[key]).props.style).fontWeight;
+    const { rerender } = render(<SignalScale />);
+    expect(weight('signal.strong')).not.toBe('600');
+    rerender(<SignalScale level={0.1} />);
+    expect([weight('signal.weak'), weight('signal.strong')]).toEqual(['600', '400']);
+    rerender(<SignalScale level={0.9} />);
+    expect([weight('signal.weak'), weight('signal.strong')]).toEqual(['400', '600']);
   });
 });

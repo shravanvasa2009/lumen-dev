@@ -31,6 +31,7 @@ const running: LiveCapture = {
   coachingKey: null,
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
+  signalLevel: null,
 };
 
 const FIRST_TAKEN_AT = new Date(2026, 9, 1, 6, 30).getTime();

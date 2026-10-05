@@ -30,6 +30,7 @@ const base: LiveCapture = {
   coachingKey: null,
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
+  signalLevel: null,
 };
 
 const FULL_PHONE: PlanPhone = { tier: 'full', ambient: false, fps60: true };

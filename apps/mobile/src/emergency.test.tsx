@@ -1,8 +1,10 @@
 import { act, renderHook, within } from '@testing-library/react-native';
+import i18next from 'i18next';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import { Dimensions, Linking, ScrollView } from 'react-native';
 
 import en from '@/i18n/en.json';
+import es from '@/i18n/es.json';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { startOnboarded } from '@/testing/onboarded';
@@ -100,5 +102,37 @@ describe('emergency screen', () => {
     expect(scrolling.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
     expect(scrolling.queryByRole('button')).toBeNull();
     expect(scrolling.queryByText(en['emergency.callFailed'])).toBeNull();
+  });
+
+  it('moves the stroke card into the scrolling block at large text, so every action stays in view', () => {
+    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 2 } }));
+    savePhone('(713) 555-0100');
+    renderRouter('./app', { initialUrl: '/emergency' });
+    const scrolling = within(screen.UNSAFE_getByType(ScrollView));
+    expect(scrolling.getByText(en['emergency.strokeLetters'])).toBeOnTheScreen();
+    expect(scrolling.queryByRole('button')).toBeNull();
+    expect(screen.getAllByRole('button')).toHaveLength(3);
+  });
+
+  it('keeps the stroke card with the actions at normal text', () => {
+    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
+    renderRouter('./app', { initialUrl: '/emergency' });
+    const scrolling = within(screen.UNSAFE_getByType(ScrollView));
+    expect(scrolling.queryByText(en['emergency.strokeLetters'])).toBeNull();
+    expect(screen.getByText(en['emergency.strokeLetters'])).toBeOnTheScreen();
+  });
+
+  it('reads in Spanish with Call, okay and the stroke signs all present on 360x640', async () => {
+    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
+    await act(() => i18next.changeLanguage('es'));
+    try {
+      renderRouter('./app', { initialUrl: '/emergency' });
+      expect(screen.getByRole('header', { name: es['emergency.title'] })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: es['emergency.call'] })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: es['emergency.okay'] })).toBeOnTheScreen();
+      expect(screen.getByText(es['emergency.strokeLetters'])).toBeOnTheScreen();
+    } finally {
+      await act(() => i18next.changeLanguage('en'));
+    }
   });
 });

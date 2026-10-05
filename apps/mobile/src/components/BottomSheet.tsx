@@ -67,6 +67,8 @@ export function BottomSheet({ visible, onDismiss, dismissLabel, children }: Bott
             borderWidth: 1,
             borderTopLeftRadius: radius.sheet,
             borderTopRightRadius: radius.sheet,
+            // Leaves the status bar visible; a body taller than this scrolls instead of running off the top.
+            maxHeight: '90%',
             padding: spacing.xxl,
             paddingBottom: spacing.xxxl,
             gap: spacing.lg,

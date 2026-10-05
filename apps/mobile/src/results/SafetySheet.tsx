@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -42,26 +42,30 @@ export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
           backgroundColor: colors.line2,
         }}
       />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-        <View
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: radius.pill,
-            backgroundColor: colors.flagBg,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icon name="warning" size={32} color={colors.flag} mark={colors.flagBg} />
+      {/* Only the title and question scroll: at the largest font on a 360x640 phone they are taller than the
+          sheet, and Yes and No must stay on screen below them. */}
+      <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.lg }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: radius.pill,
+              backgroundColor: colors.flagBg,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Icon name="warning" size={32} color={colors.flag} mark={colors.flagBg} />
+          </View>
+          <AppText variant="display" accessibilityRole="header" style={{ flex: 1 }}>
+            {t('safety.title')}
+          </AppText>
         </View>
-        <AppText variant="display" accessibilityRole="header" style={{ flex: 1 }}>
-          {t('safety.title')}
+        <AppText variant="title" style={{ fontWeight: '500' }}>
+          {t('safety.question')}
         </AppText>
-      </View>
-      <AppText variant="title" style={{ fontWeight: '500' }}>
-        {t('safety.question')}
-      </AppText>
+      </ScrollView>
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
         <View style={{ flex: 1 }}>
           <PressableScale

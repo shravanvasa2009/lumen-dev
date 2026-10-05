@@ -1,7 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Linking, Pressable, ScrollView, View } from 'react-native';
+import { Linking, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
@@ -11,17 +11,39 @@ import { callNumber } from '@/profile/dial';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { useTheme } from '@/theme';
 
+// Above this font scale the footer of actions plus the stroke card can outgrow a 640 dp screen.
+const LARGE_TEXT_SCALE = 1.3;
+
 export default function EmergencyScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors, radius, spacing, control } = useTheme();
   const { phone: doctorPhone } = useDoctorPhone();
+  const { fontScale } = useWindowDimensions();
   const [callFailed, setCallFailed] = useState(false);
   const [doctorCallFailed, setDoctorCallFailed] = useState(false);
   // Simulators, tablets, and phones without a SIM can't open the dialer; the person must still be told
   // how to get help, so a failed call becomes visible instructions instead of an unhandled rejection.
   const callEmergency = () => Linking.openURL('tel:911').catch(() => setCallFailed(true));
   const callDoctor = async (phone: string) => setDoctorCallFailed(!(await callNumber(phone)));
+  const largeText = fontScale > LARGE_TEXT_SCALE;
+  const strokeCard = (
+    <View
+      style={{
+        alignSelf: 'stretch',
+        borderColor: colors.criticalText,
+        borderWidth: 1,
+        borderRadius: radius.card,
+        padding: spacing.lg,
+        gap: spacing.xs,
+      }}
+    >
+      <AppText variant="headline">{t('emergency.stroke')}</AppText>
+      <AppText variant="caption" tone="criticalText">
+        {t('emergency.strokeLetters')}
+      </AppText>
+    </View>
+  );
   return (
     <SafeAreaView
       edges={['top', 'left', 'right', 'bottom']}
@@ -50,6 +72,7 @@ export default function EmergencyScreen() {
         <AppText tone="criticalText" style={{ textAlign: 'center' }}>
           {t('emergency.body')}
         </AppText>
+        {largeText ? strokeCard : null}
       </ScrollView>
       <View style={{ paddingTop: spacing.lg, gap: spacing.md }}>
         <Button label={t('emergency.call')} variant="critical" onPress={callEmergency} />
@@ -81,20 +104,7 @@ export default function EmergencyScreen() {
             {t('emergency.okay')}
           </AppText>
         </Pressable>
-        <View
-          style={{
-            borderColor: colors.criticalText,
-            borderWidth: 1,
-            borderRadius: radius.card,
-            padding: spacing.lg,
-            gap: spacing.xs,
-          }}
-        >
-          <AppText variant="headline">{t('emergency.stroke')}</AppText>
-          <AppText variant="caption" tone="criticalText">
-            {t('emergency.strokeLetters')}
-          </AppText>
-        </View>
+        {largeText ? null : strokeCard}
       </View>
     </SafeAreaView>
   );

@@ -14,6 +14,7 @@ const strokes = {
   elbow: 'M3 19h7l3-8h8M13 11l-3 8',
   cup: 'M5 8h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4ZM16 9h2a2 2 0 0 1 0 4h-2',
   chevron: 'M9 6l6 6-6 6',
+  back: 'M15 6l-6 6 6 6',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   close: 'M6 6l12 12M18 6L6 18',
   warning: 'M12 4 2.5 20h19ZM12 10v5M12 17.6v.4',

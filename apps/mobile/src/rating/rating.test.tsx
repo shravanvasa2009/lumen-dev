@@ -319,7 +319,7 @@ describe('mode picker gating', () => {
     renderRouter('./app', { initialUrl: '/measure/mode' });
     expect(await screen.findByRole('button', { name: en['mode.full'] })).toBeEnabled();
     expect(screen.queryByText(en['mode.lockedBasic'])).toBeNull();
-    expect(screen.queryByText(/rating \(/)).toBeNull();
+    expect(screen.queryByText(/rating —/)).toBeNull();
   });
 
   it('keeps Basic phones off Deep HRV with the 60 fps reason, and shows the tier', async () => {
@@ -329,8 +329,7 @@ describe('mode picker gating', () => {
     expect(screen.getByRole('button', { name: en['mode.deep'] })).toBeDisabled();
     expect(screen.getByRole('button', { name: en['mode.full'] })).toBeEnabled();
     expect(screen.getByRole('button', { name: en['mode.standing'] })).toBeEnabled();
-    // 30 fps level 14 + coupling 35 + locks 15 + timing 20.
-    expect(screen.getByText('Basic rating (84)')).toBeOnTheScreen();
+    expect(screen.getByText('This phone · Basic rating — some modes are locked')).toBeOnTheScreen();
     // Screen readers hear why the card is locked.
     expect(screen.getByRole('button', { name: en['mode.deep'] }).props.accessibilityHint).toBe(
       en['mode.locked60fps'],

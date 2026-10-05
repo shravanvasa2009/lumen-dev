@@ -800,7 +800,7 @@
   "inconclusive.tipCover": "Cover the lens and flash fully with your fingertip",
   "inconclusive.causeColdHands": "cold fingertips",
   "inconclusive.needed": "This check needs at least {{seconds}} clean seconds.",
-  "inconclusive.rowSeconds": "{{label}} {{seconds}} s",
+  "inconclusive.rowPercent": "{{label}} {{percent}}%",
   "why.rhythmCheck": "AI rhythm check",
   "why.learnMore": "Learn more",
   "why.seeBeats": "See it in the beats",

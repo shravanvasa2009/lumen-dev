@@ -18,9 +18,11 @@ describe('inconclusive screen', () => {
     expect(
       screen.getByText('We got 38 clean seconds. Most of the lost time was movement.'),
     ).toBeOnTheScreen();
-    expect(screen.getByText('Movement 31 s')).toBeOnTheScreen();
-    expect(screen.getByText('Pressure 13 s')).toBeOnTheScreen();
-    expect(screen.getByText('Light 8 s')).toBeOnTheScreen();
+    expect(screen.getByTestId('lost-time-bar')).toBeOnTheScreen();
+    expect(screen.getByText('Movement 60%')).toBeOnTheScreen();
+    expect(screen.getByText('Pressure 25%')).toBeOnTheScreen();
+    expect(screen.getByText('Light 15%')).toBeOnTheScreen();
+    expect(screen.getByTestId('icon-elbow', { hidden: true })).toBeOnTheScreen();
     expect(screen.getByText(en['inconclusive.tipElbows'])).toBeOnTheScreen();
     expect(screen.getByText(en['inconclusive.tipBreathe'])).toBeOnTheScreen();
   });
@@ -47,7 +49,7 @@ describe('inconclusive screen', () => {
     });
     renderRouter('./app', { initialUrl: '/measure/inconclusive?mode=full' });
     expect(screen.getByText('We got 12 clean seconds. Most of the lost time was light.')).toBeOnTheScreen();
-    expect(screen.getByText('Light 40 s')).toBeOnTheScreen();
+    expect(screen.getByText('Light 100%')).toBeOnTheScreen();
     keepCapture(null);
   });
 
@@ -56,11 +58,38 @@ describe('inconclusive screen', () => {
     expect(screen.getByText(en['demo.banner'])).toBeOnTheScreen();
   });
 
-  it('lists the causes without numbers when there is no reading to explain', () => {
+  it('shows percentages that add to 100 when the shares do not divide evenly', () => {
+    keepCapture({
+      captureFps: 60,
+      lensId: null,
+      samples: [],
+      stats: [],
+      motionSpans: [],
+      coldHandsSpans: [],
+      sqi: null,
+    });
+    handOverInconclusive({
+      kind: 'inconclusive',
+      reasons: ['tooFewCleanSeconds'],
+      cleanSeconds: 30,
+      neededCleanSeconds: 90,
+      lostSeconds: { motion: 20, pressure: 20, coverage: 20, coldHands: 0 },
+      otherLostSeconds: 0,
+      causes: ['motion'],
+      urgent: null,
+    });
+    renderRouter('./app', { initialUrl: '/measure/inconclusive?mode=full' });
+    expect(screen.getByText('Movement 34%')).toBeOnTheScreen();
+    expect(screen.getByText('Pressure 33%')).toBeOnTheScreen();
+    expect(screen.getByText('Light 33%')).toBeOnTheScreen();
+    keepCapture(null);
+  });
+
+  it('leaves out the lost-time card when there is no breakdown', () => {
     renderRouter('./app', { initialUrl: '/measure/inconclusive' });
     expect(screen.getByText(en['inconclusive.generic'])).toBeOnTheScreen();
-    expect(screen.getByText(en['inconclusive.movement'])).toBeOnTheScreen();
-    expect(screen.queryByText(/\d+ s$/)).toBeNull();
+    expect(screen.queryByText(en['inconclusive.where'])).toBeNull();
+    expect(screen.queryByTestId('lost-time-bar')).toBeNull();
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
   });
 

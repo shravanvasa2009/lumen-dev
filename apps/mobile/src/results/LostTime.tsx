@@ -16,45 +16,60 @@ function secondsLost(lost: LostSeconds, cause: LostCause): number {
 
 const lostCauses: readonly LostCause[] = ['movement', 'pressure', 'light'];
 
-// With no reading to explain, the causes are listed without seconds.
+// Whole-number shares that add to 100, so the legend never reads 99% or 101%: round every share down, then give
+// each point still missing to the shares with the largest fractional part.
+function percentShares(seconds: readonly number[]): number[] {
+  const total = seconds.reduce((sum, value) => sum + value, 0);
+  const exact = seconds.map((value) => (value / total) * 100);
+  const shares = exact.map(Math.floor);
+  const missing = 100 - shares.reduce((sum, value) => sum + value, 0);
+  const largestFractionFirst = exact
+    .map((value, index) => ({ index, fraction: value - shares[index]! }))
+    .sort((a, b) => b.fraction - a.fraction);
+  for (const { index } of largestFractionFirst.slice(0, missing)) shares[index]!++;
+  return shares;
+}
+
+// Without a lost-time breakdown there is nothing to explain, so the card is left out.
 export function LostTime({ lost }: { lost: LostSeconds | null }) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
+  if (!lost) return null;
+  const seconds = lostCauses.map((cause) => secondsLost(lost, cause));
+  if (seconds.every((value) => value <= 0)) return null;
   const names = {
     movement: t('inconclusive.movement'),
     pressure: t('inconclusive.pressure'),
     light: t('inconclusive.light'),
   };
+  // Red is reserved for the emergency screen (SAFE-1), so Pressure keeps the accent teal, not mockup 19's red.
   const shades = { movement: colors.flag, pressure: colors.accent, light: colors.badgePublicFg };
-  const total = lost ? lostCauses.reduce((sum, cause) => sum + secondsLost(lost, cause), 0) : 0;
+  const percents = percentShares(seconds);
   return (
     <Card>
       <AppText tone="textDim">{t('inconclusive.where')}</AppText>
-      {lost && total > 0 ? (
-        <View
-          style={{
-            flexDirection: 'row',
-            height: 10,
-            borderRadius: radius.pill,
-            overflow: 'hidden',
-            backgroundColor: colors.line,
-          }}
-        >
-          {lostCauses
-            .filter((cause) => secondsLost(lost, cause) > 0)
-            .map((cause) => (
-              <View key={cause} style={{ flex: secondsLost(lost, cause), backgroundColor: shades[cause] }} />
-            ))}
-        </View>
-      ) : null}
+      <View
+        testID="lost-time-bar"
+        style={{
+          flexDirection: 'row',
+          height: 10,
+          borderRadius: radius.pill,
+          overflow: 'hidden',
+          backgroundColor: colors.line,
+        }}
+      >
+        {lostCauses.map((cause, index) =>
+          seconds[index]! > 0 ? (
+            <View key={cause} style={{ flex: seconds[index], backgroundColor: shades[cause] }} />
+          ) : null,
+        )}
+      </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.lg, rowGap: spacing.xs }}>
-        {lostCauses.map((cause) => (
+        {lostCauses.map((cause, index) => (
           <View key={cause} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: shades[cause] }} />
             <AppText variant="caption" tone="textDim">
-              {lost
-                ? t('inconclusive.rowSeconds', { label: names[cause], seconds: Math.round(secondsLost(lost, cause)) })
-                : names[cause]}
+              {t('inconclusive.rowPercent', { label: names[cause], percent: percents[index] })}
             </AppText>
           </View>
         ))}

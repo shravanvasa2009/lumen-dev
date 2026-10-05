@@ -800,7 +800,7 @@
   "inconclusive.tipCover": "Cubre por completo el lente y el flash con la yema",
   "inconclusive.causeColdHands": "dedos fríos",
   "inconclusive.needed": "Esta revisión necesita al menos {{seconds}} segundos limpios.",
-  "inconclusive.rowSeconds": "{{label}} {{seconds}} s",
+  "inconclusive.rowPercent": "{{label}} {{percent}}%",
   "why.rhythmCheck": "Revisión de ritmo con IA",
   "why.learnMore": "Más información",
   "why.seeBeats": "Velo en los latidos",

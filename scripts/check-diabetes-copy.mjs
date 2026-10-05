@@ -13,7 +13,31 @@ const BANNED = [
   /glucosa/i,
 ];
 const REQUIRED = { en: /not a diabetes test/i, es: /no es una prueba de diabetes/i };
+// The diabetes questionnaire (dr.*), result card (dm.*) and every other diabetes string live in en.json
+// and es.json, outside diabetes.json, so the same ban must cover them.
+const DIABETES_KEY_PREFIXES = [
+  'dr.',
+  'dm.',
+  'checks.diabetes',
+  'profile.diabetes',
+  'results.diabetes',
+  'results.notDiabetesTest',
+  'report.diabetes',
+  'accuracy.diabetes',
+  'accuracy.notDiabetesTest',
+  'widgets.checkDiabetes',
+  'learn.diabetes',
+  'learn.lessonDiabetes',
+];
 const failures = [];
+for (const lang of ['en', 'es']) {
+  const strings = JSON.parse(fs.readFileSync(`apps/mobile/src/i18n/${lang}.json`, 'utf8'));
+  for (const [key, text] of Object.entries(strings)) {
+    if (!DIABETES_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))) continue;
+    const hit = BANNED.find((pattern) => pattern.test(text));
+    if (hit) failures.push(`${lang}.json ${key}: "${text}" matches ${hit}`);
+  }
+}
 for (const [lang, strings] of Object.entries(copy)) {
   for (const [key, text] of Object.entries(strings)) {
     const hit = BANNED.find((pattern) => pattern.test(text));

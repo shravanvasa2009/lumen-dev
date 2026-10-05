@@ -114,6 +114,16 @@ describe('emergency screen', () => {
     expect(screen.getAllByRole('button')).toHaveLength(3);
   });
 
+  it.each([
+    [1.3, false],
+    [1.31, true],
+  ])('switches the stroke card into the scroll only above 1.3x (%s)', (fontScale, inScroll) => {
+    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale } }));
+    renderRouter('./app', { initialUrl: '/emergency' });
+    const scrolling = within(screen.UNSAFE_getByType(ScrollView));
+    expect(scrolling.queryByText(en['emergency.strokeLetters']) !== null).toBe(inScroll);
+  });
+
   it('keeps the stroke card with the actions at normal text', () => {
     act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
     renderRouter('./app', { initialUrl: '/emergency' });

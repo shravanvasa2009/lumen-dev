@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -64,22 +64,24 @@ export function DiabetesCheckCard() {
           onDismiss={() => setExplaining(false)}
           dismissLabel={t('common.close')}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            {pill}
-            <AppText variant="headline">{t('checks.diabetes.name')}</AppText>
-          </View>
-          <AppText>{t('evidence.experimental.explain')}</AppText>
-          <AppText tone="textDim">{t('dm.experimental')}</AppText>
-          <AppText
-            accessibilityRole="link"
-            tone="accent"
-            onPress={() => {
-              setExplaining(false);
-              router.push('/settings/accuracy');
-            }}
-          >
-            {t('results.accuracy')} ›
-          </AppText>
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.lg }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+              {pill}
+              <AppText variant="headline">{t('checks.diabetes.name')}</AppText>
+            </View>
+            <AppText>{t('evidence.experimental.explain')}</AppText>
+            <AppText tone="textDim">{t('dm.experimental')}</AppText>
+            <AppText
+              accessibilityRole="link"
+              tone="accent"
+              onPress={() => {
+                setExplaining(false);
+                router.push('/settings/accuracy');
+              }}
+            >
+              {t('results.accuracy')} ›
+            </AppText>
+          </ScrollView>
           <Button label={t('common.gotIt')} onPress={() => setExplaining(false)} />
         </BottomSheet>
       </Card>

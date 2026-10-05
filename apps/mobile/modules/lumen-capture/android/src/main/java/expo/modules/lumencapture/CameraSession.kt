@@ -35,6 +35,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import com.google.common.util.concurrent.ListenableFuture
+import java.util.Locale
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executor
@@ -84,6 +85,7 @@ private val ANALYSIS_SIZE = Size(320, 240)
 private const val BATCH_MS = 100L // samples event, spec §9.3
 private const val STATUS_MS = 250L // status event at 4 Hz
 private const val LAB_MS = 1000L // lab event at 1 Hz (ADR 0013)
+private const val CONTACT_LOG_MS = 1000L
 private const val MOTION_PERIOD_US = 20_000 // 50 Hz (ADR 0029)
 
 // ADR 0029 addendum, same values as the Swift module: at most 4 exposure steps, each judged on 3 frames
@@ -281,6 +283,7 @@ class CameraSession(
         events.postDelayed(::emitBatch, BATCH_MS)
         events.postDelayed(::emitStatus, STATUS_MS)
         if (settings.labEvents) events.postDelayed(::emitLab, LAB_MS)
+        events.postDelayed(::logContactInputs, CONTACT_LOG_MS)
         // Last, once the session is fully set up: observe() can call the observer at once with the current state.
         bound.cameraInfo.cameraState.observe(owner, cameraStateObserver)
     }
@@ -588,6 +591,25 @@ class CameraSession(
             ),
         )
         events.postDelayed(::emitStatus, STATUS_MS)
+    }
+
+    // Release-build logcat once a second, so a phone run shows why the finger hint is on or off: the DSP-4 inputs
+    // of the newest frame, with its exposure and the frame rate. Frame averages only, never a health value
+    // (CAP-3 keeps frames native).
+    private fun logContactInputs() {
+        counters.lastFrame?.let { frame ->
+            val numbers = frame.numbers
+            val sumGb = numbers.g + numbers.b
+            val ratio = if (sumGb > 0) "%.2f".format(Locale.ROOT, numbers.r / sumGb) else "inf"
+            Log.i(
+                TAG,
+                "Contact inputs: R/(G+B) $ratio, mean R ${"%.3f".format(Locale.ROOT, numbers.r)}, " +
+                    "spatialStdR ${"%.3f".format(Locale.ROOT, numbers.spatialStdR)}, " +
+                    "clipFrac ${"%.3f".format(Locale.ROOT, numbers.clipFrac)}, covered ${fingerCovered(numbers)}, " +
+                    "exposureNs ${frame.exposureNs}, fps ${counters.recentFps(SystemClock.elapsedRealtimeNanos()).roundToInt()}",
+            )
+        }
+        events.postDelayed(::logContactInputs, CONTACT_LOG_MS)
     }
 
     private fun emitLab() {

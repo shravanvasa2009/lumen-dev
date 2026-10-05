@@ -164,11 +164,13 @@ describe('publishing the copy at launch', () => {
     const publishDisplay = jest.mocked(LumenWidgets!.publishDisplay);
     publishDisplay.mockClear();
     await saveCheck(NOW - 2 * HOUR_MS, 70);
+    publishSnapshot().mockClear();
     await publishWidgetCopy();
+    // The saved reading stays out of a launch publish: no snapshot goes with the copy.
+    expect(publishSnapshot()).not.toHaveBeenCalled();
     await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
     const calls = publishSnapshot().mock.calls;
     expect(publishDisplay).toHaveBeenCalledTimes(1);
     expect(publishDisplay.mock.calls[0]![0]).toBe(calls[calls.length - 1]![1]);
-    expect(JSON.parse(publishDisplay.mock.calls[0]![0])).not.toHaveProperty('hrBpm');
   });
 });

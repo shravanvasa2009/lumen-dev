@@ -71,6 +71,8 @@ object WidgetStore {
             val listener =
                 SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(read(context, System.currentTimeMillis())) }
             prefs.registerOnSharedPreferenceChangeListener(listener)
+            // A write between provideGlance's first read and the line above would otherwise never be drawn.
+            trySend(read(context, System.currentTimeMillis()))
             awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
         }
 

@@ -128,6 +128,16 @@ describe('bundled clinic list', () => {
     }
   });
 
+  // The OSM file behind #197 held only part of Texas (nothing north of Houston), so the owner's area showed no
+  // regular clinics. These places sit where that file had none.
+  it.each(['78626', '78664', '76501', '76541', '78701', '75201'])(
+    'has a regular clinic within 10 miles of %s',
+    (zip) => {
+      const regular = nearestClinics(findPlace(zip)!).filter((clinic) => clinic.kind === 'regular');
+      expect(regular[0]!.miles).toBeLessThan(10);
+    },
+  );
+
   it('keeps the two kinds apart by id', () => {
     const ids = nearestClinics(HOUSTON).map((clinic) => clinic.id);
     expect(new Set(ids).size).toBe(ids.length);

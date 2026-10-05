@@ -29,6 +29,7 @@ export type {
 } from './results';
 export { adaRisk, type AdaAnswers, type AdaRisk } from './ada-risk';
 export { DSP_CONFIG } from './config';
+export { frameProblem } from './contact';
 export { buildTimebase, type Timebase } from './timebase';
 export { resampleCubic, type ResampledSegment } from './resample';
 export { dcLevel, fingerSignals, sqiModelInput, zScoreWindow, type FingerSignals } from './finger-signal';

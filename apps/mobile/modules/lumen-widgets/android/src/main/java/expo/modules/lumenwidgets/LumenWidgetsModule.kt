@@ -41,6 +41,16 @@ class LumenWidgetsModule : Module() {
                 refreshPickerPreviews(context, displayJson)
             }
 
+            // The copy alone, at every launch: a widget placed before any reading then shows the four checks and the
+            // evidence tag instead of the fallback, and the picker gets its generated preview. The snapshot isn't sent,
+            // so a launch never changes what the widget shows about readings.
+            AsyncFunction("publishDisplay") Coroutine { displayJson: String ->
+                widgetView(NO_READING_SNAPSHOT, displayJson, System.currentTimeMillis())
+                WidgetStore.writeDisplay(context, displayJson)
+                refreshWidgets(context)
+                refreshPickerPreviews(context, displayJson)
+            }
+
             // Start and update post the same notification on Android. They stay separate calls because iOS
             // requests a Live Activity on start and updates it afterwards (ADR 0005).
             AsyncFunction("startStandingTimer") { content: StandingTimerContent -> postStandingTimer(context, content) }

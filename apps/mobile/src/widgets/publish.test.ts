@@ -13,12 +13,15 @@ import { setPreference } from '@/theme/preferences';
 
 import * as evidence from '@/evidence';
 import { LumenWidgets } from '../../modules/lumen-widgets/src';
-import { publishWidgets } from './publish';
+import { publishWidgetCopy, publishWidgets } from './publish';
 import type { WidgetSnapshot } from './snapshot';
 
 jest.mock('expo-file-system', () => mockFileSystem);
 jest.mock('../../modules/lumen-widgets/src', () => ({
-  LumenWidgets: { publishSnapshot: jest.fn(() => Promise.resolve()) },
+  LumenWidgets: {
+    publishSnapshot: jest.fn(() => Promise.resolve()),
+    publishDisplay: jest.fn(() => Promise.resolve()),
+  },
 }));
 
 const NOW = Date.parse('2026-10-12T15:00:00Z');
@@ -153,5 +156,19 @@ describe('publishing the widgets', () => {
     setPreference('appearance', 'system');
     await waitFor(() => expect(publishSnapshot()).toHaveBeenCalledTimes(2));
     warn.mockRestore();
+  });
+});
+
+describe('publishing the copy at launch', () => {
+  it('sends the same copy as a full publish, and no snapshot', async () => {
+    const publishDisplay = jest.mocked(LumenWidgets!.publishDisplay);
+    publishDisplay.mockClear();
+    await saveCheck(NOW - 2 * HOUR_MS, 70);
+    await publishWidgetCopy();
+    await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
+    const calls = publishSnapshot().mock.calls;
+    expect(publishDisplay).toHaveBeenCalledTimes(1);
+    expect(publishDisplay.mock.calls[0]![0]).toBe(calls[calls.length - 1]![1]);
+    expect(JSON.parse(publishDisplay.mock.calls[0]![0])).not.toHaveProperty('hrBpm');
   });
 });

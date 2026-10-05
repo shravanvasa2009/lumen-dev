@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react-native';
 import { ReplayCapture, type RecordedCapture } from '../../modules/lumen-capture/src';
 
 import { keepCapture } from './keptCapture';
-import { livePerfusionPct, signalLevel } from './signalLevel';
+import { signalLevel } from './signalLevel';
 import { useLiveCapture } from './useLiveCapture';
 
 jest.setTimeout(60_000);
@@ -162,19 +162,19 @@ describe('signalLevel', () => {
   });
 });
 
-describe('livePerfusionPct', () => {
-  it('is null without a pulse window or a red level', () => {
-    expect(livePerfusionPct({ tS: [], ppg: [] }, [])).toBeNull();
-    expect(livePerfusionPct({ tS: [1, 2], ppg: [0, 0.01] }, [{ tNs: 2e9, r: 0 }])).toBeNull();
+describe('signalLevel is never NaN', () => {
+  const frames = Array.from({ length: 120 }, (_, i) => ({ tNs: i * 1e8, r: 0.7, g: 0.1, b: 0.1 }));
+
+  it('reads a NaN perfusion index as 0, with and without enough frames for the SNR', () => {
+    expect(signalLevel(NaN, frames.slice(0, 30), 3e9)).toBe(0);
+    expect(signalLevel(NaN, frames, 12e9)).toBe(0);
   });
 
-  it('is 100 x peak-to-peak over mean red within the last 4 s only', () => {
-    const waveform = { tS: [0, 5, 6, 7, 8], ppg: [-1, -0.005, 0.005, 0, 0] };
-    const reds = [
-      { tNs: 0, r: 9 },
-      { tNs: 5e9, r: 0.5 },
-      { tNs: 8e9, r: 0.5 },
-    ];
-    expect(livePerfusionPct(waveform, reds)).toBeCloseTo(2, 6);
+  it('stays in 0 to 1 for any finite perfusion index', () => {
+    for (const pct of [-1, 0, 0.5, 3, 1e9]) {
+      const level = signalLevel(pct, frames, 12e9)!;
+      expect(level).toBeGreaterThanOrEqual(0);
+      expect(level).toBeLessThanOrEqual(1);
+    }
   });
 });

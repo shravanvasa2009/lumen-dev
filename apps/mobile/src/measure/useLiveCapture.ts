@@ -22,7 +22,7 @@ import {
 } from '../../modules/lumen-capture/src';
 import { scoreSqiWindow, sqiThreshold } from '../ml/runtime';
 import { keepCapture, keepLiveCapture, liveCaptureChanged } from './keptCapture';
-import { livePerfusionPct, signalLevel } from './signalLevel';
+import { signalLevel } from './signalLevel';
 
 // The live waveform card shows the last 6 s (spec §12).
 const WAVEFORM_WINDOW_NS = 6e9;
@@ -252,13 +252,11 @@ export function useLiveCapture(
       const refusal = feedSession(batch);
       if (session && newest.tNs - levelAtNs >= LEVEL_EVERY_NS) {
         levelAtNs = newest.tNs;
-        // Interim until core exposes its own covered-window perfusion: the first perfusionWindowS after the finger
-        // goes on is the filter settling, so the 4 s window is read only from the second one on.
+        // Core's perfusionPct counts covered frames only, but the band filter still rings for about one window
+        // after a finger goes on, and that ringing reads as a strong pulse; so the level waits for a second window.
         const settled =
           coveredSinceNs !== null && newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
-        level = settled
-          ? signalLevel(livePerfusionPct(session.recentWaveform, recent), levelFrames, newest.tNs)
-          : null;
+        level = settled ? signalLevel(session.perfusionPct, levelFrames, newest.tNs) : null;
       }
       setLive((previous) => ({
         ...previous,

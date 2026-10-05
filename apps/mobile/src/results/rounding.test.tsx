@@ -24,7 +24,7 @@ jest.mock('./fixtures', () => {
         hr: hr && { ...hr, value: 66.07093847 },
         rmssd: rmssd && { ...rmssd, value: 48.4421, band: [41.2, 54.8] },
       },
-      experimental: { ...demo.scan.experimental, extraBeatsPerMin: 0.73482 },
+      experimental: { ...demo.scan.experimental, extraBeatsPerMin: 0.66607 },
     },
   };
   return {
@@ -42,6 +42,12 @@ describe('results rounding', () => {
     expect(screen.getByText('48 ms')).toBeOnTheScreen();
     expect(screen.getByText('your band 41–55')).toBeOnTheScreen();
     expect(screen.queryByText(/66\.07|90\.08|48\.44/)).toBeNull();
+  });
+
+  it('shows the extra-beat rate at one decimal on Why', async () => {
+    renderRouter('./app', { initialUrl: '/results/fractional/why' });
+    expect(await screen.findByText(/^0\.7 per minute/)).toBeOnTheScreen();
+    expect(screen.queryByText(/0\.666/)).toBeNull();
   });
 
   it('floors clean seconds and rounds bpm in the report table', () => {

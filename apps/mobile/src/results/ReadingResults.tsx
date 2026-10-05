@@ -33,7 +33,9 @@ function headlineText(t: TFunction, reading: FixtureReading): string {
   const { headlineKey, metrics } = reading.scan;
   switch (headlineKey) {
     case 'result.regular':
-      return metrics.hr ? t('result.regular', { hr: Math.round(metrics.hr.value) }) : t('result.inconclusive');
+      return metrics.hr
+        ? t('result.regular', { hr: Math.round(metrics.hr.value) })
+        : t('result.inconclusive');
     case 'result.irregularRetake':
       return t('result.irregularRetake');
     case 'result.possibleAf':

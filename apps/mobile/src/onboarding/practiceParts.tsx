@@ -4,8 +4,11 @@ import Animated, { useAnimatedProps, useDerivedValue, withTiming } from 'react-n
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
+import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
 import { timingConfig, useReduceMotion } from '@/theme/motion';
+
+import { LumenPreviewView } from '../../modules/lumen-capture/src/LumenPreviewView';
 
 const PREVIEW_SIZE = 190;
 const METER_HEIGHT = 28;
@@ -13,30 +16,110 @@ const RING_SIZE = 44;
 const RING_STROKE = 5;
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// The lit fingertip as the camera sees it. Dim while no finger is detected.
-export function FingerPreview({ detected, size = PREVIEW_SIZE }: { detected: boolean; size?: number }) {
-  const { colors } = useTheme();
+// The picture is a camera image, not themed; the chip sits on it in a fixed dark scrim.
+const LIVE_CHIP_BG = 'rgba(10,6,6,0.55)';
+const LIVE_CHIP_FG = '#FFFFFF';
+const LIVE_RING_WIDTH = 4;
+const LIVE_RING_GAP = 3;
+const CAPTION_ROW = 20;
+
+type FingerPreviewProps = {
+  detected: boolean;
+  size?: number;
+  // The capture runs on the device's camera, so the native view has a session to show.
+  cameraRunning: boolean;
+  // A coaching line is showing: the ring turns from accent to flag.
+  coaching: boolean;
+};
+
+// Variant A: the rear camera's live view clipped to a circle inside a status ring, with its caption. Where there is
+// no native view (iOS for now, Replay, Demo, no running capture) the same frame holds the pulse-coloured glow, dim
+// without a finger, and the chip and caption stay out because nothing live is being shown.
+export function FingerPreview({
+  detected,
+  size = PREVIEW_SIZE,
+  cameraRunning,
+  coaching,
+}: FingerPreviewProps) {
+  const { colors, spacing, radius } = useTheme();
+  const { t } = useTranslation();
+  const live = cameraRunning && LumenPreviewView !== null;
   return (
-    <Svg
-      width={size}
-      height={size}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
-      <Defs>
-        <RadialGradient id="finger-glow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0" stopColor={colors.pulse} stopOpacity={0.75} />
-          <Stop offset="1" stopColor={colors.pulse} stopOpacity={1} />
-        </RadialGradient>
-      </Defs>
-      <Circle
-        cx={size / 2}
-        cy={size / 2}
-        r={size / 2}
-        fill="url(#finger-glow)"
-        opacity={detected ? 1 : 0.3}
-      />
-    </Svg>
+    <View style={{ alignItems: 'center', gap: spacing.sm }}>
+      <View
+        accessible={live}
+        accessibilityLabel={live ? t('capture.liveViewA11y') : undefined}
+        accessibilityElementsHidden={!live}
+        importantForAccessibility={live ? 'yes' : 'no-hide-descendants'}
+        style={{
+          padding: LIVE_RING_GAP,
+          borderWidth: LIVE_RING_WIDTH,
+          borderRadius: radius.pill,
+          borderColor: coaching ? colors.flag : colors.accent,
+        }}
+      >
+        <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
+          {live && LumenPreviewView ? (
+            <LumenPreviewView style={{ width: size, height: size }} />
+          ) : (
+            <Svg width={size} height={size}>
+              <Defs>
+                <RadialGradient id="finger-glow" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0" stopColor={colors.pulse} stopOpacity={0.75} />
+                  <Stop offset="1" stopColor={colors.pulse} stopOpacity={1} />
+                </RadialGradient>
+              </Defs>
+              <Circle
+                cx={size / 2}
+                cy={size / 2}
+                r={size / 2}
+                fill="url(#finger-glow)"
+                opacity={detected ? 1 : 0.3}
+              />
+            </Svg>
+          )}
+          {live ? (
+            <View
+              style={{
+                position: 'absolute',
+                top: size * 0.08,
+                alignSelf: 'center',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.xs,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: 2,
+                borderRadius: radius.pill,
+                backgroundColor: LIVE_CHIP_BG,
+              }}
+            >
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: LIVE_CHIP_FG }} />
+              <AppText variant="caption" style={{ color: LIVE_CHIP_FG, fontWeight: '700' }}>
+                {t('capture.liveBadge')}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+      </View>
+      <View
+        style={{
+          minHeight: CAPTION_ROW,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: spacing.xs,
+        }}
+      >
+        {live ? (
+          <>
+            <Icon name="camera" size={16} color={colors.textDim} />
+            <AppText variant="caption" tone="textDim" style={{ fontWeight: '500', flexShrink: 1 }}>
+              {t('capture.liveView')}
+            </AppText>
+          </>
+        ) : null}
+      </View>
+    </View>
   );
 }
 

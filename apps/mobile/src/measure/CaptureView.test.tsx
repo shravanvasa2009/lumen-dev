@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react-n
 import i18next from 'i18next';
 import * as Linking from 'expo-linking';
 
-import { ScrollView } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import type { PlanPhone } from '@/checks/checkPlan';
 import en from '@/i18n/en.json';
@@ -14,6 +14,13 @@ import { checkingItems } from './checkingItems';
 import type { LiveCapture } from './useLiveCapture';
 
 import '@/i18n';
+
+const mockNative: { view: unknown } = { view: null };
+jest.mock('../../modules/lumen-capture/src/LumenPreviewView', () => ({
+  get LumenPreviewView() {
+    return mockNative.view;
+  },
+}));
 
 const mockWindow = { width: 412 };
 jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
@@ -37,6 +44,7 @@ const base: LiveCapture = {
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
+  nativeCamera: false,
 };
 
 const FULL_PHONE: PlanPhone = { tier: 'full', ambient: false, fps60: true };
@@ -54,6 +62,8 @@ const show = (
   );
   return { onCancel, onStop };
 };
+
+const indexOfText = (text: string) => JSON.stringify(screen.toJSON()).indexOf(text);
 
 describe('CaptureView', () => {
   it('says the camera is not connected when the module is unavailable', () => {
@@ -152,6 +162,28 @@ describe('CaptureView', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
     fireEvent.press(screen.getByRole('button', { name: en['capture.stop'] }));
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  describe('live view', () => {
+    afterEach(() => {
+      mockNative.view = null;
+    });
+
+    it('shows the live view and its caption for the device camera, and the glow otherwise', () => {
+      mockNative.view = View;
+      show({ nativeCamera: true });
+      expect(screen.getByText(en['capture.liveView'])).toBeOnTheScreen();
+      screen.unmount();
+      show({ nativeCamera: false });
+      expect(screen.queryByText(en['capture.liveView'])).toBeNull();
+    });
+
+    it('keeps the timer ring below the live view, not over it', () => {
+      mockNative.view = View;
+      show({ nativeCamera: true, cleanSeconds: 40 }, 'full');
+      expect(indexOfText(en['capture.liveView'])).toBeLessThan(indexOfText('of 90 clean s'));
+      expect(JSON.stringify(screen.toJSON())).not.toMatch(/"marginTop":-/);
+    });
   });
 
   describe('layout (mockup 13)', () => {

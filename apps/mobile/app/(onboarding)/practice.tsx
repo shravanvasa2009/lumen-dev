@@ -51,7 +51,11 @@ export default function PracticeScreen() {
     >
       <CameraDeniedNotice live={live} />
       <View style={{ alignItems: 'center', gap: spacing.md }}>
-        <FingerPreview detected={fingerOn} />
+        <FingerPreview
+          detected={fingerOn}
+          cameraRunning={live.nativeCamera && live.phase === 'running'}
+          coaching={coachingKey !== null}
+        />
         {coachingKey ? (
           <View
             accessibilityRole="alert"

@@ -57,9 +57,14 @@ export interface LiveCapture {
   // Where the Weak to Strong meter sits, 0 to 1, from the live perfusion index and pulse SNR (spec 04 section 4.2);
   // null until the session has a pulse window.
   signalLevel: number | null;
+  // True when frames come from the device's own LumenCapture module, so the native preview view has a session
+  // to show. Replay and Demo feed recorded samples and have none.
+  nativeCamera: boolean;
 }
 
-const idle = (phase: LivePhase): LiveCapture => ({
+type LiveState = Omit<LiveCapture, 'nativeCamera'>;
+
+const idle = (phase: LivePhase): LiveState => ({
   phase,
   failure: null,
   status: null,
@@ -102,7 +107,7 @@ export function useLiveCapture(
   capture: LumenCaptureModule | null = LumenCapture,
   { demo = false }: { demo?: boolean } = {},
 ): LiveCapture {
-  const [live, setLive] = useState<LiveCapture>(idle(capture ? 'starting' : 'unavailable'));
+  const [live, setLive] = useState<LiveState>(idle(capture ? 'starting' : 'unavailable'));
   // Raised when the user comes back from Settings with the camera allowed, to start the capture again.
   const [permissionGrants, setPermissionGrants] = useState(0);
 
@@ -347,5 +352,5 @@ export function useLiveCapture(
     };
   }, [capture, demo, permissionGrants]);
 
-  return live;
+  return { ...live, nativeCamera: capture !== null && capture === LumenCapture };
 }

@@ -29,6 +29,7 @@ const running: LiveCapture = {
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
+  nativeCamera: false,
 };
 
 preloadAppRoutes();

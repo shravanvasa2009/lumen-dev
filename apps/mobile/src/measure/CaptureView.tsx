@@ -126,7 +126,12 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             </Pressable>
           </View>
           <View style={{ alignItems: 'center' }}>
-            <FingerPreview detected={fingerOn} size={sizes.preview} />
+            <FingerPreview
+              detected={fingerOn}
+              size={sizes.preview}
+              cameraRunning={live.nativeCamera && running}
+              coaching={paused}
+            />
           </View>
           <View
             accessible
@@ -135,7 +140,6 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
               alignItems: 'center',
               justifyContent: 'center',
               alignSelf: 'center',
-              marginTop: -sizes.ring * sizes.overlap,
             }}
           >
             <ProgressRing

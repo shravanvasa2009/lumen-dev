@@ -31,7 +31,6 @@ const base: LiveCapture = {
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
-  heartRateBpm: null,
 };
 
 const FULL_PHONE: PlanPhone = { tier: 'full', ambient: false, fps60: true };
@@ -171,15 +170,6 @@ describe('CaptureView', () => {
       screen.unmount();
       show({ signalLevel: null });
       expect(screen.queryByText(en['capture.quality'])).toBeNull();
-    });
-
-    it('shows the live bpm under the clean-seconds label, and nothing while there is no estimate', () => {
-      show({ cleanSeconds: 40, heartRateBpm: 63 }, 'full');
-      expect(screen.getByText('63 bpm')).toBeOnTheScreen();
-      expect(indexOf('of 90 clean s')).toBeLessThan(indexOf('63 bpm'));
-      screen.unmount();
-      show({ cleanSeconds: 40, heartRateBpm: null }, 'full');
-      expect(screen.queryByText(/bpm$/)).toBeNull();
     });
 
     it('orders the pill, ring, message, waveform, labels and the Checking panel as in the mockup', () => {

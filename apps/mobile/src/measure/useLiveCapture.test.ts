@@ -360,11 +360,9 @@ describe('useLiveCapture', () => {
     };
     for (let index = 0; index < 200; index++) act(() => fake.emitSamples(pulseBatch(index)));
     expect(live.current.signalLevel).not.toBeNull();
-    expect(live.current.heartRateBpm).toBeCloseTo(72, -1);
     // Time going backwards ends the session's counting (see feedSession).
     act(() => fake.emitSamples(pulseBatch(0)));
     expect(live.current.signalLevel).toBeNull();
-    expect(live.current.heartRateBpm).toBeNull();
     expect(live.current.failure).not.toBeNull();
   });
 

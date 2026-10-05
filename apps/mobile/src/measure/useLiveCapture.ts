@@ -22,7 +22,7 @@ import {
 } from '../../modules/lumen-capture/src';
 import { scoreSqiWindow, sqiThreshold } from '../ml/runtime';
 import { keepCapture, keepLiveCapture, liveCaptureChanged } from './keptCapture';
-import { liveBpm, signalLevel } from './signalLevel';
+import { signalLevel } from './signalLevel';
 
 // The live waveform card shows the last 6 s (spec §12).
 const WAVEFORM_WINDOW_NS = 6e9;
@@ -54,9 +54,6 @@ export interface LiveCapture {
   // Where the Weak to Strong meter sits, 0 to 1, from the live perfusion index and pulse SNR (spec 04 section 4.2);
   // null until the session has a pulse window.
   signalLevel: number | null;
-  // The live spectral pulse estimate in whole bpm, from the same settled window as signalLevel; null while it has
-  // no estimate. A coarse on-screen guide, not a result: the reading's heart rate comes from the full analysis.
-  heartRateBpm: number | null;
 }
 
 const idle = (phase: LivePhase): LiveCapture => ({
@@ -70,7 +67,6 @@ const idle = (phase: LivePhase): LiveCapture => ({
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
-  heartRateBpm: null,
 });
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -140,7 +136,6 @@ export function useLiveCapture(
     let coveredSinceNs: number | null = null;
     let levelAtNs = -Infinity;
     let level: number | null = null;
-    let bpm: number | null = null;
     let firstNs: number | null = null;
     let session: LiveSession | null = null;
     let captureFps = 0;
@@ -213,7 +208,6 @@ export function useLiveCapture(
       } catch (error) {
         session = null;
         level = null;
-        bpm = null;
         levelAtNs = -Infinity;
         return reasonOf(error);
       }
@@ -254,9 +248,7 @@ export function useLiveCapture(
       });
       levelFrames = [...levelFrames, ...batch.samples].filter(
         (sample) =>
-          newest.tNs - sample.tNs <= LEVEL_WINDOW_NS &&
-          coveredSinceNs !== null &&
-          sample.tNs >= coveredSinceNs,
+          newest.tNs - sample.tNs <= LEVEL_WINDOW_NS && coveredSinceNs !== null && sample.tNs >= coveredSinceNs,
       );
       const hadSession = session !== null;
       const refusal = feedSession(batch);
@@ -265,10 +257,8 @@ export function useLiveCapture(
         // Core's perfusionPct counts covered frames only, but the band filter still rings for about one window
         // after a finger goes on, and that ringing reads as a strong pulse; so the level waits for a second window.
         const settled =
-          coveredSinceNs !== null &&
-          newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
+          coveredSinceNs !== null && newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
         level = settled ? signalLevel(session.perfusionPct, levelFrames) : null;
-        bpm = settled ? liveBpm(levelFrames) : null;
       }
       setLive((previous) => ({
         ...previous,
@@ -281,16 +271,9 @@ export function useLiveCapture(
               recentWaveform: session.recentWaveform,
               rejectedSpans: session.rejectedSpans,
               signalLevel: level,
-              heartRateBpm: bpm,
             }
           : hadSession
-            ? {
-                cleanSeconds: null,
-                coachingKey: null,
-                signalLevel: null,
-                heartRateBpm: null,
-                failure: refusal,
-              }
+            ? { cleanSeconds: null, coachingKey: null, signalLevel: null, failure: refusal }
             : {}),
       }));
     };

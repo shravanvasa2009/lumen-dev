@@ -148,11 +148,6 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
               <AppText variant="caption" tone="textDim">
                 {paused ? t('capture.pausedOf', { total }) : t('capture.cleanOf', { total })}
               </AppText>
-              {live.heartRateBpm === null ? null : (
-                <AppText variant="headline" tone="accent">
-                  {t('results.bpm', { value: live.heartRateBpm })}
-                </AppText>
-              )}
             </View>
           </View>
           {coaching ? (

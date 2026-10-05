@@ -32,7 +32,7 @@ type BasicsFieldsProps = {
 const roundToTenth = (value: number) => Math.round(value * 10) / 10;
 
 function numberText(value: number | null, language: string): string {
-  return value === null ? '' : formatNumber(value, language, 1, 0, false);
+  return value === null ? '' : formatNumber(value, language, 1, 0, { useGrouping: false });
 }
 
 // A lone "." has no value yet. A Spanish keyboard types a comma for the decimal mark, so either one counts.
@@ -146,21 +146,21 @@ export function BasicsFields({ draft, change }: BasicsFieldsProps) {
     change('ageYears', parseTyped(digits));
   }
 
-  function typeHeight(text: string) {
-    const cleaned = cleanTyped(text);
-    setHeightText(cleaned);
-    setUnreadable((was) => ({ ...was, height: hasTwoMarks(cleaned) }));
-    const typed = hasTwoMarks(cleaned) ? null : parseTyped(cleaned);
-    change('heightCm', typed === null ? null : roundToTenth(imperial ? cmFromInches(typed) : typed));
-  }
-
-  function typeWeight(text: string) {
-    const cleaned = cleanTyped(text);
-    setWeightText(cleaned);
-    setUnreadable((was) => ({ ...was, weight: hasTwoMarks(cleaned) }));
-    const typed = hasTwoMarks(cleaned) ? null : parseTyped(cleaned);
-    change('weightKg', typed === null ? null : roundToTenth(imperial ? kgFromPounds(typed) : typed));
-  }
+  const typeBody = (
+    field: 'heightCm' | 'weightKg',
+    key: 'height' | 'weight',
+    setText: (text: string) => void,
+    metricFrom: (typed: number) => number,
+  ) =>
+    function typeMeasurement(text: string) {
+      const cleaned = cleanTyped(text);
+      setText(cleaned);
+      setUnreadable((was) => ({ ...was, [key]: hasTwoMarks(cleaned) }));
+      const typed = hasTwoMarks(cleaned) ? null : parseTyped(cleaned);
+      change(field, typed === null ? null : roundToTenth(metricFrom(typed)));
+    };
+  const typeHeight = typeBody('heightCm', 'height', setHeightText, imperial ? cmFromInches : (cm) => cm);
+  const typeWeight = typeBody('weightKg', 'weight', setWeightText, imperial ? kgFromPounds : (kg) => kg);
 
   const heightRange = imperial
     ? { min: Math.ceil(inchesFromCm(HEIGHT_CM.min)), max: Math.floor(inchesFromCm(HEIGHT_CM.max)) }

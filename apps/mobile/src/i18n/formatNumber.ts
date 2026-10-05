@@ -6,7 +6,7 @@ export function formatNumber(
   language: string,
   maximumFractionDigits = 1,
   minimumFractionDigits = 0,
-  useGrouping = true,
+  { useGrouping = true }: { useGrouping?: boolean } = {},
 ): string {
   return new Intl.NumberFormat(language, {
     maximumFractionDigits,

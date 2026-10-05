@@ -14,7 +14,7 @@ describe('formatNumber', () => {
   });
 
   it('can leave out the thousands separator, for text written back into an input', () => {
-    expect(formatNumber(1234.5, 'en', 1, 0, false)).toBe('1234.5');
+    expect(formatNumber(1234.5, 'en', 1, 0, { useGrouping: false })).toBe('1234.5');
     expect(formatNumber(1234.5, 'en')).toBe('1,234.5');
   });
 });

@@ -41,8 +41,24 @@ describe('diagnose: where the heart rate goes wrong in a capture', () => {
     assert.ok(report.clean.lostByReason.exposure > 90);
     assert.ok(Math.abs(report.rates.spectral - 75) <= 5);
     assert.ok(report.verdicts.some((line) => line.includes('auto-exposure is not locked')));
-    assert.ok(report.verdicts.some((line) => line.includes('the pulse IS in the light signal')));
+    assert.ok(report.verdicts.some((line) => line.includes('the rate is lost after the camera, in DSP-5')));
+    assert.ok(!report.verdicts.some((line) => line.includes('first problem: the light signal')));
     assert.match(formatReport(report), /Exposure {2}95 values, 94 changes/);
+  });
+
+  it('a dicrotic pulse whose 2nd harmonic is strongest: the pulse is present, beat detection is named', async () => {
+    const folder = path.join(scratch, 'dicrotic');
+    writeSyntheticCapture(folder, { seconds: 95, bpm: 50, secondWave: 1 });
+    const report = await diagnoseFolder(folder, { referenceBpm: 50 });
+    assert.ok(Math.abs(report.rates.spectral - 100) <= 5, `${report.rates.spectral}`);
+    assert.ok(
+      report.verdicts.some((line) => line.includes("the spectral peak is on the pulse's 2nd harmonic")),
+    );
+    assert.ok(!report.verdicts.some((line) => line.includes('first problem: the light signal')));
+    // An equal second wave half a period later is a beat to DSP-7 too: 100 for a 50 bpm pulse.
+    assert.ok(Math.abs(report.rates.saved - 100) <= 5, `${report.rates.saved}`);
+    assert.ok(report.verdicts.some((line) => line.includes('each beat found twice')));
+    assert.ok(report.verdicts.some((line) => line.includes('in beat detection (DSP-7/9)')));
   });
 
   it('without a reference it asks for one instead of judging the rates', async () => {

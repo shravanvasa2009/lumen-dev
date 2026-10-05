@@ -4,10 +4,11 @@ import path from 'node:path';
 const CLOCK_START_NS = 5_000_000_000_000;
 
 // Appendix B capture folder: samples.csv, stats.csv, meta.json. −R carries Gaussian pulses at `bpm`
-// (σ 60 ms) and a breathing baseline at 15/min; `fingerOff` makes every frame fail DSP-4.
+// (σ 60 ms) and a breathing baseline at 15/min; `fingerOff` makes every frame fail DSP-4. `secondWave` adds a
+// wave of that relative height half a period after each peak, as a strong dicrotic wave (ADR 0066).
 export function writeSyntheticCapture(
   folder,
-  { seconds = 70, fps = 60, bpm = 75, fingerOff = false, meta = {} } = {},
+  { seconds = 70, fps = 60, bpm = 75, fingerOff = false, secondWave = 0, meta = {} } = {},
 ) {
   fs.mkdirSync(folder, { recursive: true });
   const peaksS = [];
@@ -18,7 +19,10 @@ export function writeSyntheticCapture(
     const tS = k / fps;
     let pulse = 0;
     for (const peakS of peaksS)
-      if (Math.abs(tS - peakS) < 0.5) pulse += Math.exp(-0.5 * ((tS - peakS) / 0.06) ** 2);
+      if (Math.abs(tS - peakS) < 0.5 + 30 / bpm)
+        pulse +=
+          Math.exp(-0.5 * ((tS - peakS) / 0.06) ** 2) +
+          secondWave * Math.exp(-0.5 * ((tS - peakS - 30 / bpm) / 0.06) ** 2);
     const tNs = CLOCK_START_NS + Math.round(tS * 1e9);
     const red = fingerOff ? 0.25 : 0.62 - 0.004 * pulse - 0.002 * Math.sin((2 * Math.PI * tS) / 4);
     samples.push(`${tNs},${red},${fingerOff ? 0.22 : 0.11},${fingerOff ? 0.2 : 0.04}`);

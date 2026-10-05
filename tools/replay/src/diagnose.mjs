@@ -3,8 +3,16 @@ import path from 'node:path';
 import { loadCore } from './core.mjs';
 import { contextFromMeta, readCapture } from './replay.mjs';
 
-// ANSI/AAMI EC13: a heart rate within 5 bpm of the reference is right (the bound the red-team tests use).
-const EC13_BPM = 5;
+// A rate within 5 bpm of the reference is right: the bound the owner confirmed (decision 7, 2026-10-04) and the
+// red-team tests use.
+const RIGHT_BPM = 5;
+// "Most of the capture": over this share lost to exposure changes, DSP-5 is what refuses the reading.
+const MOSTLY_LOST = 0.3;
+// Red team PR #242 S1 found noise passing as beats at ~0.5% pulse size (amplitude 0.003 on a 0.6 red level).
+const WEAK_PULSE_PCT = 0.5;
+// The pulse counts as present in the light when the band power within RIGHT_BPM of the reference, or of its
+// 2nd harmonic, is at least this share of the strongest peak's.
+const PRESENT_SHARE = 0.25;
 // The pulse band for the spectral check, 36–220 bpm (rules.fastRegularBpm's top), on a 30 Hz grid.
 const BAND_HZ = [0.6, 3.7];
 const GRID_HZ = 30;
@@ -41,8 +49,8 @@ function pulseBand(core, tS, red) {
 
 // Rate of the strongest periodicity in the pulse band, from the red channel alone: it does not depend on
 // DSP-4/5 spans or on beat detection (DSP-7/9), so it tells a bad signal apart from a bad beat search.
-function spectralBpm(band) {
-  const power = (bpm) => {
+function bandPower(band) {
+  return (bpm) => {
     const omega = (2 * Math.PI * bpm) / 60 / GRID_HZ;
     let re = 0;
     let im = 0;
@@ -52,13 +60,25 @@ function spectralBpm(band) {
     });
     return re * re + im * im;
   };
+}
+
+function spectralPeak(power) {
   let best = { bpm: null, power: -1 };
   for (let bpm = BAND_HZ[0] * 60; bpm <= BAND_HZ[1] * 60; bpm += 0.25) {
     const p = power(bpm);
     if (p > best.power) best = { bpm, power: p };
   }
-  const halfRatio = best.bpm / 2 >= BAND_HZ[0] * 60 ? power(best.bpm / 2) / best.power : 0;
-  return { bpm: best.bpm, halfRatio };
+  return best;
+}
+
+// Share of the peak's power near the reference rate or its 2nd harmonic (a dicrotic pulse puts most of its
+// power there): whether the pulse is in the light at all, whatever the strongest rhythm is.
+function pulseShare(power, peak, referenceBpm) {
+  let near = 0;
+  for (const centre of [referenceBpm, 2 * referenceBpm])
+    for (let bpm = centre - RIGHT_BPM; bpm <= centre + RIGHT_BPM; bpm += 0.25)
+      if (bpm >= BAND_HZ[0] * 60 && bpm <= BAND_HZ[1] * 60) near = Math.max(near, power(bpm));
+  return near / peak.power;
 }
 
 // The Lab screen's live rate: estimateLiveHeartRate over the last liveHr.windowS, once a second.
@@ -83,6 +103,7 @@ function liveRates(core, samples) {
   return { rates, errors };
 }
 
+// Per reason; spans of different reasons overlap, so the reasons can add up to more than the time lost.
 function lostByReason(core, analysis) {
   const lost = {};
   for (const reason of new Set(analysis.rejectedSpans.map((span) => span.reason))) {
@@ -92,52 +113,90 @@ function lostByReason(core, analysis) {
   return lost;
 }
 
-function verdicts({ referenceBpm, savedBpm, spectral, live, exposureLostS, durationS, outcome, pulsePct }) {
+function verdicts({
+  referenceBpm,
+  savedBpm,
+  spectral,
+  liveBpm,
+  exposureLostS,
+  durationS,
+  outcome,
+  pulsePct,
+}) {
   const lines = [];
-  if (exposureLostS > 0.3 * durationS)
+  const exposureRefuses = exposureLostS > MOSTLY_LOST * durationS;
+  if (exposureRefuses)
     lines.push(
-      `exposure changes cost ${((100 * exposureLostS) / durationS).toFixed(0)}% of the capture: auto-exposure is not locked (DSP-5 rejects 1 s after each change)`,
+      `exposure changes cost ${((100 * exposureLostS) / durationS).toFixed(0)}% of the capture: auto-exposure is not locked, and DSP-5 rejects 1 s after each change`,
     );
   if (outcome.kind === 'inconclusive') lines.push(`the reading is refused: ${outcome.reasons.join(', ')}`);
-  if (pulsePct !== null && pulsePct < 0.5)
+  if (pulsePct !== null && pulsePct < WEAK_PULSE_PCT)
     lines.push(
-      `the pulse is weak (${pulsePct.toFixed(2)}% of the red level): noise peaks can pass as beats (S1)`,
+      `the pulse is weak (${pulsePct.toFixed(2)}% of the red level): noise peaks can pass as beats at this size`,
     );
   if (referenceBpm === null) {
     lines.push('no reference rate: pass --ref <bpm> (or record with the Polar strap) to judge the rates');
     return lines;
   }
-  const judge = (name, bpm) => {
-    if (bpm === null) return;
+  const off = (bpm) => Math.abs(bpm - referenceBpm) > RIGHT_BPM;
+  const ratioName = (bpm) => {
     const ratio = bpm / referenceBpm;
-    if (Math.abs(bpm - referenceBpm) <= EC13_BPM) lines.push(`${name} is right (within ${EC13_BPM} bpm)`);
-    else if (ratio > 1.8 && ratio < 2.2)
-      lines.push(
-        `${name} is about twice the reference: each beat found twice (dicrotic wave or noise, ADR 0066 / S1)`,
-      );
-    else if (ratio > 0.45 && ratio < 0.55)
-      lines.push(
-        `${name} is about half the reference: every other beat missed (a raised DSP-7 threshold, E / F2)`,
-      );
-    else lines.push(`${name} is off by ${(bpm - referenceBpm).toFixed(1)} bpm`);
+    if (ratio > 1.8 && ratio < 2.2) return 'twice';
+    if (ratio > 0.45 && ratio < 0.55) return 'half';
+    return null;
   };
-  judge('the saved rate', savedBpm);
-  judge('the live rate (median)', live.rates.length ? median(live.rates) : null);
-  judge('the spectral peak', spectral?.bpm ?? null);
-  const spectrumRight = spectral !== null && Math.abs(spectral.bpm - referenceBpm) <= EC13_BPM;
-  const savedWrong = savedBpm === null || Math.abs(savedBpm - referenceBpm) > EC13_BPM;
-  if (spectrumRight && savedWrong)
+  // DSP-11 counts beats, so twice / half mean beats found twice / missed.
+  if (savedBpm !== null) {
+    const ratio = ratioName(savedBpm);
     lines.push(
-      '→ the pulse IS in the light signal: the fault is in beat detection or rejection (DSP-4/5/7/9), not the camera',
+      !off(savedBpm)
+        ? `the saved rate is right (within ${RIGHT_BPM} bpm)`
+        : ratio === 'twice'
+          ? 'the saved rate is twice the reference: each beat found twice (a dicrotic wave or noise peak, ADR 0066)'
+          : ratio === 'half'
+            ? 'the saved rate is half the reference: every other beat missed (DSP-7 threshold raised)'
+            : `the saved rate is off by ${(savedBpm - referenceBpm).toFixed(1)} bpm`,
     );
-  if (spectral !== null && !spectrumRight)
+  }
+  // The live and spectral rates find no beats: twice / half are a harmonic / subharmonic of the pulse.
+  for (const [name, bpm] of [
+    ['the live rate (median)', liveBpm],
+    ['the spectral peak', spectral?.bpm ?? null],
+  ]) {
+    if (bpm === null) continue;
+    const ratio = ratioName(bpm);
     lines.push(
-      '→ the strongest rhythm in the light signal is not the pulse: the camera signal itself (exposure, pressure, light leak) is the first problem',
+      !off(bpm)
+        ? `${name} is right (within ${RIGHT_BPM} bpm)`
+        : ratio === 'twice'
+          ? `${name} is on the pulse's 2nd harmonic (twice the reference)`
+          : ratio === 'half'
+            ? `${name} is on a subharmonic (half the reference)`
+            : `${name} is off by ${(bpm - referenceBpm).toFixed(1)} bpm`,
+    );
+  }
+  if (spectral === null) return lines;
+  if (spectral.pulseShare < PRESENT_SHARE) {
+    lines.push(
+      '→ first problem: the light signal. The pulse is not among its strong rhythms (exposure, pressure, light leak, or the finger itself)',
+    );
+    return lines;
+  }
+  if (savedBpm === null || off(savedBpm))
+    lines.push(
+      `→ the pulse is in the light signal; the rate is lost after the camera, in ${
+        exposureRefuses
+          ? 'DSP-5 (exposure changes)'
+          : outcome.kind === 'inconclusive'
+            ? 'the rejection rules (see the lost seconds)'
+            : 'beat detection (DSP-7/9)'
+      }`,
     );
   return lines;
 }
 
-/** Diagnoses one Appendix B capture folder: where between the camera and DSP-11 the heart rate goes wrong. */
+// One Appendix B capture folder: where between the camera and DSP-11 the heart rate goes wrong. The saved rate
+// runs with sqi null, as replay does, so it can differ from the phone's when SQI-Net rejected windows there.
 export async function diagnoseFolder(folder, { referenceBpm = null } = {}) {
   const core = await loadCore();
   const { samples, stats, meta } = readCapture(folder);
@@ -152,9 +211,15 @@ export async function diagnoseFolder(folder, { referenceBpm = null } = {}) {
   ).length;
   const lost = lostByReason(core, analysis);
   const red = Float64Array.from(samples, (sample) => sample.r);
+  const reference = referenceBpm ?? polarBpm(folder);
   const filtered = pulseBand(core, timebase.tS, timebase.r);
-  const band = filtered ? spectralBpm(filtered) : null;
-  // Pulse size as the 5–95% spread of the band over the median red level: a rough perfusion index.
+  const power = filtered ? bandPower(filtered) : null;
+  const peak = power ? spectralPeak(power) : null;
+  const band = peak
+    ? { bpm: peak.bpm, pulseShare: reference === null ? null : pulseShare(power, peak, reference) }
+    : null;
+  // Pulse size as the 5–95% spread of the band over the median red level. Not DSP-10's perfusion index, and
+  // exposure steps inflate it.
   const pulsePct = filtered
     ? (100 * (quantile(filtered, 0.95) - quantile(filtered, 0.05))) / median(Array.from(red))
     : null;
@@ -162,18 +227,19 @@ export async function diagnoseFolder(folder, { referenceBpm = null } = {}) {
   const classes = {};
   for (const beat of beats) classes[beat.beatClass] = (classes[beat.beatClass] ?? 0) + 1;
   const live = liveRates(core, samples);
-  const reference = referenceBpm ?? polarBpm(folder);
+  const medianIntervalMs = median(intervalsMs);
+  const meanIntervalMs = intervalsMs.reduce((sum, ms) => sum + ms, 0) / intervalsMs.length;
 
   const report = {
     folder,
     capture: {
       durationS: analysis.durationS,
       frames: samples.length,
-      medianFps: 1000 / median(intervalsMs),
+      medianFps: 1000 / medianIntervalMs,
       intervalSdMs: Math.sqrt(
-        intervalsMs.reduce((sum, ms) => sum + (ms - median(intervalsMs)) ** 2, 0) / intervalsMs.length,
+        intervalsMs.reduce((sum, ms) => sum + (ms - meanIntervalMs) ** 2, 0) / intervalsMs.length,
       ),
-      gapsOver150ms: intervalsMs.filter((ms) => ms > 150).length,
+      gaps: intervalsMs.filter((ms) => ms > core.DSP_CONFIG.dsp2.maxGapS * 1000).length,
       exposureValues: new Set(stats.map((stat) => stat.exposureNs)).size,
       exposureChanges,
       clippedFrames: stats.filter((stat) => stat.clipFrac > core.DSP_CONFIG.dsp4.maxClipFrac).length,
@@ -193,7 +259,7 @@ export async function diagnoseFolder(folder, { referenceBpm = null } = {}) {
       liveP90: quantile(live.rates, 0.9),
       liveErrors: live.errors,
       spectral: band?.bpm ?? null,
-      spectralHalfRatio: band?.halfRatio ?? null,
+      pulseShare: band?.pulseShare ?? null,
     },
     outcome,
   };
@@ -201,7 +267,7 @@ export async function diagnoseFolder(folder, { referenceBpm = null } = {}) {
     referenceBpm: reference,
     savedBpm: analysis.heartRateBpm,
     spectral: band,
-    live,
+    liveBpm: live.rates.length ? median(live.rates) : null,
     exposureLostS: lost.exposure ?? 0,
     durationS: analysis.durationS,
     outcome,
@@ -217,16 +283,16 @@ export function formatReport(report) {
     .join(', ');
   return [
     report.folder,
-    `  Capture   ${capture.durationS.toFixed(1)} s, ${capture.frames} frames, ${capture.medianFps.toFixed(1)} fps median, interval sd ${capture.intervalSdMs.toFixed(1)} ms, ${capture.gapsOver150ms} gaps > 150 ms`,
+    `  Capture   ${capture.durationS.toFixed(1)} s, ${capture.frames} frames, ${capture.medianFps.toFixed(1)} fps median, interval sd ${capture.intervalSdMs.toFixed(1)} ms, ${capture.gaps} gaps over DSP-2's limit`,
     `  Exposure  ${capture.exposureValues === 1 ? 'one value (locked)' : `${capture.exposureValues} values, ${capture.exposureChanges} changes (${(capture.exposureChanges / capture.durationS).toFixed(2)}/s)`}; clipped frames ${capture.clippedFrames}`,
     `  Signal    red level ${signal.redLevel.toFixed(3)}, pulse ${signal.pulsePct === null ? '—' : `${signal.pulsePct.toFixed(2)}%`} of it`,
-    `  Clean     ${clean.seconds.toFixed(1)} s${clean.needed === null ? '' : ` (needs ${clean.needed})`}; lost: ${lost || 'none'}`,
+    `  Clean     ${clean.seconds.toFixed(1)} s${clean.needed === null ? '' : ` (needs ${clean.needed})`}; lost (reasons overlap): ${lost || 'none'}`,
     `  Beats     ${
       Object.entries(beats)
         .map(([name, count]) => `${count} ${name}`)
         .join(', ') || 'none'
     }`,
-    `  Rates     reference ${bpmText(rates.reference)} | saved ${bpmText(rates.saved)} | live ${bpmText(rates.liveMedian)} (p10–p90 ${bpmText(rates.liveP10)}–${bpmText(rates.liveP90)}${rates.liveErrors ? `, ${rates.liveErrors} errors` : ''}) | spectral ${bpmText(rates.spectral)}`,
+    `  Rates     reference ${bpmText(rates.reference)} | saved (sqi null) ${bpmText(rates.saved)} | live ${bpmText(rates.liveMedian)} (p10–p90 ${bpmText(rates.liveP10)}–${bpmText(rates.liveP90)}${rates.liveErrors ? `, ${rates.liveErrors} errors` : ''}) | spectral ${bpmText(rates.spectral)}${rates.pulseShare === null ? '' : ` (pulse share ${rates.pulseShare.toFixed(2)})`}`,
     `  Outcome   ${report.outcome.kind}`,
     ...report.verdicts.map((line, i) => `  ${i === 0 ? 'Verdict ' : '        '}  - ${line}`),
   ].join('\n');

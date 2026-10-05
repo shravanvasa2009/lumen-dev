@@ -47,7 +47,7 @@ export function FixTechniqueView({ mode, cause }: FixTechniqueViewProps) {
       title={t('fix.title')}
       footer={<NavButton label={t('fix.done')} href={`/measure/capture?mode=${mode}`} replace />}
     >
-      {cause ? <CauseCard cause={cause} /> : <AppText>{t('fix.introGeneric')}</AppText>}
+      {cause ? <CauseCard cause={cause} /> : null}
       {lessonVisual(t, cause)}
       <Card>
         <AppText tone="textDim">{copy.tryHeading}</AppText>
@@ -97,11 +97,14 @@ function lessonVisual(t: TFunction, cause: FixCause | null): ReactNode {
     case 'motion':
     case null:
       return (
-        <SeatedIllustration
-          phoneLabel={t('howToSit.labelPhone')}
-          elbowLabel={t('howToSit.labelElbow')}
-          pressInset={{ lensLabel: t('placement.lens'), flashLabel: t('placement.flash') }}
-        />
+        <>
+          <SeatedIllustration
+            phoneLabel={t('howToSit.labelPhone')}
+            elbowLabel={t('howToSit.labelElbow')}
+            pressInset={{ lensLabel: t('placement.lens'), flashLabel: t('placement.flash') }}
+          />
+          <AppText>{t('fix.introGeneric')}</AppText>
+        </>
       );
     case 'coverage':
       return <PhoneBackIllustration lensLabel={t('placement.lens')} flashLabel={t('placement.flash')} />;

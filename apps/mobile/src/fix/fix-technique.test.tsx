@@ -1,9 +1,10 @@
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
 import i18n from 'i18next';
-import { Text as SvgText } from 'react-native-svg';
+import { Circle, Text as SvgText } from 'react-native-svg';
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
+import tokens from '@/theme/tokens.json';
 import { expectNavTitle } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
@@ -34,6 +35,18 @@ describe('fix my technique', () => {
   it.each(causes)('explains %s with its own sentence', (cause) => {
     renderRouter('./app', { initialUrl: `/measure/fix-technique?cause=${cause}` });
     expect(screen.getByText(new RegExp(en[`fix.why.${cause}`]))).toBeOnTheScreen();
+  });
+
+  it('puts the press caption under the figure for moving, where the figure is hidden from screen readers', () => {
+    renderRouter('./app', { initialUrl: '/measure/fix-technique?cause=motion' });
+    expect(screen.getByText(en['fix.introGeneric'])).toBeOnTheScreen();
+    expect(screen.getByTestId('seated-illustration', { hidden: true }).props.accessibilityElementsHidden).toBe(
+      true,
+    );
+  });
+
+  it.each(['pressure', 'coverage', 'coldHands'] as const)('leaves the press caption out for %s', (cause) => {
+    renderRouter('./app', { initialUrl: `/measure/fix-technique?cause=${cause}` });
     expect(screen.queryByText(en['fix.introGeneric'])).toBeNull();
   });
 
@@ -110,15 +123,27 @@ describe('fix my technique', () => {
     },
   );
 
-  it('shows the same figure and inset when no cause is known, and not for the other causes', () => {
+  it('shows the same figure, inset and press caption when no cause is known', () => {
     renderRouter('./app', { initialUrl: '/measure/fix-technique' });
     expect(screen.getByTestId('seated-press-inset', { hidden: true })).toBeOnTheScreen();
+    expect(screen.getByText(en['fix.introGeneric'])).toBeOnTheScreen();
   });
 
   it.each(['pressure', 'coverage', 'coldHands'] as const)('keeps its own picture for %s', (cause) => {
     renderRouter('./app', { initialUrl: `/measure/fix-technique?cause=${cause}` });
     expect(screen.queryByTestId('seated-illustration', { hidden: true })).toBeNull();
   });
+
+  it.each(['light', 'dark'] as const)(
+    'draws the dashed lens and flash rings in the text colour in %s, not the device colour',
+    (scheme) => {
+      mockScheme = scheme;
+      renderRouter('./app', { initialUrl: '/measure/fix-technique?cause=motion' });
+      const rings = screen.UNSAFE_getAllByType(Circle).filter((circle) => circle.props.strokeDasharray);
+      expect(rings).toHaveLength(2);
+      for (const ring of rings) expect(ring.props.stroke).toBe(tokens[scheme].text);
+    },
+  );
 
   it('labels the inset in Spanish', async () => {
     await act(() => i18n.changeLanguage('es'));

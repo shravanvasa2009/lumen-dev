@@ -45,7 +45,7 @@ export function ExperimentalCard({ experimental }: ExperimentalCardProps) {
       </View>
       {open ? (
         <View style={{ padding: spacing.lg, paddingTop: 0, gap: spacing.xs }}>
-          <AppText>{t('results.extraBeatsRate', { rate: experimental.extraBeatsPerMin })}</AppText>
+          <AppText>{t('results.extraBeatsRate', { rate: Math.round(experimental.extraBeatsPerMin * 10) / 10 })}</AppText>
           <AppText>
             {experimental.pulseShape.available ? t('results.shapeAvailable') : t('results.shapeUnavailable')}
           </AppText>

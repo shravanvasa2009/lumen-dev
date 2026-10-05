@@ -33,7 +33,7 @@ function headlineText(t: TFunction, reading: FixtureReading): string {
   const { headlineKey, metrics } = reading.scan;
   switch (headlineKey) {
     case 'result.regular':
-      return metrics.hr ? t('result.regular', { hr: metrics.hr.value }) : t('result.inconclusive');
+      return metrics.hr ? t('result.regular', { hr: Math.round(metrics.hr.value) }) : t('result.inconclusive');
     case 'result.irregularRetake':
       return t('result.irregularRetake');
     case 'result.possibleAf':
@@ -85,7 +85,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const metaParts = [
     reading.repeat ? t('results.readingOf', { number: reading.repeat.number, of: reading.repeat.of }) : null,
     reading.mode === 'full' ? t('mode.full') : t('mode.quick'),
-    t('results.cleanSeconds', { seconds: scan.cleanSeconds }),
+    t('results.cleanSeconds', { seconds: Math.floor(scan.cleanSeconds) }),
     reading.repeat ? null : when,
   ].filter((part) => part !== null);
 
@@ -194,9 +194,9 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
             evidenceMetric="hrv"
             reading={
               rmssd && {
-                value: t('results.ms', { value: rmssd.value }),
+                value: t('results.ms', { value: Math.round(rmssd.value) }),
                 note: rmssd.band
-                  ? t('results.yourBand', { low: rmssd.band[0], high: rmssd.band[1] })
+                  ? t('results.yourBand', { low: Math.round(rmssd.band[0]), high: Math.round(rmssd.band[1]) })
                   : t('results.learningBand'),
                 confidence: rmssd.confidence,
                 flagged: false,
@@ -216,7 +216,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           evidenceMetric="hr"
           reading={
             hr && {
-              value: t('results.bpm', { value: hr.value }),
+              value: t('results.bpm', { value: Math.round(hr.value) }),
               note: t('results.noteResting'),
               confidence: hr.confidence,
               flagged: hr.flag !== null,

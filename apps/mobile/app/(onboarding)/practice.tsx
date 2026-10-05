@@ -7,6 +7,7 @@ import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
 import { CameraDeniedNotice } from '@/measure/CameraDeniedNotice';
 import { coachingText } from '@/measure/coachingText';
+import { captureVerdict } from '@/measure/captureVerdict';
 import { LiveWaveform } from '@/measure/LiveWaveform';
 import { phaseCaption } from '@/measure/phaseCaption';
 import { useLiveCapture } from '@/measure/useLiveCapture';
@@ -27,7 +28,8 @@ export default function PracticeScreen() {
       : (phaseCaption(t, live) ??
         (live.cleanSeconds === null ? t('capture.waiting') : t('capture.timerNote')));
   // With no finger the module's own contact flag is the coaching: Cover the lens and the flash.
-  const coachingKey = live.coachingKey ?? (fingerOn ? null : 'coach.cover');
+  const verdict = captureVerdict(live);
+  const coachingKey = verdict.coaching ?? (fingerOn ? null : 'coach.cover');
   return (
     <OnboardingStep
       step={5}
@@ -73,8 +75,8 @@ export default function PracticeScreen() {
         ) : null}
       </View>
       <View style={{ gap: spacing.xs }}>
-        <SignalMeter level={live.signalLevel} />
-        <SignalScale level={live.signalLevel} />
+        <SignalMeter level={verdict.level} />
+        <SignalScale level={verdict.level} />
       </View>
       <Card>
         <LiveWaveform red={live.recentRed} />

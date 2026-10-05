@@ -79,6 +79,7 @@ describe('live capture fed by a LiveSession', () => {
     expect(live.current.phase).toBe('running');
     expect(live.current.cleanSeconds).toBeGreaterThan(10);
     expect(live.current.cleanSeconds).toBeLessThanOrEqual(12);
+    expect(live.current.advancing).toBe(true);
     expect(live.current.coachingKey).toBeNull();
     expect(live.current.rejectedSpans).toEqual([]);
     const { tS, ppg } = live.current.recentWaveform;
@@ -93,11 +94,23 @@ describe('live capture fed by a LiveSession', () => {
     const during = live.current.cleanSeconds!;
     expect(during).toBeLessThan(9);
     expect(live.current.rejectedSpans.some((span) => span.reason === 'coverage')).toBe(true);
+    expect(live.current.advancing).toBe(false);
 
     await act(async () => {
       jest.advanceTimersByTime(1000);
     });
     expect(live.current.cleanSeconds).toBe(during);
+  });
+
+  it('does not count, and says so, while every frame is clipped', async () => {
+    const recording = syntheticRecording(30);
+    const clipped = {
+      ...recording,
+      stats: { ...recording.stats!, clipFrac: recording.stats!.clipFrac.map(() => 0.9) },
+    };
+    const { result: live } = await replayFor(clipped, 12);
+    expect(live.current.cleanSeconds).toBeLessThan(1);
+    expect(live.current.advancing).toBe(false);
   });
 
   it('leaves clean seconds out when the module sends stats that do not match its samples', async () => {

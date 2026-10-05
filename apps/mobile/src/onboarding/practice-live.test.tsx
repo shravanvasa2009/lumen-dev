@@ -30,6 +30,7 @@ const running: LiveCapture = {
   rejectedSpans: [],
   signalLevel: null,
   nativeCamera: false,
+  advancing: false,
 };
 
 preloadAppRoutes();
@@ -63,9 +64,15 @@ describe('practice with a running capture', () => {
     const { unmount } = renderRouter('./app', { initialUrl: '/practice' });
     expect(marker()).toBeCloseTo(13.2, 6);
     unmount();
-    mockLive = { ...running, signalLevel: 0.9 };
+    mockLive = { ...running, signalLevel: 0.9, advancing: true };
     renderRouter('./app', { initialUrl: '/practice' });
     expect(marker()).toBeCloseTo(86.8, 6);
+  });
+
+  it('holds the marker at OK while the clean seconds are not counting', () => {
+    mockLive = { ...running, signalLevel: 0.9, advancing: false };
+    renderRouter('./app', { initialUrl: '/practice' });
+    expect(parseFloat(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.cx)).toBeCloseTo(50, 6);
   });
 
   it('draws no marker while the session has no level, as with no finger on the lens', () => {

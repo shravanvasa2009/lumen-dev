@@ -374,7 +374,6 @@
   "capture.qualityGood": "Buena",
   "capture.cleanOf": "de {{total}} s limpios",
   "capture.pausedOf": "de {{total}} s · en pausa",
-  "capture.good": "Buena señal: no te muevas",
   "capture.timerNote": "El temporizador solo cuenta los segundos limpios.",
   "capture.liveView": "Vista en vivo · cámara trasera, flash encendido · no se graba",
   "capture.liveBadge": "EN VIVO",

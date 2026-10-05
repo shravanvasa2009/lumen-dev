@@ -29,6 +29,9 @@ import { signalLevel } from './signalLevel';
 const WAVEFORM_WINDOW_NS = 6e9;
 // The signal meter is re-read once per second of frames; its spectrum needs the last liveHr.windowS seconds.
 const LEVEL_EVERY_NS = 1e9;
+// Clean seconds are summed from accepted frames, so between two rises there can be a short gap; two seconds
+// of frame time without a rise means the counter has stopped.
+const ADVANCE_HOLD_NS = 2e9;
 const LEVEL_WINDOW_NS = DSP_CONFIG.liveHr.windowS * 1e9;
 // Spec §9.2 (Locks) and §4.2 step 3: with the finger on the phone, auto-exposure settles for 1 s, then
 // exposure, white balance and focus are locked. Native adds its own short wait before steering (DSP-5).
@@ -60,6 +63,10 @@ export interface LiveCapture {
   // True when frames come from the device's own LumenCapture module, so the native preview view has a session
   // to show. Replay and Demo feed recorded samples and have none.
   nativeCamera: boolean;
+  // True while clean seconds are actually going up (they rose within the last ADVANCE_HOLD_NS of frame time).
+  // The live level and the coaching line can look fine while every frame is rejected (clipped red, a
+  // settling exposure), so "good" on screen must follow this, not the level.
+  advancing: boolean;
 }
 
 type LiveState = Omit<LiveCapture, 'nativeCamera'>;
@@ -75,6 +82,7 @@ const idle = (phase: LivePhase): LiveState => ({
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
+  advancing: false,
 });
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -143,6 +151,8 @@ export function useLiveCapture(
     // When the current unbroken run of covered frames began; the filter's step when a finger goes on is not a pulse.
     let coveredSinceNs: number | null = null;
     let levelAtNs = -Infinity;
+    let lastCleanS = 0;
+    let lastRiseNs: number | null = null;
     let level: number | null = null;
     let firstNs: number | null = null;
     let session: LiveSession | null = null;
@@ -221,6 +231,7 @@ export function useLiveCapture(
         session = null;
         level = null;
         levelAtNs = -Infinity;
+        lastRiseNs = null;
         return reasonOf(error);
       }
       // Nothing is kept for Processing until the first frames have reached the session.
@@ -272,8 +283,12 @@ export function useLiveCapture(
           coveredSinceNs !== null && newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
         level = settled ? signalLevel(session.perfusionPct, levelFrames) : null;
       }
+      if (session && session.cleanSeconds > lastCleanS) lastRiseNs = newest.tNs;
+      lastCleanS = session?.cleanSeconds ?? 0;
+      const advancing = lastRiseNs !== null && newest.tNs - lastRiseNs <= ADVANCE_HOLD_NS;
       setLive((previous) => ({
         ...previous,
+        advancing: session !== null && advancing,
         recentRed: recent.map((sample) => sample.r),
         elapsedS: (newest.tNs - startNs) / 1e9,
         ...(session

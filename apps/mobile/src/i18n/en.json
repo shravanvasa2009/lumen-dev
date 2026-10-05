@@ -374,7 +374,6 @@
   "capture.qualityGood": "Good",
   "capture.cleanOf": "of {{total}} clean s",
   "capture.pausedOf": "of {{total}} s · paused",
-  "capture.good": "Great signal — keep still",
   "capture.timerNote": "The timer only counts clean seconds.",
   "capture.liveView": "Live view · rear camera, flash on · not recorded",
   "capture.liveBadge": "LIVE",

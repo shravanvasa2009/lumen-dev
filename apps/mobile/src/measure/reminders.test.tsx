@@ -33,6 +33,7 @@ const running: LiveCapture = {
   rejectedSpans: [],
   signalLevel: null,
   nativeCamera: false,
+  advancing: false,
 };
 
 const FIRST_TAKEN_AT = new Date(2026, 9, 1, 6, 30).getTime();

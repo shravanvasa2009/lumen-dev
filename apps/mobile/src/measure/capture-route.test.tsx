@@ -25,6 +25,7 @@ const unavailable: LiveCapture = {
   rejectedSpans: [],
   signalLevel: null,
   nativeCamera: false,
+  advancing: false,
 };
 
 preloadAppRoutes();

@@ -19,6 +19,8 @@ const allReasons: QualityReason[] = [
   { kind: 'contact', coveredPct: 72 },
   { kind: 'fewBeats', beats: 18, wantBeats: 40 },
   { kind: 'fewWindows', windows: 2, wantWindows: 5 },
+  { kind: 'estimatesDisagree' },
+  { kind: 'phoneTier', tier: 'basic', wantTier: 'full' },
 ];
 
 type Injected = { quality?: ReadingQuality; lowMetrics: string[]; noRhythm: boolean };
@@ -85,6 +87,8 @@ describe('lower-quality tag', () => {
     expect(screen.getByText(/covered the lens 72% of the time/)).toBeOnTheScreen();
     expect(screen.getByText(/Only 18 beats were measured/)).toBeOnTheScreen();
     expect(screen.getByText(/Only 2 of 5 steady stretches/)).toBeOnTheScreen();
+    expect(screen.getByText(en['quality.estimatesDisagree'], { exact: false })).toBeOnTheScreen();
+    expect(screen.getByText(/rated Basic; this check is made for Full phones/)).toBeOnTheScreen();
     expect(screen.getByText(en['quality.betterTitle'])).toBeOnTheScreen();
   });
 
@@ -103,6 +107,10 @@ describe('lower-quality tag', () => {
       expect(screen.getByText(/cubrió el lente el 72% del tiempo/)).toBeOnTheScreen();
       expect(screen.getByText(/Solo se midieron 18 latidos/)).toBeOnTheScreen();
       expect(screen.getByText(/Solo 2 de 5 tramos estables/)).toBeOnTheScreen();
+      expect(screen.getByText(es['quality.estimatesDisagree'], { exact: false })).toBeOnTheScreen();
+      expect(
+        screen.getByText(/calificación Básica; esta revisión está hecha para teléfonos Completa/),
+      ).toBeOnTheScreen();
       expect(screen.getByText(es['quality.betterTitle'])).toBeOnTheScreen();
     } finally {
       await act(() => i18next.changeLanguage('en'));

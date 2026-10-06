@@ -1,3 +1,5 @@
+import type { Tier } from './reading';
+
 // Results JSON for one reading (Appendix B). A metric is null when its card missed the clean-data
 // floor in §6.2 or its gate in §10.1; that card alone shows "Not enough clean signal" (§7).
 
@@ -30,7 +32,11 @@ export type QualityReason =
   | { kind: 'quickMode' }
   | { kind: 'contact'; coveredPct: number }
   | { kind: 'fewBeats'; beats: number; wantBeats: number }
-  | { kind: 'fewWindows'; windows: number; wantWindows: number };
+  | { kind: 'fewWindows'; windows: number; wantWindows: number }
+  // DSP-13's three breathing estimates were all found but disagreed, so the interval estimate alone is shown.
+  | { kind: 'estimatesDisagree' }
+  // §5.2: the phone's rating, not its frame rate, is below the tier the output needs.
+  | { kind: 'phoneTier'; tier: Tier; wantTier: Tier };
 // 'low': a standard floor failed and the same math ran on the beats there were.
 export type MetricQuality = 'standard' | 'low';
 // 'low' when any metric is; reasons are the union over the metrics, one per kind.

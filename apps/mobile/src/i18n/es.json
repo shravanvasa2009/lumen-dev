@@ -1019,6 +1019,8 @@
   "quality.missingShort": "Este escaneo fue demasiado corto para esta revisión.",
   "quality.missingBeats": "Se midieron muy pocos latidos para esta revisión.",
   "quality.missingWindows": "Muy pocos tramos estables para esta revisión.",
+  "quality.estimatesDisagree": "Las tres señales de la respiración no coincidieron, así que se muestra una de ellas",
+  "quality.phoneTier": "Este teléfono tiene la calificación {{tier}}; esta revisión está hecha para teléfonos {{want}}",
   "quality.missingNoRhythm": "La VFC necesita primero un resultado de ritmo, y no lo hubo.",
   "quality.missingNotSinus": "La VFC no se muestra cuando el ritmo no fue claramente regular.",
   "results.breathing": "Frecuencia respiratoria",

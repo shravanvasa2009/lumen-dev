@@ -36,6 +36,10 @@ export function reasonText(t: TFunction, reason: QualityReason): string {
       return t('quality.fewBeats', { beats: reason.beats, want: reason.wantBeats });
     case 'fewWindows':
       return t('quality.fewWindows', { windows: reason.windows, want: reason.wantWindows });
+    case 'estimatesDisagree':
+      return t('quality.estimatesDisagree');
+    case 'phoneTier':
+      return t('quality.phoneTier', { tier: t(`tier.${reason.tier}`), want: t(`tier.${reason.wantTier}`) });
   }
 }
 

@@ -86,11 +86,17 @@ const shortClean = (analysis: ReadingAnalysis, wantS: number): QualityReason[] =
   analysis.cleanSeconds < wantS ? [{ kind: 'shortClean', haveS: analysis.cleanSeconds, wantS }] : [];
 const quickMode = (analysis: ReadingAnalysis): QualityReason[] =>
   analysis.context.mode === 'quick' ? [{ kind: 'quickMode' }] : [];
-// Tiers are frame-rate tiers (§5.2): Full needs 60 fps, Basic 30.
-const belowTier = (analysis: ReadingAnalysis, needed: Tier): QualityReason[] =>
-  tierAtLeast(analysis, needed)
+// The frame-rate and rating gates of an output that needs `needed` and `wantFps`: lowFps when the capture format runs
+// slower, else phoneTier when the §5.2 rating (which also weighs the score and ambient light) is below the tier. A
+// format with no finite, positive rate counts as 0 fps, so the Results JSON never holds NaN or Infinity.
+function rateReasons(analysis: ReadingAnalysis, needed: Tier, wantFps: number): QualityReason[] {
+  const { captureFps } = analysis.context;
+  const fps = Number.isFinite(captureFps) && captureFps > 0 ? captureFps : 0;
+  if (fps < wantFps) return [{ kind: 'lowFps', fps, wantFps }];
+  return tierAtLeast(analysis, needed)
     ? []
-    : [{ kind: 'lowFps', fps: analysis.context.captureFps, wantFps: needed === 'full' ? 60 : 30 }];
+    : [{ kind: 'phoneTier', tier: effectiveTier(analysis), wantTier: needed }];
+}
 
 // EVID-1 and ADR 0022: a label only when evidence.json states it and passed is true.
 function evidenceLabel(evidence: EvidenceFile, metric: string): EvidenceLabel {
@@ -100,11 +106,13 @@ function evidenceLabel(evidence: EvidenceFile, metric: string): EvidenceLabel {
 }
 
 // §6.2 minimum rating. An unrated phone is judged by its frame rate alone (§5.2's fps conditions).
-function tierAtLeast(analysis: ReadingAnalysis, needed: Tier): boolean {
+const TIER_ORDER: Tier[] = ['limited', 'basic', 'full'];
+function effectiveTier(analysis: ReadingAnalysis): Tier {
   const { tier, captureFps } = analysis.context;
-  const effective: Tier = tier ?? (captureFps >= 60 ? 'full' : captureFps >= 30 ? 'basic' : 'limited');
-  const order: Tier[] = ['limited', 'basic', 'full'];
-  return order.indexOf(effective) >= order.indexOf(needed);
+  return tier ?? (captureFps >= 60 ? 'full' : captureFps >= 30 ? 'basic' : 'limited');
+}
+function tierAtLeast(analysis: ReadingAnalysis, needed: Tier): boolean {
+  return TIER_ORDER.indexOf(effectiveTier(analysis)) >= TIER_ORDER.indexOf(needed);
 }
 
 // §7: clean coverage, capped at moderate without SQI scores and on a Limited or unrated phone.
@@ -120,14 +128,14 @@ function readingConfidence(analysis: ReadingAnalysis): Confidence {
 
 // Why readingConfidence is below high; null when an unrated phone is a cause, which names no reason.
 function confidenceReasons(analysis: ReadingAnalysis): QualityReason[] | null {
-  const { tier, captureFps } = analysis.context;
+  const { tier } = analysis.context;
   if (tier === null) return null;
   const coverage = analysis.durationS > 0 ? analysis.cleanSeconds / analysis.durationS : 0;
   const reasons: QualityReason[] = [];
   if (coverage < DSP_CONFIG.confidence.highCoverage)
     reasons.push({ kind: 'contact', coveredPct: 100 * coverage });
   if (!analysis.sqiAvailable) reasons.push({ kind: 'noSqi' });
-  if (tier === 'limited') reasons.push({ kind: 'lowFps', fps: captureFps, wantFps: 30 });
+  if (tier === 'limited') reasons.push(...rateReasons(analysis, 'basic', 30));
   return reasons;
 }
 
@@ -361,9 +369,7 @@ function rmssdMetric(
   const config = DSP_CONFIG.dsp12;
   const reasons: QualityReason[] =
     rhythmClass === null ? [{ kind: 'modelFallback' }] : [...(rhythm?.reasons ?? [])];
-  // A capture format has a finite rate: +Infinity fails like NaN, as in hrv.
-  if (!(Number.isFinite(captureFps) && captureFps >= config.minFps) || !tierAtLeast(analysis, 'full'))
-    reasons.push({ kind: 'lowFps', fps: captureFps, wantFps: config.minFps });
+  reasons.push(...rateReasons(analysis, 'full', config.minFps));
 
   let value =
     reasons.length === 0
@@ -402,15 +408,15 @@ function respMetric(
   const reasons: QualityReason[] = [
     ...quickMode(analysis),
     ...shortClean(analysis, DSP_CONFIG.dsp13.minCleanS),
-    ...belowTier(analysis, 'basic'),
+    ...rateReasons(analysis, 'basic', 30),
   ];
   if (estimates.rateBrpm === null) {
-    const found = [estimates.intensityBrpm, estimates.amplitudeBrpm, estimates.intervalBrpm];
-    reasons.push({
-      kind: 'fewWindows',
-      windows: found.filter((brpm) => brpm !== null).length,
-      wantWindows: 3,
-    });
+    const found = [estimates.intensityBrpm, estimates.amplitudeBrpm, estimates.intervalBrpm].filter(
+      (brpm) => brpm !== null,
+    ).length;
+    reasons.push(
+      found === 3 ? { kind: 'estimatesDisagree' } : { kind: 'fewWindows', windows: found, wantWindows: 3 },
+    );
   }
   const metric: RespMetric = {
     value,
@@ -429,19 +435,18 @@ function diabetesMetric(
   confidence: Confidence,
 ): Graded<DiabetesMetric> | null {
   const rules = DSP_CONFIG.rules;
-  const { mode, recordedAt, captureFps } = analysis.context;
+  const { mode, recordedAt } = analysis.context;
   if (!outputs || (mode !== 'full' && mode !== 'quick')) return null;
   const reasons: QualityReason[] = [
     ...quickMode(analysis),
-    ...belowTier(analysis, 'full'),
+    ...rateReasons(analysis, 'full', 60),
     ...shortClean(analysis, rules.diabetesMinCleanS),
   ];
   // The model scored the low-quality averaged beat (diabetesModelInput).
   const lowShape = analysis.pulseShape === null ? analysis.lowQuality.pulseShape : null;
   if (lowShape !== null) {
     const { minFps, minNormalBeats } = DSP_CONFIG.dsp14;
-    if (!(Number.isFinite(captureFps) && captureFps >= minFps))
-      reasons.push({ kind: 'lowFps', fps: captureFps, wantFps: minFps });
+    reasons.push(...rateReasons(analysis, 'full', minFps));
     if (lowShape.beatsUsed < minNormalBeats)
       reasons.push({ kind: 'fewBeats', beats: lowShape.beatsUsed, wantBeats: minNormalBeats });
   }
@@ -502,7 +507,9 @@ function unique(reasons: QualityReason[]): QualityReason[] {
             ? reason.wantWindows
             : reason.kind === 'contact'
               ? -reason.coveredPct
-              : 0;
+              : reason.kind === 'phoneTier'
+                ? TIER_ORDER.indexOf(reason.wantTier)
+                : 0;
   const byKind = new Map<QualityReason['kind'], QualityReason>();
   for (const reason of reasons) {
     const kept = byKind.get(reason.kind);

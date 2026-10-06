@@ -507,10 +507,10 @@ describe('RMSSD card (DSP-12, §6.2 Full tier)', () => {
       quality: 'low',
       qualityReasons: ['modelFallback'],
     });
-    expect(build(analysisWith({}, { tier: 'basic' })).metrics.rmssd).toMatchObject({
-      value: standard,
-      qualityReasons: ['lowFps'],
-    });
+    // A 60 fps phone rated Basic (§5.2 weighs the score too) is told about its rating, not its frame rate.
+    const basic = build(analysisWith({}, { tier: 'basic' }));
+    expect(basic.metrics.rmssd).toMatchObject({ value: standard, qualityReasons: ['phoneTier'] });
+    expect(basic.quality.reasons).toContainEqual({ kind: 'phoneTier', tier: 'basic', wantTier: 'full' });
     const slow = build(analysisWith({}, { captureFps: 30 }));
     expect(slow.metrics.rmssd).toMatchObject({ value: standard, qualityReasons: ['lowFps'] });
     expect(slow.quality.reasons).toContainEqual({ kind: 'lowFps', fps: 30, wantFps: 60 });
@@ -553,8 +553,11 @@ describe('breathing card (DSP-13, §6.2 Basic tier)', () => {
     expect(build(analysisWith({}, { tier: 'limited' })).metrics.resp).toMatchObject({
       value: BASE.breathing!.rateBrpm,
       quality: 'low',
-      qualityReasons: ['lowFps'],
+      qualityReasons: ['phoneTier'],
     });
+    expect(build(analysisWith({}, { tier: null, captureFps: 24 })).metrics.resp!.qualityReasons).toEqual([
+      'lowFps',
+    ]);
   });
 
   it('infers the tier gate from the frame rate when the phone is unrated', () => {
@@ -565,8 +568,16 @@ describe('breathing card (DSP-13, §6.2 Basic tier)', () => {
   it('falls back to the interval estimate when the three disagree, tagged (ADR 0104)', () => {
     const disagree = { rateBrpm: null, intensityBrpm: 12, amplitudeBrpm: 24, intervalBrpm: 13 };
     const outcome = build(analysisWith({ breathing: disagree }));
-    expect(outcome.metrics.resp).toMatchObject({ value: 13, quality: 'low', qualityReasons: ['fewWindows'] });
-    expect(outcome.quality.reasons).toEqual([{ kind: 'fewWindows', windows: 3, wantWindows: 3 }]);
+    expect(outcome.metrics.resp).toMatchObject({
+      value: 13,
+      quality: 'low',
+      qualityReasons: ['estimatesDisagree'],
+    });
+    expect(outcome.quality.reasons).toEqual([{ kind: 'estimatesDisagree' }]);
+    const missing = { rateBrpm: null, intensityBrpm: 12, amplitudeBrpm: null, intervalBrpm: 13 };
+    expect(build(analysisWith({ breathing: missing })).quality.reasons).toEqual([
+      { kind: 'fewWindows', windows: 2, wantWindows: 3 },
+    ]);
     const none = { rateBrpm: null, intensityBrpm: 12, amplitudeBrpm: null, intervalBrpm: null };
     expect(build(analysisWith({ breathing: none })).metrics.resp).toBeNull();
   });
@@ -630,7 +641,7 @@ describe('diabetes card (§10.1, §11.4)', () => {
     const history = [earlier('2026-10-02', 0.7)];
     const cases: [Partial<ReadingAnalysis>, Partial<ReadingContext>, string][] = [
       [{}, { mode: 'quick' }, 'quickMode'],
-      [{}, { tier: 'basic' }, 'lowFps'],
+      [{}, { tier: 'basic' }, 'phoneTier'],
       [{ cleanSeconds: 89.9, durationS: 89.9 }, {}, 'shortClean'],
     ];
     for (const [overrides, context, reason] of cases) {
@@ -640,6 +651,14 @@ describe('diabetes card (§10.1, §11.4)', () => {
       expect(metric.qualityReasons).toContain(reason);
     }
     expect(build(analysisWith({}, { mode: 'deep' }), withDiabetes(0.7)).metrics.diabetes).toBeNull();
+  });
+
+  it('puts no non-finite frame rate in a reason (a format with no finite rate counts as 0 fps)', () => {
+    for (const captureFps of [Number.NaN, Infinity, -Infinity, -60]) {
+      const reasons = build(analysisWith({}, { captureFps }), withDiabetes(0.7)).quality.reasons;
+      expect(reasons).toContainEqual({ kind: 'lowFps', fps: 0, wantFps: 60 });
+      expect(JSON.stringify(reasons)).not.toMatch(/null|NaN|Infinity/);
+    }
   });
 
   it('names the lower-quality averaged beat when the model scored it', () => {

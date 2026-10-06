@@ -233,7 +233,7 @@ describe('red team ADR 0104: every lower-quality value carries its tag and hones
   // Found at 3ad37eb: when DSP-13's three estimates all exist but disagree, breathing shows the interval estimate
   // tagged fewWindows {windows: 3, wantWindows: 3}: "3 of 3" is no shortfall, so the "more info" text has
   // nothing true to say. A premature beat every 8th beat at 75 bpm, 95 s at 60 fps, Full Scan, Full tier.
-  test.failing('breathing whose three estimates disagree names a reason it actually missed', () => {
+  test('breathing whose three estimates disagree names a reason it actually missed', () => {
     const analysis = batteryAnalysis(
       'premature beat every 8th at 75 bpm, 95 s at 60 fps',
       'Full Scan, Full tier, 60 fps, SQI',
@@ -248,7 +248,7 @@ describe('red team ADR 0104: every lower-quality value carries its tag and hones
   // Found at 3ad37eb: §5.2 tiers also weigh the score and ambient light, so a 60 fps phone can be rated Basic.
   // RMSSD and the diabetes pattern then carry lowFps {fps: 60, wantFps: 60}, blaming a frame rate that met
   // the floor. 95 s of sinus at 75 bpm, Full Scan, Basic tier, captureFps 60.
-  test.failing('a 60 fps phone rated Basic is not told its frame rate was too low', () => {
+  test('a 60 fps phone rated Basic is not told its frame rate was too low', () => {
     const analysis = analyzeReading(BATTERY_CAPTURES[0]!.build(), {
       ...BATTERY_CONTEXTS[0]!.context,
       tier: 'basic',
@@ -261,7 +261,7 @@ describe('red team ADR 0104: every lower-quality value carries its tag and hones
   // Found at 3ad37eb: a capture format with no finite rate (the red-team inputs NaN and ±Infinity, which DSP-12
   // and DSP-14 already refuse) is copied into lowFps.fps, so the Results JSON holds NaN/Infinity, which
   // JSON.stringify saves as null. 20 s at 75 bpm, Quick Check, Basic tier.
-  test.failing.each([NaN, Infinity, -Infinity])(
+  test.each([NaN, Infinity, -Infinity])(
     'captureFps %s puts no non-finite number in the Results JSON',
     (captureFps) => {
       const analysis = analyzeReading(captureAt(regularOffsets(30, 20), pulse(75, 20)), {

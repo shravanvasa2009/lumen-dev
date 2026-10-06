@@ -51,7 +51,11 @@ class LumenPreviewView(context: Context, appContext: AppContext) : ExpoView(cont
     }
 
     internal fun show(stream: PreviewStream) {
-        if (textureView.parent == null) addView(textureView)
+        if (textureView.parent == null) {
+            addView(textureView)
+            // React Native lays out only this view, not its native children, so a re-added child needs its bounds.
+            textureView.layout(0, 0, width, height)
+        }
         // setSurfaceTexture() releases the texture the view held, so it is never called with the one it holds.
         if (textureView.surfaceTexture !== stream.texture) textureView.setSurfaceTexture(stream.texture)
         stream.shown = true

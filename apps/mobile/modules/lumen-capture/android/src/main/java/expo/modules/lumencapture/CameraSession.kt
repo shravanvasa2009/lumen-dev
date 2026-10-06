@@ -690,8 +690,24 @@ class CameraSession(
             Thread.currentThread().interrupt()
             Log.i(TAG, "Overexposure relief cut short by stop", e)
         } catch (e: RuntimeException) {
-            // Reported, not rethrown: a throw would escape the exposure thread and crash the app. A reopen relocks.
+            // Reported, not rethrown: a throw would escape the exposure thread and crash the app. The unlock above
+            // has usually gone through, so AE would run free for the rest of the reading; one relock is tried here.
             Log.e(TAG, "Lowering the exposure under AE lock failed; exposure is ${if (added.aeLock) "locked" else "unlocked"}", e)
+            relockAfterFailedRelief()
+        }
+    }
+
+    // Best effort, once: a second failure is logged and AE stays free until a reopen relocks (aeLockWanted is set).
+    private fun relockAfterFailedRelief() {
+        if (added.aeLock) return
+        try {
+            applyRequest(added.copy(aeLock = true))
+            Log.i(TAG, "Exposure relocked after the failed relief: ${confirmAeLock()}")
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            Log.i(TAG, "Relock after the failed relief cut short by stop", e)
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Relocking after the failed relief failed; exposure stays unlocked", e)
         }
     }
 

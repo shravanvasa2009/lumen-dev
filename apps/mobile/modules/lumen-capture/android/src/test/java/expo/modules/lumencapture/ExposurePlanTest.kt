@@ -126,6 +126,27 @@ class ExposurePlanTest {
         }
     }
 
+    // The rule assumes gamma 2.2 and the clipped steps assume gamma above 1.27; a phone far from the A17's 1.83
+    // must still stop within 4 steps. With gamma 2.6 red moves less per EV, so steering never dips under the window,
+    // but a very bright finger (red 3.0 at 0 EV) is still clipped at -3.5 EV when the 4 steps run out. With gamma 1.0
+    // red moves more per EV, so it can dip under the window: an unclipped 0.9 overshoots to about 0.48 and is
+    // stepped back in, and a red of 3.0 lands under the window after its third clipped step and ends outside it.
+    @Test
+    fun steeringWithAMismatchedGammaStaysWithinFourSteps() {
+        for (atZero in listOf(0.9, 1.1, 2.0, 3.0)) {
+            val steep = steer(0, sensor(atZero, gamma = 2.6))
+            assertTrue("2.6 $atZero: $steep", steep.size <= 5)
+            assertTrue("2.6 $atZero: $steep", steep.all { it.red >= DEFAULT_EXPOSURE_TARGET.start })
+            val linear = steer(0, sensor(atZero, gamma = 1.0))
+            assertTrue("1.0 $atZero: $linear", linear.size <= 5)
+        }
+        val bright = steer(0, sensor(3.0, gamma = 2.6))
+        assertTrue("$bright", bright.last().red > DEFAULT_EXPOSURE_TARGET.endInclusive)
+        val overshoot = steer(0, sensor(0.9, gamma = 1.0))
+        assertTrue("$overshoot", overshoot.any { it.red < DEFAULT_EXPOSURE_TARGET.start })
+        assertTrue("$overshoot", overshoot.last().red in DEFAULT_EXPOSURE_TARGET)
+    }
+
     @Test
     fun reliefWithRedBackInsideTakesNoStep() {
         // The A17 relief of 2026-10-05: locked at -1.0 EV with red 0.615, a press clipped red for a moment. Measured

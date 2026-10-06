@@ -11,7 +11,6 @@ import { Screen } from '@/components/Screen';
 import { evidenceFor } from '@/evidence';
 import { useTheme } from '@/theme';
 
-import { CompactChecks } from './CompactChecks';
 import { DemoBanner } from './DemoBanner';
 import { showsPulseExtra } from './DiabetesCheckCard';
 import { DiabetesRiskRow, PulseExtraRow } from './DiabetesRiskRow';
@@ -22,6 +21,8 @@ import { HeadlineCard } from './HeadlineCard';
 import { Icon } from '@/components/Icon';
 import { MetricCard } from './MetricCard';
 import { PotsCard } from './PotsCard';
+import { missingReasonText, metricReasons, readingQuality } from './quality';
+import { LowerQualityTag } from './LowerQualityTag';
 import { rhythmWords } from './rhythmWords';
 import { SafetySheet } from './SafetySheet';
 import { clearSymptomsAsked, symptomsAskedFor } from './symptomsAsked';
@@ -42,6 +43,8 @@ function headlineText(t: TFunction, reading: FixtureReading): string {
       return t('result.possibleAf');
     case 'result.uncertain':
       return t('result.uncertain');
+    case 'result.hrOnly':
+      return t('result.hrOnly');
     case 'result.inconclusive':
       return t('result.inconclusive');
   }
@@ -49,7 +52,7 @@ function headlineText(t: TFunction, reading: FixtureReading): string {
 
 function sublineText(t: TFunction, reading: FixtureReading, anyFlag: boolean): string | null {
   const { headlineKey, metrics } = reading.scan;
-  if (headlineKey === 'result.regular') {
+  if (headlineKey === 'result.regular' || headlineKey === 'result.hrOnly') {
     if (anyFlag) return t('results.sublineFollowUp');
     // "Usual range" is only true when there is a personal band to compare against.
     return metrics.rmssd?.band ? t('results.sublineUsual') : t('results.sublineNeutral');
@@ -67,7 +70,11 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const { width, fontScale } = useWindowDimensions();
   const stackFooter = width < NARROW_WIDTH || fontScale > LARGE_TEXT_SCALE;
   const scan = reading.scan;
-  const { hr, rhythm, rmssd, diabetes } = scan.metrics;
+  const { hr, rhythm, rmssd, resp, diabetes } = scan.metrics;
+  const quality = readingQuality(scan);
+  const lowReasons = (metric: object | null) => metricReasons(metric, quality);
+  // Null when the cause is the signal itself, which keeps "Not enough clean signal".
+  const knownMissing = missingReasonText(t, quality.reasons) ?? undefined;
   const acuteFlag = Boolean(hr?.flag) || Boolean(rhythm?.flag);
 
   // ADR 0046, §12.5: the amber card needs the flag and a passed accuracy criterion. Without the passed
@@ -78,6 +85,11 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const [sheetOpen, setSheetOpen] = useState(anyFlag && !symptomsAskedFor(reading.id));
   useEffect(() => clearSymptomsAsked(reading.id), [reading.id]);
 
+  const hrvMissingText = !rhythm
+    ? t('quality.missingNoRhythm')
+    : rhythm.class !== 'sinus'
+      ? t('quality.missingNotSinus')
+      : undefined;
   const subline = sublineText(t, reading, anyFlag);
   const when = t('results.dayAt', {
     day: formatDay(reading.createdAt, i18n.language),
@@ -138,6 +150,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           <AppText variant="caption" tone="textDim">
             {metaParts.join(' · ')}
           </AppText>
+          {quality.level === 'low' ? <LowerQualityTag reasons={quality.reasons} /> : null}
         </HeadlineCard>
 
         {acuteFlag ? <Button label={t('results.findCare')} onPress={() => router.push('/care')} /> : null}
@@ -159,6 +172,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
               </AppText>
               <EvidenceBadge metric="diabetes" />
             </View>
+            {lowReasons(diabetes) ? <LowerQualityTag small reasons={lowReasons(diabetes) ?? []} /> : null}
             <AppText>
               {t('results.diabetesSeen', {
                 readings: diabetesCard.readingsUsed,
@@ -183,6 +197,9 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           icon="pulse"
           evidenceMetric="rhythm"
           basicAnalysis={rhythm?.scorer === 'rule'}
+          missingText={knownMissing}
+          lowQualityReasons={lowReasons(rhythm)}
+          footnote={rhythm?.flag !== null && lowReasons(rhythm) ? t('quality.confirmAf') : undefined}
           reading={
             rhythm && {
               ...rhythmWords(t, rhythm),
@@ -191,33 +208,52 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
             }
           }
         />
-        {reading.mode === 'full' ? (
-          <MetricCard
-            title={t('results.hrv')}
-            icon="bars"
-            evidenceMetric="hrv"
-            reading={
-              rmssd && {
-                value: t('results.ms', { value: Math.round(rmssd.value) }),
-                note: rmssd.band
-                  ? t('results.yourBand', { low: Math.round(rmssd.band[0]), high: Math.round(rmssd.band[1]) })
-                  : t('results.learningBand'),
-                confidence: rmssd.confidence,
-                flagged: false,
-              }
+        <MetricCard
+          title={t('results.hrv')}
+          icon="bars"
+          evidenceMetric="hrv"
+          missingText={hrvMissingText ?? knownMissing}
+          lowQualityReasons={lowReasons(rmssd)}
+          reading={
+            rmssd && {
+              value: t('results.ms', { value: Math.round(rmssd.value) }),
+              note: rmssd.band
+                ? t('results.yourBand', { low: Math.round(rmssd.band[0]), high: Math.round(rmssd.band[1]) })
+                : t('results.learningBand'),
+              confidence: rmssd.confidence,
+              flagged: false,
             }
-          />
-        ) : null}
+          }
+        />
 
-        {reading.mode !== 'full' ? <CompactChecks /> : null}
+        <MetricCard
+          title={t('results.breathing')}
+          icon="breath"
+          evidenceMetric="resp"
+          missingText={knownMissing}
+          lowQualityReasons={lowReasons(resp)}
+          reading={
+            resp && {
+              value: t('results.brpm', { value: Math.round(resp.value) }),
+              note: t('results.noteResting'),
+              confidence: resp.confidence,
+              flagged: false,
+            }
+          }
+        />
         <DiabetesRiskRow readingId={reading.id} sample={reading.sample} />
+        {showsPulseExtra(reading) && lowReasons(diabetes) ? (
+          <LowerQualityTag small reasons={lowReasons(diabetes) ?? []} />
+        ) : null}
         {showsPulseExtra(reading) ? <PulseExtraRow readingId={reading.id} /> : null}
-        {reading.mode === 'full' ? <PotsCard /> : null}
+        <PotsCard />
 
         <MetricCard
           title={t('results.heartRate')}
           icon="heart"
           evidenceMetric="hr"
+          missingText={knownMissing}
+          lowQualityReasons={lowReasons(hr)}
           reading={
             hr && {
               value: t('results.bpm', { value: Math.round(hr.value) }),
@@ -228,7 +264,10 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           }
         />
 
-        <ExperimentalCard experimental={scan.experimental} />
+        <ExperimentalCard
+          experimental={scan.experimental}
+          lowQualityReasons={lowReasons(scan.experimental)}
+        />
 
         <AppText tone="textDim">
           {t('result.notChecked')}{' '}

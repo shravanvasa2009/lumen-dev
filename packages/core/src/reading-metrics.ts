@@ -88,16 +88,27 @@ function beatPairs<T extends ClassifiedBeat>(segment: T[]): [T, T][] {
 export function heartRate(segments: ClassifiedBeat[][], cleanS: number): number | null {
   const { minCleanS } = DSP_CONFIG.dsp11;
   if (!(cleanS >= minCleanS)) return null;
-  const intervalsS = segments.flatMap((segment) =>
+  const intervalsS = acceptedIntervals(segments);
+  let spannedS = 0;
+  for (const intervalS of intervalsS) spannedS += intervalS;
+  return spannedS >= minCleanS ? 60 / median(intervalsS) : null;
+}
+
+// Intervals between consecutive non-artifact beats, in reading order.
+function acceptedIntervals(segments: ClassifiedBeat[][]): number[] {
+  return segments.flatMap((segment) =>
     beatPairs(segment)
       .filter(([from, to]) => from.beatClass !== 'artifact' && to.beatClass !== 'artifact')
       .map(([from, to]) => to.peakS - from.peakS)
       // Two beats at the same or reversed times are one beat found twice, not a cardiac cycle.
       .filter((intervalS) => intervalS > 0),
   );
-  let spannedS = 0;
-  for (const intervalS of intervalsS) spannedS += intervalS;
-  return spannedS >= minCleanS ? 60 / median(intervalsS) : null;
+}
+
+/** DSP-11 below its floors (ADR 0104): 60 / the median of the accepted intervals, from two of them. */
+export function lowQualityHeartRate(segments: ClassifiedBeat[][]): number | null {
+  const intervalsS = acceptedIntervals(segments);
+  return intervalsS.length >= DSP_CONFIG.lowQuality.hrMinIntervals ? 60 / median(intervalsS) : null;
 }
 
 // Runs of adjacent NN intervals: normal → normal, the second not ending a long pause. Anything else ends
@@ -181,6 +192,19 @@ export function hrv(
     sdnnMs = 1000 * Math.sqrt(deviations / (intervalsS.length - 1));
   }
   return { rmssdMs, sdnnMs, pnn50, nnIntervals: intervalsS.length };
+}
+
+/** DSP-12 below its floors (ADR 0104): RMSSD in ms from three NN intervals, at any rhythm and frame rate. */
+export function lowQualityRmssd(
+  segments: ClassifiedBeat[][],
+): { rmssdMs: number; nnIntervals: number } | null {
+  const runs = filteredRuns(nnRuns(segments));
+  const nnIntervals = runs.flat().length;
+  const differences = runs.flatMap((run) => run.slice(1).map((intervalS, i) => intervalS - run[i]!));
+  if (nnIntervals < DSP_CONFIG.lowQuality.rmssdMinIntervals || differences.length === 0) return null;
+  let squares = 0;
+  for (const difference of differences) squares += difference * difference;
+  return { rmssdMs: 1000 * Math.sqrt(squares / differences.length), nnIntervals };
 }
 
 // The order of hrSummary's output: diabetes-net's [1, 4] input, named as in its manifest featureOrder.hrSummary.

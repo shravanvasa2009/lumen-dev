@@ -1,0 +1,67 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Pressable, ScrollView, View } from 'react-native';
+
+import type { QualityReason } from '@lumen/core';
+
+import { AppText } from '@/components/AppText';
+import { BottomSheet } from '@/components/BottomSheet';
+import { Button } from '@/components/Button';
+import { useTheme } from '@/theme';
+
+import { reasonText } from './quality';
+
+type LowerQualityTagProps = { reasons: readonly QualityReason[]; small?: boolean };
+
+// §6: a reading is never withheld for quality; this quiet amber-neutral tag says it was weaker, and the
+// sheet says why. Never red (SAFE-1).
+export function LowerQualityTag({ reasons, small = false }: LowerQualityTagProps) {
+  const { t } = useTranslation();
+  const { colors, radius, spacing } = useTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('quality.chip')}
+        accessibilityHint={t('quality.chipHint')}
+        hitSlop={spacing.md}
+        onPress={() => setOpen(true)}
+        style={{
+          alignSelf: 'flex-start',
+          backgroundColor: colors.badgeFlagBg,
+          borderRadius: radius.pill,
+          paddingHorizontal: small ? spacing.sm : spacing.md,
+          paddingVertical: small ? 0 : spacing.xs,
+        }}
+      >
+        <AppText variant="caption" style={{ color: colors.badgeFlagFg }}>
+          {t('quality.chip')} ›
+        </AppText>
+      </Pressable>
+      <BottomSheet visible={open} onDismiss={() => setOpen(false)} dismissLabel={t('common.close')}>
+        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.lg }}>
+          <AppText variant="title" accessibilityRole="header">
+            {t('quality.sheetTitle')}
+          </AppText>
+          <View style={{ gap: spacing.sm }}>
+            {reasons.map((reason) => (
+              <AppText key={reason.kind}>• {reasonText(t, reason)}</AppText>
+            ))}
+          </View>
+          <AppText variant="headline">{t('quality.betterTitle')}</AppText>
+          <View style={{ gap: spacing.sm }}>
+            {[t('quality.tipFlat'), t('quality.tipStill'), t('quality.tipWarm'), t('quality.tipFull')].map(
+              (tip) => (
+                <AppText key={tip} tone="textDim">
+                  • {tip}
+                </AppText>
+              ),
+            )}
+          </View>
+        </ScrollView>
+        <Button label={t('common.gotIt')} variant="secondary" onPress={() => setOpen(false)} />
+      </BottomSheet>
+    </>
+  );
+}

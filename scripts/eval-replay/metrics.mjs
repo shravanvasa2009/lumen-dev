@@ -15,10 +15,16 @@ const roundPair = (pair) => pair?.map(round) ?? null;
 const distinct = (values) => new Set(values).size;
 const subjectOf = (capture) => capture.meta.subject.code;
 const polarUsable = (rr) => rr >= POLAR_MIN_MS && rr <= POLAR_MAX_MS;
-// result.uncertain still shows its numbers to the user, so it counts as conclusive.
+// result.uncertain and result.hrOnly still show their numbers to the user, so they count as conclusive.
 const isConclusive = (capture) =>
   capture.reading.inconclusive !== true && capture.reading.headlineKey !== 'result.inconclusive';
 const hasPolar = (capture) => capture.polarRrMs?.some(polarUsable);
+// ADR 0104: accuracy is measured on standard results only; a value tagged lower quality ran below a floor
+// the acceptance criteria assume. False irregular flags still count whatever their quality: the user sees them.
+const standardValue = (capture, name) => {
+  const metric = capture.reading.metrics?.[name];
+  return metric?.quality === 'low' ? undefined : metric?.value;
+};
 // DSP-A is "at rest": no deliberate artifacts, no paced breathing, no standing test.
 const isRest = (capture) =>
   capture.meta.labels?.deliberateArtifact !== true &&
@@ -26,7 +32,7 @@ const isRest = (capture) =>
   capture.meta.mode !== 'standing';
 
 function hrError(capture) {
-  const phoneHr = capture.reading.metrics?.hr?.value;
+  const phoneHr = standardValue(capture, 'hr');
   if (!hasPolar(capture) || phoneHr == null || !isConclusive(capture) || !isRest(capture)) return null;
   return Math.abs(phoneHr - 60000 / mean(capture.polarRrMs.filter(polarUsable)));
 }
@@ -82,7 +88,7 @@ function intervalError(capture, alignment) {
 
 // The app's own RMSSD against the strap's RMSSD over the matched segment (DSP-B checks what the card shows).
 function rmssdRelativeError(capture, alignment) {
-  const shown = capture.reading.metrics?.rmssd?.value;
+  const shown = standardValue(capture, 'rmssd');
   if (shown == null || !alignment?.pairs.length) return null;
   const segment = capture.polarRrMs.slice(alignment.pairs[0][1], alignment.pairs.at(-1)[1] + 1);
   const reference = rmssd(segment, segment.map(polarUsable));
@@ -119,7 +125,7 @@ export function computeMetrics(captures, { commit, date }, log = () => {}) {
   const resp = summarize(
     captures.map((capture) => {
       const paced = capture.meta.labels?.pacedBrpm;
-      const measured = capture.reading.metrics?.resp?.value;
+      const measured = standardValue(capture, 'resp');
       const usable = paced != null && measured != null && isConclusive(capture);
       return { capture, value: usable ? Math.abs(measured - paced) : null };
     }),

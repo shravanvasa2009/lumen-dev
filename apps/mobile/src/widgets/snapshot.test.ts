@@ -39,7 +39,16 @@ function snapshotOf(
 
 function rhythm(flag: 'irregular' | 'possibleAf' | null): Change {
   return (outcome) => {
-    outcome.metrics.rhythm = { class: 'sinus', pAF: 0.1, evidence: 'public-data', confidence: 'high', flag };
+    outcome.metrics.rhythm = {
+      class: 'sinus',
+      pAF: 0.1,
+      evidence: 'public-data',
+      confidence: 'high',
+      quality: 'standard',
+      qualityReasons: [],
+      qualityDetails: [],
+      flag,
+    };
   };
 }
 
@@ -56,6 +65,9 @@ function diabetes(evidence: 'public-data' | 'experimental'): Change {
       readingsUsed: 2,
       evidence,
       confidence: 'high',
+      quality: 'standard',
+      qualityReasons: [],
+      qualityDetails: [],
       flag: 'pattern',
     };
   };
@@ -69,6 +81,15 @@ const inconclusive: Change = (outcome) => {
 
 const uncertain: Change = (outcome) => {
   outcome.headlineKey = 'result.uncertain';
+};
+
+const lowQuality: Change = (outcome) => {
+  outcome.quality = { level: 'low', reasons: [{ kind: 'shortClean', haveS: 40, wantS: 90 }] };
+};
+
+const hrOnly: Change = (outcome) => {
+  outcome.headlineKey = 'result.hrOnly';
+  outcome.metrics.rmssd = null;
 };
 
 type Outcome = {
@@ -93,6 +114,13 @@ const outcomes: readonly Outcome[] = [
     name: 'an inconclusive reading',
     change: inconclusive,
     status: 'inconclusive',
+    rhythmFlag: false,
+    diabetesFlag: false,
+  },
+  {
+    name: 'a heart-rate-only reading',
+    change: hrOnly,
+    status: 'regular',
     rhythmFlag: false,
     diabetesFlag: false,
   },
@@ -161,6 +189,9 @@ const outcomes: readonly Outcome[] = [
         unit: 'bpm',
         evidence: 'checked',
         confidence: 'moderate',
+        quality: 'standard',
+        qualityReasons: [],
+        qualityDetails: [],
         flag: 'fastRegular',
       };
     },
@@ -264,6 +295,9 @@ describe('the doctor status persists', () => {
   it.each([
     { name: 'an inconclusive reading', change: inconclusive, mode: 'full' as const },
     { name: "a couldn't-tell reading", change: uncertain, mode: 'full' as const },
+    // Its rhythm was not judged, so it is not the regular Full Check that ADR 0005 asks for.
+    { name: 'a heart-rate-only Full Check', change: hrOnly, mode: 'full' as const },
+    { name: 'a lower-quality regular Full Check (ADR 0104)', change: lowQuality, mode: 'full' as const },
     { name: 'a slow resting rate', change: hrFlag('slowResting'), mode: 'quick' as const },
   ])('stays after $name', ({ change, mode }) => {
     expect(snapshotOf([flagged, readingWith(change, NOW - HOUR, mode)]).status).toBe('see-doctor');
@@ -309,6 +343,12 @@ describe('heart rate on the widget', () => {
 
   it('is null when the reading has no rate', () => {
     expect(snapshotOf([makeReading(NOW - HOUR, null, null)]).hrBpm).toBeNull();
+  });
+
+  it('is null when the rate is lower quality, which the widget has no room to tag (ADR 0104)', () => {
+    const low = makeReading(NOW - HOUR, 64, null);
+    low.outcome.metrics.hr!.quality = 'low';
+    expect(snapshotOf([low]).hrBpm).toBeNull();
   });
 });
 

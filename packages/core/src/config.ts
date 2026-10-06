@@ -298,6 +298,24 @@ export const DSP_CONFIG = {
     maxBpm: 180,
     minSnrDb: 6, // peak power over the median power of the scanned bins
   },
+  // Owner 2026-10-05 (ADR 0104): when a standard floor fails, the same math runs on whatever beats exist and
+  // the result is tagged lower quality. Each value is the fewest beats its method is defined on.
+  lowQuality: {
+    hrMinIntervals: 2, // DSP-11: the median of two accepted intervals
+    rmssdMinIntervals: 3, // DSP-12: two successive differences
+    rhythmMinIntervals: 3, // DSP-15: the turning-point ratio divides by n − 2
+    shapeMinBeats: 1, // DSP-14: one normal onset-to-onset beat
+  },
+  // DSP-6 display only: the live graph's one-bump-per-beat pulse (displayPulse), never read by analysis.
+  // A zero-phase low-pass a little above the beat rate removes the dicrotic wave's harmonics.
+  displayPulse: {
+    order: 4, // run forward and backward
+    // 1.36 is the least that keeps the premature beat of a 0.62 / 1.38 bigeminy at 75 bpm (red team on 5f7730d);
+    // a strong dicrotic wave stays one bump up to about 1.5.
+    cutoffPerFundamental: 1.4,
+    cutoffRangeHz: [0.7, 3], // bounds for a live rate outside its own 40–180 bpm band
+    fallbackCutoffHz: 2.2, // no live rate yet
+  },
   // Lumen Compatibility Rating (§5.1 points, §5.2 tiers; spec initial values, "tune on real phones").
   // Readings of the spec where it is silent are in ADR 0058.
   rating: {

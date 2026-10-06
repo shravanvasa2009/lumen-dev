@@ -102,9 +102,15 @@ function replay(
   };
 }
 
+// ADR 0104 (owner, 2026-10-05): a capture with any heart rate is a reading. A standard rate must still be
+// within 5 bpm; without one, the reading shows the lower-quality rate, which the result tags as such.
 function expectAccurateOrRefused(analysis: ReadingAnalysis, trueBpm: number): void {
   if (readingOutcome(analysis).kind !== 'reading') return;
-  expect(Math.abs(analysis.heartRateBpm! - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
+  if (analysis.heartRateBpm === null) {
+    expect(analysis.lowQuality.heartRateBpm).not.toBeNull();
+    return;
+  }
+  expect(Math.abs(analysis.heartRateBpm - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
 }
 
 // Fewest frames in any closed span of spanS that starts on a frame, as the 96-frame and 1 s counts.
@@ -222,12 +228,16 @@ describe('red team K: every interval within 0.12 s, a fast pulse aliases through
     ['even 120 ms + 2 copies', clusters(40, [118], 2)],
     ['one 150 ms + 119 ms, 3 copies', clusters(40, oneLongPerSpan(150, 119), 3)],
     ['one 150 ms + 110 ms, 3 copies', clusters(40, oneLongPerSpan(150, 110), 3)],
-  ])('%s is refused with beatTrain at 180–220 bpm too', (_, offsetsS) => {
-    for (const bpm of [180, 200, 210, 220]) {
-      const { analysis } = replay(offsetsS, steadyPulse(bpm), 30);
-      expect(readingOutcome(analysis).kind).not.toBe('reading');
-    }
-  });
+  ])(
+    '%s with beatTrain at 180–220 bpm: right, refused, or tagged lower quality (ADR 0104)',
+    (_, offsetsS) => {
+      for (const bpm of [180, 200, 210, 220]) {
+        const { analysis } = replay(offsetsS, steadyPulse(bpm), 30);
+        expect(analysis.heartRateBpm).toBeNull();
+        expectAccurateOrRefused(analysis, bpm);
+      }
+    },
+  );
 
   // 30 fps reads the harmonic pulses exactly, and even 62.5–90 ms + copies read them within 5 bpm (at
   // fb92c45 100 ms first failed, at 220 bpm). Every interval here is within live.sparseIntervalS.
@@ -244,9 +254,10 @@ describe('red team K: every interval within 0.12 s, a fast pulse aliases through
 
   // ADR 0077 note 6: 90 ms clumps hold about 11 distinct sample times a second, under the Nyquist rate of
   // 220 bpm's 2nd harmonic (15), so they are refused whatever they would read.
-  it('even 90 ms + 2 copies is refused (note 6)', () => {
+  it('even 90 ms + 2 copies has no standard rate (note 6); ADR 0104 tags any rate it shows', () => {
     const { analysis } = replay(clusters(40, [88], 2), harmonicPulse(220, 0.5), 30);
-    expect(readingOutcome(analysis).kind).toBe('inconclusive');
+    expect(analysis.heartRateBpm).toBeNull();
+    expectAccurateOrRefused(analysis, 220);
   });
 });
 

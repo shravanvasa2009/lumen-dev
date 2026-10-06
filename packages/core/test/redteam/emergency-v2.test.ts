@@ -188,10 +188,10 @@ describe('red team v2 SAFE-1: margins and boundaries', () => {
     [170, 70, 'fastSustained'],
     [35, 40, 'slowBelow40'],
   ] as const)(
-    '%i bpm for %i s on a Full Scan: inconclusive and still carries urgent.%s',
+    '%i bpm for %i s on a Full Scan: a lower-quality reading (ADR 0104) that still carries urgent.%s',
     (bpm, seconds, field) => {
       const outcome = readingOutcome(analyze(regular(bpm, seconds), seconds));
-      expect(outcome.kind).toBe('inconclusive');
+      expect(outcome.kind).toBe('reading');
       expect(outcome.urgent?.[field]).toBe(true);
     },
   );

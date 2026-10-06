@@ -1,3 +1,5 @@
+import type { Tier } from './reading';
+
 // Results JSON for one reading (Appendix B). A metric is null when its card missed the clean-data
 // floor in §6.2 or its gate in §10.1; that card alone shows "Not enough clean signal" (§7).
 
@@ -16,9 +18,40 @@ export type HeadlineKey =
   | 'result.irregularRetake'
   | 'result.possibleAf'
   | 'result.inconclusive'
-  | 'result.uncertain';
+  | 'result.uncertain'
+  | 'result.hrOnly';
 // §6.4, listed under result.notChecked.
 export type NotChecked = 'bp' | 'spo2' | 'heartAttack';
+
+// Why a result is tagged lower quality (owner 2026-10-05, ADR 0104): each names a standard floor that failed.
+export type QualityReason =
+  | { kind: 'shortClean'; haveS: number; wantS: number }
+  | { kind: 'lowFps'; fps: number; wantFps: number }
+  | { kind: 'noSqi' }
+  | { kind: 'modelFallback' }
+  | { kind: 'quickMode' }
+  | { kind: 'contact'; coveredPct: number }
+  | { kind: 'fewBeats'; beats: number; wantBeats: number }
+  | { kind: 'fewWindows'; windows: number; wantWindows: number }
+  // DSP-13's three breathing estimates were all found but disagreed, so the interval estimate alone is shown.
+  | { kind: 'estimatesDisagree' }
+  // §5.2: the phone's rating, not its frame rate, is below the tier the output needs.
+  | { kind: 'phoneTier'; tier: Tier; wantTier: Tier }
+  // No rhythm model or rule judged the rhythm, so RMSSD was computed without checking it is sinus (DSP-12).
+  | { kind: 'rhythmUnjudged' };
+// 'low': a standard floor failed and the same math ran on the beats there were.
+export type MetricQuality = 'standard' | 'low';
+// 'low' when any metric is; reasons are the union over the metrics, one per kind.
+export interface ReadingQuality {
+  level: MetricQuality;
+  reasons: QualityReason[];
+}
+interface MetricQualityFields {
+  quality: MetricQuality;
+  qualityReasons: QualityReason['kind'][];
+  // This metric's own reasons with its own floors (a heart rate's 15 s, not the diabetes pattern's 90 s).
+  qualityDetails: QualityReason[];
+}
 
 // §10.1 slow/fast resting rate and fast regular rhythm. Fast regular rhythm needs only 30 clean s, so it
 // lives on the HR card (15 s floor), not the rhythm card (60 s floor, §6.2).
@@ -30,7 +63,7 @@ export type RhythmFlag = 'irregular' | 'possibleAf';
 export type DiabetesFlag = 'pattern';
 
 // DSP-11.
-export interface HrMetric {
+export interface HrMetric extends MetricQualityFields {
   value: number;
   unit: 'bpm';
   evidence: EvidenceLabel;
@@ -40,7 +73,7 @@ export interface HrMetric {
 // §11.10: the rhythm model, or the logistic rule ("basic analysis") when the model could not run.
 export type RhythmScorer = 'model' | 'rule';
 // §11, DSP-15.
-export interface RhythmMetric {
+export interface RhythmMetric extends MetricQualityFields {
   class: RhythmClass;
   pAF: number;
   evidence: EvidenceLabel;
@@ -49,7 +82,7 @@ export interface RhythmMetric {
   flag: RhythmFlag | null;
 }
 // DSP-12; never flagged.
-export interface RmssdMetric {
+export interface RmssdMetric extends MetricQualityFields {
   value: number;
   unit: 'ms';
   band: [number, number] | null; // personal band, null for the first 7 "learning" readings (§7)
@@ -57,14 +90,14 @@ export interface RmssdMetric {
   confidence: Confidence;
 }
 // DSP-13.
-export interface RespMetric {
+export interface RespMetric extends MetricQualityFields {
   value: number;
   unit: 'br/min';
   evidence: EvidenceLabel;
   confidence: Confidence;
 }
 // §10.1, §11.4.
-export interface DiabetesMetric {
+export interface DiabetesMetric extends MetricQualityFields {
   probability: number; // mean over readingsUsed Full Scans on different days
   readingsUsed: number;
   evidence: EvidenceLabel;
@@ -73,7 +106,7 @@ export interface DiabetesMetric {
 }
 
 // §6.3; never flagged.
-export interface ExperimentalMeasurements {
+export interface ExperimentalMeasurements extends MetricQualityFields {
   extraBeatsPerMin: number;
   longPauses: number;
   pulseShape: { available: boolean };
@@ -88,6 +121,7 @@ export interface LostSeconds {
 
 export interface ReadingResult {
   headlineKey: HeadlineKey;
+  quality: ReadingQuality;
   cleanSeconds: number;
   beats: number;
   rejectedBeats: number;

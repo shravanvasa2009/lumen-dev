@@ -81,12 +81,12 @@ describe('red team SAFE-1: sustained fast rates that must reach the emergency sc
     [200, 240],
     [238, 240],
   ])(
-    '%i bpm regular for 75 s at %i fps: inconclusive (Full Scan) and fastSustained',
+    '%i bpm regular for 75 s at %i fps: a lower-quality Full Scan reading (ADR 0104) and fastSustained',
     (bpm, fps) => {
       const analysis = analyze(regular(bpm, 75), 75, { captureFps: fps });
       expect(analysis.heartRateBpm).toBeCloseTo(bpm, 0);
       expect(readingOutcome(analysis)).toMatchObject({
-        kind: 'inconclusive',
+        kind: 'reading',
         urgent: { fastSustained: true },
       });
     },

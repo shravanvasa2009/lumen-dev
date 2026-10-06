@@ -1,18 +1,19 @@
 import { detectBeats } from './beats';
 import { classifyBeats } from './beat-classes';
-import { breathingRate, type BreathingRate } from './breathing';
+import { breathingEstimates, breathingRate, type BreathingRate } from './breathing';
 import type { FrameStat, Sample } from './capture';
 import { DSP_CONFIG } from './config';
 import { frameProblem, validChannels } from './contact';
 import { butterBandpass, filterZeroPhase } from './filters';
 import { fingerSignals } from './finger-signal';
 import { FlatRuns, modelWindowAt, nextModelTickS, unscoredSpan } from './model-window';
-import { ensembleBeat, type PulseShape } from './pulse-shape';
+import { ensembleBeat, lowQualityEnsembleBeat, type PulseShape } from './pulse-shape';
 import type { RejectedSpan, RejectionReason } from './live-session';
 import {
   cleanSeconds,
   frameGapSpan,
   heartRate,
+  lowQualityHeartRate,
   measureBeats,
   perfusionIndex,
   type MeasuredBeat,
@@ -21,6 +22,7 @@ import { resampleCubic, type ResampledSegment } from './resample';
 import type { LostSeconds, RhythmClass } from './results';
 import {
   hasEnoughUsableIntervals,
+  readingWideWindow,
   rhythmFeatureVector,
   rhythmV2Features,
   rhythmWindows,
@@ -82,11 +84,21 @@ export interface ReadingAnalysis {
   rhythmWindows: RhythmWindow[];
   rhythmFeatures: number[][]; // per window, RHYTHM_FEATURE_NAMES order (v1 8 + v2 7): the rhythm model input
   enoughRhythmIntervals: boolean;
+  usableRhythmIntervals: number; // intervals that span no artifact (DSP-15)
   pulseShape: PulseShape | null; // DSP-14 averaged beat (readingShape): diabetes-net's beat input
   // The emergency view for the §10.1 rule (ADR 0076): intervals and rejected spans without SQI-Net's spans
   // and without ADR 0077's frame-floor windows (owner, "242 A"); null when it has neither, where they are
   // the reading's own.
   withoutSqiNet: { intervals: BeatInterval[]; rejectedSpans: RejectedSpan[] } | null;
+  // ADR 0104: the same math on whatever beats exist, for each output whose standard floor failed. Each is null
+  // when the standard value exists, or when even these floors (lowQuality config) are not met.
+  lowQuality: {
+    heartRateBpm: number | null;
+    breathing: BreathingRate | null;
+    pulseShape: PulseShape | null;
+    rhythmWindow: RhythmWindow | null; // only when no 32-interval window fits
+    rhythmFeatures: number[] | null; // RHYTHM_FEATURE_NAMES order, as rhythmFeatures
+  };
 }
 
 // A run of failing frames spans from its first frame to the next frame (the last frame ends the reading).
@@ -288,7 +300,13 @@ function distinctBeats(segment: MeasuredBeat[]): { beat: MeasuredBeat; bridgesDu
 // onsets of every beat that is not "not a beat" and has an onset, in 256 Hz samples of the segment, and
 // normal = class "normal". The fps is the capture format's: DSP-14 gates on the configured rate, and
 // VitalDB's 500 Hz is exact.
-function segmentShape(segment: BeatSegment, captureFps: number): PulseShape | null {
+type AverageBeat = (
+  morphology256: ArrayLike<number>,
+  onsets: number[],
+  normal: boolean[],
+) => PulseShape | null;
+
+function segmentShape(segment: BeatSegment, average: AverageBeat): PulseShape | null {
   const { shapeRateHz } = DSP_CONFIG.dsp2;
   const onsets: number[] = [];
   const normal: boolean[] = [];
@@ -297,16 +315,16 @@ function segmentShape(segment: BeatSegment, captureFps: number): PulseShape | nu
     onsets.push(beat.onsetS * shapeRateHz - segment.shape.firstIndex);
     normal.push(beat.beatClass === 'normal');
   }
-  return ensembleBeat(segment.shape.values, onsets, normal, captureFps);
+  return average(segment.shape.values, onsets, normal);
 }
 
 // Training has one gap-free segment per scan, and ensembleBeat averages one signal. A reading split at a
 // gap tries its segments from longest to shortest (the first on a tie) and keeps the first that gives a
 // shape, so a long flat or moving stretch does not hide a shorter segment with a clean pulse.
-function readingShape(segments: BeatSegment[], captureFps: number): PulseShape | null {
+function readingShape(segments: BeatSegment[], average: AverageBeat): PulseShape | null {
   const byLength = [...segments].sort((x, y) => y.shape.values.length - x.shape.values.length);
   for (const segment of byLength) {
-    const shape = segmentShape(segment, captureFps);
+    const shape = segmentShape(segment, average);
     if (shape) return shape;
   }
   return null;
@@ -417,6 +435,15 @@ export function analyzeReading(
   const { intervalsS, spansArtifact, atypicalBeats } = rhythmInputs(segments);
   // rhythmWindows takes one flag per beat; with no beat at all there is nothing to window.
   const windows = atypicalBeats.length > 0 ? rhythmWindows(intervalsS, spansArtifact, atypicalBeats) : [];
+  const wideWindow =
+    windows.length === 0 && atypicalBeats.length > 0
+      ? readingWideWindow(intervalsS, spansArtifact, atypicalBeats)
+      : null;
+  const heartRateBpm = heartRate(segments, clean);
+  const breathing = breathingRate(segments, clean);
+  const pulseShape = readingShape(bands, (morphology256, onsets, normal) =>
+    ensembleBeat(morphology256, onsets, normal, context.captureFps),
+  );
 
   return {
     context,
@@ -428,14 +455,15 @@ export function analyzeReading(
     lostSeconds: lostSecondsOf(rejectedSpans, durationS),
     segments,
     intervals: bySegment.flat(),
-    heartRateBpm: heartRate(segments, clean),
+    heartRateBpm,
     perfusionIndexPct: perfusionIndex(segments, clean),
-    breathing: breathingRate(segments, clean),
+    breathing,
     normalizedRmssd: normalizedRmssdOf(bySegment),
     rhythmWindows: windows,
     rhythmFeatures: windows.map((window) => [...rhythmFeatureVector(window), ...rhythmV2Features(window)]),
     enoughRhythmIntervals: hasEnoughUsableIntervals(spansArtifact),
-    pulseShape: readingShape(bands, context.captureFps),
+    usableRhythmIntervals: spansArtifact.filter((spans) => !spans).length,
+    pulseShape,
     withoutSqiNet: emergencyView
       ? {
           intervals: intervalsBySegment(
@@ -445,5 +473,12 @@ export function analyzeReading(
           rejectedSpans: rejectedSpans.filter(inEmergencyView),
         }
       : null,
+    lowQuality: {
+      heartRateBpm: heartRateBpm === null ? lowQualityHeartRate(segments) : null,
+      breathing: breathing === null ? breathingEstimates(segments) : null,
+      pulseShape: pulseShape === null ? readingShape(bands, lowQualityEnsembleBeat) : null,
+      rhythmWindow: wideWindow,
+      rhythmFeatures: wideWindow && [...rhythmFeatureVector(wideWindow), ...rhythmV2Features(wideWindow)],
+    },
   };
 }

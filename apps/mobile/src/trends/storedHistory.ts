@@ -1,6 +1,12 @@
 import type { StoredReading } from '@/home/readings';
+import { isLowQuality } from '@/results/quality';
 
 import type { HistoryReading } from './series';
+
+// Only standard values (ADR 0104): a lower-quality one would move the trend median and the personal band with no
+// tag beside it, so it is left out as a missed floor is.
+const standard = <T extends object>(metric: T | null): T | null =>
+  metric && !isLowQuality(metric) ? metric : null;
 
 // The caffeine answer is not saved with a reading yet, so no point is marked: a guess would draw a cup the
 // person never chose.
@@ -9,10 +15,10 @@ export function historyFromStored(readings: readonly StoredReading[]): HistoryRe
     id,
     createdAt: new Date(takenAt),
     mode: mode ?? 'quick',
-    hr: outcome.metrics.hr?.value ?? null,
-    rmssd: outcome.metrics.rmssd?.value ?? null,
-    resp: outcome.metrics.resp?.value ?? null,
-    rhythm: outcome.metrics.rhythm?.class ?? null,
+    hr: standard(outcome.metrics.hr)?.value ?? null,
+    rmssd: standard(outcome.metrics.rmssd)?.value ?? null,
+    resp: standard(outcome.metrics.resp)?.value ?? null,
+    rhythm: standard(outcome.metrics.rhythm)?.class ?? null,
     caffeine: false,
   }));
 }

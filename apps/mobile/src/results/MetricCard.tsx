@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
-import type { Confidence } from '@lumen/core';
+import type { Confidence, QualityReason } from '@lumen/core';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
@@ -12,6 +12,7 @@ import { useTheme } from '@/theme';
 
 import { CheckHeading } from './CheckHeading';
 import { ConfidenceDots } from './ConfidenceDots';
+import { LowerQualityTag } from './LowerQualityTag';
 
 type MetricCardProps = {
   title: string;
@@ -23,6 +24,12 @@ type MetricCardProps = {
   basicAnalysis?: boolean;
   // Null when the metric missed its clean-data floor; that card alone says so (§6.2).
   reading: { value: string; note: string; confidence: Confidence; flagged: boolean } | null;
+  // What a null reading says when the check did not run at all, instead of "Not enough clean signal".
+  missingText?: string;
+  // Set when this metric's quality is low; the card then carries the small tag.
+  lowQualityReasons?: readonly QualityReason[] | null;
+  // A line under the result, e.g. the advice to confirm a low-quality irregular rhythm.
+  footnote?: string;
 };
 
 export function MetricCard({
@@ -32,6 +39,9 @@ export function MetricCard({
   evidenceMetric,
   basicAnalysis = false,
   reading,
+  missingText,
+  lowQualityReasons,
+  footnote,
 }: MetricCardProps) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
@@ -67,6 +77,7 @@ export function MetricCard({
           </View>
         ) : null}
       </View>
+      {reading && lowQualityReasons ? <LowerQualityTag small reasons={lowQualityReasons} /> : null}
       {reading ? (
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
           <AppText variant="title">{reading.value}</AppText>
@@ -75,13 +86,14 @@ export function MetricCard({
           </AppText>
         </View>
       ) : (
-        <AppText variant="headline">{t('result.inconclusive')}</AppText>
+        <AppText variant="headline">{missingText ?? t('result.inconclusive')}</AppText>
       )}
       {reading && basicAnalysis ? (
         <AppText variant="caption" tone="textDim">
           {t('results.basicAnalysis')}
         </AppText>
       ) : null}
+      {reading && footnote ? <AppText tone="textDim">{footnote}</AppText> : null}
     </Card>
   );
 }

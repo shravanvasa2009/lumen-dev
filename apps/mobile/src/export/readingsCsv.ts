@@ -16,6 +16,8 @@ const COLUMNS = [
   'clean_seconds',
   'beats',
   'rejected_beats',
+  'quality',
+  'quality_reasons',
 ];
 
 // Every cell is a number or one of a fixed set of words, never free text, so no quoting is needed.
@@ -41,6 +43,9 @@ export function readingsToCsv(readings: readonly StoredReading[]): string {
         outcome.cleanSeconds,
         outcome.beats,
         outcome.rejectedBeats,
+        // ADR 0104; a reading saved before quality existed was standard. Reason kinds are fixed words, '|'-joined.
+        outcome.quality?.level ?? 'standard',
+        (outcome.quality?.reasons ?? []).map((reason) => reason.kind).join('|'),
       ]
         .map((cell) => cell ?? '')
         .join(',');

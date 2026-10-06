@@ -1,0 +1,4717 @@
+{
+ "source": "packages/core at a1cf170 (main core before ADR 0104), lower-quality-battery.ts",
+ "cases": [
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227527,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 95 s at 30 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997864202338,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "premature beat every 8th at 75 bpm, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99981499059031,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": {
+     "probability": 0.8500000000000001,
+     "readingsUsed": 2,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "pattern"
+    }
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.32709334216856806,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.7280571408313204,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "AF-like, mean 0.75 s, CV 0.22, 95 s at 60 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 79.71707400528636,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.regular",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.23906688121117103,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": {
+     "value": 0.07621232796079229,
+     "unit": "ms",
+     "band": null,
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.6243118134673576,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.regular",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.23906688121117103,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": {
+     "value": 0.07621232796079229,
+     "unit": "ms",
+     "band": null,
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.6243118134673576,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.regular",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.23906688121117103,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.6243118134673576,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.regular",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.23906688121117103,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": {
+     "value": 0.07621232796079229,
+     "unit": "ms",
+     "band": null,
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.6243118134673576,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.regular",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "sinus",
+     "pAF": 0.23906688121117103,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": {
+     "value": 0.07621232796079229,
+     "unit": "ms",
+     "band": null,
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.6243118134673576,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 75 bpm, 70 s at 60 fps (Full Scan short of 90 s)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 74.99997700227411,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "sinus 50 bpm, 40 s at 30 fps",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": null,
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 50.00001082594104,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": null
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.3478725961808865,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.743051423089877,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "fastRegular"
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.3478725961808865,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "fastRegular"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "fastRegular"
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.743051423089877,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "fastRegular"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.3478725961808865,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.743051423089877,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "fastRegular"
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.3478725961808865,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "fastRegular"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "fastRegular"
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.743051423089877,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "fastRegular"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "moderate"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.3478725961808865,
+     "evidence": "public-data",
+     "confidence": "low",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.irregularRetake",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": {
+     "class": "af",
+     "pAF": 0.743051423089877,
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": null
+    },
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "155 bpm, 70 s at 30 fps (SAFE-1 fast)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": {
+    "fastSustained": true,
+    "slowBelow40": false
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 155.000113225434,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "fastRegular"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": {
+     "value": 15,
+     "unit": "br/min",
+     "evidence": "public-data",
+     "confidence": "high"
+    },
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Full tier, 60 fps, no SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, Basic tier, 30 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Full Scan, unrated, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "inconclusive",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "moderate",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 1,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "no flags",
+   "outcome": "reading",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  },
+  {
+   "capture": "35 bpm, 60 s at 30 fps (SAFE-1 slow)",
+   "context": "Quick Check, Full tier, 60 fps, SQI",
+   "seed": 3,
+   "profile": "pacemaker",
+   "outcome": "reading",
+   "urgent": {
+    "fastSustained": false,
+    "slowBelow40": true
+   },
+   "headlineKey": "result.uncertain",
+   "metrics": {
+    "hr": {
+     "value": 35.0000169948862,
+     "unit": "bpm",
+     "evidence": "public-data",
+     "confidence": "high",
+     "flag": "slowResting"
+    },
+    "rhythm": null,
+    "rmssd": null,
+    "resp": null,
+    "diabetes": null
+   }
+  }
+ ]
+}

@@ -24,6 +24,12 @@ class MeasuredBeat:
 
 
 @dataclass(frozen=True)
+class LowQualityRmssd:
+    rmssd_ms: float
+    nn_intervals: int  # NN intervals left after the 20% filter
+
+
+@dataclass(frozen=True)
 class Hrv:
     rmssd_ms: float | None
     sdnn_ms: float | None
@@ -104,8 +110,17 @@ def heart_rate(segments: Sequence[Sequence[MeasuredBeat]], clean_s: float) -> fl
     min_clean_s = DSP_CONFIG["dsp11"]["minCleanS"]
     if not clean_s >= min_clean_s:
         return None
-    # Two beats at the same or reversed times are one beat found twice, not a cardiac cycle.
-    intervals_s = [
+    intervals_s = _accepted_intervals(segments)
+    spanned_s = 0.0
+    for interval_s in intervals_s:
+        spanned_s += interval_s
+    return 60 / median(intervals_s) if spanned_s >= min_clean_s else None
+
+
+def _accepted_intervals(segments: Sequence[Sequence[MeasuredBeat]]) -> list[float]:
+    # Intervals between consecutive non-artifact beats, in reading order. Two beats at the same or reversed
+    # times are one beat found twice, not a cardiac cycle.
+    return [
         later.peak_s - earlier.peak_s
         for segment in segments
         for earlier, later in beat_pairs(segment)
@@ -113,10 +128,14 @@ def heart_rate(segments: Sequence[Sequence[MeasuredBeat]], clean_s: float) -> fl
         and later.beat_class != "artifact"
         and later.peak_s - earlier.peak_s > 0
     ]
-    spanned_s = 0.0
-    for interval_s in intervals_s:
-        spanned_s += interval_s
-    return 60 / median(intervals_s) if spanned_s >= min_clean_s else None
+
+
+# DSP-11 below its floors (ADR 0104): 60 / the median of the accepted intervals, from two of them.
+def low_quality_heart_rate(segments: Sequence[Sequence[MeasuredBeat]]) -> float | None:
+    intervals_s = _accepted_intervals(segments)
+    return (
+        60 / median(intervals_s) if len(intervals_s) >= DSP_CONFIG["lowQuality"]["hrMinIntervals"] else None
+    )
 
 
 def _nn_runs(segments: Sequence[Sequence[MeasuredBeat]]) -> list[list[float]]:
@@ -198,6 +217,19 @@ def hrv(
         # Sample SD (n − 1) (ADR 0040).
         sdnn_ms = 1000 * math.sqrt(deviations / (len(intervals_s) - 1))
     return Hrv(rmssd_ms=rmssd_ms, sdnn_ms=sdnn_ms, pnn50=pnn50, nn_intervals=len(intervals_s))
+
+
+# DSP-12 below its floors (ADR 0104): RMSSD in ms from three NN intervals, at any rhythm and frame rate.
+def low_quality_rmssd(segments: Sequence[Sequence[MeasuredBeat]]) -> LowQualityRmssd | None:
+    runs = _filtered_runs(_nn_runs(segments))
+    nn_intervals = sum(len(run) for run in runs)
+    differences = [run[i + 1] - run[i] for run in runs for i in range(len(run) - 1)]
+    if nn_intervals < DSP_CONFIG["lowQuality"]["rmssdMinIntervals"] or not differences:
+        return None
+    squares = 0.0
+    for difference in differences:
+        squares += difference * difference
+    return LowQualityRmssd(rmssd_ms=1000 * math.sqrt(squares / len(differences)), nn_intervals=nn_intervals)
 
 
 # ML-6: diabetes-net's [1, 4] HR/HRV summary [HR bpm, RMSSD ms, SDNN ms, pNN50] by DSP-11 and DSP-12, as

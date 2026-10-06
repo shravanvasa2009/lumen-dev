@@ -9,6 +9,7 @@ import {
   filterZeroPhase,
   fingerSignals,
   readingRhythm,
+  rhythmModelRows,
   resampleCubic,
   SHAPE_FEATURE_NAMES,
   type MeasuredBeat,
@@ -104,11 +105,12 @@ function normalPairs(beats: MeasuredBeat[]): number {
 }
 
 // Every diabetes-net input is either null or the model's shapes with only finite numbers and nulls, and
-// it is null exactly when the analysis has no pulse shape.
+// it is null exactly when the analysis has no pulse shape, standard or lower quality (ADR 0104).
+const anyShape = (analysis: ReadingAnalysis) => analysis.pulseShape ?? analysis.lowQuality.pulseShape;
 function expectSafeInputs(analysis: ReadingAnalysis) {
   for (const rhythm of RHYTHMS) {
     const input = diabetesModelInput(analysis, rhythm);
-    expect(input === null).toBe(analysis.pulseShape === null);
+    expect(input === null).toBe(anyShape(analysis) === null);
     if (!input) continue;
     expect(input.beat).toHaveLength(DSP_CONFIG.dsp14.beatSamples);
     expect(input.shapeFeatures).toHaveLength(SHAPE_FEATURE_NAMES.length);
@@ -289,7 +291,7 @@ describe('red team ML-6: the result JSON agrees with the analysis on the pulse s
     ],
   ])('%s', (_, build) => {
     const analysis = analyzeReading(build(), CONTEXT);
-    expect(pulseShapeAvailable(analysis)).toBe(analysis.pulseShape !== null);
+    expect(pulseShapeAvailable(analysis)).toBe(anyShape(analysis) !== null);
   });
 });
 
@@ -297,12 +299,16 @@ describe('red team ML-6: captureFps as the context gives it', () => {
   const capture = sinusCapture(60, 90);
 
   it.each([59.999, NaN, -Infinity, 0, -60])(
-    'captureFps %s: no pulse shape, no throw, no HRV',
+    'captureFps %s: no standard pulse shape, no throw; the lower-quality beat is tagged lowFps',
     (captureFps) => {
       const analysis = analyzeReading(capture, { ...CONTEXT, captureFps });
       expect(analysis.pulseShape).toBeNull();
-      expect(diabetesModelInput(analysis, 'sinus')).toBeNull();
+      expectSafeInputs(analysis);
       expect(analysis.heartRateBpm).not.toBeNull();
+      const diabetes = { probability: 0.5, tauDm: 0.5 };
+      const built = buildReadingResult(analysis, { rhythm: null, diabetes }, seedEvidence, PROFILE, []);
+      expect(built.metrics.diabetes!.qualityReasons).toContain('lowFps');
+      expect(built.metrics.rmssd?.qualityReasons ?? ['lowFps']).toContain('lowFps');
     },
   );
 
@@ -409,7 +415,7 @@ describe('red team ML-6: readingRhythm agrees with buildReadingResult', () => {
     const normal = seededNormal(146);
     for (let k = 0; k < 300; k++) {
       const outputs: RhythmOutputs = {
-        windowProbs: analysis.rhythmWindows.map((__, w) => randomRow(normal, k + w)),
+        windowProbs: rhythmModelRows(analysis).map((__, w) => randomRow(normal, k + w)),
         tauAf: Math.abs(normal()) / 3,
       };
       for (const profile of [PROFILE, { ...PROFILE, pacemaker: true }]) {
@@ -424,6 +430,7 @@ describe('red team ML-6: readingRhythm agrees with buildReadingResult', () => {
         const card = built.metrics.rhythm;
         expect(rhythm === null).toBe(card === null);
         if (rhythm !== null && rhythm !== 'uncertain') expect(card!.class).toBe(rhythm);
+        if (rhythm === null && built.metrics.hr) expect(built.headlineKey).toBe('result.hrOnly');
         if (rhythm === 'uncertain') expect(built.headlineKey).toBe('result.uncertain');
         if (rhythm === 'sinus' && card!.flag === null) expect(built.headlineKey).toBe('result.regular');
         expect(built.metrics.rmssd !== null).toBe(rhythm === 'sinus');
@@ -436,7 +443,10 @@ describe('red team ML-6: readingRhythm agrees with buildReadingResult', () => {
       expect(readingRhythm(labelled, null, profile)).toBe('sinus');
       expect(buildReadingResult(labelled, NO_MODELS, seedEvidence, profile, []).metrics.rmssd).not.toBeNull();
       expect(readingRhythm(sinus, null, profile)).toBeNull();
-      expect(buildReadingResult(sinus, NO_MODELS, seedEvidence, profile, []).metrics.rmssd).toBeNull();
+      // No judgement at all: a lower-quality RMSSD (ADR 0104), none with a pacemaker.
+      const rmssd = buildReadingResult(sinus, NO_MODELS, seedEvidence, profile, []).metrics.rmssd;
+      if (profile.pacemaker) expect(rmssd).toBeNull();
+      else expect(rmssd).toMatchObject({ quality: 'low', qualityReasons: ['rhythmUnjudged'] });
     }
   });
 });

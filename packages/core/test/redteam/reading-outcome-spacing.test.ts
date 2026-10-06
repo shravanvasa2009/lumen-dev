@@ -134,6 +134,17 @@ function mostSparseIn1s(offsetsS: number[]): number {
   return most;
 }
 
+// ADR 0104 (owner, 2026-10-05): a capture with any heart rate is a reading. A standard rate must still be
+// within 5 bpm; without one, the reading shows the lower-quality rate, which the result tags as such.
+function expectAccurateOrRefused(analysis: ReadingAnalysis, trueBpm: number): void {
+  if (readingOutcome(analysis).kind !== 'reading') return;
+  if (analysis.heartRateBpm === null) {
+    expect(analysis.lowQuality.heartRateBpm).not.toBeNull();
+    return;
+  }
+  expect(Math.abs(analysis.heartRateBpm - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
+}
+
 function expectEveryFloorPasses(offsetsS: number[]): void {
   expect(fewestFramesIn(offsetsS, DSP_CONFIG.dsp3.modelWindowS)).toBeGreaterThanOrEqual(
     DSP_CONFIG.live.minEffectiveFps * DSP_CONFIG.dsp3.modelWindowS,
@@ -205,14 +216,15 @@ describe('red team L: 4 intervals over 0.09 s per 1 s, a fast pulse aliases thro
     ['spread', 119, 90, 2, 220, 0.5, 0.25],
     ['in a row', 120, 89, 3, 200, 0.5, 0.25],
   ])(
-    'four %s %i ms + %i ms, %i copies, %i bpm, harmonics %f / %f: refused (note 6)',
+    'four %s %i ms + %i ms, %i copies, %i bpm, harmonics %f / %f: no standard rate (note 6)',
     (arrangement, longMs, shortMs, copies, bpm, second, third) => {
       const pattern = arrangement === 'spread' ? fourLongSpread : fourLongInARow;
       const offsetsS = clusters(40, pattern(longMs, shortMs, copies), copies);
       expectEveryFloorPasses(offsetsS);
       const { analysis, liveCleanS } = replay(offsetsS, harmonicPulse(bpm, second, third), 30);
       expect(liveCleanS).toBeCloseTo(analysis.cleanSeconds, 9);
-      expect(readingOutcome(analysis).kind).toBe('inconclusive');
+      expect(analysis.heartRateBpm).toBeNull();
+      expectAccurateOrRefused(analysis, bpm);
     },
   );
 
@@ -231,11 +243,12 @@ describe('red team L: 4 intervals over 0.09 s per 1 s, a fast pulse aliases thro
     ['even 89 ms, 3 copies', clusters(40, [89], 3)],
     ['four 120 ms in a row + 85 ms, 2 copies', clusters(40, fourLongInARow(120, 85, 2), 2)],
     ['four spread 119 ms + 89 ms, 3 copies', clusters(40, fourLongSpread(119, 89, 3), 3)],
-  ])('former control: %s is refused (note 6)', (_, offsetsS) => {
+  ])('former control: %s has no standard rate (note 6)', (_, offsetsS) => {
     expectEveryFloorPasses(offsetsS);
     for (const bpm of [150, 220]) {
       const { analysis } = replay(offsetsS, harmonicPulse(bpm, 0.5), 30);
-      expect(readingOutcome(analysis).kind).toBe('inconclusive');
+      expect(analysis.heartRateBpm).toBeNull();
+      expectAccurateOrRefused(analysis, bpm);
     }
   });
 });

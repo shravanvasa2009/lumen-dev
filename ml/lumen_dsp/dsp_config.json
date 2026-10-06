@@ -177,6 +177,18 @@
     "maxBpm": 180,
     "minSnrDb": 6
   },
+  "lowQuality": {
+    "hrMinIntervals": 2,
+    "rmssdMinIntervals": 3,
+    "rhythmMinIntervals": 3,
+    "shapeMinBeats": 1
+  },
+  "displayPulse": {
+    "order": 4,
+    "cutoffPerFundamental": 1.4,
+    "cutoffRangeHz": [0.7, 3],
+    "fallbackCutoffHz": 2.2
+  },
   "rating": {
     "fpsLevels": [
       { "minFps": 120, "points": 30 },

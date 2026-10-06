@@ -1,6 +1,7 @@
 import type { ReadingResult } from '@lumen/core';
 
 import { latestReading, type StoredReading } from '@/home/readings';
+import { isLowQuality } from '@/results/quality';
 import type { Appearance } from '@/theme/preferences';
 
 // Spec §9.6: the four categories a widget may show. Null only before the first reading.
@@ -60,6 +61,15 @@ export function statusOf(outcome: ReadingResult): WidgetStatus {
   return 'regular';
 }
 
+// ADR 0005's confirming reading: a standard-quality Full Check whose rhythm was judged regular. A heart-rate-only
+// Full Check judged no rhythm, and a lower-quality one (ADR 0104; safety default by MAIN, owner to confirm) is not
+// enough to clear a held see-doctor or a possible-AFib result. A reading saved before quality existed was standard.
+export const isRegularFullCheck = ({ mode, outcome }: StoredReading): boolean =>
+  mode === 'full' &&
+  outcome.headlineKey === 'result.regular' &&
+  statusOf(outcome) === 'regular' &&
+  (outcome.quality as ReadingResult['quality'] | undefined)?.level !== 'low';
+
 function localDayKey(time: number): string {
   const day = new Date(time);
   return `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
@@ -94,8 +104,7 @@ function heldSeeDoctor(input: SnapshotInput): StoredReading | null {
   if (flagged === null) return null;
   const answeredSince = input.followUpAnsweredAt !== null && input.followUpAnsweredAt > flagged.takenAt;
   const regularFullSince = input.readings.some(
-    (reading) =>
-      reading.takenAt > flagged.takenAt && reading.mode === 'full' && statusOf(reading.outcome) === 'regular',
+    (reading) => reading.takenAt > flagged.takenAt && isRegularFullCheck(reading),
   );
   return answeredSince || regularFullSince ? null : flagged;
 }
@@ -113,7 +122,8 @@ export function widgetSnapshot(input: SnapshotInput): WidgetSnapshot {
     updatedAt: isoSeconds(input.now),
     lastReadingAt: latest ? isoSeconds(latest.takenAt) : null,
     status: held ? 'see-doctor' : latest ? statusOf(latest.outcome) : null,
-    hrBpm: input.hideValues || hr === null ? null : Math.round(hr.value),
+    // ADR 0104: the home-screen widget has no room for the lower-quality tag, so it shows no such rate.
+    hrBpm: input.hideValues || hr === null || isLowQuality(hr) ? null : Math.round(hr.value),
     rhythmFlag: flagSources.some((outcome) => outcome.metrics.rhythm?.flag != null),
     diabetesFlag: flagSources.some(showsDiabetesFlag),
     nextConfirmationAt: input.nextConfirmationAt === null ? null : isoSeconds(input.nextConfirmationAt),

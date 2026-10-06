@@ -149,11 +149,13 @@ describe('ML-6 diabetes-net input from an analysed reading', () => {
     },
   );
 
-  it('is null at a 30 fps capture format (DSP-14 needs 60)', () => {
+  it('has no standard beat at a 30 fps capture format (DSP-14 needs 60), so the lower-quality one stands in', () => {
     const analysis = analyzeReading(sinusCapture(30), { ...CONTEXT, captureFps: 30 });
     expect(analysis.heartRateBpm).not.toBeNull();
     expect(analysis.pulseShape).toBeNull();
-    expect(diabetesModelInput(analysis, 'sinus')).toBeNull();
+    const low = analysis.lowQuality.pulseShape!;
+    expect(low.beatsUsed).toBeGreaterThanOrEqual(DSP_CONFIG.dsp14.minNormalBeats);
+    expect(diabetesModelInput(analysis, 'sinus')!.beat).toEqual(low.beat);
   });
 
   it('gates on the configured 60 fps format, not the measured 59.94 fps frame rate', () => {
@@ -161,12 +163,20 @@ describe('ML-6 diabetes-net input from an analysed reading', () => {
     expect(analysis.pulseShape).not.toBeNull();
   });
 
-  it('is null with fewer than 20 normal beat pairs', () => {
+  it('has no standard beat with fewer than 20 normal beat pairs, so the lower-quality one stands in', () => {
     const analysis = analyzeReading(sinusCapture(60, 18), CONTEXT);
     const normal = analysis.segments.flat().filter((beat) => beat.beatClass === 'normal');
     expect(normal.length).toBeLessThan(DSP_CONFIG.dsp14.minNormalBeats + 1);
     expect(analysis.pulseShape).toBeNull();
-    expect(diabetesModelInput(analysis, 'sinus')).toBeNull();
+    const low = analysis.lowQuality.pulseShape!;
+    expect(low.beatsUsed).toBeLessThan(DSP_CONFIG.dsp14.minNormalBeats);
+    expect(diabetesModelInput(analysis, 'sinus')!.beat).toEqual(low.beat);
+  });
+
+  it('is null with no beat at all to average', () => {
+    const analysis = analyzeReading(sinusCapture(60, 18), CONTEXT);
+    const none = { ...analysis, lowQuality: { ...analysis.lowQuality, pulseShape: null } };
+    expect(diabetesModelInput(none, 'sinus')).toBeNull();
   });
 
   it('with a gap, averages the longest DSP-2 segment only (training has one gap-free segment)', () => {
@@ -201,13 +211,17 @@ describe('readingRhythm: the rhythm decision that opens DSP-12', () => {
     expect(rmssdShown(outputs)).toBe(expected === 'sinus');
   });
 
-  it('is null with no rhythm output, a pacemaker, or too little clean signal', () => {
+  it('is null with no rhythm output or a pacemaker', () => {
     const sinus = sinusRows(analysis, [0.9, 0.05, 0.05]);
     expect(readingRhythm(analysis, null, PROFILE)).toBeNull();
     expect(readingRhythm(analysis, sinus, { ...PROFILE, pacemaker: true })).toBeNull();
     expect(rmssdShown(sinus, { ...PROFILE, pacemaker: true })).toBe(false);
+  });
+
+  it('still decides below the rhythm floor, as the lower-quality card does (ADR 0104)', () => {
+    const sinus = sinusRows(analysis, [0.9, 0.05, 0.05]);
     const short = { ...analysis, cleanSeconds: DSP_CONFIG.rules.rhythmMinCleanS - 1 };
-    expect(readingRhythm(short, sinus, PROFILE)).toBeNull();
+    expect(readingRhythm(short, sinus, PROFILE)).toBe('sinus');
   });
 
   it('takes the validation label only when no rhythm model ran (replay, ADR 0041)', () => {

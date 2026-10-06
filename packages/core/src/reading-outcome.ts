@@ -70,6 +70,8 @@ function lostByCause(spans: RejectedSpan[], durationS: number) {
   return { lostSeconds, otherLostSeconds };
 }
 
+// Owner 2026-10-05 (ADR 0104): any heart rate, standard or lower quality, makes a reading; a short capture is
+// tagged on its results, not refused. Only a capture with no heart rate at all ends inconclusive.
 /** Spec 07: whether a capture may be saved as a reading, or ends inconclusive (§12 screen 19). */
 export function readingOutcome(analysis: ReadingAnalysis): ReadingOutcome {
   const { mode } = analysis.context;
@@ -77,11 +79,12 @@ export function readingOutcome(analysis: ReadingAnalysis): ReadingOutcome {
   if (!Object.hasOwn(targets, mode)) throw new RangeError(`mode ${mode} has no clean-seconds target`);
   const neededCleanSeconds = targets[mode]!;
 
+  const urgent = emergencyHeartRate(analysis);
+  if ((analysis.heartRateBpm ?? analysis.lowQuality.heartRateBpm) !== null)
+    return { kind: 'reading', urgent };
   const reasons: InconclusiveReason[] = [];
   if (analysis.cleanSeconds < neededCleanSeconds) reasons.push('tooFewCleanSeconds');
-  if (analysis.heartRateBpm === null) reasons.push('noHeartRate');
-  const urgent = emergencyHeartRate(analysis);
-  if (reasons.length === 0) return { kind: 'reading', urgent };
+  reasons.push('noHeartRate');
 
   const { lostSeconds, otherLostSeconds } = lostByCause(analysis.rejectedSpans, analysis.durationS);
   // Compared in whole ms, so float rounding (3.7 − 3 = 0.7000000000000002) cannot break a tie.

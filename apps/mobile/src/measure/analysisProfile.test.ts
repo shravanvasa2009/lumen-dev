@@ -3,6 +3,8 @@ import { buildReadingResult, type FrameStat, rateDevice, type Sample } from '@lu
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { saveDeviceRating } from '@/store/deviceRating';
 import { saveHealthNote } from '@/store/profile';
+import { saveReading } from '@/store/readings';
+import { makeReading } from '@/testing/reading';
 
 import { analyzeKeptCapture } from './analyzeKeptCapture';
 import type { KeptCapture } from './keptCapture';
@@ -101,9 +103,9 @@ describe('analysis reads the saved profile', () => {
     expect(reading.metrics.rhythm).toBeNull();
   });
 
-  // Through this pipeline the reading's confidence is capped at moderate (no SQI scores, no rated tier), and
-  // core only raises the rhythm flag at high confidence, so the flag itself is core's test. What is checked
-  // here is that the saved answer reaches core, which then reports AF as tracked, not flagged.
+  // Through this pipeline the reading's confidence is capped at moderate (no SQI scores, no rated tier), and an
+  // unrated phone holds the flag back even on a lower-quality reading (ADR 0104), so the flag itself is core's
+  // test. What is checked here is that the saved answer reaches core, which then reports AF as tracked.
   it('hands a known-AF answer to the decision rules, which then raise no rhythm flag', async () => {
     mockRhythmScores = { sinus: 0.02, af: 0.96, other: 0.02 };
     await saveHealthNote('knownAf', true);
@@ -117,6 +119,34 @@ describe('analysis reads the saved profile', () => {
     );
     expect(reading.metrics.rhythm?.class).toBe('af');
     expect(reading.metrics.rhythm?.flag).toBeNull();
+  });
+});
+
+describe('the history rules', () => {
+  it('get the saved readings, so 2 of 3 and the personal bands can work', async () => {
+    const earlier = makeReading(Date.now() - 3_600_000, 64, 48);
+    await saveReading({
+      id: earlier.id,
+      createdAt: earlier.takenAt,
+      mode: 'full',
+      context: {
+        captureFps: FPS,
+        tier: null,
+        mode: 'full',
+        restTimerDone: true,
+        recordedAt: null,
+        motionSpans: [],
+        coldHandsSpans: [],
+        sqi: null,
+        validationRhythmLabel: null,
+      },
+      results: earlier.outcome,
+      models: { rhythm: null, diabetes: null },
+    });
+    await analyse();
+    expect(jest.mocked(buildReadingResult).mock.lastCall![4]).toEqual([
+      { atMs: earlier.takenAt, rhythmPositive: false, rmssdMs: 48, diabetes: null },
+    ]);
   });
 });
 

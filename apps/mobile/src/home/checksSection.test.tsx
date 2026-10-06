@@ -36,10 +36,28 @@ function reading(daysAgo: number, change: (metrics: ReadingResult['metrics']) =>
 }
 
 const rhythm = (rhythmClass: 'sinus' | 'af') => (metrics: ReadingResult['metrics']) => {
-  metrics.rhythm = { class: rhythmClass, pAF: 0.1, evidence: 'experimental', confidence: 'high', flag: null };
+  metrics.rhythm = {
+    class: rhythmClass,
+    pAF: 0.1,
+    evidence: 'experimental',
+    confidence: 'high',
+    quality: 'standard',
+    qualityReasons: [],
+    qualityDetails: [],
+    flag: null,
+  };
 };
 const rmssd = (band: [number, number] | null) => (metrics: ReadingResult['metrics']) => {
-  metrics.rmssd = { value: 48.4, unit: 'ms', band, evidence: 'experimental', confidence: 'high' };
+  metrics.rmssd = {
+    value: 48.4,
+    unit: 'ms',
+    band,
+    evidence: 'experimental',
+    confidence: 'high',
+    quality: 'standard',
+    qualityReasons: [],
+    qualityDetails: [],
+  };
 };
 const diabetes = (flag: 'pattern' | null) => (metrics: ReadingResult['metrics']) => {
   metrics.diabetes = {
@@ -47,6 +65,9 @@ const diabetes = (flag: 'pattern' | null) => (metrics: ReadingResult['metrics'])
     readingsUsed: 1,
     evidence: 'experimental',
     confidence: 'high',
+    quality: 'standard',
+    qualityReasons: [],
+    qualityDetails: [],
     flag,
   };
 };
@@ -70,6 +91,27 @@ describe('check cards with saved readings', () => {
   it('give AFib the rhythm words of the newest reading that has one', () => {
     show([reading(0, rhythm('sinus')), reading(2, rhythm('af'))]);
     expect(screen.getByText(`${en['results.rhythmRegular']} · ${en['checks.today']}`)).toBeOnTheScreen();
+  });
+
+  it('tags a lower-quality rhythm finding and HRV value (ADR 0104)', () => {
+    const low = (metrics: ReadingResult['metrics']) => {
+      rhythm('sinus')(metrics);
+      rmssd(null)(metrics);
+      Object.assign(metrics.rhythm!, {
+        quality: 'low' as const,
+        qualityReasons: ['shortClean' as const],
+        qualityDetails: [],
+      });
+      Object.assign(metrics.rmssd!, {
+        quality: 'low' as const,
+        qualityReasons: ['shortClean' as const],
+        qualityDetails: [],
+      });
+    };
+    show([reading(0, low)]);
+    const regular = en['quality.marked'].replace('{{value}}', en['results.rhythmRegular']);
+    expect(screen.getByText(`${regular} · ${en['checks.today']}`)).toBeOnTheScreen();
+    expect(screen.getByText(`${en['quality.marked'].replace('{{value}}', '48')} ms`)).toBeOnTheScreen();
   });
 
   it('dates an older rhythm finding by its day', () => {

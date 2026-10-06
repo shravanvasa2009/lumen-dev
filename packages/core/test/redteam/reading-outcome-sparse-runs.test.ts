@@ -98,9 +98,15 @@ function replay(
   };
 }
 
+// ADR 0104 (owner, 2026-10-05): a capture with any heart rate is a reading. A standard rate must still be
+// within 5 bpm; without one, the reading shows the lower-quality rate, which the result tags as such.
 function expectAccurateOrRefused(analysis: ReadingAnalysis, trueBpm: number): void {
   if (readingOutcome(analysis).kind !== 'reading') return;
-  expect(Math.abs(analysis.heartRateBpm! - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
+  if (analysis.heartRateBpm === null) {
+    expect(analysis.lowQuality.heartRateBpm).not.toBeNull();
+    return;
+  }
+  expect(Math.abs(analysis.heartRateBpm - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
 }
 
 // Sample times from a cycled list of intervals in ms; each gets `copies` extra frames 1 ms after it, which
@@ -231,13 +237,14 @@ describe('red team M: note 6 counts distinct samples, not their spacing, so a bu
     ],
     ['12 ms × 4 + 80 ms × 11', 1, 220, 0.5, 0.25, [...repeat(12, 4), ...repeat(80, 11)]],
   ] as [string, number, number, number, number, number[]][])(
-    '%s, %i copies, %i bpm, harmonics %f / %f: refused (note 7)',
+    '%s, %i copies, %i bpm, harmonics %f / %f: no standard rate (note 7)',
     (_, copies, bpm, second, third, gapsMs) => {
       const offsetsS = fromIntervals(40, gapsMs, copies);
       expectEveryFloorPasses(offsetsS);
       const { analysis, liveCleanS } = replay(offsetsS, harmonicPulse(bpm, second, third), 30);
       expect(liveCleanS).toBeCloseTo(analysis.cleanSeconds, 9);
-      expect(readingOutcome(analysis).kind).toBe('inconclusive');
+      expect(analysis.heartRateBpm).toBeNull();
+      expectAccurateOrRefused(analysis, bpm);
     },
   );
 

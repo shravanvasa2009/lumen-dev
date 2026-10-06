@@ -59,6 +59,13 @@ function inconclusive(outcome: ReadingOutcome): InconclusiveOutcome {
   return outcome;
 }
 
+// ADR 0104: a capture with a heart rate is a reading; without one, its lost time is attributed.
+const withoutRate = (analysis: ReadingAnalysis): ReadingAnalysis => ({
+  ...analysis,
+  heartRateBpm: null,
+  lowQuality: { ...analysis.lowQuality, heartRateBpm: null },
+});
+
 function expectAddsUp(analysis: ReadingAnalysis, outcome: InconclusiveOutcome): void {
   const { motion, pressure, coverage, coldHands } = outcome.lostSeconds;
   const total = outcome.cleanSeconds + motion + pressure + coverage + coldHands + outcome.otherLostSeconds;
@@ -187,7 +194,8 @@ describe('red team: a frame gap at dsp2.maxGapS ± 1 ns', () => {
   it('a lone last frame 5 s after the rest: the gap is lost, and the capture is short of Quick', () => {
     const capture = captureAt([...regularOffsets(30, 30), 34.9666666667], pulse);
     const analysis = analyzeReading(capture, { ...CONTEXT, mode: 'quick' });
-    const outcome = inconclusive(readingOutcome(analysis));
+    expect(readingOutcome(analysis).kind).toBe('reading');
+    const outcome = inconclusive(readingOutcome(withoutRate(analysis)));
     expect(outcome.cleanSeconds).toBeCloseTo(29.9666666667, 6);
     expect(outcome.otherLostSeconds).toBeCloseTo(5, 6);
   });
@@ -202,7 +210,8 @@ describe('red team: a frame gap at dsp2.maxGapS ± 1 ns', () => {
       ...CONTEXT,
       motionSpans: [{ startNs: startNs + 15e9, endNs: startNs + 35e9 }],
     });
-    const outcome = inconclusive(readingOutcome(analysis));
+    expect(readingOutcome(analysis).kind).toBe('reading');
+    const outcome = inconclusive(readingOutcome(withoutRate(analysis)));
     expectAddsUp(analysis, outcome);
     expect(outcome.lostSeconds.motion).toBeCloseTo(20, 6);
     expect(outcome.lostSeconds.coverage).toBeCloseTo(10, 6); // 40–50 s, the 45–48 s gap included
@@ -251,7 +260,9 @@ describe('red team: live count and saved analysis with frame gaps (100 ms batche
     expect(readingOutcome(saved)).toEqual({ kind: 'reading', urgent: null });
     const shortCapture = captureAt(fromNs([...run30(0, 50), ...run30(110, 153.9)]), pulse);
     const short = savedFrom(replay(shortCapture, { score: () => 0.9 }));
-    expect(inconclusive(readingOutcome(short)).reasons).toEqual(['tooFewCleanSeconds']);
+    expect(short.cleanSeconds).toBeLessThan(90);
+    // ADR 0104: short of the target it is still a reading, tagged lower quality on its results.
+    expect(readingOutcome(short)).toEqual({ kind: 'reading', urgent: null });
   });
 });
 
@@ -270,14 +281,18 @@ describe('red team: flat runs at exactly dsp2.maxGapS (model-window FlatRuns)', 
   // held constant (a frozen frame) at exactly 150 ms per frame. Observed: 24 s of the frozen stretch
   // counted clean (99.0 of 115.05 s), so a Full Scan with 75 clean seconds is { kind: 'reading' }. Expected:
   // inconclusive, tooFewCleanSeconds.
-  it('75 s of pulse then 40 s frozen at 150 ms per frame is not a Full Scan', () => {
+  it('75 s of pulse then 40 s frozen at 150 ms per frame stays under a Full Scan of clean seconds', () => {
     const offsets = [...run30(0, 75), ...framesNs(75e9 + MAX_GAP_NS, 267, MAX_GAP_NS)].map((ns) => ns / 1e9);
     const frozen = pulse(75);
     const analysis = analyzeReading(
       captureAt(offsets, (tS) => (tS <= 75 ? pulse(tS) : frozen)),
       CONTEXT,
     );
-    expect(readingOutcome(analysis)).toMatchObject({ kind: 'inconclusive', reasons: ['tooFewCleanSeconds'] });
+    expect(analysis.cleanSeconds).toBeLessThan(DSP_CONFIG.rules.modeMinCleanS.full);
+    expect(readingOutcome(withoutRate(analysis))).toMatchObject({
+      kind: 'inconclusive',
+      reasons: ['tooFewCleanSeconds', 'noHeartRate'],
+    });
   });
 
   // At 30 fps with an interval of exactly 150 ms after every 26: frames every 150 ms throughout are under
@@ -301,7 +316,7 @@ describe('red team: flat runs at exactly dsp2.maxGapS (model-window FlatRuns)', 
   });
 });
 
-describe('red team: the live ring completes, then a late rejection makes the capture inconclusive', () => {
+describe('red team: the live ring completes, then a late rejection leaves the capture short of it', () => {
   // KNOWN LIMITATION (ADR 0042, ADR 0072 Consequences: Track A should finish on the true count). The ring
   // never steps back, so a rejection that arrives after it reached the target leaves the saved count
   // below it. These bound the shortfall: one SQI window (dsp3.modelWindowS) for a late score, and
@@ -315,7 +330,8 @@ describe('red team: the live ring completes, then a late rejection makes the cap
     session.setSqi(session.sqiWindow!.endS, 0.1);
     const saved = savedFrom(session, 'quick');
     expect(session.cleanSeconds).toBeGreaterThanOrEqual(30);
-    expect(inconclusive(readingOutcome(saved)).reasons).toEqual(['tooFewCleanSeconds']);
+    expect(saved.cleanSeconds).toBeLessThan(30);
+    expect(readingOutcome(saved).kind).toBe('reading');
     const shortfallS = session.cleanSeconds - saved.cleanSeconds;
     expect(shortfallS).toBeGreaterThan(0);
     expect(shortfallS).toBeLessThanOrEqual(DSP_CONFIG.dsp3.modelWindowS);
@@ -333,7 +349,8 @@ describe('red team: the live ring completes, then a late rejection makes the cap
     });
     expect(completedAtS).not.toBeNull();
     const saved = savedFrom(session, 'quick');
-    expect(inconclusive(readingOutcome(saved)).reasons).toEqual(['tooFewCleanSeconds']);
+    expect(saved.cleanSeconds).toBeLessThan(30);
+    expect(readingOutcome(saved).kind).toBe('reading');
     const shortfallS = session.cleanSeconds - saved.cleanSeconds;
     expect(shortfallS).toBeGreaterThan(0);
     expect(shortfallS).toBeLessThanOrEqual(DSP_CONFIG.live.minFlatS + 0.5);

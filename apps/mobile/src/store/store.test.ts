@@ -5,7 +5,7 @@ import { makeReading } from '@/testing/reading';
 
 import { lumenDatabase } from './database';
 import { loadProfile, profileValue, saveHealthNote, setProfileValue } from './profile';
-import { listReadings, saveReading, storedReadingById } from './readings';
+import { listReadings, pastReadings, saveReading, storedReadingById } from './readings';
 
 const CONTEXT: ReadingContext = {
   captureFps: 60,
@@ -115,6 +115,82 @@ describe('readings', () => {
   it('refuses a second reading with the same id', async () => {
     await saveReading(savedAt(1_000));
     await expect(saveReading(savedAt(1_000))).rejects.toThrow(/UNIQUE|constraint/i);
+  });
+});
+
+describe('pastReadings: what earlier readings give the history rules', () => {
+  const day = (createdAt: number) => ({ ms: createdAt, day: `day-${createdAt}` });
+  function withMetrics(createdAt: number, quality: 'standard' | 'low', flagged: boolean) {
+    const saved = savedAt(createdAt);
+    const { metrics } = saved.results;
+    const short = { kind: 'shortClean', haveS: 40, wantS: 60 } as const;
+    const tag = {
+      quality,
+      qualityReasons: quality === 'low' ? (['shortClean'] as const) : [],
+      qualityDetails: quality === 'low' ? [short] : [],
+    };
+    metrics.rhythm = {
+      class: flagged ? 'af' : 'sinus',
+      pAF: flagged ? 0.9 : 0.1,
+      evidence: 'experimental',
+      confidence: 'low',
+      flag: flagged ? 'irregular' : null,
+      ...tag,
+      qualityReasons: [...tag.qualityReasons],
+      qualityDetails: [...tag.qualityDetails],
+    };
+    metrics.rmssd = { ...metrics.rmssd!, ...tag, qualityReasons: [...tag.qualityReasons] };
+    // The card holds the mean over readings; the model's own output for this reading is in the models JSON.
+    metrics.diabetes = {
+      probability: 0.5,
+      readingsUsed: 2,
+      evidence: 'experimental',
+      confidence: 'moderate',
+      flag: null,
+      ...tag,
+      qualityReasons: [...tag.qualityReasons],
+      qualityDetails: [...tag.qualityDetails],
+    };
+    return {
+      ...saved,
+      context: { ...CONTEXT, recordedAt: day(createdAt) },
+      models: { rhythm: null, diabetes: { probability: 0.7, tauDm: 0.5 } },
+    };
+  }
+
+  it('lists each reading newest first with its rhythm flag, RMSSD, and its own diabetes probability', async () => {
+    await saveReading(withMetrics(1000, 'standard', false));
+    await saveReading(withMetrics(2000, 'standard', true));
+    expect(await pastReadings()).toEqual([
+      {
+        atMs: 2000,
+        rhythmPositive: true,
+        rmssdMs: 48,
+        diabetes: { day: 'day-2000', probability: 0.7, confidence: 'moderate' },
+      },
+      {
+        atMs: 1000,
+        rhythmPositive: false,
+        rmssdMs: 48,
+        diabetes: { day: 'day-1000', probability: 0.7, confidence: 'moderate' },
+      },
+    ]);
+  });
+
+  it('counts a lower-quality irregular flag but keeps lower-quality values out of bands and the mean', async () => {
+    await saveReading(withMetrics(1000, 'low', true));
+    expect(await pastReadings()).toEqual([
+      { atMs: 1000, rhythmPositive: true, rmssdMs: null, diabetes: null },
+    ]);
+  });
+
+  it('reads a reading saved before quality existed as standard, and one with no day as no diabetes reading', async () => {
+    await saveReading({
+      ...savedAt(1000),
+      models: { rhythm: null, diabetes: { probability: 0.7, tauDm: 0.5 } },
+    });
+    const [past] = await pastReadings();
+    expect(past).toMatchObject({ atMs: 1000, rhythmPositive: false, rmssdMs: 48, diabetes: null });
   });
 });
 

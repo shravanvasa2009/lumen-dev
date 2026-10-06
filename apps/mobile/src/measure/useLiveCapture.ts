@@ -1,6 +1,8 @@
 import {
   createLiveSession,
+  displayPulse,
   DSP_CONFIG,
+  estimateLiveHeartRate,
   frameProblem,
   type CoachingKey,
   type LiveSession,
@@ -49,7 +51,8 @@ export interface LiveCapture {
   status: CaptureStatus | null;
   // Raw red means of the last 6 s, as the module reports them; the screen only scales them to fit.
   recentRed: readonly number[];
-  // The session's causal band-pass filtered pulse of the same 6 s (a beat is a peak); empty without a session.
+  // The same 6 s of the session's pulse drawn with one smooth bump per beat (display only); empty without a
+  // session.
   recentPulse: readonly number[];
   // Seconds on the frames' own clock since the first frame; not a timer.
   elapsedS: number;
@@ -169,6 +172,8 @@ export function useLiveCapture(
     let lastCleanS = 0;
     let lastRiseNs: number | null = null;
     let level: number | null = null;
+    // The live rate the display pulse is smoothed around; null until the spectrum finds one.
+    let pulseRateBpm: number | null = null;
     let firstNs: number | null = null;
     let session: LiveSession | null = null;
     let captureFps = 0;
@@ -245,6 +250,7 @@ export function useLiveCapture(
       } catch (error) {
         session = null;
         level = null;
+        pulseRateBpm = null;
         levelAtNs = -Infinity;
         lastRiseNs = null;
         return reasonOf(error);
@@ -300,6 +306,7 @@ export function useLiveCapture(
           coveredSinceNs !== null &&
           newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
         level = settled ? signalLevel(session.perfusionPct, levelFrames) : null;
+        pulseRateBpm = estimateLiveHeartRate(levelFrames)?.bpm ?? null;
       }
       if (session && session.cleanSeconds > lastCleanS) lastRiseNs = newest.tNs;
       lastCleanS = session?.cleanSeconds ?? 0;
@@ -315,7 +322,7 @@ export function useLiveCapture(
               cleanSeconds: session.cleanSeconds,
               coachingKey: session.coachingKey,
               recentWaveform: waveform,
-              recentPulse: waveform.ppg,
+              recentPulse: displayPulse(waveform.tS, waveform.ppg, pulseRateBpm),
               rejectedSpans: session.rejectedSpans,
               signalLevel: level,
             }

@@ -249,9 +249,47 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
     expect(outcome.metrics.rhythm!.flag).toBeNull();
   });
 
-  it('is uncertain with no rhythm model output: the headline never claims a regular rhythm', () => {
+  // A rhythm nobody judged is neither claimed regular (ADR 0041) nor a reason to retake a good heart rate.
+  it('states only the heart rate when no rhythm model output exists', () => {
     const outcome = build(BASE, NO_MODELS);
     expect(outcome.metrics.rhythm).toBeNull();
+    expect(outcome.headlineKey).toBe('result.hrOnly');
+  });
+
+  it('runs the rhythm check on a Quick Check too, tagged lower quality (owner, ADR 0104)', () => {
+    const quick = analysisWith({ cleanSeconds: 30, durationS: 30 }, { mode: 'quick' });
+    const outcome = build(quick, SINUS);
+    expect(outcome.metrics.hr).toMatchObject({ value: BASE.heartRateBpm, quality: 'standard' });
+    expect(outcome.metrics.rhythm).toMatchObject({
+      class: 'sinus',
+      quality: 'low',
+      qualityReasons: ['quickMode', 'shortClean'],
+      confidence: 'low',
+    });
+    expect(outcome.headlineKey).toBe('result.regular');
+    expect(outcome.quality.level).toBe('low');
+    expect(outcome.quality.reasons).toContainEqual({ kind: 'quickMode' });
+    expect(outcome.quality.reasons).toContainEqual({ kind: 'shortClean', haveS: 30, wantS: 60 });
+    // With no rhythm model at all, nothing judged the rhythm.
+    expect(build(quick, NO_MODELS).headlineKey).toBe('result.hrOnly');
+  });
+
+  it('a standard reading is standard everywhere, with no reasons', () => {
+    const outcome = build(BASE);
+    expect(outcome.quality).toEqual({ level: 'standard', reasons: [] });
+    const { hr, rhythm, rmssd, resp } = outcome.metrics;
+    for (const metric of [hr, rhythm, rmssd, resp, outcome.experimental])
+      expect(metric).toMatchObject({ quality: 'standard', qualityReasons: [], qualityDetails: [] });
+  });
+
+  it('states only the heart rate with a pacemaker, whatever the rhythm model says', () => {
+    const outcome = build(BASE, AF, seedEvidence, { ...PROFILE, pacemaker: true });
+    expect(outcome.headlineKey).toBe('result.hrOnly');
+  });
+
+  it('keeps "Couldn’t tell" for a judged rhythm under the top-probability line, sinus on top', () => {
+    const outcome = build(BASE, rhythmOf([0.5, 0.3, 0.2]));
+    expect(outcome.metrics.rhythm).toMatchObject({ class: 'sinus', confidence: 'low' });
     expect(outcome.headlineKey).toBe('result.uncertain');
   });
 
@@ -262,21 +300,73 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
     expect(build(BASE, rhythmOf([0.05, 0.9, 0.05], 0.95)).metrics.rhythm!.flag).toBeNull();
   });
 
-  it('says retake but does not flag an irregular-looking rhythm below high confidence', () => {
+  it('flags a confident irregular call below high reading confidence, tagged with why (owner, ADR 0104)', () => {
     const outcome = build(analysisWith({ sqiAvailable: false }), AF);
-    expect(outcome.metrics.rhythm).toMatchObject({ class: 'af', flag: null, confidence: 'moderate' });
+    expect(outcome.metrics.rhythm).toMatchObject({
+      class: 'af',
+      flag: 'irregular',
+      confidence: 'low',
+      quality: 'low',
+      qualityReasons: ['noSqi'],
+    });
     expect(outcome.headlineKey).toBe('result.irregularRetake');
+    expect(outcome.quality.reasons).toEqual([{ kind: 'noSqi' }]);
+    const patchy = build(analysisWith({ cleanSeconds: 0.8 * BASE.durationS }), AF).metrics.rhythm!;
+    expect(patchy).toMatchObject({ flag: 'irregular', qualityReasons: ['contact'] });
   });
 
-  it('gives no rhythm card below 60 clean seconds, 40 usable intervals, or one window', () => {
-    expect(build(analysisWith({ cleanSeconds: 59.9, durationS: 60 }), AF).metrics.rhythm).toBeNull();
-    expect(build(analysisWith({ enoughRhythmIntervals: false }), AF).metrics.rhythm).toBeNull();
+  it('still holds the flag when the model is unsure (top probability < 0.8) or the phone is unrated', () => {
+    const unsure = build(BASE, rhythmOf([0.25, 0.7, 0.05]));
+    expect(unsure.metrics.rhythm).toMatchObject({ class: 'af', flag: null, quality: 'standard' });
+    expect(unsure.headlineKey).toBe('result.irregularRetake');
+    const unrated = build(analysisWith({}, { tier: null }), AF).metrics.rhythm!;
+    expect(unrated).toMatchObject({ flag: null, quality: 'standard' });
+  });
+
+  it('counts a lower-quality positive toward possible AFib', () => {
+    const past: PastReading = { atMs: NOW_MS - HOUR_MS, rhythmPositive: true, rmssdMs: null, diabetes: null };
+    const quick = analysisWith({ cleanSeconds: 30, durationS: 30, sqiAvailable: false }, { mode: 'quick' });
+    const outcome = build(quick, AF, seedEvidence, PROFILE, [past]);
+    expect(outcome.metrics.rhythm).toMatchObject({ flag: 'possibleAf', quality: 'low' });
+    expect(outcome.headlineKey).toBe('result.possibleAf');
+  });
+
+  it('tags the rhythm card below 60 clean seconds, 40 usable intervals, or one window (ADR 0104)', () => {
+    const short = build(analysisWith({ cleanSeconds: 59.9, durationS: 60 }), SINUS).metrics.rhythm!;
+    expect(short).toMatchObject({ class: 'sinus', quality: 'low', qualityReasons: ['shortClean'] });
+    const few = build(analysisWith({ enoughRhythmIntervals: false, usableRhythmIntervals: 12 }), SINUS);
+    expect(few.metrics.rhythm).toMatchObject({ quality: 'low', qualityReasons: ['fewBeats'] });
+    expect(few.quality.reasons).toEqual([{ kind: 'fewBeats', beats: 12, wantBeats: 40 }]);
+
+    const oneWide = analysisWith({
+      rhythmWindows: [],
+      rhythmFeatures: [],
+      lowQuality: { ...BASE.lowQuality, rhythmFeatures: BASE.rhythmFeatures[0]! },
+    });
+    const oneRow: ModelOutputs = { rhythm: { windowProbs: [[0.9, 0.05, 0.05]], tauAf: 0.5 }, diabetes: null };
+    expect(build(oneWide, oneRow).metrics.rhythm).toMatchObject({
+      class: 'sinus',
+      quality: 'low',
+      qualityReasons: ['fewWindows'],
+    });
+    expect(() => build(oneWide, SINUS)).toThrow(RangeError);
+  });
+
+  it('gives no rhythm card with no row to score at all', () => {
+    const none = analysisWith({ rhythmWindows: [], rhythmFeatures: [] });
     expect(
-      build(analysisWith({ rhythmWindows: [], rhythmFeatures: [] }), {
-        rhythm: { windowProbs: [], tauAf: 0.5 },
-        diabetes: null,
-      }).metrics.rhythm,
+      build(none, { rhythm: { windowProbs: [], tauAf: 0.5 }, diabetes: null }).metrics.rhythm,
     ).toBeNull();
+  });
+
+  it('names basic analysis as the reason when the logistic rule scored the rhythm', () => {
+    const basic: ModelOutputs = { rhythm: { ...SINUS.rhythm!, scorer: 'rule' }, diabetes: null };
+    expect(build(BASE, basic).metrics.rhythm).toMatchObject({
+      scorer: 'rule',
+      evidence: 'experimental',
+      quality: 'low',
+      qualityReasons: ['modelFallback'],
+    });
   });
 
   it('refuses window probabilities that do not match the DSP-15 windows', () => {
@@ -352,6 +442,21 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
   });
 });
 
+describe('each card carries its own floors (ADR 0104)', () => {
+  it('a 12 s reading: the heart rate quotes 15 s, the rhythm 60 s, while the reading lists the largest', () => {
+    const short = analysisWith({ heartRateBpm: null, cleanSeconds: 12, durationS: 12 });
+    const lowHr = { ...short, lowQuality: { ...short.lowQuality, heartRateBpm: 64 } };
+    const outcome = build(lowHr, SINUS);
+    expect(outcome.metrics.hr!.qualityDetails).toEqual([{ kind: 'shortClean', haveS: 12, wantS: 15 }]);
+    expect(outcome.metrics.rhythm!.qualityDetails).toContainEqual({
+      kind: 'shortClean',
+      haveS: 12,
+      wantS: 60,
+    });
+    expect(outcome.quality.reasons).toContainEqual({ kind: 'shortClean', haveS: 12, wantS: 60 });
+  });
+});
+
 describe('basic analysis: the logistic rule feeds the same rhythm decision (§11.1, §11.10)', () => {
   const ABSTAIN = DSP_CONFIG.rules.uncertainBelowTopProb;
   const EPS = 1e-6;
@@ -404,12 +509,28 @@ describe('RMSSD card (DSP-12, §6.2 Full tier)', () => {
     expect(rmssd.band).toBeNull();
   });
 
-  it('is absent unless the rhythm is confidently sinus, the tier is Full, and the capture runs at 60 fps', () => {
+  it('is absent when the rhythm was judged and is not confidently sinus, or with a pacemaker', () => {
     expect(build(BASE, AF).metrics.rmssd).toBeNull();
     expect(build(BASE, rhythmOf([0.55, 0.3, 0.15])).metrics.rmssd).toBeNull();
-    expect(build(BASE, NO_MODELS).metrics.rmssd).toBeNull();
-    expect(build(analysisWith({}, { tier: 'basic' })).metrics.rmssd).toBeNull();
-    expect(build(analysisWith({}, { captureFps: 30 })).metrics.rmssd).toBeNull();
+    expect(build(BASE, NO_MODELS, seedEvidence, { ...PROFILE, pacemaker: true }).metrics.rmssd).toBeNull();
+  });
+
+  it('is tagged lower quality below its tier, frame rate, or sinus judgement (ADR 0104)', () => {
+    const standard = build(BASE).metrics.rmssd!.value;
+    // No model or rule judged the rhythm at all: the reason says so, not that a simpler method was used.
+    expect(build(BASE, NO_MODELS).metrics.rmssd).toMatchObject({
+      value: standard,
+      quality: 'low',
+      qualityReasons: ['rhythmUnjudged'],
+      qualityDetails: [{ kind: 'rhythmUnjudged' }],
+    });
+    // A 60 fps phone rated Basic (§5.2 weighs the score too) is told about its rating, not its frame rate.
+    const basic = build(analysisWith({}, { tier: 'basic' }));
+    expect(basic.metrics.rmssd).toMatchObject({ value: standard, qualityReasons: ['phoneTier'] });
+    expect(basic.quality.reasons).toContainEqual({ kind: 'phoneTier', tier: 'basic', wantTier: 'full' });
+    const slow = build(analysisWith({}, { captureFps: 30 }));
+    expect(slow.metrics.rmssd).toMatchObject({ value: standard, qualityReasons: ['lowFps'] });
+    expect(slow.quality.reasons).toContainEqual({ kind: 'lowFps', fps: 30, wantFps: 60 });
   });
 
   it('validation only: a labelled sinus rhythm opens the DSP-12 gate when no rhythm model ran', () => {
@@ -418,11 +539,11 @@ describe('RMSSD card (DSP-12, §6.2 Full tier)', () => {
     expect(outcome.metrics.rmssd!.value).toBeCloseTo(build(BASE).metrics.rmssd!.value, 12);
     // The label never makes a rhythm card or changes the headline.
     expect(outcome.metrics.rhythm).toBeNull();
-    expect(outcome.headlineKey).toBe('result.uncertain');
+    expect(outcome.headlineKey).toBe('result.hrOnly');
+    expect(outcome.metrics.rmssd!.quality).toBe('standard');
     expect(build(analysisWith({}, { validationRhythmLabel: 'af' }), NO_MODELS).metrics.rmssd).toBeNull();
-    expect(
-      build(analysisWith({}, { validationRhythmLabel: 'sinus', tier: 'basic' }), NO_MODELS).metrics.rmssd,
-    ).toBeNull();
+    const basicTier = analysisWith({}, { validationRhythmLabel: 'sinus', tier: 'basic' });
+    expect(build(basicTier, NO_MODELS).metrics.rmssd!.quality).toBe('low');
   });
 
   it('ignores the rhythm label whenever a rhythm model output is supplied', () => {
@@ -443,20 +564,61 @@ describe('RMSSD card (DSP-12, §6.2 Full tier)', () => {
 });
 
 describe('breathing card (DSP-13, §6.2 Basic tier)', () => {
-  it('reports the fused rate on Basic and Full phones but not on Limited ones', () => {
+  it('reports the fused rate on Basic and Full phones, and tags it on Limited ones', () => {
     expect(build(BASE).metrics.resp!.value).toBeCloseTo(BASE.breathing!.rateBrpm!, 12);
-    expect(build(analysisWith({}, { tier: 'basic' })).metrics.resp).not.toBeNull();
-    expect(build(analysisWith({}, { tier: 'limited' })).metrics.resp).toBeNull();
+    expect(build(analysisWith({}, { tier: 'basic' })).metrics.resp!.quality).toBe('standard');
+    expect(build(analysisWith({}, { tier: 'limited' })).metrics.resp).toMatchObject({
+      value: BASE.breathing!.rateBrpm,
+      quality: 'low',
+      qualityReasons: ['phoneTier'],
+    });
+    expect(build(analysisWith({}, { tier: null, captureFps: 24 })).metrics.resp!.qualityReasons).toEqual([
+      'lowFps',
+    ]);
+  });
+
+  it('keeps main’s standard path: a phone rated Basic is standard whatever its frame rate', () => {
+    expect(build(analysisWith({}, { tier: 'basic', captureFps: 24 })).metrics.resp).toMatchObject({
+      quality: 'standard',
+      qualityReasons: [],
+    });
   });
 
   it('infers the tier gate from the frame rate when the phone is unrated', () => {
-    expect(build(analysisWith({}, { tier: null, captureFps: 30 })).metrics.resp).not.toBeNull();
-    expect(build(analysisWith({}, { tier: null, captureFps: 24 })).metrics.resp).toBeNull();
+    expect(build(analysisWith({}, { tier: null, captureFps: 30 })).metrics.resp!.quality).toBe('standard');
+    expect(build(analysisWith({}, { tier: null, captureFps: 24 })).metrics.resp!.quality).toBe('low');
   });
 
-  it('is absent when the three estimates disagree', () => {
-    const disagree = { rateBrpm: null, intensityBrpm: 12, amplitudeBrpm: 24, intervalBrpm: 12 };
-    expect(build(analysisWith({ breathing: disagree })).metrics.resp).toBeNull();
+  it('falls back to the interval estimate when the three disagree, tagged (ADR 0104)', () => {
+    const disagree = { rateBrpm: null, intensityBrpm: 12, amplitudeBrpm: 24, intervalBrpm: 13 };
+    const outcome = build(analysisWith({ breathing: disagree }));
+    expect(outcome.metrics.resp).toMatchObject({
+      value: 13,
+      quality: 'low',
+      qualityReasons: ['estimatesDisagree'],
+    });
+    expect(outcome.quality.reasons).toEqual([{ kind: 'estimatesDisagree' }]);
+    const missing = { rateBrpm: null, intensityBrpm: 12, amplitudeBrpm: null, intervalBrpm: 13 };
+    expect(build(analysisWith({ breathing: missing })).quality.reasons).toEqual([
+      { kind: 'fewWindows', windows: 2, wantWindows: 3 },
+    ]);
+    const none = { rateBrpm: null, intensityBrpm: 12, amplitudeBrpm: null, intervalBrpm: null };
+    expect(build(analysisWith({ breathing: none })).metrics.resp).toBeNull();
+  });
+
+  it('below 60 clean seconds uses the estimates without the floor, tagged short', () => {
+    const lowBreathing = { rateBrpm: 15, intensityBrpm: 15, amplitudeBrpm: 15, intervalBrpm: 15 };
+    const short = analysisWith({
+      cleanSeconds: 40,
+      durationS: 40,
+      breathing: null,
+      lowQuality: { ...BASE.lowQuality, breathing: lowBreathing },
+    });
+    expect(build(short).metrics.resp).toMatchObject({
+      value: 15,
+      quality: 'low',
+      qualityReasons: ['shortClean'],
+    });
   });
 });
 
@@ -499,11 +661,63 @@ describe('diabetes card (§10.1, §11.4)', () => {
     expect(experimental.metrics.diabetes).toMatchObject({ evidence: 'experimental', flag: null });
   });
 
-  it('needs a Full Scan of 90 clean seconds on a Full phone', () => {
-    expect(build(analysisWith({}, { mode: 'quick' }), withDiabetes(0.7)).metrics.diabetes).toBeNull();
-    expect(build(analysisWith({}, { tier: 'basic' }), withDiabetes(0.7)).metrics.diabetes).toBeNull();
-    expect(
-      build(analysisWith({ cleanSeconds: 89.9, durationS: 89.9 }), withDiabetes(0.7)).metrics.diabetes,
-    ).toBeNull();
+  it('below a Full Scan of 90 clean seconds on a Full phone is tagged and never flags (ADR 0104)', () => {
+    const history = [earlier('2026-10-02', 0.7)];
+    const cases: [Partial<ReadingAnalysis>, Partial<ReadingContext>, string][] = [
+      [{}, { mode: 'quick' }, 'quickMode'],
+      [{}, { tier: 'basic' }, 'phoneTier'],
+      [{ cleanSeconds: 89.9, durationS: 89.9 }, {}, 'shortClean'],
+    ];
+    for (const [overrides, context, reason] of cases) {
+      const analysis = analysisWith(overrides, context);
+      const metric = build(analysis, withDiabetes(0.7), passedDiabetes, PROFILE, history).metrics.diabetes!;
+      expect(metric).toMatchObject({ quality: 'low', flag: null, confidence: 'low' });
+      expect(metric.qualityReasons).toContain(reason);
+    }
+    expect(build(analysisWith({}, { mode: 'deep' }), withDiabetes(0.7)).metrics.diabetes).toBeNull();
+  });
+
+  it('puts no non-finite frame rate in a reason (a format with no finite rate counts as 0 fps)', () => {
+    for (const captureFps of [Number.NaN, Infinity, -Infinity, -60]) {
+      const reasons = build(analysisWith({}, { captureFps }), withDiabetes(0.7)).quality.reasons;
+      expect(reasons).toContainEqual({ kind: 'lowFps', fps: 0, wantFps: 60 });
+      expect(JSON.stringify(reasons)).not.toMatch(/null|NaN|Infinity/);
+    }
+  });
+
+  it('is tagged when a lower-quality rhythm call opened diabetes-net’s HRV summary, and never flags', () => {
+    // A 90 s, 60 fps Full Scan with no 32-interval window: the rhythm comes from one reading-wide row.
+    const oneWide = analysisWith({
+      rhythmWindows: [],
+      rhythmFeatures: [],
+      lowQuality: { ...BASE.lowQuality, rhythmFeatures: BASE.rhythmFeatures[0]! },
+    });
+    const models: ModelOutputs = {
+      rhythm: { windowProbs: [[0.9, 0.05, 0.05]], tauAf: 0.5 },
+      diabetes: { probability: 0.7, tauDm: 0.5 },
+    };
+    const diabetes = build(oneWide, models, passedDiabetes, PROFILE, [earlier('2026-10-02', 0.7)]).metrics
+      .diabetes!;
+    expect(diabetes).toMatchObject({ quality: 'low', flag: null });
+    expect(diabetes.qualityReasons).toContain('fewWindows');
+    // The same reading with a standard rhythm call still flags.
+    const standard = build(BASE, { ...SINUS, diabetes: models.diabetes }, passedDiabetes, PROFILE, [
+      earlier('2026-10-02', 0.7),
+    ]).metrics.diabetes!;
+    expect(standard).toMatchObject({ quality: 'standard', flag: 'pattern' });
+  });
+
+  it('names the lower-quality averaged beat when the model scored it', () => {
+    const lowShape = { ...BASE.pulseShape!, beatsUsed: 5 };
+    const analysis = analysisWith(
+      { pulseShape: null, lowQuality: { ...BASE.lowQuality, pulseShape: lowShape } },
+      { captureFps: 30, tier: 'full' },
+    );
+    expect(build(analysis, withDiabetes(0.7)).quality.reasons).toEqual(
+      expect.arrayContaining([
+        { kind: 'lowFps', fps: 30, wantFps: 60 },
+        { kind: 'fewBeats', beats: 5, wantBeats: 20 },
+      ]),
+    );
   });
 });

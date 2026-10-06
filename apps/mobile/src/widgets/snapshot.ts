@@ -60,10 +60,14 @@ export function statusOf(outcome: ReadingResult): WidgetStatus {
   return 'regular';
 }
 
-// ADR 0005's confirming reading: a Full Check whose rhythm was judged regular. A heart-rate-only Full Check
-// shows as regular on the widget but judged no rhythm, so it confirms nothing.
+// ADR 0005's confirming reading: a standard-quality Full Check whose rhythm was judged regular. A heart-rate-only
+// Full Check judged no rhythm, and a lower-quality one (ADR 0104; safety default by MAIN, owner to confirm) is not
+// enough to clear a held see-doctor or a possible-AFib result. A reading saved before quality existed was standard.
 export const isRegularFullCheck = ({ mode, outcome }: StoredReading): boolean =>
-  mode === 'full' && outcome.headlineKey === 'result.regular' && statusOf(outcome) === 'regular';
+  mode === 'full' &&
+  outcome.headlineKey === 'result.regular' &&
+  statusOf(outcome) === 'regular' &&
+  (outcome.quality as ReadingResult['quality'] | undefined)?.level !== 'low';
 
 function localDayKey(time: number): string {
   const day = new Date(time);

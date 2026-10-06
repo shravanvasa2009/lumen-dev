@@ -81,6 +81,10 @@ const uncertain: Change = (outcome) => {
   outcome.headlineKey = 'result.uncertain';
 };
 
+const lowQuality: Change = (outcome) => {
+  outcome.quality = { level: 'low', reasons: [{ kind: 'shortClean', haveS: 40, wantS: 90 }] };
+};
+
 const hrOnly: Change = (outcome) => {
   outcome.headlineKey = 'result.hrOnly';
   outcome.metrics.rmssd = null;
@@ -290,6 +294,7 @@ describe('the doctor status persists', () => {
     { name: "a couldn't-tell reading", change: uncertain, mode: 'full' as const },
     // Its rhythm was not judged, so it is not the regular Full Check that ADR 0005 asks for.
     { name: 'a heart-rate-only Full Check', change: hrOnly, mode: 'full' as const },
+    { name: 'a lower-quality regular Full Check (ADR 0104)', change: lowQuality, mode: 'full' as const },
     { name: 'a slow resting rate', change: hrFlag('slowResting'), mode: 'quick' as const },
   ])('stays after $name', ({ change, mode }) => {
     expect(snapshotOf([flagged, readingWith(change, NOW - HOUR, mode)]).status).toBe('see-doctor');

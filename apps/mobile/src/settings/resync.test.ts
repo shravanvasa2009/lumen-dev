@@ -170,6 +170,14 @@ describe('reminders that follow a stored result', () => {
     expect(await routesOf()).toContain('lumen://check?mode=full');
   });
 
+  it('keeps the confirmation when the later regular Full Check was lower quality (ADR 0104)', async () => {
+    await store(flaggedReading(NOW - 2 * HOUR));
+    const low = makeReading(NOW - HOUR, 64, 40);
+    low.outcome.quality = { level: 'low', reasons: [{ kind: 'shortClean', haveS: 40, wantS: 90 }] };
+    await store({ ...low, mode: 'full' });
+    expect(await routesOf()).toContain('lumen://check?mode=full');
+  });
+
   it('plans nothing for a heart-rate-only reading with no flag', async () => {
     const hrOnly = makeReading(NOW - HOUR, 64, null);
     hrOnly.outcome.headlineKey = 'result.hrOnly';

@@ -4,6 +4,7 @@ import {
   type DiabetesOutputs,
   diabetesModelInput,
   isProbabilityRow,
+  logisticRhythmOutputs,
   readingOutcome,
   type InconclusiveOutcome,
   type ModelOutputs,
@@ -17,7 +18,7 @@ import {
 } from '@lumen/core';
 
 import evidence from '../../assets/evidence.json';
-import { classifyRhythm, scoreDiabetesInput } from '../ml/runtime';
+import { classifyRhythm, rhythmRuleEntry, scoreDiabetesInput } from '../ml/runtime';
 import { storedReadingTier } from '../store/deviceRating';
 import { loadProfile } from '../store/profile';
 import { type AnalysisProgress, type CheckOutputs, pendingProgress } from './analysisProgress';
@@ -47,8 +48,14 @@ function localDay(epochMs: number): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-// Basic analysis for any window (no model, or the model failed that run) leaves the whole reading without a
-// rhythm output: a rhythm card built from some windows' scores would judge a reading nobody fully scored.
+// §11.1 basic analysis: when the model is missing or fails on any window, the rhythm-logistic rule scores every
+// window, so one reading is never judged by a mix of two scorers. No rule entry leaves the reading without a
+// rhythm output.
+function ruleRhythmOutputs(analysis: ReadingAnalysis): RhythmOutputs | null {
+  const entry = rhythmRuleEntry();
+  return entry === null ? null : logisticRhythmOutputs(entry, analysis.rhythmFeatures);
+}
+
 async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs | null> {
   if (analysis.rhythmFeatures.length === 0) return null;
   const windowProbs: [number, number, number][] = [];
@@ -57,7 +64,7 @@ async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs |
     const outcome = await classifyRhythm({
       features: { values: Float32Array.from(features), dims: [1, features.length] },
     });
-    if (outcome.source !== 'model') return null;
+    if (outcome.source !== 'model') return ruleRhythmOutputs(analysis);
     const { sinus, af, other } = outcome.scores;
     const cut = outcome.threshold.af;
     if (sinus === undefined || af === undefined || other === undefined || typeof cut !== 'number')
@@ -66,7 +73,7 @@ async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs |
       console.warn(
         'rhythm model returned a row that is not a probability row; the reading has no rhythm card',
       );
-      return null;
+      return ruleRhythmOutputs(analysis);
     }
     windowProbs.push([sinus, af, other]);
     tauAf = cut;

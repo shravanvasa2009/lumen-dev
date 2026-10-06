@@ -21,6 +21,7 @@ jest.mock('../ml/runtime', () => ({
     scores: mockRhythmScores,
     threshold: { af: 0.5 },
   }),
+  rhythmRuleEntry: () => null,
   scoreDiabetesInput: async () => ({
     source: 'basic',
     value: null,

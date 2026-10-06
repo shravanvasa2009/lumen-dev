@@ -11,6 +11,7 @@ jest.mock('../ml/runtime', () => ({
     if (mockRhythmFails) throw new Error('rhythm model unavailable');
     return { source: 'basic', value: null, reason: 'no model in this test' };
   },
+  rhythmRuleEntry: () => null,
   scoreDiabetesInput: async () => ({ source: 'basic', value: null, reason: 'no model in this test' }),
 }));
 

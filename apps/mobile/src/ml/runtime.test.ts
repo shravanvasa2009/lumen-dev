@@ -233,6 +233,13 @@ const windowAt = (level: number) => ({
 
 beforeEach(() => {
   mockSessionsCreated.count = 0;
+  // The 50 ms inference budget is wall-clock. A cold onnxruntime-node session on a loaded CI runner can pass it
+  // (PR #290's first run), so the clock is frozen and these tests check outputs, not speed.
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 afterAll(() => {
@@ -440,6 +447,7 @@ describe('running', () => {
   });
 
   it('falls back for one call when inference takes longer than 50 ms', async () => {
+    jest.useRealTimers();
     const slow = sqiEntry({ sha256: fixtureSha256('sqi-slow-fixture.onnx') });
     const runtime = await loadRuntime({ models: [slow] }, { [sqiFile]: 'sqi-slow-fixture.onnx' });
     const outcome = await runtime.sqiVeto(windowAt(-3));

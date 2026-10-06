@@ -13,7 +13,7 @@ export default {
   preset: 'jest-expo',
   setupFiles: [...expoPreset.setupFiles, '<rootDir>/jest.devBuild.ts', '<rootDir>/jest.setup.ts'],
   transform: {
-    '\.onnx$': require.resolve('jest-expo/src/preset/assetFileTransformer.js'),
+    '\\.onnx$': require.resolve('jest-expo/src/preset/assetFileTransformer.js'),
     [SCRIPTS]: [transformer, { ...babelOptions, plugins: ['@babel/plugin-transform-dynamic-import'] }],
   },
 };

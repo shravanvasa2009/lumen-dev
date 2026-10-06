@@ -54,6 +54,22 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
   const { points } = series;
   const isToday = (moment: Date) => !demo && moment.toDateString() === now.toDateString();
   const dayLabel = (moment: Date) => (isToday(moment) ? t('trends.today') : formatDay(moment, i18n.language));
+  const flaggedById = new Map(series.flaggedLowRhythms.map((flagged) => [flagged.id, flagged.rhythm]));
+  // A flagged lower-quality rhythm has no plotted value when the reading's own value is lower quality, but its
+  // row stays so Trends agrees with Results and Home.
+  const rows = [
+    ...points.map((point) => ({ ...point, flaggedLow: flaggedById.get(point.id) ?? null })),
+    ...series.flaggedLowRhythms
+      .filter((flagged) => !points.some((point) => point.id === flagged.id))
+      .map(({ id, createdAt, rhythm }) => ({
+        id,
+        createdAt,
+        value: null,
+        caffeine: false,
+        rhythm: null,
+        flaggedLow: rhythm,
+      })),
+  ].sort((earlier, later) => earlier.createdAt.getTime() - later.createdAt.getTime());
   const first = points[0];
   const last = points[points.length - 1];
 
@@ -121,14 +137,18 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
             />
             <Tile title={t('trends.readings')} value={String(points.length)} />
           </View>
-          {points.length > 0 ? (
+          {rows.length > 0 ? (
             <Card flush>
-              {points
+              {rows
                 .slice(-recentRows)
                 .reverse()
                 .map((point, index, shown) => {
-                  const word = point.rhythm ? rhythmClassWords(t, point.rhythm).value : null;
-                  const value = metricValue(t, metric, point.value);
+                  const word = point.flaggedLow
+                    ? t('quality.marked', { value: rhythmClassWords(t, point.flaggedLow).value })
+                    : point.rhythm
+                      ? rhythmClassWords(t, point.rhythm).value
+                      : null;
+                  const value = point.value === null ? null : metricValue(t, metric, point.value);
                   // Saved readings always open. Sample rows open only when a fixture has that id.
                   const fixture = demo ? readingById(point.id) : undefined;
                   const opens = !demo || fixture !== undefined;

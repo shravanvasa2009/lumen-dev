@@ -89,4 +89,14 @@ describe('historyFromStored', () => {
     low.outcome.metrics.hr!.quality = 'low';
     expect(historyFromStored([low])[0]).toMatchObject({ hr: null, rmssd: 40 });
   });
+
+  it('keeps a flagged lower-quality rhythm, marked, and leaves a lower-quality one without a flag out', () => {
+    const flagged = makeReading(lastMonth(25), 61, 40);
+    flagged.outcome.metrics.rhythm = { class: 'af', flag: 'irregular', quality: 'low' } as never;
+    const unflagged = makeReading(lastMonth(26), 62, 40);
+    unflagged.outcome.metrics.rhythm = { class: 'other', flag: null, quality: 'low' } as never;
+    const [kept, left] = historyFromStored([flagged, unflagged]);
+    expect(kept).toMatchObject({ rhythm: null, flaggedLowRhythm: 'af' });
+    expect(left).toMatchObject({ rhythm: null, flaggedLowRhythm: null });
+  });
 });

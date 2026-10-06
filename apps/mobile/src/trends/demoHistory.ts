@@ -53,6 +53,7 @@ const sampleHistory: readonly HistoryReading[] = rows.map(
     rmssd,
     resp,
     rhythm: 'sinus',
+    flaggedLowRhythm: null,
     caffeine,
   }),
 );
@@ -67,6 +68,7 @@ function fromFixture({ id, createdAt, mode, scan }: FixtureReading): HistoryRead
     rmssd: rmssd?.value ?? null,
     resp: resp?.value ?? null,
     rhythm: rhythm?.class ?? null,
+    flaggedLowRhythm: null,
     caffeine: false,
   };
 }

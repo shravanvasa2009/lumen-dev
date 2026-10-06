@@ -11,6 +11,7 @@ function reading(day: number, hr: number | null, rmssd: number | null = null): H
     rmssd,
     resp: null,
     rhythm: 'sinus',
+    flaggedLowRhythm: null,
     caffeine: false,
   };
 }
@@ -80,6 +81,7 @@ describe('trendSeries', () => {
 
   it('gives an empty series for no readings', () => {
     expect(trendSeries([], 'hr', '30d', now)).toEqual({
+      flaggedLowRhythms: [],
       points: [],
       median: null,
       band: null,
@@ -125,5 +127,31 @@ describe('chartAxis', () => {
   it('keeps an axis for a single value', () => {
     const { low, high } = chartAxis([64]);
     expect(high).toBeGreaterThan(low);
+  });
+});
+
+describe('flagged lower-quality rhythms', () => {
+  const now = new Date(2026, 9, 1, 9, 0);
+  const base = {
+    mode: 'quick' as const,
+    hr: null,
+    rmssd: null,
+    resp: null,
+    rhythm: null,
+    caffeine: false,
+  };
+
+  it('lists one in range even without a value, and keeps it out of the median', () => {
+    const flagged = {
+      ...base,
+      id: 'a',
+      createdAt: new Date(2026, 9, 1, 7, 0),
+      flaggedLowRhythm: 'af' as const,
+    };
+    const old = { ...base, id: 'b', createdAt: new Date(2026, 0, 1, 7, 0), flaggedLowRhythm: 'af' as const };
+    const series = trendSeries([flagged, old], 'hr', '7d', now);
+    expect(series.flaggedLowRhythms.map((entry) => entry.id)).toEqual(['a']);
+    expect(series.points).toEqual([]);
+    expect(series.median).toBeNull();
   });
 });

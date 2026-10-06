@@ -83,4 +83,10 @@ describe('historyFromStored', () => {
     });
     expect(mapped?.createdAt.getTime()).toBe(lastMonth(25));
   });
+
+  it('leaves a lower-quality value out of the trend, its median and band (ADR 0104)', () => {
+    const low = makeReading(lastMonth(25), 61, 40);
+    low.outcome.metrics.hr!.quality = 'low';
+    expect(historyFromStored([low])[0]).toMatchObject({ hr: null, rmssd: 40 });
+  });
 });

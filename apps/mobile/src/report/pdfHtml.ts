@@ -10,6 +10,7 @@ import {
   formatFullDate,
   pdfPageReadings,
   reportEvidence,
+  qualityLines,
   stripsFor,
   tableRows,
 } from './model';
@@ -104,6 +105,7 @@ function pageHtml(
     `<p class="banner">${escapeHtml(t('prototype.banner'))}</p>`,
     ...flagLines,
     `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`,
+    ...qualityLines(t, language, [page]).map((line) => `<p class="dim">${escapeHtml(line)}</p>`),
     diabetes
       ? `<p><b>${escapeHtml(t('report.diabetesLabel'))}</b> ${escapeHtml(diabetesSentence(t, language, diabetes))}</p>`
       : '',

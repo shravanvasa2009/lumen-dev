@@ -25,6 +25,12 @@ describe('tileSeries', () => {
     expect(tileSeries(readings, 'resp')).toEqual([]);
   });
 
+  it('leaves lower-quality values off the tile, which has no room for the tag (ADR 0104)', () => {
+    const low = reading(200, 99, null);
+    low.outcome.metrics.hr!.quality = 'low';
+    expect(tileSeries([reading(100, 70, 40), low, reading(300, 64, null)], 'hr')).toEqual([70, 64]);
+  });
+
   it('keeps only the last seven points', () => {
     const readings = Array.from({ length: 10 }, (_, index) => reading(index, 60 + index, null));
     expect(tileSeries(readings, 'hr')).toEqual([63, 64, 65, 66, 67, 68, 69]);

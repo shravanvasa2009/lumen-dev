@@ -7,6 +7,7 @@ import { bundledAccuracy } from '@/accuracy/readAccuracy';
 import { evidenceFor, type EvidenceMetric } from '@/evidence';
 import type { FixtureReading } from '@/results/fixtures';
 import { formatClock, formatDay } from '@/results/format';
+import { isLowQuality, readingQuality, reasonText } from '@/results/quality';
 import { rhythmWords } from '@/results/rhythmWords';
 
 export function formatFullDate(moment: Date, language: string): string {
@@ -110,11 +111,30 @@ export function tableRows(
     cells: [
       formatClock(row.createdAt, language),
       row.mode === 'full' ? t('report.modeFull') : t('report.modeQuick'),
-      row.scan.metrics.hr ? String(Math.round(row.scan.metrics.hr.value)) : '—',
-      row.scan.metrics.rhythm ? rhythmWords(t, row.scan.metrics.rhythm).value : '—',
+      row.scan.metrics.hr
+        ? marked(t, row.scan.metrics.hr, String(Math.round(row.scan.metrics.hr.value)))
+        : '—',
+      row.scan.metrics.rhythm
+        ? marked(t, row.scan.metrics.rhythm, rhythmWords(t, row.scan.metrics.rhythm).value)
+        : '—',
       String(Math.floor(row.scan.cleanSeconds)),
     ],
   }));
+}
+
+// ADR 0104: a lower-quality value is never shown without its tag.
+function marked(t: TFunction, metric: object, value: string): string {
+  return isLowQuality(metric) ? t('quality.marked', { value }) : value;
+}
+
+/** One line per lower-quality reading of the day: its time and why (ADR 0104). */
+export function qualityLines(t: TFunction, language: string, readings: readonly FixtureReading[]): string[] {
+  return readings.flatMap((row) => {
+    const quality = readingQuality(row.scan);
+    if (quality.level !== 'low') return [];
+    const reasons = quality.reasons.map((reason) => reasonText(t, reason)).join('; ');
+    return [`${formatClock(row.createdAt, language)} · ${t('quality.chip')}: ${reasons}`];
+  });
 }
 
 const stripLimit = 3;

@@ -1,6 +1,19 @@
 import { readingById, readingsOnDay, type FixtureReading } from '@/results/fixtures';
 
-import { diabetesFor, evidenceSentence, flagCounts, formatFullDate, pdfPageReadings } from './model';
+import i18next from 'i18next';
+
+import '@/i18n';
+import en from '@/i18n/en.json';
+
+import {
+  diabetesFor,
+  evidenceSentence,
+  flagCounts,
+  formatFullDate,
+  pdfPageReadings,
+  qualityLines,
+  tableRows,
+} from './model';
 
 const demo = readingById('demo') as FixtureReading;
 const flagged = readingById('demo-flag') as FixtureReading;
@@ -16,6 +29,41 @@ describe('flagCounts', () => {
 
   it('is empty for no readings', () => {
     expect(flagCounts([])).toEqual({ rhythm: { flagged: 0, total: 0 }, hr: { flagged: 0, total: 0 } });
+  });
+});
+
+describe('lower-quality readings in the report (ADR 0104)', () => {
+  const t = i18next.getFixedT('en');
+  const low: FixtureReading = {
+    ...demo,
+    scan: {
+      ...demo.scan,
+      quality: { level: 'low', reasons: [{ kind: 'shortClean', haveS: 40, wantS: 60 }] },
+      metrics: {
+        ...demo.scan.metrics,
+        hr: { ...demo.scan.metrics.hr!, quality: 'low', qualityReasons: ['shortClean'], qualityDetails: [] },
+        rhythm: {
+          ...demo.scan.metrics.rhythm!,
+          quality: 'low',
+          qualityReasons: ['shortClean'],
+          qualityDetails: [],
+        },
+      },
+    },
+  };
+
+  it('tags the heart rate and rhythm cells', () => {
+    const { cells } = tableRows(t, 'en', [low])[0]!;
+    expect(cells[2]).toBe(en['quality.marked'].replace('{{value}}', '64'));
+    expect(cells[3]).toBe(en['quality.marked'].replace('{{value}}', en['results.rhythmRegular']));
+    expect(tableRows(t, 'en', [demo])[0]!.cells[2]).toBe('64');
+  });
+
+  it('adds a line with the time and the reasons for each lower-quality reading, none for a standard one', () => {
+    const [line] = qualityLines(t, 'en', [demo, low]);
+    expect(qualityLines(t, 'en', [demo])).toEqual([]);
+    expect(line).toContain(en['quality.chip']);
+    expect(line).toContain('Only 40 of 60 clean seconds');
   });
 });
 

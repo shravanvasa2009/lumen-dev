@@ -11,13 +11,11 @@ import { useTheme } from '@/theme';
 
 import { reasonText } from './quality';
 
-type QualityChipProps = { reasons: readonly QualityReason[]; small?: boolean };
-
-const tipKeys = ['quality.tipFlat', 'quality.tipStill', 'quality.tipWarm', 'quality.tipFull'] as const;
+type LowerQualityTagProps = { reasons: readonly QualityReason[]; small?: boolean };
 
 // §6: a reading is never withheld for quality; this quiet amber-neutral tag says it was weaker, and the
 // sheet says why. Never red (SAFE-1).
-export function QualityChip({ reasons, small = false }: QualityChipProps) {
+export function LowerQualityTag({ reasons, small = false }: LowerQualityTagProps) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   const [open, setOpen] = useState(false);
@@ -53,11 +51,13 @@ export function QualityChip({ reasons, small = false }: QualityChipProps) {
           </View>
           <AppText variant="headline">{t('quality.betterTitle')}</AppText>
           <View style={{ gap: spacing.sm }}>
-            {tipKeys.map((key) => (
-              <AppText key={key} tone="textDim">
-                • {t(key)}
-              </AppText>
-            ))}
+            {[t('quality.tipFlat'), t('quality.tipStill'), t('quality.tipWarm'), t('quality.tipFull')].map(
+              (tip) => (
+                <AppText key={tip} tone="textDim">
+                  • {tip}
+                </AppText>
+              ),
+            )}
           </View>
         </ScrollView>
         <Button label={t('common.gotIt')} variant="secondary" onPress={() => setOpen(false)} />

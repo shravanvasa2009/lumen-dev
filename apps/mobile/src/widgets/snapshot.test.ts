@@ -46,6 +46,7 @@ function rhythm(flag: 'irregular' | 'possibleAf' | null): Change {
       confidence: 'high',
       quality: 'standard',
       qualityReasons: [],
+      qualityDetails: [],
       flag,
     };
   };
@@ -66,6 +67,7 @@ function diabetes(evidence: 'public-data' | 'experimental'): Change {
       confidence: 'high',
       quality: 'standard',
       qualityReasons: [],
+      qualityDetails: [],
       flag: 'pattern',
     };
   };
@@ -189,6 +191,7 @@ const outcomes: readonly Outcome[] = [
         confidence: 'moderate',
         quality: 'standard',
         qualityReasons: [],
+        qualityDetails: [],
         flag: 'fastRegular',
       };
     },
@@ -340,6 +343,12 @@ describe('heart rate on the widget', () => {
 
   it('is null when the reading has no rate', () => {
     expect(snapshotOf([makeReading(NOW - HOUR, null, null)]).hrBpm).toBeNull();
+  });
+
+  it('is null when the rate is lower quality, which the widget has no room to tag (ADR 0104)', () => {
+    const low = makeReading(NOW - HOUR, 64, null);
+    low.outcome.metrics.hr!.quality = 'low';
+    expect(snapshotOf([low]).hrBpm).toBeNull();
   });
 });
 

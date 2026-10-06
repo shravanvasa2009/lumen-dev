@@ -12,6 +12,8 @@ import { formatNumber } from '@/i18n/formatNumber';
 import { useTheme } from '@/theme';
 
 import { intervalAxis } from './axis';
+import { LowerQualityTag } from './LowerQualityTag';
+import { metricReasons, readingQuality } from './quality';
 import { DemoBanner } from './DemoBanner';
 import { type FixtureReading, regularIntervalsMs } from './fixtures';
 import { PoincarePlot } from './PoincarePlot';
@@ -53,6 +55,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
   // The accent text colour fails contrast on the dark plot panel; the fill teal passes (tokens.json).
   const plotColor = rhythm.flag ? colors.flag : colors.accentFill;
   const words = rhythmWords(t, rhythm);
+  const lowReasons = metricReasons(rhythm, readingQuality(reading.scan));
   const chipColors = rhythm.flag
     ? { fill: colors.badgeFlagBg, text: colors.badgeFlagFg }
     : { fill: colors.surface3, text: colors.text };
@@ -69,6 +72,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
         <AppText variant="title" accessibilityRole="header">
           {why.title}
         </AppText>
+        {lowReasons ? <LowerQualityTag reasons={lowReasons} /> : null}
 
         <SectionCaption text={t('why.plainWords')} />
         <Card>

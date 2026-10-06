@@ -8,6 +8,8 @@ import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
+import { metricReasons } from './quality';
+
 jest.mock('@/profile/riskScore', () => ({ useStoredRiskScore: () => null }));
 
 const allReasons: QualityReason[] = [
@@ -21,6 +23,7 @@ const allReasons: QualityReason[] = [
   { kind: 'fewWindows', windows: 2, wantWindows: 5 },
   { kind: 'estimatesDisagree' },
   { kind: 'phoneTier', tier: 'basic', wantTier: 'full' },
+  { kind: 'rhythmUnjudged' },
 ];
 
 type Injected = { quality?: ReadingQuality; lowMetrics: string[]; noRhythm: boolean };
@@ -84,7 +87,8 @@ describe('lower-quality tag', () => {
     expect(screen.getByText(en['quality.noSqi'], { exact: false })).toBeOnTheScreen();
     expect(screen.getByText(en['quality.modelFallback'], { exact: false })).toBeOnTheScreen();
     expect(screen.getByText(en['quality.quickMode'], { exact: false })).toBeOnTheScreen();
-    expect(screen.getByText(/covered the lens 72% of the time/)).toBeOnTheScreen();
+    expect(screen.getByText(/Only 72% of the scan was clean/)).toBeOnTheScreen();
+    expect(screen.getByText(en['quality.rhythmUnjudged'], { exact: false })).toBeOnTheScreen();
     expect(screen.getByText(/Only 18 beats were measured/)).toBeOnTheScreen();
     expect(screen.getByText(/Only 2 of 5 steady stretches/)).toBeOnTheScreen();
     expect(screen.getByText(en['quality.estimatesDisagree'], { exact: false })).toBeOnTheScreen();
@@ -104,7 +108,8 @@ describe('lower-quality tag', () => {
       expect(screen.getByText(es['quality.noSqi'], { exact: false })).toBeOnTheScreen();
       expect(screen.getByText(es['quality.modelFallback'], { exact: false })).toBeOnTheScreen();
       expect(screen.getByText(es['quality.quickMode'], { exact: false })).toBeOnTheScreen();
-      expect(screen.getByText(/cubrió el lente el 72% del tiempo/)).toBeOnTheScreen();
+      expect(screen.getByText(/Solo el 72% del escaneo fue limpio/)).toBeOnTheScreen();
+      expect(screen.getByText(es['quality.rhythmUnjudged'], { exact: false })).toBeOnTheScreen();
       expect(screen.getByText(/Solo se midieron 18 latidos/)).toBeOnTheScreen();
       expect(screen.getByText(/Solo 2 de 5 tramos estables/)).toBeOnTheScreen();
       expect(screen.getByText(es['quality.estimatesDisagree'], { exact: false })).toBeOnTheScreen();
@@ -154,6 +159,26 @@ describe('lower-quality tag', () => {
     openResults('demo');
     expect(screen.getAllByText(en['quality.missingShort']).length).toBeGreaterThan(0);
     expect(screen.getByText(en['quality.missingNoRhythm'])).toBeOnTheScreen();
+  });
+});
+
+describe('metricReasons', () => {
+  const reading: ReadingQuality = { level: 'low', reasons: [{ kind: 'shortClean', haveS: 12, wantS: 90 }] };
+
+  it('quotes the card’s own floor (heart rate 15 s), not the reading’s largest (90 s)', () => {
+    const hr = {
+      quality: 'low',
+      qualityReasons: ['shortClean'],
+      qualityDetails: [{ kind: 'shortClean', haveS: 12, wantS: 15 }],
+    };
+    expect(metricReasons(hr, reading)).toEqual([{ kind: 'shortClean', haveS: 12, wantS: 15 }]);
+  });
+
+  it('falls back to the reading’s reasons of the same kinds for a reading saved before the details', () => {
+    expect(metricReasons({ quality: 'low', qualityReasons: ['shortClean'] }, reading)).toEqual(
+      reading.reasons,
+    );
+    expect(metricReasons({ quality: 'standard' }, reading)).toBeNull();
   });
 });
 

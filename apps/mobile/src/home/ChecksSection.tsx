@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import { evidenceFor } from '@/evidence';
+import { isLowQuality } from '@/results/quality';
 import { rhythmClassWords } from '@/results/rhythmWords';
 import { useTheme } from '@/theme';
 
@@ -31,7 +32,10 @@ export function ChecksSection({ readings, now, compact }: ChecksSectionProps) {
   const rhythm = latestRhythm(readings);
   const rmssd = latestRmssd(readings);
   const { days, latest: diabetes } = diabetesProgress(readings);
-  const hrvValue = rmssd ? String(Math.round(rmssd.metric.value)) : '';
+  // ADR 0104: a lower-quality value is never shown without its tag.
+  const marked = (metric: object, value: string) =>
+    isLowQuality(metric) ? t('quality.marked', { value }) : value;
+  const hrvValue = rmssd ? marked(rmssd.metric, String(Math.round(rmssd.metric.value))) : '';
   const band = rmssd?.metric.band;
   const diabetesFinding =
     diabetes?.metric.flag === 'pattern' && evidenceFor('diabetes').measured
@@ -52,7 +56,7 @@ export function ChecksSection({ readings, now, compact }: ChecksSectionProps) {
         finding={
           rhythm
             ? t('checks.status.withWhen', {
-                finding: rhythmClassWords(t, rhythm.metric.class).value,
+                finding: marked(rhythm.metric, rhythmClassWords(t, rhythm.metric.class).value),
                 when: whenOf(rhythm.reading),
               })
             : noReadings

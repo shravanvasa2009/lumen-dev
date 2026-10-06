@@ -16,6 +16,7 @@ type AndroidManifest = AndroidConfig.Manifest.AndroidManifest;
 
 const SMALL = 'expo.modules.lumenwidgets.SmallWidgetReceiver';
 const MEDIUM = 'expo.modules.lumenwidgets.MediumWidgetReceiver';
+const LOCK = 'expo.modules.lumenwidgets.LockWidgetReceiver';
 
 // Introspection runs the AndroidManifest mods in memory, from Expo's template or from a manifest already
 // in the project root (a second prebuild without --clean).
@@ -72,6 +73,7 @@ describe('lumen-widgets config plugin (WID-1, PRIV-1)', () => {
   it.each([
     [SMALL, '@xml/lumen_widget_small'],
     [MEDIUM, '@xml/lumen_widget_medium'],
+    [LOCK, '@xml/lumen_widget_lock'],
   ])('registers %s with its widget provider file', (name, provider) => {
     const [receiver, ...extra] = receiverNamed(fromTemplate, name);
     expect(extra).toHaveLength(0);
@@ -122,11 +124,13 @@ describe('lumen-widgets config plugin (WID-1, PRIV-1)', () => {
     const manifest = await manifestAfter(projectRoot);
     expect(receiverNamed(manifest, SMALL)).toHaveLength(1);
     expect(receiverNamed(manifest, MEDIUM)).toHaveLength(1);
+    expect(receiverNamed(manifest, LOCK)).toHaveLength(1);
   });
 
   it('adds nothing twice when listed twice in the plugins', async () => {
     const manifest = await manifestAfter(projectRoot, true);
     expect(receiverNamed(manifest, SMALL)).toHaveLength(1);
     expect(receiverNamed(manifest, MEDIUM)).toHaveLength(1);
+    expect(receiverNamed(manifest, LOCK)).toHaveLength(1);
   });
 });

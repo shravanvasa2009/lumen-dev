@@ -63,6 +63,9 @@ function widgetDisplay(language: string) {
     checkNow: t('widgets.checkNow'),
     fullScan: t('mode.full'),
     empty: { title: lock['widget.empty.title'], body: lock['widget.empty.body'] },
+    // The Android lock-screen widget's own copy, all from lockscreen.json (WID-2): with the name and the empty title,
+    // it's everything that widget shows. "{{hours}}" stays a template, like lastCheck.
+    lock: { lastCheck: lock['widget.lock.lastCheck'], checkNow: lock['widget.lock.checkNow'] },
     // The four checks the medium widget lists (owner, 2026-10-03, proposal A; ADR 0083). Home screen only: the lock
     // screen and notifications never name a condition (WID-2). The Diabetes tag is the evidence label's word
     // (EVID-1), shown only while that label is Experimental.

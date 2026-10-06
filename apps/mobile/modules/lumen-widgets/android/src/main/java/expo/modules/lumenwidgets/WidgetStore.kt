@@ -65,25 +65,32 @@ object WidgetStore {
     // Glance keeps a widget's session running for a while after it draws, and an update that arrives then
     // recomposes that content instead of calling provideGlance again. A widget that read the store once kept the
     // fallback after the first launch's copy publish (API 37 emulator, 2026-10-05), so the widgets watch it.
-    fun views(context: Context): Flow<WidgetView?> =
-        callbackFlow {
-            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            val listener =
-                SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(read(context, System.currentTimeMillis())) }
-            prefs.registerOnSharedPreferenceChangeListener(listener)
-            // A write between provideGlance's first read and the line above would otherwise never be drawn.
-            trySend(read(context, System.currentTimeMillis()))
-            awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
-        }
+    fun views(context: Context): Flow<WidgetView?> = watch(context) { read(context, it) }
+
+    internal fun lockViews(context: Context): Flow<LockView?> = watch(context) { readLock(context, it) }
 
     // null until the app has published its copy once (a widget added before the app ever ran), or while the stored
     // payload is one this version can't read (written by an older app until its next publish).
-    fun read(context: Context, nowMs: Long): WidgetView? {
+    fun read(context: Context, nowMs: Long): WidgetView? = readStored(context, nowMs, ::widgetView)
+
+    internal fun readLock(context: Context, nowMs: Long): LockView? = readStored(context, nowMs, ::lockView)
+
+    private fun <T> watch(context: Context, readAt: (Long) -> T?): Flow<T?> =
+        callbackFlow {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(readAt(System.currentTimeMillis())) }
+            prefs.registerOnSharedPreferenceChangeListener(listener)
+            // A write between provideGlance's first read and the line above would otherwise never be drawn.
+            trySend(readAt(System.currentTimeMillis()))
+            awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        }
+
+    private fun <T> readStored(context: Context, nowMs: Long, parse: (String, String, Long) -> T): T? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val displayJson = prefs.getString(DISPLAY_KEY, null) ?: return null
         val snapshotJson = prefs.getString(SNAPSHOT_KEY, null) ?: NO_READING_SNAPSHOT
         return try {
-            widgetView(snapshotJson, displayJson, nowMs)
+            parse(snapshotJson, displayJson, nowMs)
         } catch (error: Exception) {
             // The widget falls back to its empty state rather than the launcher's "can't load" box; the next
             // publish replaces the payload.

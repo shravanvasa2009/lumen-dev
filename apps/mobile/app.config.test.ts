@@ -146,3 +146,26 @@ describe('app.config Care map location (ADR 0054)', () => {
     expect(kept).not.toContain('android.permission.ACCESS_BACKGROUND_LOCATION');
   });
 });
+
+describe('app.config lock-screen widget taps (WID-2)', () => {
+  // A tap on the Android lock-screen widget must make the user unlock before the app opens: Android opens an
+  // activity over the lock screen only when it declares showWhenLocked.
+  // https://android-developers.googleblog.com/2025/03/widgets-on-lock-screen-faq.html
+  it('lets no activity open over the lock screen', async () => {
+    const projectRoot = process.cwd();
+    const { exp } = getConfig(projectRoot, {
+      skipSDKVersionRequirement: true,
+      isPublicConfig: false,
+      isModdedConfig: true,
+    });
+    const evaluated = await compileModsAsync(exp, { projectRoot, introspect: true, platforms: ['android'] });
+    const activities = AndroidConfig.Manifest.getMainApplicationOrThrow(
+      evaluated._internal?.modResults.android.manifest,
+    ).activity;
+    expect(activities?.length).toBeGreaterThan(0);
+    for (const activity of activities ?? []) {
+      expect(activity.$).not.toHaveProperty('android:showWhenLocked');
+      expect(activity.$).not.toHaveProperty('android:turnScreenOn');
+    }
+  }, 60_000);
+});

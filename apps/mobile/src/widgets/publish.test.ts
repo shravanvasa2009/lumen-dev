@@ -12,6 +12,8 @@ import { saveReading } from '@/store/readings';
 import { setPreference } from '@/theme/preferences';
 
 import * as evidence from '@/evidence';
+import i18next from 'i18next';
+import lockscreen from '@/i18n/lockscreen.json';
 import { LumenWidgets } from '../../modules/lumen-widgets/src';
 import { publishWidgetCopy, publishWidgets } from './publish';
 import type { WidgetSnapshot } from './snapshot';
@@ -75,7 +77,11 @@ beforeEach(() => {
   publishSnapshot().mockClear();
 });
 
-function publishedDisplay(): { checks: string[]; diabetesTag: string | null } {
+function publishedDisplay(): {
+  checks: string[];
+  diabetesTag: string | null;
+  lock: { lastCheck: string; checkNow: string };
+} {
   const calls = publishSnapshot().mock.calls;
   return JSON.parse(calls[calls.length - 1]![1]);
 }
@@ -97,6 +103,20 @@ describe('the four checks on the medium widget', () => {
     jest.spyOn(evidence, 'evidenceFor').mockReturnValue({ ...real, label });
     await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
     expect(publishedDisplay().diabetesTag).toBe(tag);
+  });
+});
+
+// WID-2: the Android lock-screen widget's copy is lockscreen.json's, which check-notification-copy.mjs checks.
+describe('the lock-screen widget copy', () => {
+  afterEach(() => i18next.changeLanguage('en'));
+
+  it.each(['en', 'es'] as const)('comes from lockscreen.json in %s', async (language) => {
+    await i18next.changeLanguage(language);
+    await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
+    expect(publishedDisplay().lock).toEqual({
+      lastCheck: lockscreen[language]['widget.lock.lastCheck'],
+      checkNow: lockscreen[language]['widget.lock.checkNow'],
+    });
   });
 });
 

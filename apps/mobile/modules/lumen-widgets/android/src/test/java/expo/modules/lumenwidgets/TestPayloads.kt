@@ -11,6 +11,7 @@ const val TEST_DISPLAY =
     """{"name":"Lumen","status":{"regular":"Up to date","check-again":"Check again tonight","see-doctor":"Doctor visit suggested",""" +
         """"inconclusive":"Check again tonight"},"lastCheck":"Last check {{hours}} h ago","bpm":"bpm","streak":"streak {{days}} days",""" +
         """"checkNow":"Check now","fullScan":"Full Scan","empty":{"title":"No checks yet","body":"Takes 90 seconds"},""" +
+        """"lock":{"lastCheck":"Last check {{hours}} h ago","checkNow":"Check now"},""" +
         """"palette":{"light":$PALETTE,"dark":$PALETTE}}"""
 
 // The current display: the four checks and the Diabetes evidence tag (publish.ts).

@@ -19,16 +19,32 @@ type MetricCardProps = {
   checkName?: string;
   icon: IconName;
   evidenceMetric: EvidenceMetric;
+  // §11.10: scored by the fallback rule, so the card says so and its evidence is Experimental.
+  basicAnalysis?: boolean;
   // Null when the metric missed its clean-data floor; that card alone says so (§6.2).
   reading: { value: string; note: string; confidence: Confidence; flagged: boolean } | null;
 };
 
-export function MetricCard({ title, checkName, icon, evidenceMetric, reading }: MetricCardProps) {
+export function MetricCard({
+  title,
+  checkName,
+  icon,
+  evidenceMetric,
+  basicAnalysis = false,
+  reading,
+}: MetricCardProps) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   return (
     <Card>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.sm,
+        }}
+      >
         <CheckHeading icon={icon} name={checkName} label={title} />
         {reading ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 }}>
@@ -46,7 +62,7 @@ export function MetricCard({ title, checkName, icon, evidenceMetric, reading }: 
                 </AppText>
               </View>
             ) : null}
-            <EvidenceBadge metric={evidenceMetric} />
+            <EvidenceBadge metric={evidenceMetric} basicAnalysis={basicAnalysis} />
             <ConfidenceDots confidence={reading.confidence} />
           </View>
         ) : null}
@@ -61,6 +77,11 @@ export function MetricCard({ title, checkName, icon, evidenceMetric, reading }: 
       ) : (
         <AppText variant="headline">{t('result.inconclusive')}</AppText>
       )}
+      {reading && basicAnalysis ? (
+        <AppText variant="caption" tone="textDim">
+          {t('results.basicAnalysis')}
+        </AppText>
+      ) : null}
     </Card>
   );
 }

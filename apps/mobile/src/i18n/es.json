@@ -773,6 +773,7 @@
   "why.explainIrregular": "Tus intervalos cambiaron sin un patrón que se repita.",
   "why.beat": "latido",
   "inconclusive.close": "Cerrar",
+  "results.basicAnalysis": "Análisis básico",
   "results.bpm": "{{value}} lpm",
   "results.yourBand": "tu rango {{low}}–{{high}}",
   "results.noteIrregular": "patrón parecido a la fibrilación auricular",

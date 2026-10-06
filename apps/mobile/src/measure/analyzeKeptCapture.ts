@@ -4,6 +4,7 @@ import {
   type DiabetesOutputs,
   diabetesModelInput,
   isProbabilityRow,
+  logisticRhythmOutputs,
   readingOutcome,
   type InconclusiveOutcome,
   type ModelOutputs,
@@ -17,7 +18,7 @@ import {
 } from '@lumen/core';
 
 import evidence from '../../assets/evidence.json';
-import { classifyRhythm, scoreDiabetesInput } from '../ml/runtime';
+import { classifyRhythm, rhythmRuleEntry, scoreDiabetesInput } from '../ml/runtime';
 import { storedReadingTier } from '../store/deviceRating';
 import { loadProfile } from '../store/profile';
 import { type AnalysisProgress, type CheckOutputs, pendingProgress } from './analysisProgress';
@@ -47,8 +48,22 @@ function localDay(epochMs: number): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-// Basic analysis for any window (no model, or the model failed that run) leaves the whole reading without a
-// rhythm output: a rhythm card built from some windows' scores would judge a reading nobody fully scored.
+// §11.1 basic analysis: when the model is missing or fails on any window, the rhythm-logistic rule scores every
+// window, so one reading is never judged by a mix of two scorers. No rule entry leaves the reading without a
+// rhythm output.
+function ruleRhythmOutputs(analysis: ReadingAnalysis): RhythmOutputs | null {
+  const entry = rhythmRuleEntry();
+  if (entry === null) return null;
+  try {
+    return { ...logisticRhythmOutputs(entry, analysis.rhythmFeatures), scorer: 'rule' };
+  } catch (error) {
+    // A RangeError is a window the rule cannot score; any other error is a broken manifest or a bug.
+    if (!(error instanceof RangeError)) throw error;
+    console.warn(`the basic-analysis rule could not score this reading: ${error.message}`);
+    return null;
+  }
+}
+
 async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs | null> {
   if (analysis.rhythmFeatures.length === 0) return null;
   const windowProbs: [number, number, number][] = [];
@@ -57,21 +72,19 @@ async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs |
     const outcome = await classifyRhythm({
       features: { values: Float32Array.from(features), dims: [1, features.length] },
     });
-    if (outcome.source !== 'model') return null;
+    if (outcome.source !== 'model') return ruleRhythmOutputs(analysis);
     const { sinus, af, other } = outcome.scores;
     const cut = outcome.threshold.af;
     if (sinus === undefined || af === undefined || other === undefined || typeof cut !== 'number')
       throw new Error('the rhythm model must score sinus, af and other and give an af threshold');
     if (!isProbabilityRow([sinus, af, other])) {
-      console.warn(
-        'rhythm model returned a row that is not a probability row; the reading has no rhythm card',
-      );
-      return null;
+      console.warn('rhythm model returned a row that is not a probability row; using basic analysis');
+      return ruleRhythmOutputs(analysis);
     }
     windowProbs.push([sinus, af, other]);
     tauAf = cut;
   }
-  return tauAf === null ? null : { windowProbs, tauAf };
+  return tauAf === null ? null : { windowProbs, tauAf, scorer: 'model' };
 }
 
 // Only a Full Scan's reading can show a diabetes card, so only it runs the model. No pulse-shape beat, or no

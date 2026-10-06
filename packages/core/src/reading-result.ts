@@ -14,6 +14,7 @@ import type {
   RespMetric,
   RhythmClass,
   RhythmMetric,
+  RhythmScorer,
   RmssdMetric,
 } from './results';
 
@@ -21,6 +22,7 @@ import type {
 export interface RhythmOutputs {
   windowProbs: [number, number, number][];
   tauAf: number; // the manifest threshold for reading-level P(AF)
+  scorer?: RhythmScorer; // absent in readings saved before the rule fallback: those were model-scored
 }
 export interface DiabetesOutputs {
   probability: number;
@@ -208,7 +210,9 @@ function rhythmCall(
     metric: {
       class: RHYTHM_CLASSES[top]!,
       pAF,
-      evidence: evidenceLabel(evidence, 'rhythm'),
+      // §11.10: the rule was not the model evidence.json describes, so its card is never stronger than that.
+      evidence: outputs.scorer === 'rule' ? 'experimental' : evidenceLabel(evidence, 'rhythm'),
+      scorer: outputs.scorer,
       confidence: cardConfidence,
       flag,
     },

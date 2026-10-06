@@ -399,12 +399,12 @@ function rhythmFeedAtManifestWidth(feeds: ModelFeeds): ModelFeeds {
   return { ...feeds, features: { values: feed.values.slice(0, width), dims: [1, width] } };
 }
 
-// §11.3; the logistic-rule fallback is not in @lumen/core yet, so basic analysis has no value.
+// §11.3; basic analysis here carries no value: the caller runs the rule from rhythmRuleEntry() instead.
 export function classifyRhythm(feeds: ModelFeeds): Promise<ScoreOutcome> {
   return scoreFamily('rhythm', rhythmFeedAtManifestWidth(feeds));
 }
 
-// §11.4; the logistic-regression fallback is not in @lumen/core yet, so basic analysis has no value.
+// §11.4; there is no diabetes rule fallback, so basic analysis has no value.
 export function scoreDiabetesPattern(feeds: ModelFeeds): Promise<ScoreOutcome> {
   return scoreFamily('diabetes', feeds);
 }
@@ -445,6 +445,17 @@ export async function sqiVeto(feeds: ModelFeeds): Promise<SqiVeto> {
   const label = model.labels[0] as string;
   const pClean = (outputs[model.scoreOutput] as number[])[0] as number;
   return { source: 'model', model: modelId(model), veto: pClean < (model.threshold[label] as number) };
+}
+
+// ADR 0064: the manifest's rule-only rhythm entry (rhythm-logistic), which basic analysis runs in code.
+// Null when the manifest has none, so the reading then has no rhythm card.
+export function rhythmRuleEntry(): unknown {
+  if (!isRecord(bundledManifest) || !Array.isArray(bundledManifest.models)) return null;
+  return (
+    bundledManifest.models.find(
+      (entry) => isRecord(entry) && entry.family === 'rhythm' && entry.ships !== true && isRecord(entry.rule),
+    ) ?? null
+  );
 }
 
 // §11.2: SQI-Net's P(clean) cut-off from the manifest, or null while no SQI model ships.

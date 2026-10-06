@@ -138,6 +138,22 @@ describe('evidence labels come only from evidence.json (EVID-1)', () => {
     );
     expect(build(BASE, SINUS, { metrics: {} }).metrics.hr!.evidence).toBe('experimental');
   });
+
+  it('never rate a rule-scored rhythm card above experimental, whatever the file says (§11.10)', () => {
+    const publicData = evidenceWith('rhythm', 'public-data', true);
+    const byRule: ModelOutputs = { ...SINUS, rhythm: { ...SINUS.rhythm!, scorer: 'rule' } };
+    const byModel: ModelOutputs = { ...SINUS, rhythm: { ...SINUS.rhythm!, scorer: 'model' } };
+    expect(build(BASE, byRule, publicData).metrics.rhythm).toMatchObject({
+      evidence: 'experimental',
+      scorer: 'rule',
+    });
+    expect(build(BASE, byModel, publicData).metrics.rhythm).toMatchObject({
+      evidence: 'public-data',
+      scorer: 'model',
+    });
+    // A reading saved before the rule fallback has no scorer and keeps the model's label.
+    expect(build(BASE, SINUS, publicData).metrics.rhythm!.evidence).toBe('public-data');
+  });
 });
 
 describe('confidence (§7)', () => {

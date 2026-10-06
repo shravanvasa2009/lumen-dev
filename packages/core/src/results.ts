@@ -37,11 +37,14 @@ export interface HrMetric {
   confidence: Confidence;
   flag: HrFlag | null;
 }
+// §11.10: the rhythm model, or the logistic rule ("basic analysis") when the model could not run.
+export type RhythmScorer = 'model' | 'rule';
 // §11, DSP-15.
 export interface RhythmMetric {
   class: RhythmClass;
   pAF: number;
   evidence: EvidenceLabel;
+  scorer?: RhythmScorer; // absent in readings saved before the rule fallback: those were model-scored
   confidence: Confidence;
   flag: RhythmFlag | null;
 }

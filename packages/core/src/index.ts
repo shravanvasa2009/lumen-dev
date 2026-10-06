@@ -25,6 +25,7 @@ export type {
   RhythmClass,
   RhythmFlag,
   RhythmMetric,
+  RhythmScorer,
   RmssdMetric,
 } from './results';
 export { adaRisk, type AdaAnswers, type AdaRisk } from './ada-risk';

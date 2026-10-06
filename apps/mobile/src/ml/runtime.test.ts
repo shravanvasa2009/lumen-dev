@@ -209,11 +209,12 @@ let nextAssetModule = 1;
 async function loadRuntime(
   manifest: unknown,
   files: Record<string, string> = fixtureFor,
+  folder: string = fixtures,
 ): Promise<typeof Runtime> {
   const bundledModelFiles: Record<string, number> = {};
   for (const [file, fixture] of Object.entries(files)) {
     const assetModule = nextAssetModule++;
-    mockAssetUris.set(assetModule, pathToFileURL(path.join(fixtures, fixture)).href);
+    mockAssetUris.set(assetModule, pathToFileURL(path.join(folder, fixture)).href);
     bundledModelFiles[file] = assetModule;
   }
   let runtime: typeof Runtime | undefined;
@@ -667,5 +668,57 @@ describe('SQI guard', () => {
       reason: 'sqi-finger@1.0.0 failed this run: pClean has a non-finite score',
       veto: false,
     });
+  });
+});
+
+describe('the models the app ships', () => {
+  const appModels = path.join(path.dirname(path.dirname(path.dirname(fixtures))), 'assets', 'models');
+  const shippedFiles = Object.fromEntries(
+    [rhythmFile, sqiFile, diabetesFile].map((file): [string, string] => [file, file]),
+  );
+  const appManifest = JSON.parse(
+    new TextDecoder().decode(fs.readFileSync(path.join(appModels, 'manifest.json'))),
+  );
+
+  it('load from the synced manifest and files, one per family', async () => {
+    const runtime = await loadRuntime(appManifest, shippedFiles, appModels);
+    expect(Object.values(runtime.modelPlan()).map((plan) => plan.source)).toEqual([
+      'model',
+      'model',
+      'model',
+    ]);
+    expect(await runtime.classifyRhythm(features)).toMatchObject({ source: 'model' });
+  });
+
+  it('give the SQI cut-off from the manifest, so SQI-Net can count as having run', async () => {
+    const runtime = await loadRuntime(appManifest, shippedFiles, appModels);
+    const sqi = appManifest.models.find((entry: { name: string }) => entry.name === 'sqi-finger');
+    expect(runtime.sqiThreshold()).toBe(sqi.threshold.clean);
+    expect(await runtime.scoreSqiWindow(new Float32Array(256))).toMatchObject({ source: 'model' });
+  });
+
+  it('hand out the rule-only rhythm entry and never plan it as a model', async () => {
+    const runtime = await loadRuntime(appManifest, shippedFiles, appModels);
+    expect(runtime.rhythmRuleEntry()).toMatchObject({ name: 'rhythm-logistic', ships: false });
+    expect(runtime.modelPlan().rhythm).toMatchObject({ name: 'rhythm-lgbm' });
+  });
+});
+
+describe('the rule entry', () => {
+  it('is null without a manifest', async () => {
+    expect((await loadRuntime(null, {})).rhythmRuleEntry()).toBeNull();
+  });
+
+  it('is null when no unshipped rhythm entry has a rule', async () => {
+    const runtime = await loadRuntime({
+      models: [rhythmEntry(), rhythmEntry({ ships: false, name: 'rhythm-net' })],
+    });
+    expect(runtime.rhythmRuleEntry()).toBeNull();
+  });
+
+  it('is found even while the rhythm model works', async () => {
+    const rule = rhythmEntry({ name: 'rhythm-logistic', ships: false, rule: { classes: [] } });
+    const runtime = await loadRuntime({ models: [rhythmEntry(), rule] });
+    expect(runtime.rhythmRuleEntry()).toBe(rule);
   });
 });

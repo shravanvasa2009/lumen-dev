@@ -12,15 +12,29 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => mockScheme,
 }));
 
-const mockRhythm = { unclear: false };
+const mockEvidence = { rhythmPublic: false };
+jest.mock('@/evidence', () => {
+  const actual = jest.requireActual('@/evidence');
+  return {
+    ...actual,
+    evidenceFor: (metric: string) =>
+      metric === 'rhythm' && mockEvidence.rhythmPublic
+        ? { label: 'public-data', measured: true }
+        : actual.evidenceFor(metric),
+  };
+});
+
+const mockRhythm = { unclear: false, ruleScored: false };
 jest.mock('./fixtures', () => {
   const actual = jest.requireActual('./fixtures');
   return {
     ...actual,
     readingById: (id: string) => {
       const reading = actual.readingById(id);
-      if (!mockRhythm.unclear) return reading;
-      const rhythm = { ...reading.scan.metrics.rhythm, class: 'other', flag: null };
+      if (!mockRhythm.unclear && !mockRhythm.ruleScored) return reading;
+      const rhythm = mockRhythm.ruleScored
+        ? { ...reading.scan.metrics.rhythm, scorer: 'rule' }
+        : { ...reading.scan.metrics.rhythm, class: 'other', flag: null };
       return { ...reading, scan: { ...reading.scan, metrics: { ...reading.scan.metrics, rhythm } } };
     },
   };
@@ -46,6 +60,21 @@ describe.each([
   beforeEach(() => {
     mockScheme = scheme;
     mockRhythm.unclear = false;
+    mockRhythm.ruleScored = false;
+    mockEvidence.rhythmPublic = false;
+  });
+
+  it('caps the rhythm badge at Experimental for a rule-scored reading (EVID-1, §11.10)', () => {
+    mockEvidence.rhythmPublic = true;
+    mockRhythm.ruleScored = true;
+    openWhy('demo-flag');
+    expect(screen.queryAllByLabelText(en['evidence.publicData'])).toHaveLength(0);
+  });
+
+  it('keeps the evidence-file label on the rhythm badge for a model-scored reading', () => {
+    mockEvidence.rhythmPublic = true;
+    openWhy('demo-flag');
+    expect(screen.getAllByLabelText(en['evidence.publicData'])).toHaveLength(1);
   });
 
   it('explains an irregular reading with both charts in the flag colour', () => {

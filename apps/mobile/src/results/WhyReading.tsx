@@ -103,7 +103,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
             </AppText>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <EvidenceBadge metric="rhythm" />
+            <EvidenceBadge metric="rhythm" basicAnalysis={rhythm.scorer === 'rule'} />
             <AppText
               accessibilityRole="link"
               tone="textDim"

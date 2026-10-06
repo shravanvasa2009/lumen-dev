@@ -12,14 +12,18 @@ import type {
   SampleBatch,
 } from '../../modules/lumen-capture/src';
 
-import { createLiveSession } from '@lumen/core';
+import { createLiveSession, displayPulse } from '@lumen/core';
 
 import { keptCapture } from './keptCapture';
 import { useLiveCapture } from './useLiveCapture';
 
 jest.mock('@lumen/core', () => {
   const actual = jest.requireActual<typeof import('@lumen/core')>('@lumen/core');
-  return { ...actual, createLiveSession: jest.fn(actual.createLiveSession) };
+  return {
+    ...actual,
+    createLiveSession: jest.fn(actual.createLiveSession),
+    displayPulse: jest.fn(actual.displayPulse),
+  };
 });
 
 jest.mock('expo-keep-awake', () => ({ activateKeepAwakeAsync: jest.fn(), deactivateKeepAwake: jest.fn() }));
@@ -367,28 +371,43 @@ describe('useLiveCapture', () => {
     });
   });
 
+  // SYNTHETIC: 60 fps, a 1.2 Hz pulse in red on a covered lens, 0.1 s per batch.
+  const pulseBatch = (index: number): SampleBatch => {
+    const times = Array.from({ length: 6 }, (_, i) => (index * 6 + i) / 60);
+    return {
+      samples: times.map((tS) => ({
+        tNs: 1e12 + tS * 1e9,
+        r: 0.7 - 0.012 * Math.sin(2 * Math.PI * 1.2 * tS),
+        g: 0.1,
+        b: 0.1,
+      })),
+      stats: times.map((tS) => ({
+        tNs: 1e12 + tS * 1e9,
+        spatialStdR: 0.02,
+        clipFrac: 0,
+        exposureNs: 8e6,
+      })),
+    };
+  };
+
+  it('draws the one-bump display pulse from the session waveform and the live rate', async () => {
+    const fake = new FakeCapture();
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    jest.mocked(displayPulse).mockClear();
+    for (let index = 0; index < 200; index++) act(() => fake.emitSamples(pulseBatch(index)));
+    const [tS, ppg, rateBpm] = jest.mocked(displayPulse).mock.lastCall!;
+    expect(tS).toEqual(live.current.recentWaveform.tS);
+    expect(ppg).toEqual(live.current.recentWaveform.ppg);
+    expect(rateBpm).toBeCloseTo(72, 0);
+    expect(live.current.recentPulse).toEqual(jest.mocked(displayPulse).mock.results.at(-1)!.value);
+    expect(live.current.recentPulse).not.toEqual(live.current.recentWaveform.ppg);
+  });
+
   it('drops the meter level when the session refuses a batch', async () => {
     const fake = new FakeCapture();
     const { result: live } = renderHook(() => useLiveCapture(fake));
     await waitFor(() => expect(live.current.phase).toBe('running'));
-    // SYNTHETIC: 60 fps, a 1.2 Hz pulse in red on a covered lens, 0.1 s per batch.
-    const pulseBatch = (index: number): SampleBatch => {
-      const times = Array.from({ length: 6 }, (_, i) => (index * 6 + i) / 60);
-      return {
-        samples: times.map((tS) => ({
-          tNs: 1e12 + tS * 1e9,
-          r: 0.7 - 0.012 * Math.sin(2 * Math.PI * 1.2 * tS),
-          g: 0.1,
-          b: 0.1,
-        })),
-        stats: times.map((tS) => ({
-          tNs: 1e12 + tS * 1e9,
-          spatialStdR: 0.02,
-          clipFrac: 0,
-          exposureNs: 8e6,
-        })),
-      };
-    };
     for (let index = 0; index < 200; index++) act(() => fake.emitSamples(pulseBatch(index)));
     expect(live.current.signalLevel).not.toBeNull();
     // Time going backwards ends the session's counting (see feedSession).

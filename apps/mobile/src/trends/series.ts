@@ -14,6 +14,9 @@ export type HistoryReading = {
   rmssd: number | null;
   resp: number | null;
   rhythm: RhythmClass | null;
+  // A flagged rhythm from a lower-quality reading (ADR 0104): kept apart from `rhythm` so it is always drawn
+  // with its marker, and never feeds a median or band.
+  flaggedLowRhythm: RhythmClass | null;
   // The caffeine answer of the context check (§7).
   caffeine: boolean;
 };
@@ -32,8 +35,13 @@ export type TrendPoint = {
   rhythm: RhythmClass | null;
 };
 
+type FlaggedLowRhythm = { id: string; createdAt: Date; rhythm: RhythmClass };
+
 export type TrendSeries = {
   points: readonly TrendPoint[];
+  // Lower-quality flagged rhythms in the range, whether or not the reading has a value for this metric: Trends
+  // must not hide a flag the other surfaces show.
+  flaggedLowRhythms: readonly FlaggedLowRhythm[];
   // Median of the points in the range.
   median: number | null;
   // §7: from every reading of this metric, whatever the range; null while still learning.
@@ -71,8 +79,14 @@ export function trendSeries(
       return [{ id, createdAt, value, caffeine, rhythm }];
     })
     .sort((first, second) => first.createdAt.getTime() - second.createdAt.getTime());
+  const flaggedLowRhythms = readings.flatMap(({ id, createdAt, flaggedLowRhythm }) =>
+    flaggedLowRhythm !== null && createdAt.getTime() >= since && createdAt.getTime() <= now.getTime()
+      ? [{ id, createdAt, rhythm: flaggedLowRhythm }]
+      : [],
+  );
   return {
     points,
+    flaggedLowRhythms,
     median: median(points.map((point) => point.value)),
     band: personalBand(everyValue),
     baselineCount: everyValue.length,

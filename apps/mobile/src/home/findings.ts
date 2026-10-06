@@ -1,5 +1,7 @@
 import type { DiabetesMetric, RhythmMetric, RmssdMetric } from '@lumen/core';
 
+import { isLowQuality } from '@/results/quality';
+
 import type { StoredReading } from './readings';
 
 // Two Full Scans on different days are needed before the diabetes pattern can be flagged (spec 11.4).
@@ -32,10 +34,12 @@ export function latestRmssd(readings: readonly StoredReading[]): Found<RmssdMetr
 
 type DiabetesProgress = { days: number; latest: Found<DiabetesMetric> | null };
 
-// Days are counted on the phone's calendar, from the readings that carried a diabetes result.
+// Days are counted on the phone's calendar, from the readings whose diabetes value is standard: a lower-quality
+// one is left out of the mean (ADR 0104), so it must not count toward "N of M readings so far" either.
 export function diabetesProgress(readings: readonly StoredReading[]): DiabetesProgress {
   const days = new Set<string>();
   for (const reading of readings)
-    if (reading.outcome.metrics.diabetes !== null) days.add(new Date(reading.takenAt).toDateString());
+    if (reading.outcome.metrics.diabetes && !isLowQuality(reading.outcome.metrics.diabetes))
+      days.add(new Date(reading.takenAt).toDateString());
   return { days: days.size, latest: newestWith(readings, (reading) => reading.outcome.metrics.diabetes) };
 }

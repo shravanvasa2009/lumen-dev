@@ -161,3 +161,34 @@ describe('Trends content', () => {
     }
   });
 });
+
+describe('a flagged lower-quality rhythm in the readings list', () => {
+  const now = new Date(2026, 9, 1, 9, 0);
+  const flagged = (hr: number | null): HistoryReading => ({
+    id: 'low-flag',
+    createdAt: new Date(2026, 9, 1, 7, 0),
+    mode: 'quick',
+    hr,
+    rmssd: null,
+    resp: null,
+    rhythm: null,
+    flaggedLowRhythm: 'af',
+    caffeine: false,
+  });
+  const word = en['results.rhythmIrregular'];
+
+  it('shows only the marked rhythm word when the heart rate is lower quality too', () => {
+    mockScheme = 'light';
+    openView([flagged(null)], false, now);
+    const marked = en['quality.marked'].replace('{{value}}', word);
+    expect(screen.getByText(marked)).toBeOnTheScreen();
+    expect(screen.queryByText(/null/)).toBeNull();
+  });
+
+  it('puts the standard heart rate before the marked word', () => {
+    mockScheme = 'light';
+    openView([flagged(72)], false, now);
+    const marked = en['quality.marked'].replace('{{value}}', word);
+    expect(screen.getByText(`72 bpm · ${marked}`)).toBeOnTheScreen();
+  });
+});

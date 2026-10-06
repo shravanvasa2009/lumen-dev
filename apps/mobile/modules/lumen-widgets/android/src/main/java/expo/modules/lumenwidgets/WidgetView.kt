@@ -45,7 +45,10 @@ data class WidgetView(
     val theme: String,
     val light: Palette,
     val dark: Palette,
-)
+) {
+    // Built once per view rather than on every color lookup while the widget draws.
+    internal val colors = WidgetColors(theme, light, dark)
+}
 
 // Appendix B writes UTC times to the second ("2026-10-04T07:41:58Z"). SimpleDateFormat, not java.time,
 // because the app's minSdk is 24 and java.time needs 26 without desugaring.

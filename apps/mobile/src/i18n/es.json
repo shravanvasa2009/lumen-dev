@@ -373,6 +373,7 @@
   "capture.fingerMissing": "No se detecta el dedo",
   "capture.last6s": "últimos 6 s",
   "capture.quality": "Calidad",
+  "capture.qualityChecking": "Comprobando",
   "capture.qualityGood": "Buena",
   "capture.cleanOf": "de {{total}} s limpios",
   "capture.pausedOf": "de {{total}} s · en pausa",

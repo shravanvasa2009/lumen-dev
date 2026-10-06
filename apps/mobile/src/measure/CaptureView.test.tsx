@@ -237,7 +237,7 @@ describe('CaptureView', () => {
       expect(indexOf(en['capture.quality'])).toBeLessThan(indexOf(en['capture.fingerDetected']));
     });
 
-    it('names weaker levels Weak and OK, and shows Weak while a running capture has no level yet', () => {
+    it('names weaker levels Weak and OK, and shows Checking, not a level, while a running capture has none yet', () => {
       show({ signalLevel: 0.1 });
       expect(screen.getByLabelText(`${en['capture.quality']} ${en['signal.weak']}`)).toBeOnTheScreen();
       screen.unmount();
@@ -245,7 +245,9 @@ describe('CaptureView', () => {
       expect(screen.getByLabelText(`${en['capture.quality']} ${en['signal.ok']}`)).toBeOnTheScreen();
       screen.unmount();
       show({ signalLevel: null });
-      expect(screen.getByLabelText(`${en['capture.quality']} ${en['signal.weak']}`)).toBeOnTheScreen();
+      expect(
+        screen.getByLabelText(`${en['capture.quality']} ${en['capture.qualityChecking']}`),
+      ).toBeOnTheScreen();
       screen.unmount();
       show({ phase: 'starting', status: null });
       expect(screen.queryByText(en['capture.quality'])).toBeNull();

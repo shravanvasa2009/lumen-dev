@@ -116,7 +116,7 @@ export function CareMapScreen() {
   };
 
   return (
-    <Screen headerless>
+    <Screen headerless aboveTabBar>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ gap: spacing.md, flex: 1 }}

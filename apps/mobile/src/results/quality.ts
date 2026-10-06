@@ -1,34 +1,17 @@
 import type { TFunction } from 'i18next';
 
-import type { ReadingResult } from '@lumen/core';
+import type { MetricQuality, QualityReason, ReadingQuality, ReadingResult } from '@lumen/core';
 
-// These types mirror @lumen/core's results.ts contract; switch the import once that lands.
-export type QualityReason =
-  | { kind: 'shortClean'; haveS: number; wantS: number }
-  | { kind: 'lowFps'; fps: number; wantFps: number }
-  | { kind: 'noSqi' }
-  | { kind: 'modelFallback' }
-  | { kind: 'quickMode' }
-  | { kind: 'contact'; coveredPct: number }
-  | { kind: 'fewBeats'; beats: number; wantBeats: number }
-  | { kind: 'fewWindows'; windows: number; wantWindows: number };
-export type MetricQuality = 'standard' | 'low';
-export interface ReadingQuality {
-  level: MetricQuality;
-  reasons: QualityReason[];
-}
-export type QualityKind = QualityReason['kind'];
+// Readings stored before the quality fields existed (ADR 0104) have none; they render as standard.
+type StoredQuality = { quality?: MetricQuality; qualityReasons?: QualityReason['kind'][] };
 
-type QualityFields = { quality?: MetricQuality; qualityReasons?: QualityKind[] };
-
-// Readings stored before the quality fields existed have none; they render as standard.
 export function readingQuality(scan: ReadingResult): ReadingQuality {
-  return (scan as { quality?: ReadingQuality }).quality ?? { level: 'standard', reasons: [] };
+  return (scan.quality as ReadingQuality | undefined) ?? { level: 'standard', reasons: [] };
 }
 
 // The reasons behind one metric's tag; a low metric that names none shows all of the reading's reasons.
 export function metricReasons(metric: object | null, quality: ReadingQuality): QualityReason[] | null {
-  const fields = metric as QualityFields | null;
+  const fields = metric as StoredQuality | null;
   if (fields?.quality !== 'low') return null;
   const kinds = fields.qualityReasons ?? [];
   const own = quality.reasons.filter((reason) => kinds.includes(reason.kind));

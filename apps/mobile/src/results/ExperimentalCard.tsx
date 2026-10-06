@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
-import type { ReadingResult } from '@lumen/core';
+import type { QualityReason, ReadingResult } from '@lumen/core';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
@@ -11,7 +11,6 @@ import { ListRow } from '@/components/ListRow';
 import { formatNumber } from '@/i18n/formatNumber';
 import { useTheme } from '@/theme';
 
-import type { QualityReason } from './quality';
 import { QualityChip } from './QualityChip';
 
 type ExperimentalCardProps = {

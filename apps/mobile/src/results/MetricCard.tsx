@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
-import type { Confidence } from '@lumen/core';
+import type { Confidence, QualityReason } from '@lumen/core';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
@@ -12,7 +12,6 @@ import { useTheme } from '@/theme';
 
 import { CheckHeading } from './CheckHeading';
 import { ConfidenceDots } from './ConfidenceDots';
-import type { QualityReason } from './quality';
 import { QualityChip } from './QualityChip';
 
 type MetricCardProps = {

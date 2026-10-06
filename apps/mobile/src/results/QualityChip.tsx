@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, View } from 'react-native';
 
+import type { QualityReason } from '@lumen/core';
+
 import { AppText } from '@/components/AppText';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { useTheme } from '@/theme';
 
-import { type QualityReason, reasonText } from './quality';
+import { reasonText } from './quality';
 
 type QualityChipProps = { reasons: readonly QualityReason[]; small?: boolean };
 

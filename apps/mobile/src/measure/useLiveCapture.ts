@@ -8,6 +8,7 @@ import {
   type Sample,
   type SqiWindow,
 } from '@lumen/core';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
@@ -32,6 +33,8 @@ const LEVEL_WINDOW_NS = DSP_CONFIG.liveHr.windowS * 1e9;
 // Spec §9.2 (Locks) and §4.2 step 3: with the finger on the phone, auto-exposure settles for 1 s, then
 // exposure, white balance and focus are locked. Native adds its own short wait before steering (DSP-5).
 const EXPOSURE_SETTLE_MS = 1000;
+// A capture takes minutes with no touch, so the screen must not time out and stop the camera mid-reading.
+const KEEP_AWAKE_TAG = 'lumen-capture';
 
 type LivePhase =
   // The capture module is not linked (Jest, Expo Go).
@@ -178,8 +181,12 @@ export function useLiveCapture(
       lockWanted = false;
       subscriptions.forEach((subscription) => subscription.remove());
       subscriptions = [];
-      if (started)
+      if (started) {
         capture.stop().catch((error: unknown) => console.warn(`Capture did not stop: ${reasonOf(error)}`));
+        deactivateKeepAwake(KEEP_AWAKE_TAG).catch((error: unknown) =>
+          console.warn(`Screen sleep was not restored: ${reasonOf(error)}`),
+        );
+      }
       started = false;
       session = null;
     };
@@ -302,6 +309,9 @@ export function useLiveCapture(
         ];
         const { activeFps } = await capture.start(captureConfig(capabilities, lens, requestedFps));
         started = true;
+        activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch((error: unknown) =>
+          console.warn(`Screen could not be kept awake: ${reasonOf(error)}`),
+        );
         // The screen closed while the camera was starting, so its cleanup had nothing to stop yet.
         if (!mounted) {
           stopCamera();

@@ -18,6 +18,9 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // Without this the scene shows the navigation default (light grey) while a tab fades in, which reads as a
+        // stray rectangle in dark mode.
+        sceneStyle: { backgroundColor: colors.bg },
         animation: reduceMotion ? 'none' : 'fade',
         // Bottom tabs run on React Native's Animated, so the 200 ms ease-out token is spelled with its Easing.
         transitionSpec: {

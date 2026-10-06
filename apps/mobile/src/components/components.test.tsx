@@ -77,6 +77,20 @@ describe.each([
     expect(edgesOf('no header')).toMatchObject({ top: 'additive' });
   });
 
+  it('Screen above the tab bar leaves the bottom inset and padding to the bar', () => {
+    render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <Screen headerless aboveTabBar>
+          <AppText>tab root</AppText>
+        </Screen>
+      </SafeAreaProvider>,
+    );
+    let node = screen.getByText('tab root').parent;
+    while (node && node.props.edges === undefined) node = node.parent;
+    expect(node?.props.edges).toMatchObject({ top: 'additive', bottom: 'off' });
+    expect(StyleSheet.flatten(node?.props.style)).toMatchObject({ padding: 20, paddingBottom: 0 });
+  });
+
   it('Screen renders the footer after the body', () => {
     render(
       <SafeAreaProvider initialMetrics={metrics}>

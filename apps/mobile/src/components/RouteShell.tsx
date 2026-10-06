@@ -41,7 +41,7 @@ export function RouteShell({
   const { spacing } = useTheme();
   const drawsOwnTitle = headerless || tabRoot;
   return (
-    <Screen headerless={drawsOwnTitle} footer={footer}>
+    <Screen headerless={drawsOwnTitle} aboveTabBar={tabRoot} footer={footer}>
       {headerless ? <Stack.Screen options={{ headerShown: false }} /> : null}
       {drawsOwnTitle ? null : (
         <Stack.Screen options={{ title, headerRight: trailing ? () => trailing : undefined }} />

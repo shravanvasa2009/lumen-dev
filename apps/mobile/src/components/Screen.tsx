@@ -11,15 +11,24 @@ type ScreenProps = {
   footer?: ReactNode;
   // Tab screens that need the room: the tab bar already sits below, so the bottom inset and padding go.
   tight?: boolean;
+  // Tab roots keep their normal padding, but the tab bar already covers the bottom inset, so only that goes.
+  aboveTabBar?: boolean;
 };
 
-export function Screen({ children, headerless = false, footer, tight = false }: ScreenProps) {
+export function Screen({
+  children,
+  headerless = false,
+  footer,
+  tight = false,
+  aboveTabBar = false,
+}: ScreenProps) {
   const { colors, spacing } = useTheme();
+  const belowIsTabBar = tight || aboveTabBar;
   return (
     <SafeAreaView
       edges={
         headerless
-          ? ['top', 'left', 'right', ...(tight ? [] : (['bottom'] as const))]
+          ? ['top', 'left', 'right', ...(belowIsTabBar ? [] : (['bottom'] as const))]
           : ['left', 'right', 'bottom']
       }
       style={[
@@ -27,7 +36,8 @@ export function Screen({ children, headerless = false, footer, tight = false }: 
         {
           backgroundColor: colors.bg,
           padding: spacing.screen,
-          ...(tight ? { paddingTop: spacing.sm, paddingBottom: 0 } : null),
+          ...(tight ? { paddingTop: spacing.sm } : null),
+          ...(belowIsTabBar ? { paddingBottom: 0 } : null),
         },
       ]}
     >

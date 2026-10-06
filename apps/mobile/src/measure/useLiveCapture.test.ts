@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { AppState, type AppStateStatus } from 'react-native';
 
 import type {
@@ -20,6 +21,8 @@ jest.mock('@lumen/core', () => {
   const actual = jest.requireActual<typeof import('@lumen/core')>('@lumen/core');
   return { ...actual, createLiveSession: jest.fn(actual.createLiveSession) };
 });
+
+jest.mock('expo-keep-awake', () => ({ activateKeepAwakeAsync: jest.fn(), deactivateKeepAwake: jest.fn() }));
 
 const GRANTED: CameraPermission = { status: 'granted', expires: 'never', granted: true, canAskAgain: true };
 const DENIED: CameraPermission = { status: 'denied', expires: 'never', granted: false, canAskAgain: false };
@@ -112,6 +115,29 @@ const batch = (fromS: number, toS: number, red: number): SampleBatch => ({
 });
 
 describe('useLiveCapture', () => {
+  beforeEach(() => {
+    jest.mocked(activateKeepAwakeAsync).mockReset().mockResolvedValue();
+    jest.mocked(deactivateKeepAwake).mockReset().mockResolvedValue();
+  });
+
+  it('keeps the screen awake from the camera start until the screen closes', async () => {
+    const fake = new FakeCapture();
+    const { result: live, unmount } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    expect(activateKeepAwakeAsync).toHaveBeenCalledWith('lumen-capture');
+    expect(deactivateKeepAwake).not.toHaveBeenCalled();
+    unmount();
+    expect(deactivateKeepAwake).toHaveBeenCalledWith('lumen-capture');
+  });
+
+  it('does not hold the screen awake when permission is denied', async () => {
+    const fake = new FakeCapture();
+    fake.permission = DENIED;
+    const { result: live } = renderHook(() => useLiveCapture(fake));
+    await waitFor(() => expect(live.current.phase).toBe('denied'));
+    expect(activateKeepAwakeAsync).not.toHaveBeenCalled();
+  });
+
   it('reports unavailable without a capture module', () => {
     const { result: live } = renderHook(() => useLiveCapture(null));
     expect(live.current.phase).toBe('unavailable');

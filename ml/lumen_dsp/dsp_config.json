@@ -185,10 +185,9 @@
   },
   "displayPulse": {
     "order": 4,
-    "cutoffPerFundamental": 1.2,
+    "cutoffPerFundamental": 1.4,
     "cutoffRangeHz": [0.7, 3],
-    "fallbackCutoffHz": 2.2,
-    "halfRateMargin": 0.1
+    "fallbackCutoffHz": 2.2
   },
   "rating": {
     "fpsLevels": [

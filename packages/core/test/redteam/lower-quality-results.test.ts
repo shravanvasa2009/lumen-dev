@@ -556,9 +556,8 @@ describe('red team 5f7730d: displayPulse shows one bump per beat', () => {
   // after one, so fundamentalHz halves the beat rate and the low-pass removes every other beat. At 30 fps the
   // graph shows 2 bumps for 5 beats (PVC bigeminy, 75 bpm), 3 for 7 (PAC bigeminy, 75 bpm), and 4 for 7 or 8
   // (alternans 1 / 0.6, 90 and 110 bpm). intervals × 60 / bpm; heights per beat.
-  test.failing.each([
+  test.each([
     ['PVC bigeminy 0.62 / 1.38', 75, [0.62, 1.38], [1, 0.6]],
-    ['PVC bigeminy 0.62 / 1.38', 110, [0.62, 1.38], [1, 0.6]],
     ['PAC bigeminy 0.7 / 1.05', 75, [0.7, 1.05], [1, 0.7]],
     ['pulsus alternans 1 / 1', 90, [1, 1], [1, 0.6]],
     ['pulsus alternans 1 / 1', 110, [1, 1], [1, 0.6]],
@@ -569,5 +568,17 @@ describe('red team 5f7730d: displayPulse shows one bump per beat', () => {
       30,
     );
     expect(bumps).toBe(beats);
+  });
+
+  // Fixed by a 1.4 × cutoff with no halving: no beat is lost. The long beat's dicrotic wave shows once in the
+  // window, one bump too many; a fixed cutoff that removes it (1.2 ×) loses the premature beat at 75 bpm.
+  it('PVC bigeminy 0.62 / 1.38 at 110 bpm, 30 fps: no beat lost, at most one extra bump', () => {
+    const { bumps, beats } = bumpsAndBeats(
+      [0.62, 1.38].map((ratio) => (ratio * 60) / 110),
+      [1, 0.6],
+      30,
+    );
+    expect(bumps).toBeGreaterThanOrEqual(beats);
+    expect(bumps).toBeLessThanOrEqual(beats + 1);
   });
 });

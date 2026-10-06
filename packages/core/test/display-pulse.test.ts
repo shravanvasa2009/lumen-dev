@@ -78,12 +78,17 @@ describe('displayPulse (display only)', () => {
     expectOneBumpPerBeat(tS, displayPulse(tS, ppg, bpm), periodS);
   });
 
-  it.each([45, 50, 60, 70])('keeps one bump per beat at %d bpm when the live rate is locked on 2×', (bpm) => {
+  // A live rate locked on 2× is trusted (bigeminy and alternans look the same, red team on 5f7730d): the strong
+  // dicrotic wave may show as a second bump, but no beat is ever lost.
+  it.each([45, 50, 60, 70])('never drops a beat at %d bpm when the live rate is locked on 2×', (bpm) => {
     const { tS, ppg, periodS } = livePulse(bpm, 0.95, 0.45);
-    expectOneBumpPerBeat(tS, displayPulse(tS, ppg, 2 * bpm), periodS);
+    const beats = Math.floor((tS.at(-1)! - tS[0]! - periodS) / periodS);
+    const bumps = maximaTimes(tS, displayPulse(tS, ppg, 2 * bpm), periodS / 2).length;
+    expect(bumps).toBeGreaterThanOrEqual(beats);
+    expect(bumps).toBeLessThanOrEqual(2 * (beats + 1));
   });
 
-  it.each([80, 100, 120])('does not halve a true %d bpm rate', (bpm) => {
+  it.each([80, 100, 120])('keeps one bump per beat at a true %d bpm with a small second wave', (bpm) => {
     const { tS, ppg, periodS } = livePulse(bpm, 0.3, 0.4);
     expectOneBumpPerBeat(tS, displayPulse(tS, ppg, bpm), periodS);
   });

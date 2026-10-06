@@ -45,7 +45,10 @@ data class WidgetView(
     val theme: String,
     val light: Palette,
     val dark: Palette,
-)
+) {
+    // Built once per view rather than on every color lookup while the widget draws.
+    internal val colors = WidgetColors(theme, light, dark)
+}
 
 // Appendix B writes UTC times to the second ("2026-10-04T07:41:58Z"). SimpleDateFormat, not java.time,
 // because the app's minSdk is 24 and java.time needs 26 without desugaring.
@@ -61,7 +64,7 @@ internal fun parseColor(hex: String): Long {
     return 0xFF000000L or hex.substring(1).toLong(16)
 }
 
-private fun paletteOf(json: JSONObject) =
+internal fun paletteOf(json: JSONObject) =
     Palette(
         surface = parseColor(json.getString("surface")),
         line = parseColor(json.getString("line")),
@@ -78,14 +81,22 @@ private fun paletteOf(json: JSONObject) =
     )
 
 // org.json's optString turns a JSON null into the text "null", so nulls are checked first.
-private fun JSONObject.stringOrNull(key: String): String? = if (isNull(key)) null else getString(key)
+internal fun JSONObject.stringOrNull(key: String): String? = if (isNull(key)) null else getString(key)
 
-// Throws on a malformed payload, so publishSnapshot rejects instead of storing something the widget can't draw.
-fun widgetView(snapshotJson: String, displayJson: String, nowMs: Long): WidgetView {
+internal fun snapshotOf(snapshotJson: String): JSONObject {
     val snapshot = JSONObject(snapshotJson)
     // Appendix B version 1 is the only layout this reader knows, as on iOS.
     val version = snapshot.getInt("v")
     require(version == 1) { "Unknown widget snapshot version: $version" }
+    return snapshot
+}
+
+// Whole hours, so "Last check" reads the same on every widget; a clock set back never shows a negative age.
+internal fun hoursSince(lastReadingAt: String, nowMs: Long): Long = maxOf(0L, (nowMs - parseUtcSeconds(lastReadingAt)) / HOUR_MS)
+
+// Throws on a malformed payload, so publishSnapshot rejects instead of storing something the widget can't draw.
+fun widgetView(snapshotJson: String, displayJson: String, nowMs: Long): WidgetView {
+    val snapshot = snapshotOf(snapshotJson)
     val display = JSONObject(displayJson)
     val empty = display.getJSONObject("empty")
     val status = snapshot.stringOrNull("status")
@@ -100,10 +111,7 @@ fun widgetView(snapshotJson: String, displayJson: String, nowMs: Long): WidgetVi
         statusKey = status,
         status = status?.let { display.getJSONObject("status").getString(it) },
         lastCheck =
-            lastReadingAt?.let {
-                val hours = maxOf(0L, (nowMs - parseUtcSeconds(it)) / HOUR_MS)
-                display.getString("lastCheck").replace("{{hours}}", hours.toString())
-            },
+            lastReadingAt?.let { display.getString("lastCheck").replace("{{hours}}", hoursSince(it, nowMs).toString()) },
         bpm = hrBpm?.toString(),
         bpmUnit = display.getString("bpm"),
         streak = if (streakDays > 0) display.getString("streak").replace("{{days}}", streakDays.toString()) else null,

@@ -88,22 +88,24 @@ private const val MARK_ASPECT = 88f / 172f
 // widget keeps 36 dp: at its 140 dp design size a 40 dp button would push the status line out.
 private const val BUTTON_COLUMN_SHARE = 0.45f
 private const val SMALL_PILL_HEIGHT = 36
-private const val MEDIUM_PILL_HEIGHT = 40
+internal const val MEDIUM_PILL_HEIGHT = 40
 
 private const val CARD_RADIUS = 24f
 private const val BORDER = 1f
 
-private fun scaleFor(size: DpSize, design: DpSize): Float =
+internal fun scaleFor(size: DpSize, design: DpSize): Float =
     minOf(size.width / design.width, size.height / design.height).coerceIn(MIN_SCALE, MAX_SCALE)
 
 // The app theme wins when the user picked one; "system" follows the phone's light or dark mode.
-private fun WidgetView.color(pick: (Palette) -> Long): ColorProvider {
-    val day = Color(pick(light))
-    val night = Color(pick(dark))
-    return when (theme) {
-        "light" -> ColorProvider(day, day)
-        "dark" -> ColorProvider(night, night)
-        else -> ColorProvider(day, night)
+internal class WidgetColors(private val theme: String, private val light: Palette, private val dark: Palette) {
+    fun of(pick: (Palette) -> Long): ColorProvider {
+        val day = Color(pick(light))
+        val night = Color(pick(dark))
+        return when (theme) {
+            "light" -> ColorProvider(day, day)
+            "dark" -> ColorProvider(night, night)
+            else -> ColorProvider(day, night)
+        }
     }
 }
 
@@ -111,9 +113,9 @@ private fun WidgetView.color(pick: (Palette) -> Long): ColorProvider {
 private fun WidgetView.statusColor(): ColorProvider? =
     when (statusKey) {
         null -> null
-        "regular" -> color { it.accent }
-        "see-doctor" -> color { it.criticalText }
-        else -> color { it.flag }
+        "regular" -> colors.of { it.accent }
+        "see-doctor" -> colors.of { it.criticalText }
+        else -> colors.of { it.flag }
     }
 
 private fun joinLine(vararg parts: String?): String? = parts.filterNotNull().joinToString(" · ").ifEmpty { null }
@@ -121,12 +123,12 @@ private fun joinLine(vararg parts: String?): String? = parts.filterNotNull().joi
 // A 1 dp line-colored ring around the surface, like the app's cards. Glance has no border modifier, so the
 // ring is the outer box's background showing through its padding.
 @Composable
-private fun Card(view: WidgetView, scale: Float, modifier: GlanceModifier = GlanceModifier, content: @Composable () -> Unit) {
+internal fun Card(colors: WidgetColors, scale: Float, modifier: GlanceModifier = GlanceModifier, content: @Composable () -> Unit) {
     Box(
         modifier =
             modifier
                 .fillMaxSize()
-                .background(view.color { it.line })
+                .background(colors.of { it.line })
                 .cornerRadius(CARD_RADIUS.dp)
                 .padding(BORDER.dp),
     ) {
@@ -134,7 +136,7 @@ private fun Card(view: WidgetView, scale: Float, modifier: GlanceModifier = Glan
             modifier =
                 GlanceModifier
                     .fillMaxSize()
-                    .background(view.color { it.surface })
+                    .background(colors.of { it.surface })
                     .cornerRadius((CARD_RADIUS - BORDER).dp)
                     .padding((14 * scale).dp),
         ) { content() }
@@ -144,26 +146,26 @@ private fun Card(view: WidgetView, scale: Float, modifier: GlanceModifier = Glan
 // The brand mark: the phone body in the accent color, then the pulse line in the surface color, which reads
 // as the line cut out of the body in the brand SVG.
 @Composable
-private fun Mark(view: WidgetView, height: Dp, description: String?) {
+internal fun Mark(colors: WidgetColors, height: Dp, description: String?) {
     Box(modifier = GlanceModifier.size(height * MARK_ASPECT, height)) {
         Image(
             ImageProvider(R.drawable.lumen_brand_mark_body),
             contentDescription = description,
             modifier = GlanceModifier.fillMaxSize(),
-            colorFilter = ColorFilter.tint(view.color { it.accent }),
+            colorFilter = ColorFilter.tint(colors.of { it.accent }),
         )
         Image(
             ImageProvider(R.drawable.lumen_brand_mark_pulse),
             contentDescription = null,
             modifier = GlanceModifier.fillMaxSize(),
-            colorFilter = ColorFilter.tint(view.color { it.surface }),
+            colorFilter = ColorFilter.tint(colors.of { it.surface }),
         )
     }
 }
 
 @Composable
-private fun Pill(
-    view: WidgetView,
+internal fun Pill(
+    colors: WidgetColors,
     label: String,
     action: Action,
     filled: Boolean,
@@ -178,7 +180,7 @@ private fun Pill(
                 label,
                 style =
                     TextStyle(
-                        color = if (filled) view.color { it.onAccentFill } else view.color { it.text },
+                        color = if (filled) colors.of { it.onAccentFill } else colors.of { it.text },
                         fontSize = (15 * scale).sp,
                         fontWeight = FontWeight.Medium,
                     ),
@@ -187,7 +189,7 @@ private fun Pill(
         }
     if (filled) {
         Box(
-            modifier = modifier.height(height).background(view.color { it.accentFill }).cornerRadius(height / 2).clickable(action),
+            modifier = modifier.height(height).background(colors.of { it.accentFill }).cornerRadius(height / 2).clickable(action),
             contentAlignment = Alignment.Center,
         ) { caption() }
     } else {
@@ -196,13 +198,13 @@ private fun Pill(
             modifier =
                 modifier
                     .height(height)
-                    .background(view.color { it.line2 })
+                    .background(colors.of { it.line2 })
                     .cornerRadius(height / 2)
                     .padding(BORDER.dp)
                     .clickable(action),
         ) {
             Box(
-                modifier = GlanceModifier.fillMaxSize().background(view.color { it.surface }).cornerRadius(height / 2 - BORDER.dp),
+                modifier = GlanceModifier.fillMaxSize().background(colors.of { it.surface }).cornerRadius(height / 2 - BORDER.dp),
                 contentAlignment = Alignment.Center,
             ) { caption() }
         }
@@ -218,10 +220,10 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
     val detailFits = scale >= ROOMY_SCALE || title.length <= ONE_LINE_TITLE_CHARS
     // The whole small widget opens the check, as a tap on the iOS small widget does (widgetURL); a tap beside
     // the button did nothing on the API 37 emulator (2026-10-03).
-    Card(view, scale, GlanceModifier.clickable(check)) {
+    Card(view.colors, scale, GlanceModifier.clickable(check)) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
             Row(modifier = GlanceModifier.fillMaxWidth()) {
-                Mark(view, (26 * scale).dp, view.name)
+                Mark(view.colors, (26 * scale).dp, view.name)
                 // Four-checks proposal A: the small widget has room for the icons only.
                 if (view.checks.isNotEmpty()) {
                     Row(modifier = GlanceModifier.padding(start = (8 * scale).dp, top = (7 * scale).dp)) {
@@ -231,7 +233,7 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
                                 ImageProvider(icon),
                                 contentDescription = null,
                                 modifier = GlanceModifier.size((11 * scale).dp),
-                                colorFilter = ColorFilter.tint(view.color { it.textDim }),
+                                colorFilter = ColorFilter.tint(view.colors.of { it.textDim }),
                             )
                         }
                     }
@@ -247,14 +249,14 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
             Spacer(GlanceModifier.defaultWeight())
             Text(
                 title,
-                style = TextStyle(color = view.color { it.text }, fontSize = (18 * scale).sp, fontWeight = FontWeight.Bold),
+                style = TextStyle(color = view.colors.of { it.text }, fontSize = (18 * scale).sp, fontWeight = FontWeight.Bold),
                 maxLines = 2,
             )
             if (detail != null && detailFits) {
-                Text(detail, style = TextStyle(color = view.color { it.textDim }, fontSize = (13 * scale).sp), maxLines = 1)
+                Text(detail, style = TextStyle(color = view.colors.of { it.textDim }, fontSize = (13 * scale).sp), maxLines = 1)
             }
             Spacer(GlanceModifier.height((10 * scale).dp))
-            Pill(view, view.checkNow, check, filled = true, scale = scale, modifier = GlanceModifier.fillMaxWidth())
+            Pill(view.colors, view.checkNow, check, filled = true, scale = scale, modifier = GlanceModifier.fillMaxWidth())
         }
     }
 }
@@ -273,12 +275,12 @@ private fun CheckRow(view: WidgetView, scale: Float) {
                     ImageProvider(icon),
                     contentDescription = null,
                     modifier = GlanceModifier.size((12 * scale).dp),
-                    colorFilter = ColorFilter.tint(view.color { it.accent }),
+                    colorFilter = ColorFilter.tint(view.colors.of { it.accent }),
                 )
                 Spacer(GlanceModifier.width((3 * scale).dp))
                 Text(
                     name,
-                    style = TextStyle(color = view.color { it.text }, fontSize = (12 * scale).sp, fontWeight = FontWeight.Medium),
+                    style = TextStyle(color = view.colors.of { it.text }, fontSize = (12 * scale).sp, fontWeight = FontWeight.Medium),
                     maxLines = 1,
                 )
                 if (index == DIABETES_CHECK && view.diabetesTag != null) {
@@ -286,13 +288,13 @@ private fun CheckRow(view: WidgetView, scale: Float) {
                     Box(
                         modifier =
                             GlanceModifier
-                                .background(view.color { it.badgeExperimentalBg })
+                                .background(view.colors.of { it.badgeExperimentalBg })
                                 .cornerRadius((8 * scale).dp)
                                 .padding(horizontal = (5 * scale).dp, vertical = (1 * scale).dp),
                     ) {
                         Text(
                             view.diabetesTag,
-                            style = TextStyle(color = view.color { it.badgeExperimentalFg }, fontSize = (9 * scale).sp),
+                            style = TextStyle(color = view.colors.of { it.badgeExperimentalFg }, fontSize = (9 * scale).sp),
                             maxLines = 1,
                         )
                     }
@@ -307,14 +309,14 @@ private fun CheckRow(view: WidgetView, scale: Float) {
 // takes the number's place; before the first reading, the empty-state title and body do.
 @Composable
 private fun MediumBody(view: WidgetView, scale: Float, width: Dp, check: Action, fullScan: Action) {
-    val text = view.color { it.text }
-    val dim = view.color { it.textDim }
-    Card(view, scale) {
+    val text = view.colors.of { it.text }
+    val dim = view.colors.of { it.textDim }
+    Card(view.colors, scale) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
             Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = GlanceModifier.defaultWeight().fillMaxHeight()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Mark(view, (24 * scale).dp, null)
+                        Mark(view.colors, (24 * scale).dp, null)
                         Spacer(GlanceModifier.width((10 * scale).dp))
                         Text(view.name, style = TextStyle(color = dim, fontSize = (16 * scale).sp), maxLines = 1)
                     }
@@ -355,14 +357,14 @@ private fun MediumBody(view: WidgetView, scale: Float, width: Dp, check: Action,
                     modifier = GlanceModifier.width(width * BUTTON_COLUMN_SHARE).fillMaxHeight(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Pill(view, view.checkNow, check, true, scale, GlanceModifier.fillMaxWidth(), MEDIUM_PILL_HEIGHT)
+                    Pill(view.colors, view.checkNow, check, true, scale, GlanceModifier.fillMaxWidth(), MEDIUM_PILL_HEIGHT)
                     Spacer(GlanceModifier.height((10 * scale).dp))
-                    Pill(view, view.fullScan, fullScan, false, scale, GlanceModifier.fillMaxWidth(), MEDIUM_PILL_HEIGHT)
+                    Pill(view.colors, view.fullScan, fullScan, false, scale, GlanceModifier.fillMaxWidth(), MEDIUM_PILL_HEIGHT)
                 }
             }
             if (view.checks.isNotEmpty()) {
                 Spacer(GlanceModifier.height((6 * scale).dp))
-                Box(modifier = GlanceModifier.fillMaxWidth().height(BORDER.dp).background(view.color { it.line })) {}
+                Box(modifier = GlanceModifier.fillMaxWidth().height(BORDER.dp).background(view.colors.of { it.line })) {}
                 Spacer(GlanceModifier.height((6 * scale).dp))
                 CheckRow(view, scale)
             }
@@ -386,41 +388,44 @@ internal fun WidgetBody(view: WidgetView, medium: Boolean) {
 
 private fun Context.argb(id: Int): Long = getColor(id).toLong() and 0xFFFFFFFFL
 
+// The module's res copies of tokens.json's light and dark colors (kept equal by fallback-res.test.ts).
+internal fun fallbackLight(context: Context) =
+    Palette(
+        surface = context.argb(R.color.lumen_widget_light_surface),
+        line = context.argb(R.color.lumen_widget_light_line),
+        line2 = context.argb(R.color.lumen_widget_light_line2),
+        text = context.argb(R.color.lumen_widget_light_text),
+        textDim = context.argb(R.color.lumen_widget_light_text_dim),
+        accent = context.argb(R.color.lumen_widget_light_accent),
+        accentFill = context.argb(R.color.lumen_widget_light_accent_fill),
+        onAccentFill = context.argb(R.color.lumen_widget_light_on_accent_fill),
+        flag = context.argb(R.color.lumen_widget_light_flag),
+        criticalText = context.argb(R.color.lumen_widget_light_critical_text),
+        badgeExperimentalFg = context.argb(R.color.lumen_widget_light_badge_experimental_fg),
+        badgeExperimentalBg = context.argb(R.color.lumen_widget_light_badge_experimental_bg),
+    )
+
+internal fun fallbackDark(context: Context) =
+    Palette(
+        surface = context.argb(R.color.lumen_widget_dark_surface),
+        line = context.argb(R.color.lumen_widget_dark_line),
+        line2 = context.argb(R.color.lumen_widget_dark_line2),
+        text = context.argb(R.color.lumen_widget_dark_text),
+        textDim = context.argb(R.color.lumen_widget_dark_text_dim),
+        accent = context.argb(R.color.lumen_widget_dark_accent),
+        accentFill = context.argb(R.color.lumen_widget_dark_accent_fill),
+        onAccentFill = context.argb(R.color.lumen_widget_dark_on_accent_fill),
+        flag = context.argb(R.color.lumen_widget_dark_flag),
+        criticalText = context.argb(R.color.lumen_widget_dark_critical_text),
+        badgeExperimentalFg = context.argb(R.color.lumen_widget_dark_badge_experimental_fg),
+        badgeExperimentalBg = context.argb(R.color.lumen_widget_dark_badge_experimental_bg),
+    )
+
 // A widget placed before the app first publishes has no copy or palette yet, so it draws the empty state from
-// the module's res copies of tokens.json and the app's copy (kept equal by fallback-res.test.ts), in the
-// phone's language and light or dark mode.
-internal fun fallbackView(context: Context): WidgetView {
-    val light =
-        Palette(
-            surface = context.argb(R.color.lumen_widget_light_surface),
-            line = context.argb(R.color.lumen_widget_light_line),
-            line2 = context.argb(R.color.lumen_widget_light_line2),
-            text = context.argb(R.color.lumen_widget_light_text),
-            textDim = context.argb(R.color.lumen_widget_light_text_dim),
-            accent = context.argb(R.color.lumen_widget_light_accent),
-            accentFill = context.argb(R.color.lumen_widget_light_accent_fill),
-            onAccentFill = context.argb(R.color.lumen_widget_light_on_accent_fill),
-            flag = context.argb(R.color.lumen_widget_light_flag),
-            criticalText = context.argb(R.color.lumen_widget_light_critical_text),
-            badgeExperimentalFg = context.argb(R.color.lumen_widget_light_badge_experimental_fg),
-            badgeExperimentalBg = context.argb(R.color.lumen_widget_light_badge_experimental_bg),
-        )
-    val dark =
-        Palette(
-            surface = context.argb(R.color.lumen_widget_dark_surface),
-            line = context.argb(R.color.lumen_widget_dark_line),
-            line2 = context.argb(R.color.lumen_widget_dark_line2),
-            text = context.argb(R.color.lumen_widget_dark_text),
-            textDim = context.argb(R.color.lumen_widget_dark_text_dim),
-            accent = context.argb(R.color.lumen_widget_dark_accent),
-            accentFill = context.argb(R.color.lumen_widget_dark_accent_fill),
-            onAccentFill = context.argb(R.color.lumen_widget_dark_on_accent_fill),
-            flag = context.argb(R.color.lumen_widget_dark_flag),
-            criticalText = context.argb(R.color.lumen_widget_dark_critical_text),
-            badgeExperimentalFg = context.argb(R.color.lumen_widget_dark_badge_experimental_fg),
-            badgeExperimentalBg = context.argb(R.color.lumen_widget_dark_badge_experimental_bg),
-        )
-    return WidgetView(
+// the res copies of the tokens and the app's copy (kept equal by fallback-res.test.ts), in the phone's language
+// and light or dark mode.
+internal fun fallbackView(context: Context): WidgetView =
+    WidgetView(
         name = context.applicationInfo.loadLabel(context.packageManager).toString(),
         statusKey = null,
         status = null,
@@ -435,10 +440,9 @@ internal fun fallbackView(context: Context): WidgetView {
         emptyTitle = context.getString(R.string.lumen_widget_empty_title),
         emptyBody = context.getString(R.string.lumen_widget_empty_body),
         theme = "system",
-        light = light,
-        dark = dark,
+        light = fallbackLight(context),
+        dark = fallbackDark(context),
     )
-}
 
 // The in-app gallery's sample reading (app/settings/widgets/index.tsx; the res picker strings hold the same).
 private const val SAMPLE_BPM = 64
@@ -518,6 +522,7 @@ class MediumWidgetReceiver : GlanceAppWidgetReceiver() {
 suspend fun refreshWidgets(context: Context) {
     SmallWidget().updateAll(context)
     MediumWidget().updateAll(context)
+    LockWidget().updateAll(context)
 }
 
 // Home screen only. The generated preview names the four checks, so it must never be offered for the lock screen

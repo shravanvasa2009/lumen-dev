@@ -87,14 +87,22 @@ data class AeCompensation(val minIndex: Int, val maxIndex: Int, val stepEv: Doub
 // overexposure watch).
 private const val CLIPPED_RED = 0.95
 
-// The step taken on a clipped red: 2 EV, more than exposureFactor() gives at red 1.0 (about 1.25 EV), so a fully
-// white frame leaves clipping in one or two steps instead of creeping down (Galaxy A17 log, 2026-10-05).
-private const val CLIPPED_STEP_EV = -2.0
+// Steps are kept small and repeated with a fresh red each time, so they cannot jump past the window. On the Galaxy A17
+// a fixed -2 EV relief left red at 0.29, far under the window, while the pre-lock steering needed only -0.9 to
+// -1.0 EV (logcat, 2026-10-05). A clipped red takes -0.5 EV, then -1 EV while it stays clipped: from a red of at least
+// 0.95, -1 EV lands at 0.95 x 2^(-1/gamma), still above 0.55 for any gamma above 1.27 (the A17 measured about 1.8).
+// Any other red takes at most 1 EV either way.
+private const val FIRST_CLIPPED_STEP_EV = -0.5
+private const val MAX_STEP_EV = 1.0
 
-// DSP-5 for lenses that only take an AE lock (ADR 0098): the exposure change exposureFactor() asks for, in EV,
-// a fixed step down when red is clipped.
-fun compensationStepEv(red: Double, target: ClosedFloatingPointRange<Double>): Double =
-    if (red >= CLIPPED_RED) CLIPPED_STEP_EV else log2(exposureFactor(red, target))
+// DSP-5 for lenses that only take an AE lock (ADR 0098): the exposure change exposureFactor() asks for, in EV and at
+// most MAX_STEP_EV; a fixed step down when red is clipped, larger when the previous step left it clipped too.
+fun compensationStepEv(red: Double, target: ClosedFloatingPointRange<Double>, clippedBefore: Boolean): Double =
+    when {
+        red < CLIPPED_RED -> log2(exposureFactor(red, target)).coerceIn(-MAX_STEP_EV, MAX_STEP_EV)
+        clippedBefore -> -MAX_STEP_EV
+        else -> FIRST_CLIPPED_STEP_EV
+    }
 
 // The next CONTROL_AE_EXPOSURE_COMPENSATION index: at least one index in the wanted direction, within the lens range.
 // Equal to `current` only for a zero step or at the range edge.
@@ -103,4 +111,27 @@ fun nextCompensationIndex(current: Int, stepEv: Double, compensation: AeCompensa
     val indices = stepEv / compensation.stepEv
     val step = if (indices < 0) minOf(indices.roundToInt(), -1) else maxOf(indices.roundToInt(), 1)
     return (current + step).coerceIn(compensation.minIndex, compensation.maxIndex)
+}
+
+data class CompensationStep(val index: Int, val red: Double)
+
+// Steps the compensation from `start` until red sits inside `target`, stepping back up if a step lands under it, for
+// at most `maxSteps` steps or until the range edge. `measure` applies an index and returns the settled red mean.
+// Returns `start` followed by every step taken.
+fun steerCompensation(
+    start: CompensationStep,
+    target: ClosedFloatingPointRange<Double>,
+    compensation: AeCompensation,
+    maxSteps: Int,
+    measure: (Int) -> Double,
+): List<CompensationStep> {
+    val path = mutableListOf(start)
+    while (path.last().red !in target && path.size <= maxSteps) {
+        val current = path.last()
+        val clippedBefore = path.size > 1 && path[path.size - 2].red >= CLIPPED_RED
+        val index = nextCompensationIndex(current.index, compensationStepEv(current.red, target, clippedBefore), compensation)
+        if (index == current.index) break
+        path.add(CompensationStep(index, measure(index)))
+    }
+    return path
 }

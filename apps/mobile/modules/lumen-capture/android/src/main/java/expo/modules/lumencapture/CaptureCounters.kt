@@ -32,9 +32,7 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
     private val intervalsNs = ArrayDeque<Long>()
     private val lastIntervalsNs = ArrayDeque<Long>()
     private var newestSinceStatus: FrameNumbers? = null
-    private var workCount = 0
-    private var workSumNs = 0L
-    private var workMaxNs = 0L
+    private val work = TimingWindow()
     private var watchArmed = false
     private var overexposedSinceNs: Long? = null
 
@@ -68,9 +66,7 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
         newestSinceStatus = frame.numbers
         arrivalsNs.addLast(arrivalNs)
         dropOldArrivals(arrivalNs)
-        workCount++
-        workSumNs += workNs
-        if (workNs > workMaxNs) workMaxNs = workNs
+        work.add(workNs)
         return watchOverexposure(frame.numbers.r, frame.tNs)
     }
 
@@ -117,19 +113,7 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
     }
 
     // Per-frame reduction time since the previous call, for the Lab event (budget < 4 ms at 60 fps, §9.3).
-    @Synchronized
-    fun takeFrameWork(): FrameWorkMs {
-        val work =
-            if (workCount == 0) {
-                FrameWorkMs(0.0, 0.0)
-            } else {
-                FrameWorkMs(workSumNs / 1e6 / workCount, workMaxNs / 1e6)
-            }
-        workCount = 0
-        workSumNs = 0
-        workMaxNs = 0
-        return work
-    }
+    fun takeFrameWork(): FrameWorkMs = work.take()
 
     private fun countDropped(tNs: Long) {
         val previous = lastFrameNs
@@ -162,6 +146,30 @@ class CaptureCounters(private val nominalIntervalNs: Long) {
 
     private fun dropOldArrivals(nowNs: Long) {
         while (arrivalsNs.isNotEmpty() && nowNs - arrivalsNs.first() >= ONE_SECOND_NS) arrivalsNs.removeFirst()
+    }
+}
+
+// Mean and max of durations added since the previous take(), in ms; 0 and 0 when none were added. One thread
+// adds while another takes.
+class TimingWindow {
+    private var count = 0
+    private var sumNs = 0L
+    private var maxNs = 0L
+
+    @Synchronized
+    fun add(ns: Long) {
+        count++
+        sumNs += ns
+        if (ns > maxNs) maxNs = ns
+    }
+
+    @Synchronized
+    fun take(): FrameWorkMs {
+        val window = if (count == 0) FrameWorkMs(0.0, 0.0) else FrameWorkMs(sumNs / 1e6 / count, maxNs / 1e6)
+        count = 0
+        sumNs = 0
+        maxNs = 0
+        return window
     }
 }
 

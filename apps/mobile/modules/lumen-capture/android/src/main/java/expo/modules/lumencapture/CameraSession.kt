@@ -19,6 +19,7 @@ import android.util.Log
 import android.util.Range
 import android.util.Size
 import androidx.annotation.OptIn
+import androidx.annotation.RequiresApi
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.Camera2Interop
@@ -29,6 +30,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -46,6 +48,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -71,12 +74,21 @@ private data class ResultSnapshot(
     val awbLocked: Boolean,
     val afLocked: Boolean,
     val focusDistance: Float?,
+    // CONTROL_AE_EXPOSURE_COMPENSATION as the camera applied it, so the log shows whether the steering took hold.
+    val aeCompensation: Int?,
+    // SENSOR_FRAME_DURATION: the sensor's real frame interval, which tells a slow sensor from frames lost on the way
+    // to the analyzer.
+    val frameDurationNs: Long?,
+    // CONTROL_AE_TARGET_FPS_RANGE as the camera applied it, to check the requested range reached the camera.
+    val aeFpsRange: Range<Int>?,
 )
 
 // The Camera2 options this session adds on top of CameraX's own request. Changed only on the exposure thread.
 private data class RequestState(
     val manual: ExposureSetting? = null,
     val aeLock: Boolean = false,
+    // CONTROL_AE_EXPOSURE_COMPENSATION index; steers AE on lenses that only take an AE lock (ADR 0098).
+    val aeCompensation: Int = 0,
     val awbLock: Boolean = false,
     val focusDistance: Float? = null,
 )
@@ -85,6 +97,11 @@ private const val TAG = "LumenCapture"
 
 // Spec §9.2: a small analysis size; 320 x 240 keeps the per-frame reduction far below the 4 ms budget.
 private val ANALYSIS_SIZE = Size(320, 240)
+
+// The live view (ADR 0099) is a 176 dp circle, about 460 px on a 2.6x screen; 640 x 480 or smaller keeps the
+// second stream cheap. 4:3 like the analysis stream, which is CameraX's default aspect-ratio strategy.
+private val PREVIEW_SIZE = Size(640, 480)
+
 private const val BATCH_MS = 100L // samples event, spec §9.3
 private const val STATUS_MS = 250L // status event at 4 Hz
 private const val LAB_MS = 1000L // lab event at 1 Hz (ADR 0013)
@@ -105,9 +122,9 @@ private const val FAILURE_LOG_EVERY = 100
 // leaving the JS promise waiting on a stuck camera. 5 s, not 3: budget HALs can take 2-3 s to open plus the torch.
 private const val START_TIMEOUT_MS = 5000L
 
-// One running capture: CameraX ImageAnalysis on a rear lens with Camera2 interop for frame rate,
-// stabilization, exposure and locks (spec §9.2). Frames are reduced to numbers on the analyzer thread and
-// never leave this class (CAP-3).
+// One running capture: CameraX ImageAnalysis on a rear lens with Camera2 interop for frame rate, stabilization,
+// exposure and locks (spec §9.2), plus the live view's Preview stream, which only a native view draws (ADR 0099).
+// Frames are reduced to numbers on the analyzer thread and never leave this class (CAP-3).
 @OptIn(markerClass = [ExperimentalCamera2Interop::class])
 class CameraSession(
     private val context: Context,
@@ -160,10 +177,19 @@ class CameraSession(
     private var startedNs = 0L
     private var provider: ProcessCameraProvider? = null
     private var analysis: ImageAnalysis? = null
+    private var preview: Preview? = null
     private var stopped = false // main thread only
     private var seenOpen = false // main thread only
     private var reopened = false // main thread only
     private val analysisFailures = AtomicInteger(0)
+
+    // For the contact log: capture results per second against analyzed frames per second, the whole analyze() time,
+    // and the delay from the sensor timestamp to analyze() (CameraX's queue and RGBA conversion run in between).
+    private val captureResults = AtomicLong(0)
+    private var loggedResults = 0L // event thread only
+    private var loggedResultsNs = 0L // event thread only
+    private val analyzeTiming = TimingWindow()
+    private val queueTiming = TimingWindow()
 
     // start()'s callback until the start succeeds or fails, then null. Main thread only, like the fields below.
     private var startDone: ((Throwable?) -> Unit)? = null
@@ -257,32 +283,24 @@ class CameraSession(
                             ResolutionStrategy(ANALYSIS_SIZE, ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
                         ).build(),
                 )
-        val interop =
-            Camera2Interop.Extender(builder)
-                .setCaptureRequestOption(
-                    CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-                    Range(settings.fps.lower, settings.fps.upper),
-                ).setCaptureRequestOption(
-                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
-                ).setSessionCaptureCallback(resultListener)
-        if (lens.physicalId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            interop.setPhysicalCameraId(lens.physicalId)
-        }
+        sameRequest(Camera2Interop.Extender(builder)).setSessionCaptureCallback(resultListener)
         val useCase = builder.build()
         useCase.setAnalyzer(analyzerThread, ::analyze)
+        val livePreview = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) buildPreview() else null
         val selector =
             CameraSelector.Builder()
                 .requireLensFacing(CameraSelector.LENS_FACING_BACK)
                 .addCameraFilter { infos -> infos.filter { Camera2CameraInfo.from(it).getCameraId() == lens.cameraId } }
                 .build()
         startedNs = frameClockNs()
-        val bound = cameraProvider.bindToLifecycle(owner, selector, useCase)
+        // One bind for both use cases, so the session is configured once with both streams (ADR 0099).
+        val bound = cameraProvider.bindToLifecycle(owner, selector, *listOfNotNull(useCase, livePreview).toTypedArray())
         // Recorded straight after binding, so a stop() from here on unbinds the camera, which closes it and puts
         // the torch out.
         camera = bound
         provider = cameraProvider
         analysis = useCase
+        preview = livePreview
         logBound()
         running = true
         sensorManager?.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)?.let {
@@ -296,6 +314,32 @@ class CameraSession(
         bound.cameraInfo.cameraState.observe(owner, cameraStateObserver)
     }
 
+    // Every use case gets the same frame-rate range, stabilization and lens, so the request CameraX merges from them
+    // carries one value of each (spec §9.2).
+    private fun <T> sameRequest(interop: Camera2Interop.Extender<T>): Camera2Interop.Extender<T> {
+        interop
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(settings.fps.lower, settings.fps.upper))
+            .setCaptureRequestOption(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
+        if (lens.physicalId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            interop.setPhysicalCameraId(lens.physicalId)
+        }
+        return interop
+    }
+
+    // The live view's stream (ADR 0099). Its surface provider is set here, before binding, and never changed: in
+    // CameraX 1.6.2 a provider set on a bound Preview rebuilds the camera session (see LivePreview).
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun buildPreview(): Preview {
+        val builder =
+            Preview.Builder().setResolutionSelector(
+                ResolutionSelector.Builder()
+                    .setResolutionStrategy(ResolutionStrategy(PREVIEW_SIZE, ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER))
+                    .build(),
+            )
+        sameRequest(Camera2Interop.Extender(builder))
+        return builder.build().apply { setSurfaceProvider(mainExecutor, LivePreview::provide) }
+    }
+
     // Logcat in release builds too, so a first run on a new phone shows which camera path it took. Camera
     // settings only; never a health value (CAP-3 keeps frames native, and no reading is computed here).
     private fun logBound() {
@@ -306,7 +350,8 @@ class CameraSession(
             TAG,
             "Camera bound: lens ${lens.id} (${lens.kind}), cameraId ${lens.cameraId}, physicalId ${lens.physicalId ?: "none"}, " +
                 "fps range ${settings.fps.lower}-${settings.fps.upper}, manual exposure $manual, AE lock $aeLock, " +
-                "hardware level ${hardwareLevelName(lens.hardwareLevel)}, timestamps $clock",
+                "hardware level ${hardwareLevelName(lens.hardwareLevel)}, timestamps $clock, " +
+                "preview stream ${preview?.resolutionInfo?.resolution ?: "not bound"}",
         )
     }
 
@@ -321,10 +366,8 @@ class CameraSession(
         // below clears startDone, so the late note finds no start to finish.
         mainHandler.removeCallbacks(firstFrameArrived)
         camera?.cameraInfo?.cameraState?.removeObserver(cameraStateObserver)
-        analysis?.let { useCase ->
-            useCase.clearAnalyzer()
-            provider?.unbind(useCase)
-        }
+        analysis?.clearAnalyzer()
+        provider?.unbind(*listOfNotNull(analysis, preview).toTypedArray())
         sensorManager?.unregisterListener(motionListener)
         events.removeCallbacksAndMessages(null)
         analyzerThread.shutdown()
@@ -358,11 +401,16 @@ class CameraSession(
     // A throw here would escape CameraX's analyzer executor and crash the app, so a failed frame is counted,
     // logged, and skipped; the skipped frame then shows up as a dropped frame.
     private fun analyze(image: ImageProxy) {
+        val entryNs = System.nanoTime()
+        // Sensor timestamps share elapsedRealtimeNanos() only with a realtime timestamp source.
+        if (lens.realtimeTimestamps) queueTiming.add(SystemClock.elapsedRealtimeNanos() - image.imageInfo.timestamp)
         try {
             reduceAndCount(image)
         } catch (e: RuntimeException) {
             val failures = analysisFailures.incrementAndGet()
             if (failures == 1 || failures % FAILURE_LOG_EVERY == 0) Log.e(TAG, "Frame reduction failed ($failures so far)", e)
+        } finally {
+            analyzeTiming.add(System.nanoTime() - entryNs)
         }
     }
 
@@ -466,7 +514,7 @@ class CameraSession(
                     "manual (AE off)"
                 }
                 ExposureHold.AE_LOCK -> {
-                    freshRed(firstWaitMs)
+                    steerAeCompensation(firstWaitMs)
                     aeLockWanted = true
                     applyRequest(added.copy(aeLock = true))
                     confirmAeLock()
@@ -557,13 +605,110 @@ class CameraSession(
         Log.i(TAG, "Exposure held after $steps steps: red $red, ${added.manual}")
     }
 
-    // DSP-5: red stayed above 0.95 after the lock, so lower the exposure one step and hold it (ADR 0029). Core
-    // sees the change in exposureNs and marks the span as artifact.
+    // DSP-5 on a lens with only an AE lock (ADR 0098): AE meters overall brightness, which a finger makes mostly
+    // dark green, so it runs to its longest exposure and clips red. Exposure compensation moves AE's target until
+    // the red mean sits inside exposureTarget; the lock then holds that exposure.
+    private fun steerAeCompensation(firstWaitMs: Long) {
+        val red = freshRed(firstWaitMs)
+        val compensation = lens.aeCompensation
+        if (compensation == null) {
+            Log.i(TAG, "Exposure not compensated: the lens has no AE compensation range; red ${redText(red)}")
+            return
+        }
+        val path = steerAndApply(CompensationStep(added.aeCompensation, red), compensation)
+        Log.i(TAG, "Exposure compensated after ${path.size - 1} steps: ${compensationText(path, compensation)}")
+    }
+
+    // Exposure thread, with AE unlocked: each step is applied and judged on the settled red mean (ADR 0098).
+    private fun steerAndApply(start: CompensationStep, compensation: AeCompensation): List<CompensationStep> =
+        steerCompensation(start, settings.exposureTarget, compensation, MAX_EXPOSURE_STEPS) { index ->
+            applyRequest(added.copy(aeCompensation = index))
+            convergedRed(index)
+        }
+
+    // For the log: the final red and EV, then every step, so a phone log shows how the steering got there.
+    private fun compensationText(path: List<CompensationStep>, compensation: AeCompensation): String {
+        val last = path.last()
+        val steps = path.joinToString(" -> ") { "${evText(it.index * compensation.stepEv)} EV: ${redText(it.red)}" }
+        return "red ${redText(last.red)}, EV ${evText(last.index * compensation.stepEv)} (index ${last.index}, " +
+            "result index ${latest?.aeCompensation ?: "not reported"}, range ${compensation.minIndex}..${compensation.maxIndex}), " +
+            "exposureNs ${latest?.exposureNs}; steps $steps"
+    }
+
+    // AE takes several frames to follow a new compensation, longer than EXPOSURE_LATENCY_MS. Waits until the results
+    // carry the new index, then the latency (AE leaves CONVERGED), then for CONVERGED or FLASH_REQUIRED (AE's settled
+    // state when it wants more light than it can reach; CaptureResult.CONTROL_AE_STATE docs). Each wait is bounded
+    // by the lock wait, so a HAL that reports neither still moves on.
+    private fun convergedRed(index: Int): Double {
+        val waitMs = lockWaitMs(counters.lockIntervalNs())
+        var deadline = SystemClock.elapsedRealtime() + waitMs
+        while (latest?.aeCompensation != index && SystemClock.elapsedRealtime() < deadline) Thread.sleep(FRESH_FRAME_POLL_MS)
+        Thread.sleep(EXPOSURE_LATENCY_MS)
+        deadline = SystemClock.elapsedRealtime() + waitMs
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val state = latest?.aeState
+            if (state == CaptureResult.CONTROL_AE_STATE_CONVERGED || state == CaptureResult.CONTROL_AE_STATE_FLASH_REQUIRED) break
+            Thread.sleep(FRESH_FRAME_POLL_MS)
+        }
+        return freshRed(0)
+    }
+
+    // DSP-5: red stayed above 0.95 after the lock, so lower the exposure and hold it (ADR 0029; AE-lock lenses steer
+    // back into the window, ADR 0098). Core sees the change in exposureNs and marks the span as artifact.
     private fun relieveOverexposure() {
-        val manual = lens.manualExposure ?: return
         if (!running) return
-        runCatching { scaleExposure(manual, exposureFactor(counters.lastRed ?: 1.0, settings.exposureTarget)) }
-            .onFailure { Log.e(TAG, "Lowering the exposure failed", it) }
+        val manual = lens.manualExposure
+        when {
+            manual != null ->
+                runCatching { scaleExposure(manual, exposureFactor(counters.lastRed ?: 1.0, settings.exposureTarget)) }
+                    .onFailure { Log.e(TAG, "Lowering the exposure failed", it) }
+            added.aeLock -> relieveUnderAeLock()
+        }
+    }
+
+    // The AE-lock form of the step above (ADR 0098): unlock, let AE settle at the current compensation, steer back
+    // into exposureTarget as before the lock, relock. Red is measured afresh after the unlock because a press that
+    // clipped red can pass; steering from the stale clipped value overshot on the Galaxy A17. Core sees the jump in
+    // exposureNs as with a manual step.
+    private fun relieveUnderAeLock() {
+        val compensation = lens.aeCompensation
+        if (compensation == null) {
+            Log.w(TAG, "Red stays clipped under the AE lock; the lens has no AE compensation")
+            return
+        }
+        try {
+            applyRequest(added.copy(aeLock = false))
+            val path = steerAndApply(CompensationStep(added.aeCompensation, convergedRed(added.aeCompensation)), compensation)
+            applyRequest(added.copy(aeLock = true))
+            Log.i(
+                TAG,
+                "Overexposure relieved under AE lock after ${path.size - 1} steps: ${compensationText(path, compensation)}; " +
+                    confirmAeLock(),
+            )
+        } catch (e: InterruptedException) {
+            // stop() interrupts the exposure thread; a stopped capture has no exposure left to adjust.
+            Thread.currentThread().interrupt()
+            Log.i(TAG, "Overexposure relief cut short by stop", e)
+        } catch (e: RuntimeException) {
+            // Reported, not rethrown: a throw would escape the exposure thread and crash the app. The unlock above
+            // has usually gone through, so AE would run free for the rest of the reading; one relock is tried here.
+            Log.e(TAG, "Lowering the exposure under AE lock failed; exposure is ${if (added.aeLock) "locked" else "unlocked"}", e)
+            relockAfterFailedRelief()
+        }
+    }
+
+    // Best effort, once: a second failure is logged and AE stays free until a reopen relocks (aeLockWanted is set).
+    private fun relockAfterFailedRelief() {
+        if (added.aeLock) return
+        try {
+            applyRequest(added.copy(aeLock = true))
+            Log.i(TAG, "Exposure relocked after the failed relief: ${confirmAeLock()}")
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            Log.i(TAG, "Relock after the failed relief cut short by stop", e)
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Relocking after the failed relief failed; exposure stays unlocked", e)
+        }
     }
 
     private fun scaleExposure(manual: ManualExposureRange, factor: Double) {
@@ -606,6 +751,9 @@ class CameraSession(
                 .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, manual.iso.roundToInt())
                 .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, frameIntervalNs)
         }
+        if (next.aeCompensation != 0) {
+            options.setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, next.aeCompensation)
+        }
         if (next.aeLock) options.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, true)
         if (next.awbLock) options.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_LOCK, true)
         next.focusDistance?.let {
@@ -631,6 +779,7 @@ class CameraSession(
                 request: CaptureRequest,
                 captureResult: TotalCaptureResult,
             ) {
+                captureResults.incrementAndGet()
                 val exposureNs = captureResult.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: 0L
                 captureResult.get(CaptureResult.SENSOR_TIMESTAMP)?.let { exposureLog.record(it, exposureNs) }
                 val afState = captureResult.get(CaptureResult.CONTROL_AF_STATE)
@@ -652,6 +801,9 @@ class CameraSession(
                                 afState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED ||
                                 afState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED,
                         focusDistance = captureResult.get(CaptureResult.LENS_FOCUS_DISTANCE),
+                        aeCompensation = captureResult.get(CaptureResult.CONTROL_AE_EXPOSURE_COMPENSATION),
+                        frameDurationNs = captureResult.get(CaptureResult.SENSOR_FRAME_DURATION),
+                        aeFpsRange = captureResult.get(CaptureResult.CONTROL_AE_TARGET_FPS_RANGE),
                     )
             }
         }
@@ -717,6 +869,13 @@ class CameraSession(
     // of the newest frame, with its exposure and the frame rate. Frame averages only, never a health value
     // (CAP-3 keeps frames native).
     private fun logContactInputs() {
+        val nowNs = SystemClock.elapsedRealtimeNanos()
+        val results = captureResults.get()
+        val resultsPerS = if (loggedResultsNs == 0L) 0.0 else (results - loggedResults) * 1e9 / (nowNs - loggedResultsNs)
+        loggedResults = results
+        loggedResultsNs = nowNs
+        val analyzeMs = analyzeTiming.take()
+        val queueMs = queueTiming.take()
         counters.lastFrame?.let { frame ->
             val numbers = frame.numbers
             val sumGb = numbers.g + numbers.b
@@ -726,7 +885,12 @@ class CameraSession(
                 "Contact inputs: R/(G+B) $ratio, mean R ${"%.3f".format(Locale.ROOT, numbers.r)}, " +
                     "spatialStdR ${"%.3f".format(Locale.ROOT, numbers.spatialStdR)}, " +
                     "clipFrac ${"%.3f".format(Locale.ROOT, numbers.clipFrac)}, covered ${fingerCovered(numbers)}, " +
-                    "exposureNs ${frame.exposureNs}, fps ${counters.recentFps(SystemClock.elapsedRealtimeNanos()).roundToInt()}",
+                    "exposureNs ${frame.exposureNs}, fps ${counters.recentFps(nowNs).roundToInt()}, " +
+                    "results/s ${resultsPerS.roundToInt()}, frameDurationNs ${latest?.frameDurationNs ?: "not reported"}, " +
+                    "AE fps range ${latest?.aeFpsRange ?: "not reported"}, " +
+                    "median interval ms ${msText(counters.lockIntervalNs() / 1e6)}, dropped ${counters.dropped}, " +
+                    "analyze ms ${msText(analyzeMs.mean)}/${msText(analyzeMs.max)}, " +
+                    "queue ms ${if (lens.realtimeTimestamps) "${msText(queueMs.mean)}/${msText(queueMs.max)}" else "n/a"}",
             )
         }
         events.postDelayed(::logContactInputs, CONTACT_LOG_MS)
@@ -799,6 +963,12 @@ class CameraSession(
         }, mainExecutor)
     }
 }
+
+private fun redText(red: Double): String = "%.3f".format(Locale.ROOT, red)
+
+private fun evText(ev: Double): String = "%.2f".format(Locale.ROOT, ev)
+
+private fun msText(ms: Double): String = "%.1f".format(Locale.ROOT, ms)
 
 // CaptureResult.CONTROL_AE_STATE values, for the lock log line.
 private fun aeStateName(state: Int?): String =

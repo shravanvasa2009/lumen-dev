@@ -231,3 +231,16 @@ class ExposureLogTest {
         assertEquals(2_000L, log.exposureAt(250))
     }
 }
+
+class TimingWindowTest {
+    @Test
+    fun takeReportsMeanAndMaxSinceThePreviousTake() {
+        val window = TimingWindow()
+        assertEquals(FrameWorkMs(0.0, 0.0), window.take())
+        window.add(2_000_000)
+        window.add(6_000_000)
+        window.add(1_000_000)
+        assertEquals(FrameWorkMs(3.0, 6.0), window.take())
+        assertEquals(FrameWorkMs(0.0, 0.0), window.take())
+    }
+}

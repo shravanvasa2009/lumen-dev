@@ -28,6 +28,8 @@ data class RearLens(
     val minimumFocusDistance: Float?,
     // Set when the lens takes manual exposure time and ISO (MANUAL_SENSOR); DSP-5 steering needs it.
     val manualExposure: ManualExposureRange?,
+    // CONTROL_AE_COMPENSATION_RANGE and _STEP; null where the lens has no compensation. Steers AE-lock lenses (DSP-5).
+    val aeCompensation: AeCompensation?,
     val realtimeTimestamps: Boolean,
     // INFO_SUPPORTED_HARDWARE_LEVEL of the camera CameraX opens; null where the key is missing.
     val hardwareLevel: Int?,
@@ -87,6 +89,12 @@ fun focusHolds(afModes: IntArray, fixedFocus: Boolean, minimumFocusDistance: Flo
                 hardwareLevel != null &&
                 hardwareLevel != CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY
         )
+
+// CameraCharacteristics docs: a range of [0, 0] means the lens does not support exposure compensation.
+fun aeCompensation(minIndex: Int?, maxIndex: Int?, stepEv: Double?): AeCompensation? {
+    if (minIndex == null || maxIndex == null || stepEv == null || stepEv <= 0.0 || minIndex >= maxIndex) return null
+    return AeCompensation(minIndex, maxIndex, stepEv)
+}
 
 // For the release-build log line that tells which camera path a phone runs on.
 fun hardwareLevelName(level: Int?): String =
@@ -172,6 +180,8 @@ private fun describe(
         } else {
             null
         }
+    val compensationRange = logical.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
+    val compensationStep = logical.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP)
     return RearLens(
         id = id,
         cameraId = cameraId,
@@ -189,6 +199,7 @@ private fun describe(
         fixedFocus = fixedFocus,
         minimumFocusDistance = minimumFocusDistance,
         manualExposure = manual,
+        aeCompensation = aeCompensation(compensationRange?.lower, compensationRange?.upper, compensationStep?.toDouble()),
         realtimeTimestamps =
             logical.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE) ==
                 CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME,

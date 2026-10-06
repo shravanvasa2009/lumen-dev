@@ -199,9 +199,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           basicAnalysis={rhythm?.scorer === 'rule'}
           missingText={knownMissing}
           lowQualityReasons={lowReasons(rhythm)}
-          footnote={
-            rhythm?.flag !== null && lowReasons(rhythm) ? t('quality.confirmAf') : undefined
-          }
+          footnote={rhythm?.flag !== null && lowReasons(rhythm) ? t('quality.confirmAf') : undefined}
           reading={
             rhythm && {
               ...rhythmWords(t, rhythm),
@@ -266,7 +264,10 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           }
         />
 
-        <ExperimentalCard experimental={scan.experimental} lowQualityReasons={lowReasons(scan.experimental)} />
+        <ExperimentalCard
+          experimental={scan.experimental}
+          lowQualityReasons={lowReasons(scan.experimental)}
+        />
 
         <AppText tone="textDim">
           {t('result.notChecked')}{' '}

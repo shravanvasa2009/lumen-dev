@@ -199,11 +199,16 @@ describe('reading analysis of a kept capture', () => {
     if (!stored) throw new Error('the finished reading was not saved');
 
     renderRouter('./app', { initialUrl: `/results/${analysis.current.readingId}` });
-    // With no rhythm judged, a good heart rate is headlined alone, with no retake asked, and HRV says what it waits for.
-    expect(stored.outcome.headlineKey).toBe('result.hrOnly');
-    expect(await screen.findByText(en['result.hrOnly'])).toBeOnTheScreen();
+    // The bundled rhythm model or its rule judges a Quick Check too (ADR 0104), tagged lower quality as Quick.
+    const { rhythm } = stored.outcome.metrics;
+    expect(rhythm).toMatchObject({ quality: 'low' });
+    expect(rhythm!.qualityReasons).toContain('quickMode');
+    expect(stored.outcome.quality.level).toBe('low');
+    expect(stored.outcome.headlineKey).toBe(
+      rhythm!.class === 'sinus' ? 'result.regular' : 'result.irregularRetake',
+    );
+    expect((await screen.findAllByText(new RegExp(en['quality.chip']))).length).toBeGreaterThan(0);
     expect(screen.queryByText(en['result.uncertain'])).toBeNull();
-    expect(screen.getByText(en['quality.missingNoRhythm'])).toBeOnTheScreen();
   });
 
   it('reports a capture it cannot analyse as failed, with the reason and the steps so far', async () => {

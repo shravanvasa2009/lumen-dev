@@ -2,11 +2,11 @@ import { act } from '@testing-library/react-native';
 import i18next from 'i18next';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
+import type { QualityReason, ReadingQuality } from '@lumen/core';
+
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
-
-import type { QualityReason, ReadingQuality } from './quality';
 
 jest.mock('@/profile/riskScore', () => ({ useStoredRiskScore: () => null }));
 

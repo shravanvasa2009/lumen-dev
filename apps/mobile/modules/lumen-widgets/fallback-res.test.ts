@@ -56,7 +56,7 @@ const SAMPLE_HOURS_AGO = 2;
 const REMOTE_VIEWS_TAGS = new Set(['FrameLayout', 'LinearLayout', 'ImageView', 'TextView', 'include']);
 
 describe('Android widget picker', () => {
-  it.each(['small', 'medium'])('gives the %s widget a description and a preview layout', (size) => {
+  it.each(['small', 'medium', 'lock'])('gives the %s widget a description and a preview layout', (size) => {
     const provider = fs.readFileSync(path.join(RES, 'xml', `lumen_widget_${size}.xml`), 'utf8');
     expect(provider).toContain(`android:description="@string/lumen_widget_${size}_description"`);
     expect(provider).toContain(`android:previewLayout="@layout/lumen_widget_preview_${size}"`);
@@ -66,11 +66,14 @@ describe('Android widget picker', () => {
   // The picker inflates the preview as RemoteViews, which refuses any other class and shows "Couldn't add
   // widget" instead (a plain View did that on the API 37 emulator, 2026-10-03).
   // https://developer.android.com/develop/ui/views/appwidgets/layouts
-  it.each(['small', 'medium', 'mark'])('draws the %s preview only with RemoteViews classes', (name) => {
-    const layout = fs.readFileSync(path.join(RES, 'layout', `lumen_widget_preview_${name}.xml`), 'utf8');
-    const tags = [...layout.matchAll(/<([A-Za-z]+)[\s/>]/g)].map(([, tag]) => tag);
-    expect(tags.filter((tag) => !REMOTE_VIEWS_TAGS.has(tag!))).toEqual([]);
-  });
+  it.each(['small', 'medium', 'mark', 'lock'])(
+    'draws the %s preview only with RemoteViews classes',
+    (name) => {
+      const layout = fs.readFileSync(path.join(RES, 'layout', `lumen_widget_preview_${name}.xml`), 'utf8');
+      const tags = [...layout.matchAll(/<([A-Za-z]+)[\s/>]/g)].map(([, tag]) => tag);
+      expect(tags.filter((tag) => !REMOTE_VIEWS_TAGS.has(tag!))).toEqual([]);
+    },
+  );
 
   it('describes both widgets in English and Spanish', () => {
     const english = resourceValues('values/lumen_widget_picker_strings.xml', 'string');
@@ -111,5 +114,53 @@ describe('Android widget picker', () => {
       lumen_widget_check_hrv: appCopy['widgets.checkHrv'],
       lumen_widget_check_diabetes: appCopy['widgets.checkDiabetes'],
     });
+  });
+});
+
+const providerCategories = (name: string) =>
+  /android:widgetCategory="([^"]*)"/.exec(
+    fs.readFileSync(path.join(RES, 'xml', `lumen_widget_${name}.xml`), 'utf8'),
+  )?.[1];
+
+// WID-2 on Android's lock screen: the lock-screen hub offers every widget that doesn't opt out
+// (https://android-developers.googleblog.com/2025/03/widgets-on-lock-screen-faq.html), so the home-screen widgets,
+// which can show the heart rate and name the four checks, opt out, and only the lock-screen widget is offered there.
+describe('Android lock-screen widget (WID-2)', () => {
+  it.each(['small', 'medium'])('keeps the %s home-screen widget off the lock screen', (size) => {
+    expect(providerCategories(size)).toBe('home_screen|not_keyguard');
+  });
+
+  it('offers the lock-screen widget for the lock screen only', () => {
+    expect(providerCategories('lock')).toBe('keyguard');
+  });
+
+  it.each([
+    ['values', lockscreen.en],
+    ['values-es', lockscreen.es],
+  ] as const)('holds the %s copy from lockscreen.json', (folder, lock) => {
+    expect(resourceValues(`${folder}/lumen_widget_lock_strings.xml`, 'string')).toMatchObject({
+      lumen_widget_lock_sample_last_check: lock['widget.lock.lastCheck'].replace(
+        '{{hours}}',
+        String(SAMPLE_HOURS_AGO),
+      ),
+      lumen_widget_lock_no_checks: lock['widget.empty.title'],
+      lumen_widget_lock_check_now: lock['widget.lock.checkNow'],
+    });
+  });
+
+  // check-notification-copy.mjs reads lumen_widget_lock_strings.xml, so the preview may draw nothing else but the
+  // app's name.
+  it('draws its preview only from the checked lock-screen strings', () => {
+    const layout = fs.readFileSync(path.join(RES, 'layout', 'lumen_widget_preview_lock.xml'), 'utf8');
+    const texts = [...layout.matchAll(/android:(?:text|contentDescription)="([^"]*)"/g)].map(
+      ([, text]) => text,
+    );
+    const lockKeys = Object.keys(resourceValues('values/lumen_widget_lock_strings.xml', 'string'));
+    expect(texts.length).toBeGreaterThan(0);
+    for (const text of texts) {
+      expect(['@string/lumen_widget_preview_name', ...lockKeys.map((key) => `@string/${key}`)]).toContain(
+        text,
+      );
+    }
   });
 });

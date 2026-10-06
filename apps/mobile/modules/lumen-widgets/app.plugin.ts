@@ -9,12 +9,13 @@ import {
 type AndroidManifest = AndroidConfig.Manifest.AndroidManifest;
 
 // The Glance receivers and their appwidget-provider files (in the module's res/xml) for the small and
-// medium home-screen widgets (spec §12.5, mockup 32). The picker shows the app's own label, so a rename
-// reaches it (spec §2). Exported because the launcher's widget host sends the update broadcasts.
-// https://developer.android.com/develop/ui/compose/glance/create-app-widget
+// medium home-screen widgets (spec §12.5, mockup 32) and the lock-screen widget (owner, 2026-10-05). The picker
+// shows the app's own label, so a rename reaches it (spec §2). Exported because the widget host sends the update
+// broadcasts. https://developer.android.com/develop/ui/compose/glance/create-app-widget
 const RECEIVERS = [
   { name: 'expo.modules.lumenwidgets.SmallWidgetReceiver', provider: '@xml/lumen_widget_small' },
   { name: 'expo.modules.lumenwidgets.MediumWidgetReceiver', provider: '@xml/lumen_widget_medium' },
+  { name: 'expo.modules.lumenwidgets.LockWidgetReceiver', provider: '@xml/lumen_widget_lock' },
 ];
 
 function addWidgetReceivers(manifest: AndroidManifest): AndroidManifest {

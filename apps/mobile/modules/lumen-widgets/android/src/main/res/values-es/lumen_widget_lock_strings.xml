@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Everything the lock-screen widget can show besides the app's name: its picker line and preview, and its copy before
+     the app first publishes. Copied from src/i18n/lockscreen.json (fallback-res.test.ts fails if they differ), and
+     scripts/check-notification-copy.mjs checks them for health details (WID-2). -->
+<resources>
+    <string name="lumen_widget_lock_description">Cuándo revisaste por última vez, y Revisar ahora. Sin datos de salud.</string>
+    <string name="lumen_widget_lock_sample_last_check">Última revisión hace 2 h</string>
+    <string name="lumen_widget_lock_no_checks">Sin revisiones aún</string>
+    <string name="lumen_widget_lock_check_now">Revisar ahora</string>
+</resources>

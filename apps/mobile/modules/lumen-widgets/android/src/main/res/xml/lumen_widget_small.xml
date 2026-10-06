@@ -2,7 +2,9 @@
 <!-- Spec 12.5 / mockup 32. The picker shows previewLayout and description on Android 12 to 14; on 15+ it shows the
      generated preview (LumenWidgets.kt providePreview) and the description:
      https://developer.android.com/develop/ui/views/appwidgets/enhance
-     30 minutes is the shortest refresh Android allows; it keeps "Last check" current. -->
+     30 minutes is the shortest refresh Android allows; it keeps "Last check" current.
+     not_keyguard (API 36): the lock-screen hub offers every widget unless it opts out, and this one can show the
+     heart rate and the four checks' names (WID-2). https://android-developers.googleblog.com/2025/03/widgets-on-lock-screen-faq.html -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
     android:minHeight="110dp"
@@ -11,6 +13,6 @@
     android:resizeMode="none"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/glance_default_loading_layout"
-    android:widgetCategory="home_screen"
+    android:widgetCategory="home_screen|not_keyguard"
     android:description="@string/lumen_widget_small_description"
     android:previewLayout="@layout/lumen_widget_preview_small" />

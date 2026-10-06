@@ -35,7 +35,7 @@ export type TrendPoint = {
   rhythm: RhythmClass | null;
 };
 
-export type FlaggedLowRhythm = { id: string; createdAt: Date; rhythm: RhythmClass };
+type FlaggedLowRhythm = { id: string; createdAt: Date; rhythm: RhythmClass };
 
 export type TrendSeries = {
   points: readonly TrendPoint[];

@@ -751,6 +751,7 @@
   "lockScreen.sample": "Sample previews. Your lock screen shows your own timer and reminders.",
   "results.extraBeatsRate": "Extra or skipped beats: {{rate}} per minute",
   "result.uncertain": "Couldn't tell — please retake.",
+  "result.hrOnly": "Heart rate measured.",
   "results.cleanSeconds": "{{seconds}} clean s",
   "dm.flag.body": "Your pulse shape matches a pattern research has linked to diabetes. This is not a diabetes test. Ask a doctor or clinic for an A1c blood test.",
   "results.experimentalCount": "Experimental measurements ({{total}})",

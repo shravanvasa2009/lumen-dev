@@ -160,6 +160,21 @@ describe('reminders that follow a stored result', () => {
     expect(await routesOf()).toContain('lumen://check?mode=full');
   });
 
+  it('keeps the confirmation when the later Full Check judged no rhythm', async () => {
+    await store(flaggedReading(NOW - 2 * HOUR));
+    const hrOnly = makeReading(NOW - HOUR, 64, null);
+    hrOnly.outcome.headlineKey = 'result.hrOnly';
+    await store({ ...hrOnly, mode: 'full' });
+    expect(await routesOf()).toContain('lumen://check?mode=full');
+  });
+
+  it('plans nothing for a heart-rate-only reading with no flag', async () => {
+    const hrOnly = makeReading(NOW - HOUR, 64, null);
+    hrOnly.outcome.headlineKey = 'result.hrOnly';
+    await store({ ...hrOnly, mode: 'quick' });
+    expect(await scheduledByResync()).toEqual([]);
+  });
+
   it('plans no confirmation for a could-not-tell reading, which asks for an immediate retake', async () => {
     const uncertain = makeReading(NOW - HOUR, 64, 40);
     uncertain.outcome.headlineKey = 'result.uncertain';

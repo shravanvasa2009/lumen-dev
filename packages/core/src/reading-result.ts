@@ -284,8 +284,11 @@ function headline(hr: HrMetric | null, rhythm: RhythmCall | null): HeadlineKey {
   if (!hr) return 'result.inconclusive';
   if (rhythm?.metric.flag === 'possibleAf') return 'result.possibleAf';
   if (rhythm?.metric.flag === 'irregular') return 'result.irregularRetake';
-  // No rhythm card means the rhythm was not judged; "Regular rhythm" would claim it was (ADR 0041).
-  if (!rhythm || rhythm.topProb < DSP_CONFIG.rules.uncertainBelowTopProb) return 'result.uncertain';
+  // No rhythm card means the rhythm was not judged (Quick Check, pacemaker, no model, or under the rhythm
+  // floor). "Regular rhythm" would claim a judgement (ADR 0041) and "Couldn't tell" would ask to retake a
+  // good heart rate, so the headline states only the rate; the rhythm card says why it is missing.
+  if (!rhythm) return 'result.hrOnly';
+  if (rhythm.topProb < DSP_CONFIG.rules.uncertainBelowTopProb) return 'result.uncertain';
   return rhythm.metric.class === 'sinus' ? 'result.regular' : 'result.irregularRetake';
 }
 

@@ -23,6 +23,8 @@ type MetricCardProps = {
   basicAnalysis?: boolean;
   // Null when the metric missed its clean-data floor; that card alone says so (§6.2).
   reading: { value: string; note: string; confidence: Confidence; flagged: boolean } | null;
+  // What a null reading says when the check did not run at all, instead of "Not enough clean signal".
+  missingText?: string;
 };
 
 export function MetricCard({
@@ -32,6 +34,7 @@ export function MetricCard({
   evidenceMetric,
   basicAnalysis = false,
   reading,
+  missingText,
 }: MetricCardProps) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
@@ -75,7 +78,7 @@ export function MetricCard({
           </AppText>
         </View>
       ) : (
-        <AppText variant="headline">{t('result.inconclusive')}</AppText>
+        <AppText variant="headline">{missingText ?? t('result.inconclusive')}</AppText>
       )}
       {reading && basicAnalysis ? (
         <AppText variant="caption" tone="textDim">

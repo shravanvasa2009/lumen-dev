@@ -1,4 +1,5 @@
 import * as Linking from 'expo-linking';
+import { StyleSheet } from 'react-native';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
@@ -60,7 +61,9 @@ describe('practice with a running capture', () => {
   });
   it('puts the meter marker where the live signal level says', () => {
     const marker = () =>
-      parseFloat(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.cx);
+      parseFloat(
+        StyleSheet.flatten(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.style).left,
+      );
     mockLive = { ...running, signalLevel: 0.1 };
     const { unmount } = renderRouter('./app', { initialUrl: '/practice' });
     expect(marker()).toBeCloseTo(13.2, 6);
@@ -73,7 +76,11 @@ describe('practice with a running capture', () => {
   it('holds the marker at OK while the clean seconds are not counting', () => {
     mockLive = { ...running, signalLevel: 0.9, advancing: false };
     renderRouter('./app', { initialUrl: '/practice' });
-    expect(parseFloat(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.cx)).toBeCloseTo(50, 6);
+    expect(
+      parseFloat(
+        StyleSheet.flatten(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.style).left,
+      ),
+    ).toBeCloseTo(50, 6);
   });
 
   it('draws no marker while the session has no level, as with no finger on the lens', () => {

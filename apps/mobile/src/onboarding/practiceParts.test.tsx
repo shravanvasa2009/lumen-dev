@@ -74,6 +74,9 @@ describe('FingerPreview', () => {
 });
 
 describe('SignalMeter', () => {
+  const markerLeft = () =>
+    StyleSheet.flatten(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.style).left;
+
   it('draws no marker without a level', () => {
     render(<SignalMeter />);
     expect(screen.queryByTestId('signal-marker', { includeHiddenElements: true })).toBeNull();
@@ -81,11 +84,11 @@ describe('SignalMeter', () => {
 
   it('places the marker by level and keeps it inside the bar', () => {
     const { rerender } = render(<SignalMeter level={0.5} />);
-    expect(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.cx).toBe('50%');
+    expect(markerLeft()).toBe('50%');
     rerender(<SignalMeter level={7} />);
-    expect(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.cx).toBe('96%');
+    expect(markerLeft()).toBe('96%');
     rerender(<SignalMeter level={-1} />);
-    expect(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.cx).toBe('4%');
+    expect(markerLeft()).toBe('4%');
   });
 });
 

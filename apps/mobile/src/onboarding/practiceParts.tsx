@@ -1,12 +1,19 @@
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
-import Animated, { useAnimatedProps, useDerivedValue, withTiming } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedProps,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
-import { timingConfig, useReduceMotion } from '@/theme/motion';
+import { glideConfig, useReduceMotion } from '@/theme/motion';
 
 import { LumenPreviewView } from '../../modules/lumen-capture/src/LumenPreviewView';
 
@@ -14,6 +21,7 @@ const PREVIEW_SIZE = 190;
 const METER_HEIGHT = 28;
 const RING_SIZE = 44;
 const RING_STROKE = 5;
+const MARKER_SIZE = METER_HEIGHT - 6;
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // The picture is a camera image, not themed; the chip sits on it in a fixed dark scrim.
@@ -127,36 +135,62 @@ export function FingerPreview({
 const MARKER_INSET_PCT = 4;
 const MARKER_SPAN_PCT = 100 - 2 * MARKER_INSET_PCT;
 
-// Weak to Strong coupling bar. The marker shows `level` (0 to 1) and is left out while there is none.
+// Weak to Strong coupling bar. The marker shows `level` (0 to 1) and is left out while there is none. The level
+// arrives about once a second, so the marker glides to it; it appears in place, not sliding in from the side.
 export function SignalMeter({ level = null }: { level?: number | null }) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const marked = level === null ? null : Math.min(1, Math.max(0, level));
+  const targetPct = MARKER_INSET_PCT + (marked ?? 0.5) * MARKER_SPAN_PCT;
+  const positionPct = useSharedValue(targetPct);
+  const hasLevel = marked !== null;
+  const wasMarked = useRef(hasLevel);
+  useEffect(() => {
+    if (!hasLevel) {
+      wasMarked.current = false;
+      return;
+    }
+    positionPct.value = wasMarked.current ? withTiming(targetPct, glideConfig(reduceMotion)) : targetPct;
+    wasMarked.current = true;
+  }, [hasLevel, targetPct, reduceMotion, positionPct]);
+  const markerStyle = useAnimatedStyle(() => ({ left: `${positionPct.value}%` }));
   return (
-    <Svg
-      width="100%"
-      height={METER_HEIGHT}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
-      <Defs>
-        <LinearGradient id="signal-scale" x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0" stopColor={colors.badgePublicFg} />
-          <Stop offset="1" stopColor={colors.accentFill} />
-        </LinearGradient>
-      </Defs>
-      <Rect width="100%" height={METER_HEIGHT} rx={METER_HEIGHT / 2} fill="url(#signal-scale)" />
+    <View style={{ height: METER_HEIGHT }}>
+      <Svg
+        width="100%"
+        height={METER_HEIGHT}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Defs>
+          <LinearGradient id="signal-scale" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor={colors.badgePublicFg} />
+            <Stop offset="1" stopColor={colors.accentFill} />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height={METER_HEIGHT} rx={METER_HEIGHT / 2} fill="url(#signal-scale)" />
+      </Svg>
       {marked === null ? null : (
-        <Circle
+        <Animated.View
           testID="signal-marker"
-          cx={`${MARKER_INSET_PCT + marked * MARKER_SPAN_PCT}%`}
-          cy={METER_HEIGHT / 2}
-          r={METER_HEIGHT / 2 - 4}
-          fill={colors.text}
-          stroke={colors.bg}
-          strokeWidth={2}
+          pointerEvents="none"
+          style={[
+            {
+              position: 'absolute',
+              top: (METER_HEIGHT - MARKER_SIZE) / 2,
+              marginLeft: -MARKER_SIZE / 2,
+              width: MARKER_SIZE,
+              height: MARKER_SIZE,
+              borderRadius: MARKER_SIZE / 2,
+              backgroundColor: colors.text,
+              borderWidth: 2,
+              borderColor: colors.bg,
+            },
+            markerStyle,
+          ]}
         />
       )}
-    </Svg>
+    </View>
   );
 }
 
@@ -208,11 +242,11 @@ export function ProgressRing({
   const circumference = 2 * Math.PI * radius;
   const reduceMotion = useReduceMotion();
   const target = Math.min(1, Math.max(0, fraction));
-  // The arc eases to each new value on the UI thread instead of jumping once a second.
-  // Built on the JS thread: timingConfig is a plain function, and calling one inside the worklet below
+  // The arc glides to each new value on the UI thread instead of jumping once a second.
+  // Built on the JS thread: glideConfig is a plain function, and calling one inside the worklet below
   // crashes the app on a phone ("Tried to synchronously call a Remote Function").
-  const timing = timingConfig(reduceMotion);
-  const arc = useDerivedValue(() => withTiming(target, timing));
+  const glide = glideConfig(reduceMotion);
+  const arc = useDerivedValue(() => withTiming(target, glide));
   const arcProps = useAnimatedProps(() => ({
     strokeDasharray: `${circumference * arc.value} ${circumference}`,
   }));

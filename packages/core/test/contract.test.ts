@@ -30,12 +30,11 @@ const appendixBExample: ReadingResult = {
   notChecked: ['bp', 'spo2', 'heartAttack'],
 };
 
-// 40 clean s clears the HR floor (15 s) but not rhythm, HRV, or breathing (60 s, §6.2). Every Appendix C
-// result.* headline is a rhythm statement, and the only one for a missed floor is result.inconclusive;
-// the HR card still stands on its own (§7).
+// 40 clean s clears the HR floor (15 s) but not rhythm, HRV, or breathing (60 s, §6.2). With no rhythm
+// card the headline states only the heart rate, which stands on its own (§7).
 const rhythmBelowFloor: ReadingResult = {
   ...appendixBExample,
-  headlineKey: 'result.inconclusive',
+  headlineKey: 'result.hrOnly',
   cleanSeconds: 40,
   metrics: { ...appendixBExample.metrics, rhythm: null, rmssd: null, resp: null, diabetes: null },
 };

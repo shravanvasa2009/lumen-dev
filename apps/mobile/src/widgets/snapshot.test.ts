@@ -71,6 +71,11 @@ const uncertain: Change = (outcome) => {
   outcome.headlineKey = 'result.uncertain';
 };
 
+const hrOnly: Change = (outcome) => {
+  outcome.headlineKey = 'result.hrOnly';
+  outcome.metrics.rmssd = null;
+};
+
 type Outcome = {
   name: string;
   change: Change;
@@ -93,6 +98,13 @@ const outcomes: readonly Outcome[] = [
     name: 'an inconclusive reading',
     change: inconclusive,
     status: 'inconclusive',
+    rhythmFlag: false,
+    diabetesFlag: false,
+  },
+  {
+    name: 'a heart-rate-only reading',
+    change: hrOnly,
+    status: 'regular',
     rhythmFlag: false,
     diabetesFlag: false,
   },
@@ -264,6 +276,8 @@ describe('the doctor status persists', () => {
   it.each([
     { name: 'an inconclusive reading', change: inconclusive, mode: 'full' as const },
     { name: "a couldn't-tell reading", change: uncertain, mode: 'full' as const },
+    // Its rhythm was not judged, so it is not the regular Full Check that ADR 0005 asks for.
+    { name: 'a heart-rate-only Full Check', change: hrOnly, mode: 'full' as const },
     { name: 'a slow resting rate', change: hrFlag('slowResting'), mode: 'quick' as const },
   ])('stays after $name', ({ change, mode }) => {
     expect(snapshotOf([flagged, readingWith(change, NOW - HOUR, mode)]).status).toBe('see-doctor');

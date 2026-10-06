@@ -60,6 +60,11 @@ export function statusOf(outcome: ReadingResult): WidgetStatus {
   return 'regular';
 }
 
+// ADR 0005's confirming reading: a Full Check whose rhythm was judged regular. A heart-rate-only Full Check
+// shows as regular on the widget but judged no rhythm, so it confirms nothing.
+export const isRegularFullCheck = ({ mode, outcome }: StoredReading): boolean =>
+  mode === 'full' && outcome.headlineKey === 'result.regular' && statusOf(outcome) === 'regular';
+
 function localDayKey(time: number): string {
   const day = new Date(time);
   return `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
@@ -94,8 +99,7 @@ function heldSeeDoctor(input: SnapshotInput): StoredReading | null {
   if (flagged === null) return null;
   const answeredSince = input.followUpAnsweredAt !== null && input.followUpAnsweredAt > flagged.takenAt;
   const regularFullSince = input.readings.some(
-    (reading) =>
-      reading.takenAt > flagged.takenAt && reading.mode === 'full' && statusOf(reading.outcome) === 'regular',
+    (reading) => reading.takenAt > flagged.takenAt && isRegularFullCheck(reading),
   );
   return answeredSince || regularFullSince ? null : flagged;
 }

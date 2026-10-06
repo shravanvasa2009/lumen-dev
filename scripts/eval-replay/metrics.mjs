@@ -15,7 +15,7 @@ const roundPair = (pair) => pair?.map(round) ?? null;
 const distinct = (values) => new Set(values).size;
 const subjectOf = (capture) => capture.meta.subject.code;
 const polarUsable = (rr) => rr >= POLAR_MIN_MS && rr <= POLAR_MAX_MS;
-// result.uncertain still shows its numbers to the user, so it counts as conclusive.
+// result.uncertain and result.hrOnly still show their numbers to the user, so they count as conclusive.
 const isConclusive = (capture) =>
   capture.reading.inconclusive !== true && capture.reading.headlineKey !== 'result.inconclusive';
 const hasPolar = (capture) => capture.polarRrMs?.some(polarUsable);

@@ -62,8 +62,8 @@ describe('replay on a clean synthetic capture (CLI end to end)', () => {
     assert.equal(written.metrics.hr.evidence, 'experimental');
     assert.equal(written.metrics.rhythm, null);
     assert.equal(written.metrics.diabetes, null);
-    // No rhythm model in replay: the headline cannot claim a regular rhythm.
-    assert.equal(written.headlineKey, 'result.uncertain');
+    // No rhythm model in replay: the headline states the heart rate and claims no rhythm.
+    assert.equal(written.headlineKey, 'result.hrOnly');
   });
 
   it('writes replay-intervals.csv with the contract columns, one row per interval, in time order', () => {
@@ -135,7 +135,7 @@ describe('replayFolder', () => {
     assert.equal(output.rhythmSource, 'label');
     assert.ok(output.metrics.rmssd.value >= 0);
     assert.equal(output.metrics.rhythm, null);
-    assert.equal(output.headlineKey, 'result.uncertain');
+    assert.equal(output.headlineKey, 'result.hrOnly');
     assert.deepEqual(Object.keys(output).slice(-4), [
       'coreCommit',
       'configHash',

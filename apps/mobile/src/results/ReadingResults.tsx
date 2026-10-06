@@ -42,6 +42,8 @@ function headlineText(t: TFunction, reading: FixtureReading): string {
       return t('result.possibleAf');
     case 'result.uncertain':
       return t('result.uncertain');
+    case 'result.hrOnly':
+      return t('result.hrOnly');
     case 'result.inconclusive':
       return t('result.inconclusive');
   }
@@ -49,7 +51,7 @@ function headlineText(t: TFunction, reading: FixtureReading): string {
 
 function sublineText(t: TFunction, reading: FixtureReading, anyFlag: boolean): string | null {
   const { headlineKey, metrics } = reading.scan;
-  if (headlineKey === 'result.regular') {
+  if (headlineKey === 'result.regular' || headlineKey === 'result.hrOnly') {
     if (anyFlag) return t('results.sublineFollowUp');
     // "Usual range" is only true when there is a personal band to compare against.
     return metrics.rmssd?.band ? t('results.sublineUsual') : t('results.sublineNeutral');
@@ -183,6 +185,8 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           icon="pulse"
           evidenceMetric="rhythm"
           basicAnalysis={rhythm?.scorer === 'rule'}
+          // ADR 0089: a Quick Check never runs the rhythm check, so its missing card is not a signal problem.
+          missingText={reading.mode === 'quick' ? t('checks.state.off') : undefined}
           reading={
             rhythm && {
               ...rhythmWords(t, rhythm),

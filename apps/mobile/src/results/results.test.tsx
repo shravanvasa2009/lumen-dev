@@ -41,13 +41,18 @@ jest.mock('@/evidence', () => {
   };
 });
 
-const mockDemo = { withoutPattern: false, ruleScored: false };
+const mockDemo = { withoutPattern: false, ruleScored: false, hrOnly: false };
 jest.mock('./fixtures', () => {
   const actual = jest.requireActual('./fixtures');
   return {
     ...actual,
     readingById: (id: string) => {
       const reading = actual.readingById(id);
+      // The same reading with no rhythm judged, as buildReadingResult makes it with no rhythm card.
+      if (mockDemo.hrOnly) {
+        const metrics = { ...reading.scan.metrics, rhythm: null, rmssd: null };
+        return { ...reading, scan: { ...reading.scan, headlineKey: 'result.hrOnly', metrics } };
+      }
       if (id !== 'demo') return reading;
       if (mockDemo.ruleScored) {
         const rhythm = { ...reading.scan.metrics.rhythm, scorer: 'rule' };
@@ -77,6 +82,7 @@ describe.each([
     mockDemo.withoutPattern = false;
     mockEvidence.rhythmPublic = false;
     mockDemo.ruleScored = false;
+    mockDemo.hrOnly = false;
   });
 
   it('shows the demo reading with its cards and the accuracy footer', () => {
@@ -347,6 +353,25 @@ describe.each([
     expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
   });
 
+  it('headlines a Quick Check by its heart rate alone and says AFib is not in this scan (ADR 0089)', () => {
+    mockDemo.hrOnly = true;
+    openResults('demo-flag');
+    expect(screen.getByText(en['result.hrOnly'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['result.uncertain'])).toBeNull();
+    expect(screen.getByText(en['checks.state.off'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['result.inconclusive'])).toBeNull();
+    expect(screen.getByText('88 bpm')).toBeOnTheScreen();
+  });
+
+  it('keeps "Not enough clean signal" on the AFib card of a Full Scan with no rhythm card', () => {
+    mockDemo.hrOnly = true;
+    openResults('demo');
+    expect(screen.getByText(en['result.hrOnly'])).toBeOnTheScreen();
+    // The AFib card and the HRV card, which needs a judged sinus rhythm.
+    expect(screen.getAllByText(en['result.inconclusive'])).toHaveLength(2);
+    expect(screen.queryByText(en['checks.state.off'])).toBeNull();
+  });
+
   it('leaves HRV out of a Quick Check', () => {
     openResults('demo-flag');
     expect(screen.queryByText(en['results.hrv'])).toBeNull();
@@ -401,6 +426,7 @@ describe('Care map entry points', () => {
     mockScheme = 'dark';
     mockEvidence.diabetesPassed = false;
     mockDemo.withoutPattern = false;
+    mockDemo.hrOnly = false;
   });
 
   it('offers Find care near you under a flagged reading and keeps the safety sheet', async () => {

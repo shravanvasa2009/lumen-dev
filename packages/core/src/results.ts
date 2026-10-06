@@ -16,7 +16,8 @@ export type HeadlineKey =
   | 'result.irregularRetake'
   | 'result.possibleAf'
   | 'result.inconclusive'
-  | 'result.uncertain';
+  | 'result.uncertain'
+  | 'result.hrOnly';
 // §6.4, listed under result.notChecked.
 export type NotChecked = 'bp' | 'spo2' | 'heartAttack';
 

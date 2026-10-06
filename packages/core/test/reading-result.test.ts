@@ -249,9 +249,31 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
     expect(outcome.metrics.rhythm!.flag).toBeNull();
   });
 
-  it('is uncertain with no rhythm model output: the headline never claims a regular rhythm', () => {
+  // A rhythm nobody judged is neither claimed regular (ADR 0041) nor a reason to retake a good heart rate.
+  it('states only the heart rate when no rhythm model output exists', () => {
     const outcome = build(BASE, NO_MODELS);
     expect(outcome.metrics.rhythm).toBeNull();
+    expect(outcome.headlineKey).toBe('result.hrOnly');
+  });
+
+  it('states only the heart rate on a good Quick Check, which never judges rhythm (ADR 0089)', () => {
+    const quick = analysisWith({ cleanSeconds: 30, durationS: 30 }, { mode: 'quick' });
+    for (const models of [NO_MODELS, SINUS, AF]) {
+      const outcome = build(quick, models);
+      expect(outcome.metrics.hr!.value).toBe(BASE.heartRateBpm);
+      expect(outcome.metrics.rhythm).toBeNull();
+      expect(outcome.headlineKey).toBe('result.hrOnly');
+    }
+  });
+
+  it('states only the heart rate with a pacemaker, whatever the rhythm model says', () => {
+    const outcome = build(BASE, AF, seedEvidence, { ...PROFILE, pacemaker: true });
+    expect(outcome.headlineKey).toBe('result.hrOnly');
+  });
+
+  it('keeps "Couldn’t tell" for a judged rhythm under the top-probability line, sinus on top', () => {
+    const outcome = build(BASE, rhythmOf([0.5, 0.3, 0.2]));
+    expect(outcome.metrics.rhythm).toMatchObject({ class: 'sinus', confidence: 'low' });
     expect(outcome.headlineKey).toBe('result.uncertain');
   });
 
@@ -418,7 +440,7 @@ describe('RMSSD card (DSP-12, §6.2 Full tier)', () => {
     expect(outcome.metrics.rmssd!.value).toBeCloseTo(build(BASE).metrics.rmssd!.value, 12);
     // The label never makes a rhythm card or changes the headline.
     expect(outcome.metrics.rhythm).toBeNull();
-    expect(outcome.headlineKey).toBe('result.uncertain');
+    expect(outcome.headlineKey).toBe('result.hrOnly');
     expect(build(analysisWith({}, { validationRhythmLabel: 'af' }), NO_MODELS).metrics.rmssd).toBeNull();
     expect(
       build(analysisWith({}, { validationRhythmLabel: 'sinus', tier: 'basic' }), NO_MODELS).metrics.rmssd,

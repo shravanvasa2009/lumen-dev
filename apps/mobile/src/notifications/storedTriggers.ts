@@ -2,7 +2,7 @@ import { latestReading, type StoredReading } from '@/home/readings';
 import { followUpAnsweredAt } from '@/profile/followUp';
 import { loadDeviceRating } from '@/store/deviceRating';
 import { listReadings } from '@/store/readings';
-import { statusOf } from '@/widgets/snapshot';
+import { isRegularFullCheck, statusOf } from '@/widgets/snapshot';
 
 import type { NotificationTriggers } from './plan';
 
@@ -15,11 +15,6 @@ const asksConfirmation = ({ outcome }: StoredReading) => {
   const status = statusOf(outcome);
   return (status === 'see-doctor' || status === 'check-again') && outcome.headlineKey !== 'result.uncertain';
 };
-
-// ADR 0005: only a Full Check that came back regular confirms a result; an inconclusive or "Couldn't
-// tell" one is neither regular nor conclusive.
-const isRegularFullCheck = ({ mode, outcome }: StoredReading) =>
-  mode === 'full' && statusOf(outcome) === 'regular';
 
 // ADR 0005 and spec §9.6, from what is stored. The standing test keeps its state in memory only, so
 // standingStartedAt stays null until a stored source for it exists.

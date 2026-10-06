@@ -3,6 +3,7 @@ import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testi
 import { Modal, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
+import { pressNo } from '@/testing/pressNo';
 import diabetes from '@/i18n/diabetes.json';
 import es from '@/i18n/es.json';
 import { focusedNavHeader } from '@/testing/navHeader';
@@ -262,7 +263,7 @@ describe.each([
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
     act(() => screen.UNSAFE_getByType(Modal).props.onRequestClose());
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    pressNo();
     expect(screen.queryByText(en['safety.question'])).toBeNull();
   });
 
@@ -326,8 +327,18 @@ describe.each([
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
     expect(screen.getByText(en['result.irregularRetake'])).toBeOnTheScreen();
     expect(screen.getByText('Please take 2 more readings today.')).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    pressNo();
     expect(screen.queryByText(en['safety.title'])).toBeNull();
+  });
+
+  it('stays on Results after No, and a second tap on No changes nothing (SAFE-1)', () => {
+    const route = renderRouter('./app', { initialUrl: '/results/demo-flag' });
+    const no = screen.getByRole('button', { name: en['safety.no'] });
+    fireEvent.press(no);
+    fireEvent.press(no);
+    act(() => jest.advanceTimersByTime(500));
+    expect(screen.queryByText(en['safety.title'])).toBeNull();
+    expect(route.getPathname()).toBe('/results/demo-flag');
   });
 
   it('lays the safety question out large, in amber, and Yes still opens emergency at once (SAFE-1)', () => {

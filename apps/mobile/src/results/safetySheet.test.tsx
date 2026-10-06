@@ -7,6 +7,11 @@ import es from '@/i18n/es.json';
 
 import { SafetySheet } from './SafetySheet';
 
+const pressedNoSettles = () =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  });
+
 import '@/i18n';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -21,7 +26,7 @@ afterEach(() => {
 });
 
 describe('SafetySheet on a 360x640 phone at the largest font', () => {
-  it('scrolls the title and question, and keeps Yes and No outside the scroll', () => {
+  it('scrolls the title and question, and keeps Yes and No outside the scroll', async () => {
     act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 2 } }));
     const onNo = jest.fn();
     const onYes = jest.fn();
@@ -30,10 +35,12 @@ describe('SafetySheet on a 360x640 phone at the largest font', () => {
     expect(scrolling.getByText(en['safety.question'])).toBeOnTheScreen();
     expect(scrolling.getByRole('header', { name: en['safety.title'] })).toBeOnTheScreen();
     expect(scrolling.queryByRole('button')).toBeNull();
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
-    expect(onNo).toHaveBeenCalledTimes(1);
     fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
     expect(onYes).toHaveBeenCalledTimes(1);
+    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    expect(onNo).not.toHaveBeenCalled();
+    await pressedNoSettles();
+    expect(onNo).toHaveBeenCalledTimes(1);
   });
 
   it('caps the panel below the screen height so the scroll area can shrink', () => {
@@ -53,5 +60,15 @@ describe('SafetySheet on a 360x640 phone at the largest font', () => {
     } finally {
       await act(() => i18next.changeLanguage('en'));
     }
+  });
+
+  it('ignores a second tap on No while it closes, and closes once', async () => {
+    const onNo = jest.fn();
+    render(<SafetySheet visible onNo={onNo} />);
+    const no = screen.getByRole('button', { name: en['safety.no'] });
+    fireEvent.press(no);
+    fireEvent.press(no);
+    await pressedNoSettles();
+    expect(onNo).toHaveBeenCalledTimes(1);
   });
 });

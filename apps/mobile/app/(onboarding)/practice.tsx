@@ -1,3 +1,4 @@
+import { useIsFocused } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
@@ -18,7 +19,9 @@ import { useTheme } from '@/theme';
 export default function PracticeScreen() {
   const { t } = useTranslation();
   const { colors, spacing, radius } = useTheme();
-  const live = useLiveCapture();
+  // The stack keeps this screen mounted under How to sit, and the rating reads the capture's last seconds, so
+  // the camera stops when the screen is left.
+  const live = useLiveCapture(undefined, { enabled: useIsFocused() });
   const fingerOn = live.status?.fingerCovered === true;
   // Counted by the LiveSession once it feeds the hook; until then there are none to show.
   const steadySeconds = practiceSteadySeconds(live.cleanSeconds);

@@ -495,6 +495,20 @@ describe('useLiveCapture', () => {
     expect(fake.listenerCount('status')).toBe(0);
   });
 
+  it('stops the camera when disabled and starts a fresh capture when enabled again', async () => {
+    const fake = new FakeCapture();
+    const { result: live, rerender } = renderHook(({ enabled }: { enabled: boolean }) => useLiveCapture(fake, { enabled }), {
+      initialProps: { enabled: true },
+    });
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    rerender({ enabled: false });
+    expect(fake.stops).toBe(1);
+    expect(fake.listenerCount('samples')).toBe(0);
+    rerender({ enabled: true });
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    expect(fake.started).toHaveLength(2);
+  });
+
   it('stops a camera that finished starting after the screen closed', async () => {
     const fake = new FakeCapture();
     let release = () => {};

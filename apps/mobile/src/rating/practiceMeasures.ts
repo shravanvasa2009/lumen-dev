@@ -1,4 +1,11 @@
-import { analyzeReading, estimateLiveHeartRate, type ReadingContext, type RatingMeasures } from '@lumen/core';
+import {
+  analyzeReading,
+  DSP_CONFIG,
+  estimateLiveHeartRate,
+  type ReadingContext,
+  type RatingMeasures,
+  type Sample,
+} from '@lumen/core';
 
 import type { KeptCapture } from '@/measure/keptCapture';
 import type { PracticeSummary } from '@/store/deviceRating';
@@ -28,6 +35,30 @@ function intervalsNs(capture: KeptCapture): number[] {
 // perfusion index (DSP-10) and spectral SNR (the live estimator's) come from the same frames. A pulse the
 // estimator cannot find leaves coupling null, so the rating stays open instead of scoring a guess. DSP-10
 // gives a perfusion index only from 30 clean seconds (section 6.2), so a shorter practice leaves it open too.
+// The live estimator reads only the last windowS seconds, and the practice camera can keep running after the
+// finger lifts (the user taps Continue and reads the next screen), so the tail alone can be flat. Each second of
+// the capture is read as the end of a window and the median of the windows with a pulse is the coupling.
+function pulseSnrDb(samples: readonly Sample[]): number | null {
+  const last = samples[samples.length - 1];
+  const first = samples[0];
+  if (!last || !first) return null;
+  const windowNs = DSP_CONFIG.liveHr.windowS * NS_PER_S;
+  const snrs: number[] = [];
+  let from = 0;
+  for (let endNs = first.tNs + windowNs; endNs < last.tNs + NS_PER_S; endNs += NS_PER_S) {
+    const cappedEndNs = Math.min(endNs, last.tNs);
+    while (samples[from]!.tNs < cappedEndNs - windowNs) from += 1;
+    let to = from;
+    while (to < samples.length && samples[to]!.tNs <= cappedEndNs) to += 1;
+    const found = estimateLiveHeartRate(samples.slice(from, to));
+    if (found) snrs.push(found.snrDb);
+  }
+  if (snrs.length === 0) return null;
+  const sorted = snrs.sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
 export function practiceMeasures(capture: KeptCapture): {
   measures: RatingMeasures;
   summary: PracticeSummary;
@@ -46,7 +77,7 @@ export function practiceMeasures(capture: KeptCapture): {
       ? analyzeReading({ samples: [...capture.samples], stats: [...capture.stats] }, practiceContext(capture))
           .perfusionIndexPct
       : null;
-  const snrDb = estimateLiveHeartRate([...capture.samples])?.snrDb ?? null;
+  const snrDb = pulseSnrDb(capture.samples);
   const coupling = perfusionIndexPct !== null && snrDb !== null ? { perfusionIndexPct, snrDb } : null;
   return {
     measures: { lensId: capture.lensId, achievedFps, frameIntervalSdMs, coupling },

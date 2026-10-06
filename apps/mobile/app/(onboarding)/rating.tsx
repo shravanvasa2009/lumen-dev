@@ -182,9 +182,12 @@ export default function RatingScreen() {
             caption={reveal.kind === 'measuring' ? t('rating.measuring') : t('phoneRating.notTested')}
           />
           {reveal.kind === 'unrated' ? (
-            <AppText tone="textDim" style={{ textAlign: 'center' }}>
-              {t('rating.pending')}
-            </AppText>
+            <>
+              <AppText tone="textDim" style={{ textAlign: 'center' }}>
+                {t('rating.pending')}
+              </AppText>
+              <NavButton label={t('rating.practiceAgain')} href="/practice" variant="secondary" />
+            </>
           ) : null}
         </>
       ) : (

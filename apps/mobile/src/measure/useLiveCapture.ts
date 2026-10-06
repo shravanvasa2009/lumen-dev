@@ -113,10 +113,11 @@ function captureConfig(capabilities: Capabilities, lens: LensInfo | undefined, f
 
 // Runs the rear camera and torch for as long as the screen is mounted, feeds every batch and status to a
 // LiveSession, and keeps the frames for the Processing screen. `demo` marks them as Demo mode's synthetic
-// recording.
+// recording. With `enabled` false the camera is off; a stack screen stays mounted under the next one, so the
+// practice step turns it off when it loses focus.
 export function useLiveCapture(
   capture: LumenCaptureModule | null = LumenCapture,
-  { demo = false }: { demo?: boolean } = {},
+  { demo = false, enabled = true }: { demo?: boolean; enabled?: boolean } = {},
 ): LiveCapture {
   const [live, setLive] = useState<LiveState>(idle(capture ? 'starting' : 'unavailable'));
   // Raised when the user comes back from Settings with the camera allowed, to start the capture again.
@@ -145,7 +146,9 @@ export function useLiveCapture(
   }, [capture, live.phase]);
 
   useEffect(() => {
-    if (!capture) return;
+    if (!capture || !enabled) return;
+    // Coming back to the screen starts a new capture; the old numbers must not show while it warms up.
+    setLive((previous) => (previous.phase === 'starting' ? previous : idle('starting')));
     let mounted = true;
     let started = false;
     let subscriptions: { remove(): void }[] = [];
@@ -370,7 +373,7 @@ export function useLiveCapture(
       mounted = false;
       stopCamera();
     };
-  }, [capture, demo, permissionGrants]);
+  }, [capture, demo, enabled, permissionGrants]);
 
   return { ...live, nativeCamera: capture !== null && capture === LumenCapture };
 }

@@ -1,5 +1,5 @@
 import { useIsFocused, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
@@ -8,7 +8,6 @@ import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Card } from '@/components/Card';
-import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
 import { CameraDeniedNotice } from '@/measure/CameraDeniedNotice';
 import { coachingText } from '@/measure/coachingText';
@@ -45,7 +44,9 @@ function PracticeRun({ onPracticeAgain }: { onPracticeAgain: () => void }) {
   // the camera stops when the screen is left.
   // Once the count reaches 30 the camera stops too, so the capture the rating reads ends on the good seconds.
   const [finished, setFinished] = useState(false);
-  const live = useLiveCapture(undefined, { enabled: useIsFocused() && !finished });
+  const focused = useIsFocused();
+  const cameraOn = focused && !finished;
+  const live = useLiveCapture(undefined, { enabled: cameraOn });
   const fingerOn = live.status?.fingerCovered === true;
   // Counted by the LiveSession once it feeds the hook; until then there are none to show.
   const steadySeconds = practiceSteadySeconds(live.cleanSeconds);
@@ -58,11 +59,22 @@ function PracticeRun({ onPracticeAgain }: { onPracticeAgain: () => void }) {
     if (rating === 'rated') AccessibilityInfo.announceForAccessibility(t('practice.done'));
     if (rating === 'unrated') AccessibilityInfo.announceForAccessibility(t('rating.pending'));
   }, [rating, t]);
+  // The stack keeps this screen mounted under How to sit, so the automatic step happens once per run and only
+  // while this screen is showing; Continue counts as that step too, and still works again after Back.
+  const advanced = useRef(false);
+  const goToHowToSit = () => {
+    advanced.current = true;
+    router.push('/how-to-sit');
+  };
   useEffect(() => {
-    if (rating !== 'rated') return;
-    const timer = setTimeout(() => router.push('/how-to-sit'), AUTO_ADVANCE_MS);
+    if (rating !== 'rated' || !focused) return;
+    const timer = setTimeout(() => {
+      if (advanced.current) return;
+      advanced.current = true;
+      router.push('/how-to-sit');
+    }, AUTO_ADVANCE_MS);
     return () => clearTimeout(timer);
-  }, [rating, router]);
+  }, [rating, focused, router]);
   const shownSeconds = finished ? STEADY_SECONDS_NEEDED : steadySeconds;
   const caption =
     live.phase === 'unavailable'
@@ -71,7 +83,9 @@ function PracticeRun({ onPracticeAgain }: { onPracticeAgain: () => void }) {
         (live.cleanSeconds === null ? t('capture.waiting') : t('capture.timerNote')));
   // With no finger the module's own contact flag is the coaching: Cover the lens and the flash.
   const verdict = captureVerdict(live);
-  const coachingKey = verdict.coaching ?? (fingerOn ? null : 'coach.cover');
+  const cameraShown = cameraOn && live.nativeCamera && live.phase === 'running';
+  // With the camera off (done, or screen left) there is no live finger to coach.
+  const coachingKey = cameraOn ? (verdict.coaching ?? (fingerOn ? null : 'coach.cover')) : null;
   return (
     <OnboardingStep
       step={5}
@@ -90,17 +104,13 @@ function PracticeRun({ onPracticeAgain }: { onPracticeAgain: () => void }) {
           </View>
           {/* Continue stays enabled: spec 08 §8.6 counts tutorial completion as the share of installs that pass this
               step, so some finish without passing, and a phone with no torch lens or camera permission cannot pass. */}
-          <NavButton label={t('common.continue')} href="/how-to-sit" />
+          <Button label={t('common.continue')} onPress={goToHowToSit} />
         </>
       }
     >
       <CameraDeniedNotice live={live} />
       <View style={{ alignItems: 'center', gap: spacing.md }}>
-        <FingerPreview
-          detected={fingerOn}
-          cameraRunning={live.nativeCamera && live.phase === 'running'}
-          coaching={coachingKey !== null}
-        />
+        <FingerPreview detected={fingerOn} cameraRunning={cameraShown} coaching={coachingKey !== null} />
         {coachingKey ? (
           <Animated.View
             entering={fade(FadeIn)}
@@ -141,7 +151,7 @@ function PracticeRun({ onPracticeAgain }: { onPracticeAgain: () => void }) {
           <Button label={t('rating.practiceAgain')} variant="secondary" onPress={onPracticeAgain} />
         </Animated.View>
       ) : null}
-      {live.phase === 'denied' || rating === 'rated' || rating === 'unrated' ? null : (
+      {live.phase === 'denied' || finished ? null : (
         <Animated.View layout={settle}>
           <AppText variant="caption" tone="textDim">
             {caption}

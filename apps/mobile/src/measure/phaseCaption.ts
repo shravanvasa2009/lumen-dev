@@ -14,6 +14,7 @@ export function phaseCaption(t: TFunction, live: LiveCapture): string | undefine
     case 'failed':
       return t('capture.failed', { reason: live.failure });
     case 'running':
+    case 'stopped':
       return undefined;
   }
 }

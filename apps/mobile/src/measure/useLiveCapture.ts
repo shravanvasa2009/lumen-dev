@@ -40,8 +40,8 @@ const EXPOSURE_SETTLE_MS = 1000;
 const KEEP_AWAKE_TAG = 'lumen-capture';
 
 type LivePhase =
-  // The capture module is not linked (Jest, Expo Go).
-  'unavailable' | 'starting' | 'running' | 'denied' | 'failed';
+  // 'unavailable': the capture module is not linked (Jest, Expo Go). 'stopped': `enabled` went false.
+  'unavailable' | 'starting' | 'running' | 'denied' | 'failed' | 'stopped';
 
 export interface LiveCapture {
   phase: LivePhase;
@@ -146,7 +146,16 @@ export function useLiveCapture(
   }, [capture, live.phase]);
 
   useEffect(() => {
-    if (!capture || !enabled) return;
+    if (!capture) return;
+    if (!enabled) {
+      // The camera and torch are off, so nothing live may still be claimed; the counted clean seconds stay.
+      setLive((previous) =>
+        previous.phase === 'running' || previous.phase === 'starting'
+          ? { ...idle('stopped'), cleanSeconds: previous.cleanSeconds }
+          : previous,
+      );
+      return;
+    }
     // Coming back to the screen starts a new capture; the old numbers must not show while it warms up.
     setLive((previous) => (previous.phase === 'starting' ? previous : idle('starting')));
     let mounted = true;
@@ -277,7 +286,9 @@ export function useLiveCapture(
       });
       levelFrames = [...levelFrames, ...batch.samples].filter(
         (sample) =>
-          newest.tNs - sample.tNs <= LEVEL_WINDOW_NS && coveredSinceNs !== null && sample.tNs >= coveredSinceNs,
+          newest.tNs - sample.tNs <= LEVEL_WINDOW_NS &&
+          coveredSinceNs !== null &&
+          sample.tNs >= coveredSinceNs,
       );
       const hadSession = session !== null;
       const refusal = feedSession(batch);
@@ -286,7 +297,8 @@ export function useLiveCapture(
         // Core's perfusionPct counts covered frames only, but the band filter still rings for about one window
         // after a finger goes on, and that ringing reads as a strong pulse; so the level waits for a second window.
         const settled =
-          coveredSinceNs !== null && newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
+          coveredSinceNs !== null &&
+          newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
         level = settled ? signalLevel(session.perfusionPct, levelFrames) : null;
       }
       if (session && session.cleanSeconds > lastCleanS) lastRiseNs = newest.tNs;

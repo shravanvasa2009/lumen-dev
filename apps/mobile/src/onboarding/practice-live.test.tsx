@@ -1,5 +1,6 @@
 import * as Linking from 'expo-linking';
 import { StyleSheet } from 'react-native';
+import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
@@ -23,6 +24,10 @@ jest.mock('@/onboarding/usePhoneProbe', () => {
   const probe = { kind: 'ready', capabilities: { platform: 'android' } };
   return { usePhoneProbe: () => probe };
 });
+
+jest.mock('../../modules/lumen-capture/src/LumenPreviewView', () => ({
+  LumenPreviewView: jest.requireActual('react-native').View,
+}));
 
 let mockLive: LiveCapture;
 jest.mock('@/measure/useLiveCapture', () => ({ useLiveCapture: () => mockLive }));
@@ -148,6 +153,48 @@ describe('practice reaching 30 of 30', () => {
     await pass(1);
     expect(route.getPathname()).toBe('/how-to-sit');
     expect(mockRatePhone).toHaveBeenCalledTimes(1);
+  });
+
+  it('pushes How to sit once when Continue is tapped during the 1.5 s', async () => {
+    mockRatePhone.mockResolvedValue({ score: 94 });
+    mockLive = finished;
+    const route = renderRouter('./app', { initialUrl: '/practice' });
+    await settle();
+    expect(screen.getByText(en['practice.done'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['common.continue'] }));
+    await pass(5000);
+    expect(route.getPathname()).toBe('/how-to-sit');
+    act(() => router.back());
+    expect(route.getPathname()).toBe('/practice');
+  });
+
+  it('does not push again after Back from the automatic step, and Continue still works', async () => {
+    mockRatePhone.mockResolvedValue({ score: 94 });
+    mockLive = finished;
+    const route = renderRouter('./app', { initialUrl: '/practice' });
+    await settle();
+    await pass(1500);
+    expect(route.getPathname()).toBe('/how-to-sit');
+    act(() => router.back());
+    await pass(5000);
+    expect(route.getPathname()).toBe('/practice');
+    fireEvent.press(screen.getByRole('button', { name: en['common.continue'] }));
+    expect(route.getPathname()).toBe('/how-to-sit');
+  });
+
+  it('drops the live chip and caption once the camera has stopped', async () => {
+    mockRatePhone.mockReturnValue(new Promise(() => {}));
+    mockLive = { ...running, nativeCamera: true, cleanSeconds: 5, advancing: true };
+    renderRouter('./app', { initialUrl: '/practice' });
+    expect(screen.getByText(en['capture.liveBadge'])).toBeOnTheScreen();
+    expect(screen.getByText(en['capture.liveView'])).toBeOnTheScreen();
+    screen.unmount();
+    mockLive = { ...finished, nativeCamera: true };
+    renderRouter('./app', { initialUrl: '/practice' });
+    await settle();
+    expect(screen.queryByText(en['capture.liveBadge'])).toBeNull();
+    expect(screen.queryByText(en['capture.liveView'])).toBeNull();
+    expect(screen.queryByText(en['coach.cover'])).toBeNull();
   });
 
   it('stays with the unrated explanation, and does not move on, when no rating is settled', async () => {

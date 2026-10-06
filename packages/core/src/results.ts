@@ -29,6 +29,7 @@ export type QualityReason =
   | { kind: 'lowFps'; fps: number; wantFps: number }
   | { kind: 'noSqi' }
   | { kind: 'modelFallback' }
+  // The diabetes pattern's Full Scan floor (§11.4). Before owner answer 4 (2026-10-06) it tagged every Quick value.
   | { kind: 'quickMode' }
   | { kind: 'contact'; coveredPct: number }
   | { kind: 'fewBeats'; beats: number; wantBeats: number }
@@ -72,10 +73,10 @@ export interface HrMetric extends MetricQualityFields {
 }
 // §11.10: the rhythm model, or the logistic rule ("basic analysis") when the model could not run.
 export type RhythmScorer = 'model' | 'rule';
-// §11, DSP-15.
+// §11, DSP-15. class and pAF are null when a reading-wide window was too short to judge (ADR 0104 answer 5).
 export interface RhythmMetric extends MetricQualityFields {
-  class: RhythmClass;
-  pAF: number;
+  class: RhythmClass | null;
+  pAF: number | null;
   evidence: EvidenceLabel;
   scorer?: RhythmScorer; // absent in readings saved before the rule fallback: those were model-scored
   confidence: Confidence;
@@ -119,9 +120,14 @@ export interface LostSeconds {
   coldHands: number;
 }
 
+// A lower-quality heart rate under 40 or over 150 bpm: retake now, sitting still (owner 2026-10-06, ADR 0104
+// answer 2). Not the Emergency screen: SAFE-1 reads only the standard analysis.
+export type RetakePrompt = 'shortSlow' | 'shortFast';
+
 export interface ReadingResult {
   headlineKey: HeadlineKey;
   quality: ReadingQuality;
+  retakePrompt: RetakePrompt | null;
   cleanSeconds: number;
   beats: number;
   rejectedBeats: number;

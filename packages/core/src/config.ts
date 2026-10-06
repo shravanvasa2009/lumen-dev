@@ -304,6 +304,9 @@ export const DSP_CONFIG = {
     hrMinIntervals: 2, // DSP-11: the median of two accepted intervals
     rmssdMinIntervals: 3, // DSP-12: two successive differences
     rhythmMinIntervals: 3, // DSP-15: the turning-point ratio divides by n − 2
+    // DSP-15: a reading-wide window this short gives no rhythm class (owner 2026-10-06, ADR 0104 answer 5): the
+    // red team's 3–9-interval AF windows were called regular.
+    rhythmClassMinIntervals: 20,
     shapeMinBeats: 1, // DSP-14: one normal onset-to-onset beat
   },
   // DSP-6 display only: the live graph's one-bump-per-beat pulse (displayPulse), never read by analysis.

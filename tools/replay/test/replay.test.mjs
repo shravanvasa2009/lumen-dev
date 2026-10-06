@@ -37,6 +37,7 @@ describe('replay on a clean synthetic capture (CLI end to end)', () => {
     assert.deepEqual(Object.keys(written), [
       'headlineKey',
       'quality',
+      'retakePrompt',
       'cleanSeconds',
       'beats',
       'rejectedBeats',

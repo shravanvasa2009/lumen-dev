@@ -1,8 +1,9 @@
 import { act } from '@testing-library/react-native';
 import i18next from 'i18next';
+import { router } from 'expo-router';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
-import type { QualityReason, ReadingQuality } from '@lumen/core';
+import type { QualityReason, ReadingQuality, ReadingResult } from '@lumen/core';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
@@ -26,8 +27,14 @@ const allReasons: QualityReason[] = [
   { kind: 'rhythmUnjudged' },
 ];
 
-type Injected = { quality?: ReadingQuality; lowMetrics: string[]; noRhythm: boolean };
-const mockInjected: Injected = { lowMetrics: [], noRhythm: false };
+type Injected = {
+  quality?: ReadingQuality;
+  lowMetrics: string[];
+  noRhythm: boolean;
+  rhythmTooShort: boolean;
+  retakePrompt?: ReadingResult['retakePrompt'];
+};
+const mockInjected: Injected = { lowMetrics: [], noRhythm: false, rhythmTooShort: false };
 
 jest.mock('./fixtures', () => {
   const actual = jest.requireActual('./fixtures');
@@ -44,7 +51,26 @@ jest.mock('./fixtures', () => {
         ]),
       );
       if (mockInjected.noRhythm) Object.assign(metrics, { rhythm: null, rmssd: null });
-      return { ...reading, scan: { ...reading.scan, metrics, quality: mockInjected.quality } };
+      // As buildReadingResult makes it under 20 intervals (ADR 0104 answer 5).
+      if (mockInjected.rhythmTooShort)
+        Object.assign(metrics, {
+          rhythm: {
+            ...(reading.scan.metrics.rhythm as object),
+            class: null,
+            pAF: null,
+            flag: null,
+            confidence: 'low',
+            quality: 'low',
+            qualityReasons: ['fewBeats'],
+            qualityDetails: [{ kind: 'fewBeats', beats: 12, wantBeats: 40 }],
+          },
+          rmssd: null,
+        });
+      const scan = { ...reading.scan, metrics, quality: mockInjected.quality };
+      if (mockInjected.retakePrompt !== undefined)
+        Object.assign(scan, { retakePrompt: mockInjected.retakePrompt });
+      if (mockInjected.rhythmTooShort) Object.assign(scan, { headlineKey: 'result.hrOnly' });
+      return { ...reading, scan };
     },
   };
 });
@@ -57,6 +83,8 @@ beforeEach(() => {
   mockInjected.quality = undefined;
   mockInjected.lowMetrics = [];
   mockInjected.noRhythm = false;
+  mockInjected.rhythmTooShort = false;
+  mockInjected.retakePrompt = undefined;
 });
 
 describe('lower-quality tag', () => {
@@ -158,6 +186,59 @@ describe('lower-quality tag', () => {
     mockInjected.noRhythm = true;
     openResults('demo');
     expect(screen.getAllByText(en['quality.missingShort']).length).toBeGreaterThan(0);
+    expect(screen.getByText(en['quality.missingNoRhythm'])).toBeOnTheScreen();
+  });
+});
+
+// Owner 2026-10-06 (ADR 0104 answer 2): a short reading's extreme rate asks for a retake now, not the Emergency screen.
+describe('retake prompt for a short, extreme rate', () => {
+  it.each([
+    ['shortSlow', 'results.retakeShortSlow'],
+    ['shortFast', 'results.retakeShortFast'],
+  ] as const)('%s: says so prominently and offers a retake', (prompt, key) => {
+    mockInjected.quality = { level: 'low', reasons: [{ kind: 'shortClean', haveS: 12, wantS: 15 }] };
+    mockInjected.lowMetrics = ['hr'];
+    mockInjected.retakePrompt = prompt;
+    openResults('demo');
+    expect(screen.getByText(en[key])).toBeOnTheScreen();
+    const replace = jest.spyOn(router, 'replace');
+    fireEvent.press(screen.getByRole('button', { name: en['results.retakeNow'] }));
+    expect(replace).toHaveBeenCalledWith('/measure/capture?mode=full');
+    expect(replace).not.toHaveBeenCalledWith(expect.stringContaining('emergency'));
+    replace.mockRestore();
+  });
+
+  it('shows nothing for no prompt, or for a reading saved before the field', () => {
+    mockInjected.retakePrompt = null;
+    openResults('demo');
+    expect(screen.queryByText(en['results.retakeShortSlow'])).toBeNull();
+    expect(screen.queryByRole('button', { name: en['results.retakeNow'] })).toBeNull();
+  });
+
+  it('has Spanish drafts', async () => {
+    await act(() => i18next.changeLanguage('es'));
+    try {
+      mockInjected.retakePrompt = 'shortFast';
+      openResults('demo');
+      expect(screen.getByText(es['results.retakeShortFast'])).toBeOnTheScreen();
+    } finally {
+      await act(() => i18next.changeLanguage('en'));
+    }
+  });
+});
+
+// Owner 2026-10-06 (ADR 0104 answer 5): under 20 intervals the rhythm card gives no class.
+describe('rhythm too short to judge', () => {
+  it('says so with the tag, and never "regular" or "irregular"', () => {
+    mockInjected.quality = { level: 'low', reasons: [{ kind: 'fewBeats', beats: 12, wantBeats: 40 }] };
+    mockInjected.rhythmTooShort = true;
+    openResults('demo');
+    expect(screen.getByText(en['results.rhythmTooShort'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['results.rhythmRegular'])).toBeNull();
+    expect(screen.queryByText(en['results.rhythmIrregular'])).toBeNull();
+    expect(screen.queryByText(en['quality.confirmAf'])).toBeNull();
+    // The header chip and the rhythm card's.
+    expect(screen.getAllByRole('button', { name: en['quality.chip'] })).toHaveLength(2);
     expect(screen.getByText(en['quality.missingNoRhythm'])).toBeOnTheScreen();
   });
 });

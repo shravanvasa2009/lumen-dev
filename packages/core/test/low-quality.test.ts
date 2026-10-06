@@ -4,11 +4,14 @@ import {
   breathingRate,
   buildReadingResult,
   DSP_CONFIG,
+  emergencyHeartRate,
   ensembleBeat,
+  judgesRhythm,
   lowQualityEnsembleBeat,
   lowQualityHeartRate,
   lowQualityRmssd,
   readingOutcome,
+  readingRhythm,
   readingWideWindow,
   rhythmModelRows,
   rhythmWindows,
@@ -97,6 +100,17 @@ describe('readingWideWindow (DSP-15 below its floors, ADR 0104)', () => {
     const spans = [false, false, false, true, false, false, false];
     expect(readingWideWindow(intervals(7), spans, new Array(8).fill(false))!.startInterval).toBe(0);
     expect(readingWideWindow(intervals(2), [false, false], [false, false, false])).toBeNull();
+  });
+
+  // Owner 2026-10-06 (ADR 0104 answer 5): a few seconds of AF can read regular, so a class needs 20 intervals.
+  it('gives a class only from 20 intervals', () => {
+    const window = (count: number) =>
+      readingWideWindow(intervals(count), new Array(count).fill(false), new Array(count + 1).fill(false))!;
+    expect(DSP_CONFIG.lowQuality.rhythmClassMinIntervals).toBe(20);
+    expect(judgesRhythm(window(3))).toBe(false);
+    expect(judgesRhythm(window(19))).toBe(false);
+    expect(judgesRhythm(window(20))).toBe(true);
+    expect(judgesRhythm(window(31))).toBe(true);
   });
 
   it('is null whenever a standard window fits', () => {
@@ -195,19 +209,39 @@ describe('analyzeReading and the results on the beats there are (ADR 0104)', () 
       [],
     );
     expect(reading.metrics.hr).toMatchObject({ quality: 'low', qualityReasons: ['shortClean'], flag: null });
-    expect(reading.metrics.rhythm).toMatchObject({ class: 'sinus', quality: 'low' });
-    expect(reading.metrics.rhythm!.qualityReasons).toEqual([
-      'quickMode',
-      'shortClean',
-      'fewBeats',
-      'fewWindows',
-    ]);
+    expect(reading.metrics.rhythm!.qualityReasons).toEqual(['shortClean', 'fewBeats', 'fewWindows']);
     expect(reading.quality.level).toBe('low');
     expect(reading.quality.reasons).toContainEqual({
       kind: 'shortClean',
       haveS: analysis.cleanSeconds,
       wantS: 60,
     });
+  });
+
+  // Owner 2026-10-06 (ADR 0104 answer 5): under 20 intervals the card reads "too short to judge", with no class
+  // and no flag, whatever the model says. Nothing else reads the call: RMSSD is unjudged and the headline is the rate.
+  it.each([
+    ['sinus', [0.9, 0.05, 0.05]],
+    ['AF', [0.05, 0.9, 0.05]],
+  ] as const)('a 10 s capture scored %s is too short to judge the rhythm', (_, probs) => {
+    const analysis = analyzeReading(fingertip(10), CONTEXT);
+    expect(analysis.lowQuality.rhythmWindow!.intervalsS.length).toBeLessThan(20);
+    const rhythm = { windowProbs: [[...probs]] as [number, number, number][], tauAf: 0.25 };
+    const reading = buildReadingResult(analysis, { rhythm, diabetes: null }, seedEvidence, PROFILE, []);
+    expect(reading.metrics.rhythm).toMatchObject({ class: null, pAF: null, flag: null, quality: 'low' });
+    expect(reading.headlineKey).toBe('result.hrOnly');
+    expect(readingRhythm(analysis, rhythm, PROFILE)).toBeNull();
+    if (reading.metrics.rmssd) expect(reading.metrics.rmssd.qualityReasons).toContain('rhythmUnjudged');
+  });
+
+  it('a 20 s capture at 72 bpm has enough intervals for a lower-quality class', () => {
+    const analysis = analyzeReading(fingertip(20), CONTEXT);
+    expect(analysis.rhythmFeatures).toEqual([]);
+    expect(judgesRhythm(analysis.lowQuality.rhythmWindow!)).toBe(true);
+    const rhythm = { windowProbs: [[0.9, 0.05, 0.05]] as [number, number, number][], tauAf: 0.5 };
+    const reading = buildReadingResult(analysis, { rhythm, diabetes: null }, seedEvidence, PROFILE, []);
+    expect(reading.metrics.rhythm).toMatchObject({ class: 'sinus', quality: 'low' });
+    expect(reading.headlineKey).toBe('result.regular');
   });
 
   it('two beats: no heart rate even at the lower floor, so the capture is inconclusive', () => {
@@ -244,5 +278,58 @@ describe('analyzeReading and the results on the beats there are (ADR 0104)', () 
     const reading = buildReadingResult(analysis, { rhythm: null, diabetes: null }, seedEvidence, PROFILE, []);
     expect(reading.metrics.hr!.quality).toBe('low');
     expect(Number.isFinite(reading.metrics.hr!.value)).toBe(true);
+  });
+});
+
+// Owner 2026-10-06 (ADR 0104 answer 2): a lower-quality rate under 40 or over 150 bpm asks for a retake now. It is
+// not the Emergency screen: SAFE-1 still reads only the standard analysis.
+describe('retake prompt for an extreme lower-quality rate (SAFE-1 unchanged)', () => {
+  const resultOf = (seconds: number, bpm: number, mode: ReadingContext['mode'] = 'quick') => {
+    const analysis = analyzeReading(fingertip(seconds, bpm), { ...CONTEXT, mode });
+    const reading = buildReadingResult(analysis, { rhythm: null, diabetes: null }, seedEvidence, PROFILE, []);
+    return { analysis, reading };
+  };
+
+  it.each([
+    [35, 'shortSlow'],
+    [190, 'shortFast'],
+  ] as const)('12 s at %i bpm: the rate tagged, the %s prompt, no urgent screen', (bpm, prompt) => {
+    const { analysis, reading } = resultOf(12, bpm);
+    expect(analysis.heartRateBpm).toBeNull();
+    // This narrow synthetic pulse reads 190 bpm as about 183 at 30 fps; the red team's beatTrain checks accuracy.
+    expect(reading.metrics.hr!.value < 40 || reading.metrics.hr!.value > 150).toBe(true);
+    expect(reading.metrics.hr).toMatchObject({ quality: 'low', flag: null });
+    expect(reading.retakePrompt).toBe(prompt);
+    expect(emergencyHeartRate(analysis)).toBeNull();
+    expect(readingOutcome(analysis)).toEqual({ kind: 'reading', urgent: null });
+  });
+
+  it('no prompt for a lower-quality rate from 40 to 150 bpm', () => {
+    for (const bpm of [45, 72, 140]) expect(resultOf(12, bpm).reading.retakePrompt).toBeNull();
+  });
+
+  it('a standard 35 bpm keeps SAFE-1’s slow rule and gets no retake prompt', () => {
+    const { analysis, reading } = resultOf(40, 35, 'full');
+    expect(analysis.heartRateBpm).not.toBeNull();
+    expect(reading.metrics.hr!.quality).toBe('standard');
+    expect(reading.retakePrompt).toBeNull();
+    expect(emergencyHeartRate(analysis)).toEqual({ fastSustained: false, slowBelow40: true });
+    expect(readingOutcome(analysis).urgent).toEqual({ fastSustained: false, slowBelow40: true });
+  });
+});
+
+describe('Quick Check tags only what misses a floor (owner 2026-10-06, ADR 0104 answer 4)', () => {
+  it('a 30 s Quick at good quality: a standard heart rate, a rhythm tagged for its 60 clean seconds', () => {
+    const analysis = analyzeReading(fingertip(30), CONTEXT);
+    expect(analysis.heartRateBpm).not.toBeNull();
+    const rhythm = {
+      windowProbs: rhythmModelRows(analysis).map((): [number, number, number] => [0.9, 0.05, 0.05]),
+      tauAf: 0.5,
+    };
+    const reading = buildReadingResult(analysis, { rhythm, diabetes: null }, seedEvidence, PROFILE, []);
+    expect(reading.metrics.hr).toMatchObject({ quality: 'standard', qualityReasons: [] });
+    expect(reading.metrics.rhythm).toMatchObject({ class: 'sinus', quality: 'low' });
+    expect(reading.metrics.rhythm!.qualityReasons).toContain('shortClean');
+    expect(JSON.stringify(reading)).not.toContain('quickMode');
   });
 });

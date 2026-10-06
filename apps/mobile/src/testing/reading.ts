@@ -6,6 +6,7 @@ export function makeReading(takenAt: number, hr: number | null, rmssd: number | 
   const outcome: ReadingResult = {
     headlineKey: 'result.regular',
     quality: { level: 'standard', reasons: [] },
+    retakePrompt: null,
     cleanSeconds: 90,
     beats: 100,
     rejectedBeats: 0,

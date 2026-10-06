@@ -181,6 +181,7 @@
     "hrMinIntervals": 2,
     "rmssdMinIntervals": 3,
     "rhythmMinIntervals": 3,
+    "rhythmClassMinIntervals": 20,
     "shapeMinBeats": 1
   },
   "displayPulse": {

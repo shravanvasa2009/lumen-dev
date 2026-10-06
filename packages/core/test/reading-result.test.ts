@@ -256,27 +256,36 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
     expect(outcome.headlineKey).toBe('result.hrOnly');
   });
 
-  it('runs the rhythm check on a Quick Check too, tagged lower quality (owner, ADR 0104)', () => {
+  // Owner 2026-10-06 (ADR 0104 answer 4): Quick tags only the values that miss a floor.
+  it('runs the rhythm check on a Quick Check too, tagged only for the floor it missed', () => {
     const quick = analysisWith({ cleanSeconds: 30, durationS: 30 }, { mode: 'quick' });
     const outcome = build(quick, SINUS);
-    expect(outcome.metrics.hr).toMatchObject({ value: BASE.heartRateBpm, quality: 'standard' });
+    expect(outcome.metrics.hr).toMatchObject({
+      value: BASE.heartRateBpm,
+      quality: 'standard',
+      qualityReasons: [],
+    });
     expect(outcome.metrics.rhythm).toMatchObject({
       class: 'sinus',
       quality: 'low',
-      qualityReasons: ['quickMode', 'shortClean'],
+      qualityReasons: ['shortClean'],
+      qualityDetails: [{ kind: 'shortClean', haveS: 30, wantS: 60 }],
       confidence: 'low',
     });
     expect(outcome.headlineKey).toBe('result.regular');
     expect(outcome.quality.level).toBe('low');
-    expect(outcome.quality.reasons).toContainEqual({ kind: 'quickMode' });
+    expect(outcome.quality.reasons.map((reason) => reason.kind)).not.toContain('quickMode');
     expect(outcome.quality.reasons).toContainEqual({ kind: 'shortClean', haveS: 30, wantS: 60 });
     // With no rhythm model at all, nothing judged the rhythm.
     expect(build(quick, NO_MODELS).headlineKey).toBe('result.hrOnly');
   });
 
-  it('a standard reading is standard everywhere, with no reasons', () => {
+  it('a standard reading is standard everywhere, with no reasons, in either mode', () => {
+    for (const mode of ['full', 'quick'] as const) {
+      const outcome = build(analysisWith({}, { mode }));
+      expect(outcome.quality).toEqual({ level: 'standard', reasons: [] });
+    }
     const outcome = build(BASE);
-    expect(outcome.quality).toEqual({ level: 'standard', reasons: [] });
     const { hr, rhythm, rmssd, resp } = outcome.metrics;
     for (const metric of [hr, rhythm, rmssd, resp, outcome.experimental])
       expect(metric).toMatchObject({ quality: 'standard', qualityReasons: [], qualityDetails: [] });
@@ -341,7 +350,11 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
     const oneWide = analysisWith({
       rhythmWindows: [],
       rhythmFeatures: [],
-      lowQuality: { ...BASE.lowQuality, rhythmFeatures: BASE.rhythmFeatures[0]! },
+      lowQuality: {
+        ...BASE.lowQuality,
+        rhythmWindow: BASE.rhythmWindows[0]!,
+        rhythmFeatures: BASE.rhythmFeatures[0]!,
+      },
     });
     const oneRow: ModelOutputs = { rhythm: { windowProbs: [[0.9, 0.05, 0.05]], tauAf: 0.5 }, diabetes: null };
     expect(build(oneWide, oneRow).metrics.rhythm).toMatchObject({
@@ -665,6 +678,7 @@ describe('diabetes card (§10.1, §11.4)', () => {
     const history = [earlier('2026-10-02', 0.7)];
     const cases: [Partial<ReadingAnalysis>, Partial<ReadingContext>, string][] = [
       [{}, { mode: 'quick' }, 'quickMode'],
+      [{ cleanSeconds: 30, durationS: 30 }, { mode: 'quick' }, 'shortClean'],
       [{}, { tier: 'basic' }, 'phoneTier'],
       [{ cleanSeconds: 89.9, durationS: 89.9 }, {}, 'shortClean'],
     ];
@@ -690,7 +704,11 @@ describe('diabetes card (§10.1, §11.4)', () => {
     const oneWide = analysisWith({
       rhythmWindows: [],
       rhythmFeatures: [],
-      lowQuality: { ...BASE.lowQuality, rhythmFeatures: BASE.rhythmFeatures[0]! },
+      lowQuality: {
+        ...BASE.lowQuality,
+        rhythmWindow: BASE.rhythmWindows[0]!,
+        rhythmFeatures: BASE.rhythmFeatures[0]!,
+      },
     });
     const models: ModelOutputs = {
       rhythm: { windowProbs: [[0.9, 0.05, 0.05]], tauAf: 0.5 },

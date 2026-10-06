@@ -2,6 +2,7 @@ import { DSP_CONFIG } from './config';
 import { median } from './median';
 import type { ReadingAnalysis, Tier } from './reading';
 import { hrv, lowQualityRmssd } from './reading-metrics';
+import { judgesRhythm } from './rhythm-features';
 import type {
   Confidence,
   DiabetesMetric,
@@ -16,6 +17,7 @@ import type {
   ReadingResult,
   ReadingRhythm,
   RespMetric,
+  RetakePrompt,
   RhythmClass,
   RhythmMetric,
   RhythmScorer,
@@ -90,8 +92,6 @@ function graded(reasons: QualityReason[], confidence: Confidence) {
 
 const shortClean = (analysis: ReadingAnalysis, wantS: number): QualityReason[] =>
   analysis.cleanSeconds < wantS ? [{ kind: 'shortClean', haveS: analysis.cleanSeconds, wantS }] : [];
-const quickMode = (analysis: ReadingAnalysis): QualityReason[] =>
-  analysis.context.mode === 'quick' ? [{ kind: 'quickMode' }] : [];
 // The frame-rate and rating gates of an output that needs `needed` and `wantFps`: lowFps when the capture format runs
 // slower, else phoneTier when the §5.2 rating (which also weighs the score and ambient light) is below the tier. A
 // format with no finite, positive rate counts as 0 fps, so the Results JSON never holds NaN or Infinity.
@@ -209,7 +209,7 @@ function hrMetric(
 
 interface RhythmCall {
   metric: RhythmMetric;
-  topProb: number;
+  topProb: number | null; // null with no class
   positive: boolean; // the irregular rule fired (before the 2-of-3 rule)
   reasons: QualityReason[];
 }
@@ -238,7 +238,7 @@ function readingRhythmProbs(
   analysis: ReadingAnalysis,
   outputs: RhythmOutputs | null,
   profile: Profile,
-): { probs: number[]; reasons: QualityReason[] } | null {
+): { probs: number[]; judged: boolean; reasons: QualityReason[] } | null {
   const rows = rhythmModelRows(analysis).length;
   if (outputs && outputs.windowProbs.length !== rows)
     throw new RangeError(`${rows} rhythm rows but ${outputs.windowProbs.length} probability rows`);
@@ -249,10 +249,7 @@ function readingRhythmProbs(
   if (!outputs || profile.pacemaker || rows === 0) return null;
 
   const { minUsableIntervals } = DSP_CONFIG.dsp15;
-  const reasons: QualityReason[] = [
-    ...quickMode(analysis),
-    ...shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS),
-  ];
+  const reasons = shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS);
   if (!analysis.enoughRhythmIntervals)
     reasons.push({ kind: 'fewBeats', beats: analysis.usableRhythmIntervals, wantBeats: minUsableIntervals });
   if (analysis.rhythmFeatures.length === 0) reasons.push({ kind: 'fewWindows', windows: 0, wantWindows: 1 });
@@ -263,14 +260,17 @@ function readingRhythmProbs(
     for (const row of outputs.windowProbs) total += row[c]!;
     return total / rows;
   });
-  return { probs, reasons };
+  // Owner 2026-10-06 (ADR 0104 answer 5): a reading-wide window under rhythmClassMinIntervals gives no class.
+  const wide = analysis.lowQuality.rhythmWindow;
+  const judged = analysis.rhythmFeatures.length > 0 || wide === null || judgesRhythm(wide);
+  return { probs, judged, reasons };
 }
 
 // The class with the highest probability, the first in RHYTHM_CLASSES order on a tie.
 const topClass = (probs: number[]) => probs.indexOf(Math.max(...probs));
 
 // With no rhythm model output it is the replay validation label (ADR 0041), null in the app.
-/** The rhythm decision that opens DSP-12 and diabetes-net's hrSummary; null with no rhythm card. */
+/** The rhythm decision that opens DSP-12 and diabetes-net's hrSummary; null when no class was judged. */
 export function readingRhythm(
   analysis: ReadingAnalysis,
   outputs: RhythmOutputs | null,
@@ -279,7 +279,7 @@ export function readingRhythm(
   // Validation only (ADR 0041): with no rhythm model output, a labelled rhythm stands in.
   if (outputs === null) return analysis.context.validationRhythmLabel;
   const call = readingRhythmProbs(analysis, outputs, profile);
-  if (!call) return null;
+  if (!call?.judged) return null;
   const top = topClass(call.probs);
   return call.probs[top]! >= DSP_CONFIG.rules.uncertainBelowTopProb ? RHYTHM_CLASSES[top]! : 'uncertain';
 }
@@ -295,6 +295,18 @@ function rhythmCall(
   const rules = DSP_CONFIG.rules;
   const call = readingRhythmProbs(analysis, outputs, profile);
   if (!outputs || !call) return null;
+  if (!call.judged) {
+    // "Too short to judge the rhythm": the card, its tag, and no class, probability, or flag.
+    const metric: RhythmMetric = {
+      class: null,
+      pAF: null,
+      evidence: outputs.scorer === 'rule' ? 'experimental' : evidenceLabel(evidence, 'rhythm'),
+      scorer: outputs.scorer,
+      ...graded(call.reasons, confidence),
+      flag: null,
+    };
+    return { metric, topProb: null, positive: false, reasons: call.reasons };
+  }
   const { probs } = call;
   const top = topClass(probs);
   const topProb = probs[top]!;
@@ -391,7 +403,7 @@ function rmssdMetric(
     const low = lowQualityRmssd(analysis.segments);
     if (low === null) return null;
     value = low.rmssdMs;
-    reasons.push(...quickMode(analysis), ...shortClean(analysis, config.rmssdMinCleanS));
+    reasons.push(...shortClean(analysis, config.rmssdMinCleanS));
     if (low.nnIntervals < config.rmssdMinIntervals)
       reasons.push({ kind: 'fewBeats', beats: low.nnIntervals, wantBeats: config.rmssdMinIntervals });
   }
@@ -418,7 +430,6 @@ function respMetric(
   const value = estimates?.rateBrpm ?? estimates?.intervalBrpm ?? null;
   if (estimates === null || value === null) return null;
   const reasons: QualityReason[] = [
-    ...quickMode(analysis),
     ...shortClean(analysis, DSP_CONFIG.dsp13.minCleanS),
     ...tierReasons(analysis, 'basic', 30),
   ];
@@ -451,7 +462,8 @@ function diabetesMetric(
   const { mode, recordedAt } = analysis.context;
   if (!outputs || (mode !== 'full' && mode !== 'quick')) return null;
   const reasons: QualityReason[] = [
-    ...quickMode(analysis),
+    // §11.4's Full Scan is a floor of this pattern alone (owner 2026-10-06, ADR 0104 answer 4).
+    ...(mode === 'quick' ? [{ kind: 'quickMode' } as const] : []),
     ...rateReasons(analysis, 'full', 60),
     ...shortClean(analysis, rules.diabetesMinCleanS),
     // The rhythm call opens diabetes-net's HRV summary (diabetesModelInput), so a lower-quality call makes a
@@ -500,7 +512,7 @@ function diabetesMetric(
 function experimentalMeasurements(analysis: ReadingAnalysis): Graded<ExperimentalMeasurements> {
   const beats = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');
   const atypical = beats.filter((beat) => beat.beatClass === 'atypical').length;
-  const reasons = [...quickMode(analysis), ...shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS)];
+  const reasons = shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS);
   const metric: ExperimentalMeasurements = {
     extraBeatsPerMin: analysis.cleanSeconds > 0 ? atypical / (analysis.cleanSeconds / 60) : 0,
     longPauses: beats.filter((beat) => beat.longPause).length,
@@ -541,9 +553,17 @@ function headline(hr: HrMetric | null, rhythm: RhythmCall | null): HeadlineKey {
   // No rhythm card means the rhythm was not judged (pacemaker or no model). "Regular rhythm" would claim a
   // judgement (ADR 0041) and "Couldn't tell" would ask to retake a good heart rate, so the headline states
   // only the rate; the rhythm card says why it is missing.
-  if (!rhythm) return 'result.hrOnly';
+  if (!rhythm || rhythm.topProb === null) return 'result.hrOnly';
   if (rhythm.topProb < DSP_CONFIG.rules.uncertainBelowTopProb) return 'result.uncertain';
   return rhythm.metric.class === 'sinus' ? 'result.regular' : 'result.irregularRetake';
+}
+
+// Owner 2026-10-06 (ADR 0104 answer 2): a lower-quality rate past SAFE-1's levels asks for a retake now. The
+// Emergency screen stays with emergencyHeartRate, which reads only the standard analysis.
+function retakePrompt(hr: HrMetric | null): RetakePrompt | null {
+  if (hr?.quality !== 'low') return null;
+  const { slowBpm, fastBpm } = DSP_CONFIG.rules.emergency;
+  return hr.value < slowBpm ? 'shortSlow' : hr.value > fastBpm ? 'shortFast' : null;
 }
 
 // Evidence labels come from evidence.json only (EVID-1).
@@ -571,6 +591,7 @@ export function buildReadingResult(
   return {
     headlineKey: headline(hr?.metric ?? null, rhythm),
     quality,
+    retakePrompt: retakePrompt(hr?.metric ?? null),
     cleanSeconds: analysis.cleanSeconds,
     beats: beats.length,
     rejectedBeats: beats.filter((beat) => beat.beatClass === 'artifact').length,

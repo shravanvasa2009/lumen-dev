@@ -134,6 +134,13 @@ describe('check cards with saved readings', () => {
     expect(screen.getByText('1 of 2 readings so far')).toBeOnTheScreen();
   });
 
+  it('counts only the days whose Diabetes value is standard, as the mean does (ADR 0104)', () => {
+    const lowDay = reading(1, diabetes(null));
+    lowDay.outcome.metrics.diabetes!.quality = 'low';
+    show([reading(0, diabetes(null)), lowDay]);
+    expect(screen.getByText('1 of 2 readings so far')).toBeOnTheScreen();
+  });
+
   it('counts two days as 2 of 2 and still flags nothing', () => {
     show([reading(0, diabetes(null)), reading(1, diabetes(null))]);
     expect(screen.getByText('2 of 2 readings so far')).toBeOnTheScreen();

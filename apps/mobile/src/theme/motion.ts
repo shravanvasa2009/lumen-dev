@@ -6,6 +6,9 @@ import { Easing, ReduceMotion } from 'react-native-reanimated';
 // the short press spring outside the capture screen, where nothing moves except the waveform and the ring.
 export const motion = {
   durationMs: 200,
+  // A readout that updates about once a second (the signal marker, a progress ring) glides to each new value; 200 ms
+  // would read as a jump followed by a wait.
+  glideMs: 600,
   pressScale: 0.97,
   pressSpring: { damping: 22, stiffness: 420, mass: 0.6 },
 } as const;
@@ -15,6 +18,10 @@ export const easeOut = Easing.out(Easing.cubic);
 // Timing options for withTiming. Reduce Motion is the live setting, so toggling it changes the next animation.
 export function timingConfig(reduceMotion: boolean) {
   return { duration: motion.durationMs, easing: easeOut, reduceMotion: reduceMotionMode(reduceMotion) };
+}
+
+export function glideConfig(reduceMotion: boolean) {
+  return { duration: motion.glideMs, easing: easeOut, reduceMotion: reduceMotionMode(reduceMotion) };
 }
 
 // Always makes Reanimated finish the animation at once; Never plays it. (System would read the setting a

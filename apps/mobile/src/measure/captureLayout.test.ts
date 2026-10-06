@@ -1,13 +1,13 @@
 import { captureSizes } from './captureLayout';
 
 describe('captureSizes', () => {
-  it('uses the full picture before the body is measured and on a tall screen', () => {
-    expect(captureSizes(0, false)).toMatchObject({ tight: false, preview: 190, ring: 148 });
-    expect(captureSizes(900, false)).toMatchObject({ tight: false, preview: 190 });
+  it('uses the 176 dp live view with a 150 dp ring before the body is measured and on a roomy screen', () => {
+    expect(captureSizes(0, false)).toMatchObject({ tight: false, preview: 176, ring: 150 });
+    expect(captureSizes(900, false)).toMatchObject({ tight: false, preview: 176, ring: 150 });
   });
 
-  it('grows the picture with the room it has', () => {
-    expect(captureSizes(760, false).preview).toBeGreaterThan(captureSizes(700, false).preview);
+  it('keeps the full view on a mid-height phone and lets the body scroll', () => {
+    expect(captureSizes(700, true)).toMatchObject({ tight: false, preview: 176 });
   });
 
   it('goes tight on a short screen, with a ring that still holds its two lines', () => {
@@ -15,6 +15,11 @@ describe('captureSizes', () => {
     expect(small.tight).toBe(true);
     expect(small.ring).toBeGreaterThanOrEqual(104);
     expect(small.preview).toBeGreaterThanOrEqual(88);
-    expect(small.preview).toBeLessThan(captureSizes(900, true).preview);
+    expect(small.preview).toBeLessThan(176);
+  });
+
+  it('gives a taller short screen a larger view, up to the tight maximum', () => {
+    expect(captureSizes(599, false).preview).toBeGreaterThan(captureSizes(508, false).preview);
+    expect(captureSizes(599, false).preview).toBeLessThanOrEqual(140);
   });
 });

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react-n
 import i18next from 'i18next';
 import * as Linking from 'expo-linking';
 
-import { ScrollView } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import type { PlanPhone } from '@/checks/checkPlan';
 import en from '@/i18n/en.json';
@@ -14,6 +14,13 @@ import { checkingItems } from './checkingItems';
 import type { LiveCapture } from './useLiveCapture';
 
 import '@/i18n';
+
+const mockNative: { view: unknown } = { view: null };
+jest.mock('../../modules/lumen-capture/src/LumenPreviewView', () => ({
+  get LumenPreviewView() {
+    return mockNative.view;
+  },
+}));
 
 const mockWindow = { width: 412 };
 jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
@@ -31,12 +38,15 @@ const base: LiveCapture = {
   failure: null,
   status: { fingerCovered: true, motionRms: 0, thermal: 'nominal', fps: 60, droppedFrac: 0 },
   recentRed: [],
+  recentPulse: [],
   elapsedS: 12.4,
   cleanSeconds: null,
   coachingKey: null,
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
+  nativeCamera: false,
+  advancing: false,
 };
 
 const FULL_PHONE: PlanPhone = { tier: 'full', ambient: false, fps60: true };
@@ -54,6 +64,8 @@ const show = (
   );
   return { onCancel, onStop };
 };
+
+const indexOfText = (text: string) => JSON.stringify(screen.toJSON()).indexOf(text);
 
 describe('CaptureView', () => {
   it('says the camera is not connected when the module is unavailable', () => {
@@ -125,16 +137,17 @@ describe('CaptureView', () => {
   });
 
   it('draws the pulse from the module samples', () => {
-    show({ recentRed: [0.6, 0.62, 0.58, 0.61] });
+    show({ recentRed: [0.6, 0.62, 0.58, 0.61], recentPulse: [0.1, 0.4, -0.1, 0.2] });
     expect(screen.getByTestId('live-waveform', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByTestId('live-waveform-raw', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.queryByText(en['capture.noWaveform'])).toBeNull();
   });
 
   it('counts clean seconds when a session supplies them', () => {
-    show({ cleanSeconds: 18.7 });
+    show({ cleanSeconds: 18.7, advancing: true });
     expect(screen.getByText('18')).toBeOnTheScreen();
     expect(screen.getByText('of 30 clean s')).toBeOnTheScreen();
-    expect(screen.getByText(en['capture.good'])).toBeOnTheScreen();
+    expect(screen.queryByText(/Great signal/)).toBeNull();
     expect(screen.getByText(en['capture.timerNote'])).toBeOnTheScreen();
     expect(screen.getByText(en['capture.pressure'])).toBeOnTheScreen();
   });
@@ -143,7 +156,6 @@ describe('CaptureView', () => {
     show({ cleanSeconds: 18, coachingKey: 'coach.lighter' });
     expect(screen.getByRole('alert')).toHaveTextContent(en['coach.lighter']);
     expect(screen.getByText('of 30 s · paused')).toBeOnTheScreen();
-    expect(screen.queryByText(en['capture.good'])).toBeNull();
   });
 
   it('cancels from the close button and stops from Stop', () => {
@@ -154,11 +166,69 @@ describe('CaptureView', () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
+  it('labels the filtered pulse above the raw camera signal, in English and Spanish', async () => {
+    show({});
+    expect(screen.getByText(en['capture.wavePulse'])).toBeOnTheScreen();
+    expect(screen.getByText(en['capture.waveRaw'])).toBeOnTheScreen();
+    expect(JSON.stringify(screen.toJSON()).indexOf(en['capture.wavePulse'])).toBeLessThan(
+      JSON.stringify(screen.toJSON()).indexOf(en['capture.waveRaw']),
+    );
+    screen.unmount();
+    await act(() => i18next.changeLanguage('es'));
+    try {
+      show({});
+      expect(screen.getByText(es['capture.wavePulse'])).toBeOnTheScreen();
+      expect(screen.getByText(es['capture.waveRaw'])).toBeOnTheScreen();
+    } finally {
+      await act(() => i18next.changeLanguage('en'));
+    }
+  });
+
+  it('adds the dicrotic fun fact under the raw trace, except on a short screen', () => {
+    show({});
+    expect(screen.getByText(en['capture.waveFact'])).toBeOnTheScreen();
+    expect(JSON.stringify(screen.toJSON()).indexOf(en['capture.waveRaw'])).toBeLessThan(
+      JSON.stringify(screen.toJSON()).indexOf(en['capture.waveFact']),
+    );
+    fireEvent(screen.UNSAFE_getByType(ScrollView), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 508 } },
+    });
+    expect(screen.queryByText(en['capture.waveFact'])).toBeNull();
+  });
+
+  it('draws a flat line for both traces before there is data', () => {
+    show({});
+    expect(screen.queryByTestId('live-waveform', { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByTestId('live-waveform-raw', { includeHiddenElements: true })).toBeNull();
+  });
+
+  describe('live view', () => {
+    afterEach(() => {
+      mockNative.view = null;
+    });
+
+    it('shows the live view and its caption for the device camera, and the glow otherwise', () => {
+      mockNative.view = View;
+      show({ nativeCamera: true });
+      expect(screen.getByText(en['capture.liveView'])).toBeOnTheScreen();
+      screen.unmount();
+      show({ nativeCamera: false });
+      expect(screen.queryByText(en['capture.liveView'])).toBeNull();
+    });
+
+    it('keeps the timer ring below the live view, not over it', () => {
+      mockNative.view = View;
+      show({ nativeCamera: true, cleanSeconds: 40 }, 'full');
+      expect(indexOfText(en['capture.liveView'])).toBeLessThan(indexOfText('of 90 clean s'));
+      expect(JSON.stringify(screen.toJSON())).not.toMatch(/"marginTop":-/);
+    });
+  });
+
   describe('layout (mockup 13)', () => {
     const indexOf = (text: string) => JSON.stringify(screen.toJSON()).indexOf(text);
 
     it('puts the Quality chip in the header row, after the close button and the title', () => {
-      show({ signalLevel: 0.9 }, 'full');
+      show({ signalLevel: 0.9, advancing: true }, 'full');
       expect(
         screen.getByLabelText(`${en['capture.quality']} ${en['capture.qualityGood']}`),
       ).toBeOnTheScreen();
@@ -167,7 +237,7 @@ describe('CaptureView', () => {
       expect(indexOf(en['capture.quality'])).toBeLessThan(indexOf(en['capture.fingerDetected']));
     });
 
-    it('names weaker levels Weak and OK, and leaves the chip out until there is a level', () => {
+    it('names weaker levels Weak and OK, and shows Checking, not a level, while a running capture has none yet', () => {
       show({ signalLevel: 0.1 });
       expect(screen.getByLabelText(`${en['capture.quality']} ${en['signal.weak']}`)).toBeOnTheScreen();
       screen.unmount();
@@ -175,16 +245,39 @@ describe('CaptureView', () => {
       expect(screen.getByLabelText(`${en['capture.quality']} ${en['signal.ok']}`)).toBeOnTheScreen();
       screen.unmount();
       show({ signalLevel: null });
+      expect(
+        screen.getByLabelText(`${en['capture.quality']} ${en['capture.qualityChecking']}`),
+      ).toBeOnTheScreen();
+      screen.unmount();
+      show({ phase: 'starting', status: null });
       expect(screen.queryByText(en['capture.quality'])).toBeNull();
     });
 
+    it('never says Good while the clean seconds are not counting, and names the open cause instead', () => {
+      show({
+        cleanSeconds: 0,
+        signalLevel: 0.9,
+        advancing: false,
+        elapsedS: 30,
+        rejectedSpans: [{ startS: 20, endS: 30, reason: 'clipping' }],
+      });
+      expect(screen.getByLabelText(`${en['capture.quality']} ${en['signal.ok']}`)).toBeOnTheScreen();
+      expect(screen.queryByText(en['capture.qualityGood'])).toBeNull();
+      expect(screen.getByRole('alert')).toHaveTextContent(en['coach.lighter']);
+    });
+
+    it('says the signal state once: the header chip, with no second line under the ring', () => {
+      show({ cleanSeconds: 40, signalLevel: 0.9, advancing: true });
+      expect(screen.getByText(en['capture.qualityGood'])).toBeOnTheScreen();
+      expect(screen.queryByText(/great signal|good signal/i)).toBeNull();
+    });
+
     it('orders the pill, ring, message, waveform, labels and the Checking panel as in the mockup', () => {
-      show({ cleanSeconds: 40, signalLevel: 0.9 }, 'full');
+      show({ cleanSeconds: 40, signalLevel: 0.9, advancing: true }, 'full');
       const order = [
         en['capture.fingerDetected'],
         'of 90 clean s',
-        en['capture.good'],
-        en['capture.pulse'],
+        en['capture.wavePulse'],
         en['capture.still'],
         en['checks.checking'],
       ].map(indexOf);
@@ -209,7 +302,7 @@ describe('CaptureView', () => {
       mockWindow.width = 360;
       await act(() => i18next.changeLanguage('es'));
       try {
-        show({ signalLevel: 0.9 }, 'full');
+        show({ signalLevel: 0.9, advancing: true }, 'full');
         expect(screen.getByRole('header', { name: es['mode.full'] })).toBeOnTheScreen();
         expect(
           screen.getByLabelText(`${es['capture.quality']} ${es['capture.qualityGood']}`),
@@ -225,7 +318,7 @@ describe('CaptureView', () => {
     it('shows the chip in Spanish', async () => {
       await act(() => i18next.changeLanguage('es'));
       try {
-        show({ signalLevel: 0.9 });
+        show({ signalLevel: 0.9, advancing: true });
         expect(
           screen.getByLabelText(`${es['capture.quality']} ${es['capture.qualityGood']}`),
         ).toBeOnTheScreen();

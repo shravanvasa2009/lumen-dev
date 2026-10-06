@@ -19,6 +19,7 @@ import { checkingItems } from './checkingItems';
 import { captureSizes } from './captureLayout';
 import { LiveWaveform } from './LiveWaveform';
 import { coachingText } from './coachingText';
+import { captureVerdict } from './captureVerdict';
 import { cleanSecondsNeeded, type MeasureMode } from './mode';
 import { phaseCaption } from './phaseCaption';
 import { QualityChip } from './QualityChip';
@@ -49,7 +50,8 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
   const total = cleanSecondsNeeded(mode);
   const running = live.phase === 'running';
   const counting = running && live.cleanSeconds !== null;
-  const coaching = counting ? live.coachingKey : null;
+  const { level, coaching: stoppedFor } = captureVerdict(live);
+  const coaching = counting ? stoppedFor : null;
   const paused = coaching !== null;
   const fingerOn = live.status?.fingerCovered === true;
   const done = live.cleanSeconds === null ? null : Math.min(total, Math.floor(live.cleanSeconds));
@@ -86,7 +88,8 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             </AppText>
             <View style={{ minWidth: control.minTarget, alignItems: 'flex-end' }}>
               <QualityChip
-                level={live.signalLevel}
+                level={running ? level : null}
+                checking={running && level === null}
                 compact={width < COMPACT_WIDTH_DP}
                 onLayout={(event) => setChipWidth(Math.ceil(event.nativeEvent.layout.width))}
               />
@@ -126,7 +129,13 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             </Pressable>
           </View>
           <View style={{ alignItems: 'center' }}>
-            <FingerPreview detected={fingerOn} size={sizes.preview} />
+            <FingerPreview
+              detected={fingerOn}
+              size={sizes.preview}
+              cameraRunning={live.nativeCamera && running}
+              coaching={paused}
+              still
+            />
           </View>
           <View
             accessible
@@ -135,7 +144,6 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
               alignItems: 'center',
               justifyContent: 'center',
               alignSelf: 'center',
-              marginTop: -sizes.ring * sizes.overlap,
             }}
           >
             <ProgressRing
@@ -170,10 +178,6 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
                 {coachingText(t)[coaching]}
               </AppText>
             </View>
-          ) : counting ? (
-            <AppText variant="headline" tone="accent" style={{ textAlign: 'center' }}>
-              {t('capture.good')}
-            </AppText>
           ) : null}
 
           {live.phase === 'denied' || (tight && counting) ? null : (
@@ -189,11 +193,12 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
           )}
 
           <Card dense={tight}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <AppText tone="textDim">{t('capture.pulse')}</AppText>
-              <AppText tone="textDim">{t('capture.last6s')}</AppText>
-            </View>
-            <LiveWaveform red={live.recentRed} height={sizes.waveformHeight} />
+            <LiveWaveform
+              pulse={live.recentPulse}
+              red={live.recentRed}
+              height={sizes.waveformHeight}
+              withFact={!tight}
+            />
             {running ? null : (
               <AppText variant="caption" tone="textDim">
                 {t('capture.noWaveform')}

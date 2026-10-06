@@ -18,12 +18,15 @@ const unavailable: LiveCapture = {
   failure: null,
   status: null,
   recentRed: [],
+  recentPulse: [],
   elapsedS: 0,
   cleanSeconds: null,
   coachingKey: null,
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
+  nativeCamera: false,
+  advancing: false,
 };
 
 preloadAppRoutes();

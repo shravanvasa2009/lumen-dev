@@ -5,6 +5,7 @@ import i18n from 'i18next';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import { checkCell, planPhone } from '@/checks/checkPlan';
+import { practiceMeasures } from '@/rating/practiceMeasures';
 import en from '@/i18n/en.json';
 import { type KeptCapture, keepCapture } from '@/measure/keptCapture';
 import { resyncNotifications } from '@/settings/applyPrefs';
@@ -217,6 +218,39 @@ describe('the rating from the probe and practice', () => {
     expect(stored?.tier).toBe('full');
   });
 
+  it('rates the phone when the camera kept running after the finger lifted', async () => {
+    mockGetCapabilities.mockResolvedValue(sixtyFpsPhone);
+    // The practice screen stays mounted under the next step, so the capture the rating reads can end in seconds
+    // of a bare lens: a flat tail, which left the live estimator's last-10-s window without a pulse.
+    const covered = steadyPulse('main', 40);
+    const lastNs = covered.samples[covered.samples.length - 1]!.tNs;
+    const tail = Array.from({ length: 12 * FPS }, (_, frame) => lastNs + ((frame + 1) * 1e9) / FPS);
+    keepCapture({
+      ...covered,
+      samples: [...covered.samples, ...tail.map((tNs) => ({ tNs, r: 0.95, g: 0.9, b: 0.9 }))],
+      stats: [
+        ...covered.stats,
+        ...tail.map((tNs) => ({ tNs, spatialStdR: 0.02, clipFrac: 0, exposureNs: 8e6 })),
+      ],
+    });
+    renderRouter('./app', { initialUrl: '/rating' });
+
+    expect(await screen.findByText(en['tier.full'])).toBeOnTheScreen();
+    expect((await loadDeviceRating())?.components.coupling).not.toBeNull();
+  });
+
+  it('scores patchy contact below steady contact', async () => {
+    const steady = steadyPulse('main', 40);
+    // Every other 5 s block is a bare lens, so about half the windows find no pulse.
+    const patchy = {
+      ...steady,
+      samples: steady.samples.map((sample, index) =>
+        Math.floor(index / (5 * FPS)) % 2 === 1 ? { ...sample, r: 0.95 } : sample,
+      ),
+    };
+    expect(practiceMeasures(patchy).summary.snrDb!).toBeLessThan(practiceMeasures(steady).summary.snrDb!);
+  });
+
   it('leaves the rating open when the practice was too short for a perfusion index', async () => {
     mockGetCapabilities.mockResolvedValue(sixtyFpsPhone);
     keepCapture(steadyPulse('main', 20));
@@ -224,6 +258,7 @@ describe('the rating from the probe and practice', () => {
     // The app-start sync is not the one under test.
     jest.mocked(resyncNotifications).mockClear();
     expect(await screen.findByText(en['rating.pending'])).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: en['rating.practiceAgain'] })).toBeOnTheScreen();
     expect(await loadDeviceRating()).toBeNull();
     expect(resyncNotifications).not.toHaveBeenCalled();
   });

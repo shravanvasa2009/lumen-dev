@@ -29,6 +29,9 @@ import { signalLevel } from './signalLevel';
 const WAVEFORM_WINDOW_NS = 6e9;
 // The signal meter is re-read once per second of frames; its spectrum needs the last liveHr.windowS seconds.
 const LEVEL_EVERY_NS = 1e9;
+// Clean seconds are summed from accepted frames, so between two rises there can be a short gap; two seconds
+// of frame time without a rise means the counter has stopped.
+const ADVANCE_HOLD_NS = 2e9;
 const LEVEL_WINDOW_NS = DSP_CONFIG.liveHr.windowS * 1e9;
 // Spec §9.2 (Locks) and §4.2 step 3: with the finger on the phone, auto-exposure settles for 1 s, then
 // exposure, white balance and focus are locked. Native adds its own short wait before steering (DSP-5).
@@ -37,8 +40,8 @@ const EXPOSURE_SETTLE_MS = 1000;
 const KEEP_AWAKE_TAG = 'lumen-capture';
 
 type LivePhase =
-  // The capture module is not linked (Jest, Expo Go).
-  'unavailable' | 'starting' | 'running' | 'denied' | 'failed';
+  // 'unavailable': the capture module is not linked (Jest, Expo Go). 'stopped': `enabled` went false.
+  'unavailable' | 'starting' | 'running' | 'denied' | 'failed' | 'stopped';
 
 export interface LiveCapture {
   phase: LivePhase;
@@ -46,6 +49,8 @@ export interface LiveCapture {
   status: CaptureStatus | null;
   // Raw red means of the last 6 s, as the module reports them; the screen only scales them to fit.
   recentRed: readonly number[];
+  // The session's causal band-pass filtered pulse of the same 6 s (a beat is a peak); empty without a session.
+  recentPulse: readonly number[];
   // Seconds on the frames' own clock since the first frame; not a timer.
   elapsedS: number;
   // The live session's own values (ADR 0042), never estimated here; null while it is not running.
@@ -57,19 +62,30 @@ export interface LiveCapture {
   // Where the Weak to Strong meter sits, 0 to 1, from the live perfusion index and pulse SNR (spec 04 section 4.2);
   // null until the session has a pulse window.
   signalLevel: number | null;
+  // True when frames come from the device's own LumenCapture module, so the native preview view has a session
+  // to show. Replay and Demo feed recorded samples and have none.
+  nativeCamera: boolean;
+  // True while clean seconds are actually going up (they rose within the last ADVANCE_HOLD_NS of frame time).
+  // The live level and the coaching line can look fine while every frame is rejected (clipped red, a
+  // settling exposure), so "good" on screen must follow this, not the level.
+  advancing: boolean;
 }
 
-const idle = (phase: LivePhase): LiveCapture => ({
+type LiveState = Omit<LiveCapture, 'nativeCamera'>;
+
+const idle = (phase: LivePhase): LiveState => ({
   phase,
   failure: null,
   status: null,
   recentRed: [],
+  recentPulse: [],
   elapsedS: 0,
   cleanSeconds: null,
   coachingKey: null,
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
+  advancing: false,
 });
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -97,12 +113,13 @@ function captureConfig(capabilities: Capabilities, lens: LensInfo | undefined, f
 
 // Runs the rear camera and torch for as long as the screen is mounted, feeds every batch and status to a
 // LiveSession, and keeps the frames for the Processing screen. `demo` marks them as Demo mode's synthetic
-// recording.
+// recording. With `enabled` false the camera is off; a stack screen stays mounted under the next one, so the
+// practice step turns it off when it loses focus.
 export function useLiveCapture(
   capture: LumenCaptureModule | null = LumenCapture,
-  { demo = false }: { demo?: boolean } = {},
+  { demo = false, enabled = true }: { demo?: boolean; enabled?: boolean } = {},
 ): LiveCapture {
-  const [live, setLive] = useState<LiveCapture>(idle(capture ? 'starting' : 'unavailable'));
+  const [live, setLive] = useState<LiveState>(idle(capture ? 'starting' : 'unavailable'));
   // Raised when the user comes back from Settings with the camera allowed, to start the capture again.
   const [permissionGrants, setPermissionGrants] = useState(0);
 
@@ -130,6 +147,17 @@ export function useLiveCapture(
 
   useEffect(() => {
     if (!capture) return;
+    if (!enabled) {
+      // The camera and torch are off, so nothing live may still be claimed; the counted clean seconds stay.
+      setLive((previous) =>
+        previous.phase === 'running' || previous.phase === 'starting'
+          ? { ...idle('stopped'), cleanSeconds: previous.cleanSeconds }
+          : previous,
+      );
+      return;
+    }
+    // Coming back to the screen starts a new capture; the old numbers must not show while it warms up.
+    setLive((previous) => (previous.phase === 'starting' ? previous : idle('starting')));
     let mounted = true;
     let started = false;
     let subscriptions: { remove(): void }[] = [];
@@ -138,6 +166,8 @@ export function useLiveCapture(
     // When the current unbroken run of covered frames began; the filter's step when a finger goes on is not a pulse.
     let coveredSinceNs: number | null = null;
     let levelAtNs = -Infinity;
+    let lastCleanS = 0;
+    let lastRiseNs: number | null = null;
     let level: number | null = null;
     let firstNs: number | null = null;
     let session: LiveSession | null = null;
@@ -216,6 +246,7 @@ export function useLiveCapture(
         session = null;
         level = null;
         levelAtNs = -Infinity;
+        lastRiseNs = null;
         return reasonOf(error);
       }
       // Nothing is kept for Processing until the first frames have reached the session.
@@ -255,7 +286,9 @@ export function useLiveCapture(
       });
       levelFrames = [...levelFrames, ...batch.samples].filter(
         (sample) =>
-          newest.tNs - sample.tNs <= LEVEL_WINDOW_NS && coveredSinceNs !== null && sample.tNs >= coveredSinceNs,
+          newest.tNs - sample.tNs <= LEVEL_WINDOW_NS &&
+          coveredSinceNs !== null &&
+          sample.tNs >= coveredSinceNs,
       );
       const hadSession = session !== null;
       const refusal = feedSession(batch);
@@ -264,23 +297,30 @@ export function useLiveCapture(
         // Core's perfusionPct counts covered frames only, but the band filter still rings for about one window
         // after a finger goes on, and that ringing reads as a strong pulse; so the level waits for a second window.
         const settled =
-          coveredSinceNs !== null && newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
+          coveredSinceNs !== null &&
+          newest.tNs - coveredSinceNs >= 2 * DSP_CONFIG.live.perfusionWindowS * 1e9;
         level = settled ? signalLevel(session.perfusionPct, levelFrames) : null;
       }
+      if (session && session.cleanSeconds > lastCleanS) lastRiseNs = newest.tNs;
+      lastCleanS = session?.cleanSeconds ?? 0;
+      const advancing = lastRiseNs !== null && newest.tNs - lastRiseNs <= ADVANCE_HOLD_NS;
+      const waveform = session?.recentWaveform ?? null;
       setLive((previous) => ({
         ...previous,
+        advancing: session !== null && advancing,
         recentRed: recent.map((sample) => sample.r),
         elapsedS: (newest.tNs - startNs) / 1e9,
-        ...(session
+        ...(session && waveform
           ? {
               cleanSeconds: session.cleanSeconds,
               coachingKey: session.coachingKey,
-              recentWaveform: session.recentWaveform,
+              recentWaveform: waveform,
+              recentPulse: waveform.ppg,
               rejectedSpans: session.rejectedSpans,
               signalLevel: level,
             }
           : hadSession
-            ? { cleanSeconds: null, coachingKey: null, signalLevel: null, failure: refusal }
+            ? { cleanSeconds: null, coachingKey: null, signalLevel: null, recentPulse: [], failure: refusal }
             : {}),
       }));
     };
@@ -345,7 +385,7 @@ export function useLiveCapture(
       mounted = false;
       stopCamera();
     };
-  }, [capture, demo, permissionGrants]);
+  }, [capture, demo, enabled, permissionGrants]);
 
-  return live;
+  return { ...live, nativeCamera: capture !== null && capture === LumenCapture };
 }

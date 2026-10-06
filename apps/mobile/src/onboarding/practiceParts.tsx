@@ -1,42 +1,137 @@
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
-import Animated, { useAnimatedProps, useDerivedValue, withTiming } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedProps,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
+import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
-import { timingConfig, useReduceMotion } from '@/theme/motion';
+import { glideConfig, timingConfig, useReduceMotion } from '@/theme/motion';
+
+import { LumenPreviewView } from '../../modules/lumen-capture/src/LumenPreviewView';
 
 const PREVIEW_SIZE = 190;
 const METER_HEIGHT = 28;
 const RING_SIZE = 44;
 const RING_STROKE = 5;
+const MARKER_SIZE = METER_HEIGHT - 6;
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// The lit fingertip as the camera sees it. Dim while no finger is detected.
-export function FingerPreview({ detected, size = PREVIEW_SIZE }: { detected: boolean; size?: number }) {
-  const { colors } = useTheme();
+// The picture is a camera image, not themed; the chip sits on it in a fixed dark scrim.
+const LIVE_CHIP_BG = 'rgba(10,6,6,0.55)';
+const LIVE_CHIP_FG = '#FFFFFF';
+export const LIVE_RING_WIDTH = 4;
+export const LIVE_RING_GAP = 3;
+export const CAPTION_ROW = 20;
+
+type FingerPreviewProps = {
+  detected: boolean;
+  size?: number;
+  // The capture runs on the device's camera, so the native view has a session to show.
+  cameraRunning: boolean;
+  // A coaching line is showing: the ring turns from accent to flag.
+  coaching: boolean;
+  // Spec 12: nothing moves during a capture except the waveform and the ring, so the colour and glow switch at once.
+  still?: boolean;
+};
+
+// Variant A: the rear camera's live view clipped to a circle inside a status ring, with its caption. Where there is
+// no native view (iOS for now, Replay, Demo, no running capture) the same frame holds the pulse-coloured glow, dim
+// without a finger, and the chip and caption stay out because nothing live is being shown.
+export function FingerPreview({
+  detected,
+  size = PREVIEW_SIZE,
+  cameraRunning,
+  coaching,
+  still = false,
+}: FingerPreviewProps) {
+  const { colors, spacing, radius } = useTheme();
+  const { t } = useTranslation();
+  const live = cameraRunning && LumenPreviewView !== null;
+  const reduceMotion = useReduceMotion();
+  // Built on the JS thread, as in ProgressRing: the worklets below must not call a plain function.
+  const timing = timingConfig(reduceMotion || still);
+  const ringColor = coaching ? colors.flag : colors.accent;
+  const glowOpacity = detected ? 1 : 0.3;
+  const ringStyle = useAnimatedStyle(() => ({ borderColor: withTiming(ringColor, timing) }));
+  const glowStyle = useAnimatedStyle(() => ({ opacity: withTiming(glowOpacity, timing) }));
   return (
-    <Svg
-      width={size}
-      height={size}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
-      <Defs>
-        <RadialGradient id="finger-glow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0" stopColor={colors.pulse} stopOpacity={0.75} />
-          <Stop offset="1" stopColor={colors.pulse} stopOpacity={1} />
-        </RadialGradient>
-      </Defs>
-      <Circle
-        cx={size / 2}
-        cy={size / 2}
-        r={size / 2}
-        fill="url(#finger-glow)"
-        opacity={detected ? 1 : 0.3}
-      />
-    </Svg>
+    <View style={{ alignItems: 'center', gap: spacing.sm }}>
+      <Animated.View
+        accessible={live}
+        accessibilityLabel={live ? t('capture.liveViewA11y') : undefined}
+        accessibilityElementsHidden={!live}
+        importantForAccessibility={live ? 'yes' : 'no-hide-descendants'}
+        style={[
+          { padding: LIVE_RING_GAP, borderWidth: LIVE_RING_WIDTH, borderRadius: radius.pill },
+          ringStyle,
+        ]}
+      >
+        <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
+          {live && LumenPreviewView ? (
+            <LumenPreviewView style={{ width: size, height: size }} />
+          ) : (
+            <Animated.View style={glowStyle}>
+              <Svg width={size} height={size}>
+                <Defs>
+                  <RadialGradient id="finger-glow" cx="50%" cy="50%" r="50%">
+                    <Stop offset="0" stopColor={colors.pulse} stopOpacity={0.75} />
+                    <Stop offset="1" stopColor={colors.pulse} stopOpacity={1} />
+                  </RadialGradient>
+                </Defs>
+                <Circle cx={size / 2} cy={size / 2} r={size / 2} fill="url(#finger-glow)" />
+              </Svg>
+            </Animated.View>
+          )}
+          {live ? (
+            <View
+              style={{
+                position: 'absolute',
+                top: size * 0.08,
+                alignSelf: 'center',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.xs,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: 2,
+                borderRadius: radius.pill,
+                backgroundColor: LIVE_CHIP_BG,
+              }}
+            >
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: LIVE_CHIP_FG }} />
+              <AppText variant="caption" style={{ color: LIVE_CHIP_FG, fontWeight: '700' }}>
+                {t('capture.liveBadge')}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+      </Animated.View>
+      <View
+        style={{
+          minHeight: CAPTION_ROW,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: spacing.xs,
+        }}
+      >
+        {live ? (
+          <>
+            <Icon name="camera" size={16} color={colors.textDim} />
+            <AppText variant="caption" tone="textDim" style={{ fontWeight: '500', flexShrink: 1 }}>
+              {t('capture.liveView')}
+            </AppText>
+          </>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -44,36 +139,62 @@ export function FingerPreview({ detected, size = PREVIEW_SIZE }: { detected: boo
 const MARKER_INSET_PCT = 4;
 const MARKER_SPAN_PCT = 100 - 2 * MARKER_INSET_PCT;
 
-// Weak to Strong coupling bar. The marker shows `level` (0 to 1) and is left out while there is none.
+// Weak to Strong coupling bar. The marker shows `level` (0 to 1) and is left out while there is none. The level
+// arrives about once a second, so the marker glides to it; it appears in place, not sliding in from the side.
 export function SignalMeter({ level = null }: { level?: number | null }) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const marked = level === null ? null : Math.min(1, Math.max(0, level));
+  const targetPct = MARKER_INSET_PCT + (marked ?? 0.5) * MARKER_SPAN_PCT;
+  const positionPct = useSharedValue(targetPct);
+  const hasLevel = marked !== null;
+  const wasMarked = useRef(hasLevel);
+  useEffect(() => {
+    if (!hasLevel) {
+      wasMarked.current = false;
+      return;
+    }
+    positionPct.value = wasMarked.current ? withTiming(targetPct, glideConfig(reduceMotion)) : targetPct;
+    wasMarked.current = true;
+  }, [hasLevel, targetPct, reduceMotion, positionPct]);
+  const markerStyle = useAnimatedStyle(() => ({ left: `${positionPct.value}%` }));
   return (
-    <Svg
-      width="100%"
-      height={METER_HEIGHT}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
-      <Defs>
-        <LinearGradient id="signal-scale" x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0" stopColor={colors.badgePublicFg} />
-          <Stop offset="1" stopColor={colors.accentFill} />
-        </LinearGradient>
-      </Defs>
-      <Rect width="100%" height={METER_HEIGHT} rx={METER_HEIGHT / 2} fill="url(#signal-scale)" />
+    <View style={{ height: METER_HEIGHT }}>
+      <Svg
+        width="100%"
+        height={METER_HEIGHT}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Defs>
+          <LinearGradient id="signal-scale" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor={colors.badgePublicFg} />
+            <Stop offset="1" stopColor={colors.accentFill} />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height={METER_HEIGHT} rx={METER_HEIGHT / 2} fill="url(#signal-scale)" />
+      </Svg>
       {marked === null ? null : (
-        <Circle
+        <Animated.View
           testID="signal-marker"
-          cx={`${MARKER_INSET_PCT + marked * MARKER_SPAN_PCT}%`}
-          cy={METER_HEIGHT / 2}
-          r={METER_HEIGHT / 2 - 4}
-          fill={colors.text}
-          stroke={colors.bg}
-          strokeWidth={2}
+          pointerEvents="none"
+          style={[
+            {
+              position: 'absolute',
+              top: (METER_HEIGHT - MARKER_SIZE) / 2,
+              marginLeft: -MARKER_SIZE / 2,
+              width: MARKER_SIZE,
+              height: MARKER_SIZE,
+              borderRadius: MARKER_SIZE / 2,
+              backgroundColor: colors.text,
+              borderWidth: 2,
+              borderColor: colors.bg,
+            },
+            markerStyle,
+          ]}
         />
       )}
-    </Svg>
+    </View>
   );
 }
 
@@ -125,11 +246,11 @@ export function ProgressRing({
   const circumference = 2 * Math.PI * radius;
   const reduceMotion = useReduceMotion();
   const target = Math.min(1, Math.max(0, fraction));
-  // The arc eases to each new value on the UI thread instead of jumping once a second.
-  // Built on the JS thread: timingConfig is a plain function, and calling one inside the worklet below
+  // The arc glides to each new value on the UI thread instead of jumping once a second.
+  // Built on the JS thread: glideConfig is a plain function, and calling one inside the worklet below
   // crashes the app on a phone ("Tried to synchronously call a Remote Function").
-  const timing = timingConfig(reduceMotion);
-  const arc = useDerivedValue(() => withTiming(target, timing));
+  const glide = glideConfig(reduceMotion);
+  const arc = useDerivedValue(() => withTiming(target, glide));
   const arcProps = useAnimatedProps(() => ({
     strokeDasharray: `${circumference * arc.value} ${circumference}`,
   }));

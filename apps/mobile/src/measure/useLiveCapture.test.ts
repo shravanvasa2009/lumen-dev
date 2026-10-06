@@ -294,7 +294,12 @@ describe('useLiveCapture', () => {
     // The contract's status carries only the module's own hint; the frames' clip fraction rides in the batch.
     // Native no longer folds clipping into the hint, so a covered but clipping finger must still reach the lock.
     const clippingBatch = (fromS: number): SampleBatch => ({
-      samples: Array.from({ length: 10 }, (_, i) => ({ tNs: (fromS + i / 10) * 1e9, r: 0.98, g: 0.1, b: 0.1 })),
+      samples: Array.from({ length: 10 }, (_, i) => ({
+        tNs: (fromS + i / 10) * 1e9,
+        r: 0.98,
+        g: 0.1,
+        b: 0.1,
+      })),
       stats: Array.from({ length: 10 }, (_, i) => ({
         tNs: (fromS + i / 10) * 1e9,
         spatialStdR: 0.02,
@@ -493,6 +498,25 @@ describe('useLiveCapture', () => {
     expect(fake.stops).toBe(1);
     expect(fake.listenerCount('samples')).toBe(0);
     expect(fake.listenerCount('status')).toBe(0);
+  });
+
+  it('stops the camera when disabled and starts a fresh capture when enabled again', async () => {
+    const fake = new FakeCapture();
+    const { result: live, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useLiveCapture(fake, { enabled }),
+      {
+        initialProps: { enabled: true },
+      },
+    );
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    rerender({ enabled: false });
+    expect(fake.stops).toBe(1);
+    expect(live.current.phase).toBe('stopped');
+    expect(live.current.status).toBeNull();
+    expect(fake.listenerCount('samples')).toBe(0);
+    rerender({ enabled: true });
+    await waitFor(() => expect(live.current.phase).toBe('running'));
+    expect(fake.started).toHaveLength(2);
   });
 
   it('stops a camera that finished starting after the screen closed', async () => {

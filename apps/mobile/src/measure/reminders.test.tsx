@@ -26,12 +26,15 @@ const running: LiveCapture = {
   failure: null,
   status: null,
   recentRed: [],
+  recentPulse: [],
   elapsedS: 5,
   cleanSeconds: null,
   coachingKey: null,
   recentWaveform: { tS: [], ppg: [] },
   rejectedSpans: [],
   signalLevel: null,
+  nativeCamera: false,
+  advancing: false,
 };
 
 const FIRST_TAKEN_AT = new Date(2026, 9, 1, 6, 30).getTime();

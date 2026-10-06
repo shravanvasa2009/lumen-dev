@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import { StyleSheet } from 'react-native';
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import type { LiveCapture } from '@/measure/useLiveCapture';
@@ -15,6 +15,14 @@ jest.mock('expo-linking', () => ({
   ...jest.requireActual<typeof import('expo-linking')>('expo-linking'),
   openSettings: jest.fn(),
 }));
+
+const mockRatePhone = jest.fn();
+jest.mock('@/rating/ratePhone', () => ({ ratePhone: (...args: unknown[]) => mockRatePhone(...args) }));
+// One object, as the real hook's state is, so the rating effect does not rerun on every render.
+jest.mock('@/onboarding/usePhoneProbe', () => {
+  const probe = { kind: 'ready', capabilities: { platform: 'android' } };
+  return { usePhoneProbe: () => probe };
+});
 
 let mockLive: LiveCapture;
 jest.mock('@/measure/useLiveCapture', () => ({ useLiveCapture: () => mockLive }));
@@ -34,6 +42,8 @@ const running: LiveCapture = {
   nativeCamera: false,
   advancing: false,
 };
+
+jest.setTimeout(30_000);
 
 preloadAppRoutes();
 
@@ -62,7 +72,8 @@ describe('practice with a running capture', () => {
   it('puts the meter marker where the live signal level says', () => {
     const marker = () =>
       parseFloat(
-        StyleSheet.flatten(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.style).left,
+        StyleSheet.flatten(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.style)
+          .left,
       );
     mockLive = { ...running, signalLevel: 0.1 };
     const { unmount } = renderRouter('./app', { initialUrl: '/practice' });
@@ -78,7 +89,8 @@ describe('practice with a running capture', () => {
     renderRouter('./app', { initialUrl: '/practice' });
     expect(
       parseFloat(
-        StyleSheet.flatten(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.style).left,
+        StyleSheet.flatten(screen.getByTestId('signal-marker', { includeHiddenElements: true }).props.style)
+          .left,
       ),
     ).toBeCloseTo(50, 6);
   });
@@ -87,6 +99,67 @@ describe('practice with a running capture', () => {
     mockLive = { ...running, status: { ...running.status!, fingerCovered: false } };
     renderRouter('./app', { initialUrl: '/practice' });
     expect(screen.queryByTestId('signal-marker', { includeHiddenElements: true })).toBeNull();
+  });
+});
+
+describe('practice reaching 30 of 30', () => {
+  const finished = { ...running, cleanSeconds: 31, advancing: true };
+  const settle = () => act(async () => {});
+  // renderRouter turns on Jest's fake timers.
+  const pass = (ms: number) =>
+    act(async () => {
+      jest.advanceTimersByTime(ms);
+    });
+
+  beforeEach(() => {
+    mockRatePhone.mockReset();
+  });
+
+  it('does not rate or move on before 30 of 30', async () => {
+    mockLive = { ...running, cleanSeconds: 30.5 };
+    renderRouter('./app', { initialUrl: '/practice' });
+    await settle();
+    await pass(5000);
+    expect(mockRatePhone).not.toHaveBeenCalled();
+    expect(screen.queryByText(en['practice.done'])).toBeNull();
+    expect(screen.getPathname()).toBe('/practice');
+  });
+
+  it('rates first, says it is done, then moves to How to sit 1.5 s later', async () => {
+    let storeRating = (_rating: { score: number }) => {};
+    mockRatePhone.mockReturnValue(
+      new Promise((resolve) => {
+        storeRating = resolve;
+      }),
+    );
+    mockLive = finished;
+    renderRouter('./app', { initialUrl: '/practice' });
+    await settle();
+    expect(mockRatePhone).toHaveBeenCalledTimes(1);
+    // The rating is not stored yet, so there is no done line and no countdown.
+    await pass(5000);
+    expect(screen.queryByText(en['practice.done'])).toBeNull();
+    expect(screen.getPathname()).toBe('/practice');
+
+    await act(async () => storeRating({ score: 94 }));
+    expect(screen.getByText(en['practice.done'])).toBeOnTheScreen();
+    await pass(1499);
+    expect(screen.getPathname()).toBe('/practice');
+    await pass(1);
+    expect(screen.getPathname()).toBe('/how-to-sit');
+    expect(mockRatePhone).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays with the unrated explanation, and does not move on, when no rating is settled', async () => {
+    mockRatePhone.mockResolvedValue(null);
+    mockLive = finished;
+    renderRouter('./app', { initialUrl: '/practice' });
+    await settle();
+    expect(screen.getByText(en['rating.pending'])).toBeOnTheScreen();
+    expect(screen.getByText(en['rating.practiceAgain'])).toBeOnTheScreen();
+    await pass(5000);
+    expect(screen.queryByText(en['practice.done'])).toBeNull();
+    expect(screen.getPathname()).toBe('/practice');
   });
 });
 

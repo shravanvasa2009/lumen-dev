@@ -1,9 +1,12 @@
-import { useIsFocused } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import { AccessibilityInfo, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { AppText } from '@/components/AppText';
+import { Button } from '@/components/Button';
+import { Icon } from '@/components/Icon';
 import { Card } from '@/components/Card';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingStep } from '@/components/OnboardingStep';
@@ -14,11 +17,21 @@ import { LiveWaveform } from '@/measure/LiveWaveform';
 import { phaseCaption } from '@/measure/phaseCaption';
 import { useLiveCapture } from '@/measure/useLiveCapture';
 import { FingerPreview, ProgressRing, SignalMeter, SignalScale } from '@/onboarding/practiceParts';
+import { usePracticeRating } from '@/onboarding/usePracticeRating';
 import { practiceSteadySeconds, STEADY_SECONDS_NEEDED } from '@/onboarding/practiceProgress';
 import { useTheme } from '@/theme';
 import { easeOut, motion, reduceMotionMode, useReduceMotion } from '@/theme/motion';
 
+// How long the done line shows before the screen moves on by itself.
+const AUTO_ADVANCE_MS = 1500;
+
+// Each attempt is a fresh capture: "Practice again" remounts the run.
 export default function PracticeScreen() {
+  const [attempt, setAttempt] = useState(0);
+  return <PracticeRun key={attempt} onPracticeAgain={() => setAttempt((count) => count + 1)} />;
+}
+
+function PracticeRun({ onPracticeAgain }: { onPracticeAgain: () => void }) {
   const { t } = useTranslation();
   const { colors, spacing, radius } = useTheme();
   const reduceMotion = useReduceMotion();
@@ -30,10 +43,27 @@ export default function PracticeScreen() {
   const settle = LinearTransition.duration(motion.durationMs).easing(easeOut).reduceMotion(mode);
   // The stack keeps this screen mounted under How to sit, and the rating reads the capture's last seconds, so
   // the camera stops when the screen is left.
-  const live = useLiveCapture(undefined, { enabled: useIsFocused() });
+  // Once the count reaches 30 the camera stops too, so the capture the rating reads ends on the good seconds.
+  const [finished, setFinished] = useState(false);
+  const live = useLiveCapture(undefined, { enabled: useIsFocused() && !finished });
   const fingerOn = live.status?.fingerCovered === true;
   // Counted by the LiveSession once it feeds the hook; until then there are none to show.
   const steadySeconds = practiceSteadySeconds(live.cleanSeconds);
+  useEffect(() => {
+    if (steadySeconds >= STEADY_SECONDS_NEEDED) setFinished(true);
+  }, [steadySeconds]);
+  const rating = usePracticeRating(finished);
+  const router = useRouter();
+  useEffect(() => {
+    if (rating === 'rated') AccessibilityInfo.announceForAccessibility(t('practice.done'));
+    if (rating === 'unrated') AccessibilityInfo.announceForAccessibility(t('rating.pending'));
+  }, [rating, t]);
+  useEffect(() => {
+    if (rating !== 'rated') return;
+    const timer = setTimeout(() => router.push('/how-to-sit'), AUTO_ADVANCE_MS);
+    return () => clearTimeout(timer);
+  }, [rating, router]);
+  const shownSeconds = finished ? STEADY_SECONDS_NEEDED : steadySeconds;
   const caption =
     live.phase === 'unavailable'
       ? t('practice.pending')
@@ -52,10 +82,11 @@ export default function PracticeScreen() {
           <View
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md }}
           >
-            <ProgressRing fraction={steadySeconds / STEADY_SECONDS_NEEDED} />
+            <ProgressRing fraction={shownSeconds / STEADY_SECONDS_NEEDED} />
             <AppText variant="headline">
-              {t('practice.progress', { done: steadySeconds, total: STEADY_SECONDS_NEEDED })}
+              {t('practice.progress', { done: shownSeconds, total: STEADY_SECONDS_NEEDED })}
             </AppText>
+            {rating === 'rated' ? <Icon name="check" size={24} color={colors.accent} /> : null}
           </View>
           {/* Continue stays enabled: spec 08 §8.6 counts tutorial completion as the share of installs that pass this
               step, so some finish without passing, and a phone with no torch lens or camera permission cannot pass. */}
@@ -97,7 +128,20 @@ export default function PracticeScreen() {
           <LiveWaveform pulse={live.recentPulse} red={live.recentRed} />
         </Card>
       </Animated.View>
-      {live.phase === 'denied' ? null : (
+      {rating === 'rated' ? (
+        <Animated.View layout={settle}>
+          <AppText tone="accent" style={{ fontWeight: '600' }}>
+            {t('practice.done')}
+          </AppText>
+        </Animated.View>
+      ) : null}
+      {rating === 'unrated' ? (
+        <Animated.View layout={settle} style={{ gap: spacing.md }}>
+          <AppText tone="textDim">{t('rating.pending')}</AppText>
+          <Button label={t('rating.practiceAgain')} variant="secondary" onPress={onPracticeAgain} />
+        </Animated.View>
+      ) : null}
+      {live.phase === 'denied' || rating === 'rated' || rating === 'unrated' ? null : (
         <Animated.View layout={settle}>
           <AppText variant="caption" tone="textDim">
             {caption}

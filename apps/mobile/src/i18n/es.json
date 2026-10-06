@@ -703,6 +703,7 @@
   "coach.warm": "Calienta tus manos y vuelve a intentarlo.",
   "coach.flat": "Coloca el dedo más plano para que cubra el flash.",
   "practice.progress": "{{done}} de {{total}} segundos estables",
+  "practice.done": "Listo: tu teléfono tiene calificación",
   "practice.pending": "La práctica con la cámara aún no está conectada en esta versión, así que puedes continuar sin ella.",
   "howToSit.labelPhone": "teléfono a la altura del pecho",
   "howToSit.labelElbow": "codo sobre la mesa",

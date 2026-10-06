@@ -36,7 +36,9 @@ export type QualityReason =
   // DSP-13's three breathing estimates were all found but disagreed, so the interval estimate alone is shown.
   | { kind: 'estimatesDisagree' }
   // §5.2: the phone's rating, not its frame rate, is below the tier the output needs.
-  | { kind: 'phoneTier'; tier: Tier; wantTier: Tier };
+  | { kind: 'phoneTier'; tier: Tier; wantTier: Tier }
+  // No rhythm model or rule judged the rhythm, so RMSSD was computed without checking it is sinus (DSP-12).
+  | { kind: 'rhythmUnjudged' };
 // 'low': a standard floor failed and the same math ran on the beats there were.
 export type MetricQuality = 'standard' | 'low';
 // 'low' when any metric is; reasons are the union over the metrics, one per kind.
@@ -47,6 +49,8 @@ export interface ReadingQuality {
 interface MetricQualityFields {
   quality: MetricQuality;
   qualityReasons: QualityReason['kind'][];
+  // This metric's own reasons with its own floors (a heart rate's 15 s, not the diabetes pattern's 90 s).
+  qualityDetails: QualityReason[];
 }
 
 // §10.1 slow/fast resting rate and fast regular rhythm. Fast regular rhythm needs only 30 clean s, so it

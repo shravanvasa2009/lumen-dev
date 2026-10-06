@@ -70,10 +70,16 @@ interface Graded<T> {
 }
 
 // A metric's tag from the standard floors it failed (ADR 0104).
-function tag(reasons: QualityReason[]): { quality: MetricQuality; qualityReasons: QualityReason['kind'][] } {
+function tag(reasons: QualityReason[]): {
+  quality: MetricQuality;
+  qualityReasons: QualityReason['kind'][];
+  qualityDetails: QualityReason[];
+} {
+  const own = unique(reasons);
   return {
-    quality: reasons.length > 0 ? 'low' : 'standard',
-    qualityReasons: reasons.map((reason) => reason.kind),
+    quality: own.length > 0 ? 'low' : 'standard',
+    qualityReasons: own.map((reason) => reason.kind),
+    qualityDetails: own,
   };
 }
 
@@ -96,6 +102,12 @@ function rateReasons(analysis: ReadingAnalysis, needed: Tier, wantFps: number): 
   return tierAtLeast(analysis, needed)
     ? []
     : [{ kind: 'phoneTier', tier: effectiveTier(analysis), wantTier: needed }];
+}
+
+// The tier gate alone, for an output whose standard path checks only the tier (breathing: main's rule). When it
+// fails, the reason is the frame rate if that is under wantFps, else the rating.
+function tierReasons(analysis: ReadingAnalysis, needed: Tier, wantFps: number): QualityReason[] {
+  return tierAtLeast(analysis, needed) ? [] : rateReasons(analysis, needed, wantFps);
 }
 
 // EVID-1 and ADR 0022: a label only when evidence.json states it and passed is true.
@@ -368,7 +380,7 @@ function rmssdMetric(
   const { captureFps } = analysis.context;
   const config = DSP_CONFIG.dsp12;
   const reasons: QualityReason[] =
-    rhythmClass === null ? [{ kind: 'modelFallback' }] : [...(rhythm?.reasons ?? [])];
+    rhythmClass === null ? [{ kind: 'rhythmUnjudged' }] : [...(rhythm?.reasons ?? [])];
   reasons.push(...rateReasons(analysis, 'full', config.minFps));
 
   let value =
@@ -408,7 +420,7 @@ function respMetric(
   const reasons: QualityReason[] = [
     ...quickMode(analysis),
     ...shortClean(analysis, DSP_CONFIG.dsp13.minCleanS),
-    ...rateReasons(analysis, 'basic', 30),
+    ...tierReasons(analysis, 'basic', 30),
   ];
   if (estimates.rateBrpm === null) {
     const found = [estimates.intensityBrpm, estimates.amplitudeBrpm, estimates.intervalBrpm].filter(
@@ -429,6 +441,7 @@ function respMetric(
 
 function diabetesMetric(
   analysis: ReadingAnalysis,
+  rhythm: RhythmCall | null,
   outputs: DiabetesOutputs | null,
   evidence: EvidenceFile,
   history: PastReading[],
@@ -441,6 +454,9 @@ function diabetesMetric(
     ...quickMode(analysis),
     ...rateReasons(analysis, 'full', 60),
     ...shortClean(analysis, rules.diabetesMinCleanS),
+    // The rhythm call opens diabetes-net's HRV summary (diabetesModelInput), so a lower-quality call makes a
+    // lower-quality input.
+    ...(rhythm?.reasons ?? []),
   ];
   // The model scored the low-quality averaged beat (diabetesModelInput).
   const lowShape = analysis.pulseShape === null ? analysis.lowQuality.pulseShape : null;
@@ -544,7 +560,7 @@ export function buildReadingResult(
   const rhythm = rhythmCall(analysis, models.rhythm, evidence, profile, history, confidence);
   const rmssd = rmssdMetric(analysis, models, rhythm, evidence, profile, history, confidence);
   const resp = respMetric(analysis, evidence, confidence);
-  const diabetes = diabetesMetric(analysis, models.diabetes, evidence, history, confidence);
+  const diabetes = diabetesMetric(analysis, rhythm, models.diabetes, evidence, history, confidence);
   const experimental = experimentalMeasurements(analysis);
 
   const beats = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');

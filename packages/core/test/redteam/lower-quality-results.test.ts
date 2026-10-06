@@ -47,6 +47,7 @@ const withoutTag = (metric: object) => {
   const rest: Record<string, unknown> = { ...metric };
   delete rest.quality;
   delete rest.qualityReasons;
+  delete rest.qualityDetails;
   return rest;
 };
 
@@ -324,7 +325,7 @@ describe('red team ADR 0104 SAFE-1: the emergency rules never read the lower-qua
 
 describe('red team ADR 0104 ML-6 and rhythm claims on lower-quality readings', () => {
   // OWNER DECISION (pinned as it is at 3ad37eb). The diabetes pattern's own floors are met, so it flags, while
-  // another card (here RMSSD without a rhythm model, tagged modelFallback) makes the reading "Lower-quality".
+  // another card (here RMSSD without a rhythm model, tagged rhythmUnjudged) makes the reading "Lower-quality".
   // ADR 0104 says a lower-quality *pattern* never flags; whether a lower-quality *reading* may carry a diabetes
   // flag is the owner's call. 95 s of sinus at 75 bpm, Full Scan, Full tier, 60 fps, no rhythm model.
   it('OWNER DECISION: a reading tagged lower quality can still carry a standard diabetes flag', () => {
@@ -337,7 +338,7 @@ describe('red team ADR 0104 ML-6 and rhythm claims on lower-quality readings', (
       BATTERY_HISTORY,
     );
     expect(built.quality.level).toBe('low');
-    expect(built.metrics.rmssd?.qualityReasons).toEqual(['modelFallback']);
+    expect(built.metrics.rmssd?.qualityReasons).toEqual(['rhythmUnjudged']);
     expect(built.metrics.diabetes).toMatchObject({ quality: 'standard', flag: 'pattern' });
   });
 

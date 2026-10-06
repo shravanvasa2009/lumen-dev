@@ -199,11 +199,11 @@ describe('reading analysis of a kept capture', () => {
     if (!stored) throw new Error('the finished reading was not saved');
 
     renderRouter('./app', { initialUrl: `/results/${analysis.current.readingId}` });
-    // A Quick Check judges no rhythm (ADR 0089): a good heart rate is headlined alone, with no retake asked.
+    // With no rhythm judged, a good heart rate is headlined alone, with no retake asked, and HRV says what it waits for.
     expect(stored.outcome.headlineKey).toBe('result.hrOnly');
     expect(await screen.findByText(en['result.hrOnly'])).toBeOnTheScreen();
     expect(screen.queryByText(en['result.uncertain'])).toBeNull();
-    expect(screen.getByText(en['checks.state.off'])).toBeOnTheScreen();
+    expect(screen.getByText(en['quality.missingNoRhythm'])).toBeOnTheScreen();
   });
 
   it('reports a capture it cannot analyse as failed, with the reason and the steps so far', async () => {

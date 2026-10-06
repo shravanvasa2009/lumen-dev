@@ -169,14 +169,14 @@ describe.each([
     expect(screen.getByRole('header', { name: en['standing.title'] })).toBeOnTheScreen();
   });
 
-  it('lists HRV and POTS as compact rows and the Diabetes risk row on a Quick Check', () => {
+  it('shows every card on a Quick Check, with the Standing test button (owner decision over ADR 0089)', () => {
     openResults('demo-flag');
-    expect(screen.getByText(en['checks.hrv.name'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.heartRhythm'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.hrv'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.breathing'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.rowTitle'])).toBeOnTheScreen();
     expect(screen.getByText(en['checks.pots.name'])).toBeOnTheScreen();
-    expect(screen.getByText(en['checks.from.standing'])).toBeOnTheScreen();
-    expect(screen.getAllByText(en['mode.full']).length).toBe(1);
-    expect(screen.queryByText(en['results.notThisScan'])).toBeNull();
+    expect(screen.getByRole('button', { name: en['results.takeStanding'] })).toBeOnTheScreen();
   });
 
   it('lets card headers shrink', () => {
@@ -353,28 +353,21 @@ describe.each([
     expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
   });
 
-  it('headlines a Quick Check by its heart rate alone and says AFib is not in this scan (ADR 0089)', () => {
+  it('headlines a reading with no rhythm by its heart rate and says why HRV is empty', () => {
     mockDemo.hrOnly = true;
     openResults('demo-flag');
     expect(screen.getByText(en['result.hrOnly'])).toBeOnTheScreen();
     expect(screen.queryByText(en['result.uncertain'])).toBeNull();
-    expect(screen.getByText(en['checks.state.off'])).toBeOnTheScreen();
-    expect(screen.queryByText(en['result.inconclusive'])).toBeNull();
+    expect(screen.getByText(en['quality.missingNoRhythm'])).toBeOnTheScreen();
     expect(screen.getByText('88 bpm')).toBeOnTheScreen();
   });
 
-  it('keeps "Not enough clean signal" on the AFib card of a Full Scan with no rhythm card', () => {
+  it('keeps "Not enough clean signal" on the AFib and breathing cards when nothing names a cause', () => {
     mockDemo.hrOnly = true;
     openResults('demo');
     expect(screen.getByText(en['result.hrOnly'])).toBeOnTheScreen();
-    // The AFib card and the HRV card, which needs a judged sinus rhythm.
-    expect(screen.getAllByText(en['result.inconclusive'])).toHaveLength(2);
-    expect(screen.queryByText(en['checks.state.off'])).toBeNull();
-  });
-
-  it('leaves HRV out of a Quick Check', () => {
-    openResults('demo-flag');
-    expect(screen.queryByText(en['results.hrv'])).toBeNull();
+    expect(screen.getAllByText(en['result.inconclusive'])).toHaveLength(1);
+    expect(screen.getByText(en['quality.missingNoRhythm'])).toBeOnTheScreen();
   });
 
   it('does not open the safety sheet when no heart-rate or rhythm flag fired', () => {
@@ -400,7 +393,12 @@ describe.each([
   it('labels confidence in words, not only dots', () => {
     openResults('demo');
     const labels = screen.getAllByTestId('confidence-dots').map((dots) => dots.props.accessibilityLabel);
-    expect(labels).toEqual([en['confidence.high'], en['confidence.moderate'], en['confidence.high']]);
+    expect(labels).toEqual([
+      en['confidence.high'],
+      en['confidence.moderate'],
+      en['confidence.moderate'],
+      en['confidence.high'],
+    ]);
   });
 });
 

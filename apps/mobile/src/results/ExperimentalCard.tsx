@@ -11,12 +11,16 @@ import { ListRow } from '@/components/ListRow';
 import { formatNumber } from '@/i18n/formatNumber';
 import { useTheme } from '@/theme';
 
+import type { QualityReason } from './quality';
+import { QualityChip } from './QualityChip';
+
 type ExperimentalCardProps = {
   experimental: ReadingResult['experimental'];
+  lowQualityReasons: readonly QualityReason[] | null;
 };
 
 // §6.3: grey badges, no flags. Collapsed by default; the row opens the extra-beats and pulse-shape detail.
-export function ExperimentalCard({ experimental }: ExperimentalCardProps) {
+export function ExperimentalCard({ experimental, lowQualityReasons }: ExperimentalCardProps) {
   const { t, i18n } = useTranslation();
   const { colors, spacing } = useTheme();
   const [open, setOpen] = useState(false);
@@ -36,6 +40,11 @@ export function ExperimentalCard({ experimental }: ExperimentalCardProps) {
         </AppText>
         <EvidenceBadge metric="extraBeats" />
       </View>
+      {lowQualityReasons ? (
+        <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>
+          <QualityChip small reasons={lowQualityReasons} />
+        </View>
+      ) : null}
       <View style={{ borderTopColor: colors.line, borderTopWidth: 1 }}>
         <ListRow
           title={t('results.extraAndShape')}

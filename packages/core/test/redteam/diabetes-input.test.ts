@@ -446,7 +446,7 @@ describe('red team ML-6: readingRhythm agrees with buildReadingResult', () => {
       // No judgement at all: a lower-quality RMSSD (ADR 0104), none with a pacemaker.
       const rmssd = buildReadingResult(sinus, NO_MODELS, seedEvidence, profile, []).metrics.rmssd;
       if (profile.pacemaker) expect(rmssd).toBeNull();
-      else expect(rmssd).toMatchObject({ quality: 'low', qualityReasons: ['modelFallback'] });
+      else expect(rmssd).toMatchObject({ quality: 'low', qualityReasons: ['rhythmUnjudged'] });
     }
   });
 });

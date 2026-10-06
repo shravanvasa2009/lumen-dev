@@ -279,7 +279,7 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
     expect(outcome.quality).toEqual({ level: 'standard', reasons: [] });
     const { hr, rhythm, rmssd, resp } = outcome.metrics;
     for (const metric of [hr, rhythm, rmssd, resp, outcome.experimental])
-      expect(metric).toMatchObject({ quality: 'standard', qualityReasons: [] });
+      expect(metric).toMatchObject({ quality: 'standard', qualityReasons: [], qualityDetails: [] });
   });
 
   it('states only the heart rate with a pacemaker, whatever the rhythm model says', () => {
@@ -442,6 +442,21 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
   });
 });
 
+describe('each card carries its own floors (ADR 0104)', () => {
+  it('a 12 s reading: the heart rate quotes 15 s, the rhythm 60 s, while the reading lists the largest', () => {
+    const short = analysisWith({ heartRateBpm: null, cleanSeconds: 12, durationS: 12 });
+    const lowHr = { ...short, lowQuality: { ...short.lowQuality, heartRateBpm: 64 } };
+    const outcome = build(lowHr, SINUS);
+    expect(outcome.metrics.hr!.qualityDetails).toEqual([{ kind: 'shortClean', haveS: 12, wantS: 15 }]);
+    expect(outcome.metrics.rhythm!.qualityDetails).toContainEqual({
+      kind: 'shortClean',
+      haveS: 12,
+      wantS: 60,
+    });
+    expect(outcome.quality.reasons).toContainEqual({ kind: 'shortClean', haveS: 12, wantS: 60 });
+  });
+});
+
 describe('basic analysis: the logistic rule feeds the same rhythm decision (§11.1, §11.10)', () => {
   const ABSTAIN = DSP_CONFIG.rules.uncertainBelowTopProb;
   const EPS = 1e-6;
@@ -502,10 +517,12 @@ describe('RMSSD card (DSP-12, §6.2 Full tier)', () => {
 
   it('is tagged lower quality below its tier, frame rate, or sinus judgement (ADR 0104)', () => {
     const standard = build(BASE).metrics.rmssd!.value;
+    // No model or rule judged the rhythm at all: the reason says so, not that a simpler method was used.
     expect(build(BASE, NO_MODELS).metrics.rmssd).toMatchObject({
       value: standard,
       quality: 'low',
-      qualityReasons: ['modelFallback'],
+      qualityReasons: ['rhythmUnjudged'],
+      qualityDetails: [{ kind: 'rhythmUnjudged' }],
     });
     // A 60 fps phone rated Basic (§5.2 weighs the score too) is told about its rating, not its frame rate.
     const basic = build(analysisWith({}, { tier: 'basic' }));
@@ -558,6 +575,13 @@ describe('breathing card (DSP-13, §6.2 Basic tier)', () => {
     expect(build(analysisWith({}, { tier: null, captureFps: 24 })).metrics.resp!.qualityReasons).toEqual([
       'lowFps',
     ]);
+  });
+
+  it('keeps main’s standard path: a phone rated Basic is standard whatever its frame rate', () => {
+    expect(build(analysisWith({}, { tier: 'basic', captureFps: 24 })).metrics.resp).toMatchObject({
+      quality: 'standard',
+      qualityReasons: [],
+    });
   });
 
   it('infers the tier gate from the frame rate when the phone is unrated', () => {
@@ -659,6 +683,28 @@ describe('diabetes card (§10.1, §11.4)', () => {
       expect(reasons).toContainEqual({ kind: 'lowFps', fps: 0, wantFps: 60 });
       expect(JSON.stringify(reasons)).not.toMatch(/null|NaN|Infinity/);
     }
+  });
+
+  it('is tagged when a lower-quality rhythm call opened diabetes-net’s HRV summary, and never flags', () => {
+    // A 90 s, 60 fps Full Scan with no 32-interval window: the rhythm comes from one reading-wide row.
+    const oneWide = analysisWith({
+      rhythmWindows: [],
+      rhythmFeatures: [],
+      lowQuality: { ...BASE.lowQuality, rhythmFeatures: BASE.rhythmFeatures[0]! },
+    });
+    const models: ModelOutputs = {
+      rhythm: { windowProbs: [[0.9, 0.05, 0.05]], tauAf: 0.5 },
+      diabetes: { probability: 0.7, tauDm: 0.5 },
+    };
+    const diabetes = build(oneWide, models, passedDiabetes, PROFILE, [earlier('2026-10-02', 0.7)]).metrics
+      .diabetes!;
+    expect(diabetes).toMatchObject({ quality: 'low', flag: null });
+    expect(diabetes.qualityReasons).toContain('fewWindows');
+    // The same reading with a standard rhythm call still flags.
+    const standard = build(BASE, { ...SINUS, diabetes: models.diabetes }, passedDiabetes, PROFILE, [
+      earlier('2026-10-02', 0.7),
+    ]).metrics.diabetes!;
+    expect(standard).toMatchObject({ quality: 'standard', flag: 'pattern' });
   });
 
   it('names the lower-quality averaged beat when the model scored it', () => {

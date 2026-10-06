@@ -139,7 +139,7 @@ describe('replayFolder', () => {
     const { output } = await replayFolder(folder);
     assert.equal(output.rhythmSource, 'none');
     assert.equal(output.metrics.rmssd.quality, 'low');
-    assert.deepEqual(output.metrics.rmssd.qualityReasons, ['modelFallback']);
+    assert.deepEqual(output.metrics.rmssd.qualityReasons, ['rhythmUnjudged']);
   });
 
   it('with --rhythm-from-label: the label opens the DSP-12 gate, but no rhythm card appears', async () => {

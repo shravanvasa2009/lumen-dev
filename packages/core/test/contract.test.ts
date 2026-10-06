@@ -3,7 +3,7 @@ import type { CaptureStatus, ClassifiedBeat, LiveSession, ReadingResult, SampleB
 // These are type-shape checks: tsc (run before jest) fails if the types drift from the spec. No DSP runs.
 
 // Appendix B "Results JSON (one reading)", with ADR 0104's quality fields.
-const STANDARD = { quality: 'standard' as const, qualityReasons: [] };
+const STANDARD = { quality: 'standard' as const, qualityReasons: [], qualityDetails: [] };
 const appendixBExample: ReadingResult = {
   headlineKey: 'result.regular',
   quality: { level: 'standard', reasons: [] },
@@ -66,6 +66,7 @@ const rhythmBelowFloor: ReadingResult = {
       flag: null,
       quality: 'low',
       qualityReasons: ['shortClean'],
+      qualityDetails: [SHORT],
     },
     rmssd: null,
     resp: null,

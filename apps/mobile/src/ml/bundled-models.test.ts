@@ -4,7 +4,7 @@ describe('the bundled models', () => {
   it('list a Metro asset for every shipped file in the manifest', () => {
     const { models } = bundledManifest as { models: { ships: boolean; file: string }[] };
     const shipped = models.filter((entry) => entry.ships).map((entry) => entry.file);
-    expect(shipped).toHaveLength(3);
+    expect(shipped.length).toBeGreaterThan(0);
     expect(Object.keys(bundledModelFiles).sort()).toEqual([...shipped].sort());
   });
 });

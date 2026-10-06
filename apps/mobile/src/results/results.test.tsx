@@ -28,26 +28,32 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
 // The questionnaire card reads the database; diabetesRiskCard.test.tsx covers it.
 jest.mock('@/profile/riskScore', () => ({ useStoredRiskScore: () => null }));
 
-const mockEvidence = { diabetesPassed: false };
+const mockEvidence = { diabetesPassed: false, rhythmPublic: false };
 jest.mock('@/evidence', () => {
   const actual = jest.requireActual('@/evidence');
   return {
     ...actual,
     evidenceFor: (metric: string) =>
-      metric === 'diabetes' && mockEvidence.diabetesPassed
+      (metric === 'diabetes' && mockEvidence.diabetesPassed) ||
+      (metric === 'rhythm' && mockEvidence.rhythmPublic)
         ? { label: 'public-data', measured: true }
         : actual.evidenceFor(metric),
   };
 });
 
-const mockDemo = { withoutPattern: false };
+const mockDemo = { withoutPattern: false, ruleScored: false };
 jest.mock('./fixtures', () => {
   const actual = jest.requireActual('./fixtures');
   return {
     ...actual,
     readingById: (id: string) => {
       const reading = actual.readingById(id);
-      if (!mockDemo.withoutPattern || id !== 'demo') return reading;
+      if (id !== 'demo') return reading;
+      if (mockDemo.ruleScored) {
+        const rhythm = { ...reading.scan.metrics.rhythm, scorer: 'rule' };
+        return { ...reading, scan: { ...reading.scan, metrics: { ...reading.scan.metrics, rhythm } } };
+      }
+      if (!mockDemo.withoutPattern) return reading;
       const { diabetes } = reading.scan.metrics;
       const metrics = { ...reading.scan.metrics, diabetes: { ...diabetes, flag: null } };
       return { ...reading, scan: { ...reading.scan, metrics } };
@@ -69,6 +75,8 @@ describe.each([
     mockWindow.fontScale = 1;
     mockEvidence.diabetesPassed = false;
     mockDemo.withoutPattern = false;
+    mockEvidence.rhythmPublic = false;
+    mockDemo.ruleScored = false;
   });
 
   it('shows the demo reading with its cards and the accuracy footer', () => {
@@ -282,6 +290,21 @@ describe.each([
     const badges = screen.getAllByTestId('evidence-badge').map((badge) => badge.props.accessibilityLabel);
     expect(badges.length).toBeGreaterThan(0);
     expect(new Set(badges)).toEqual(new Set([en['evidence.experimental']]));
+  });
+
+  it('says "Basic analysis" and caps the rhythm badge at Experimental for a rule-scored reading', () => {
+    mockEvidence.rhythmPublic = true;
+    mockDemo.ruleScored = true;
+    openResults('demo');
+    expect(screen.getByText(en['results.basicAnalysis'])).toBeOnTheScreen();
+    expect(screen.queryAllByLabelText(en['evidence.publicData'])).toHaveLength(0);
+  });
+
+  it('shows no "Basic analysis" caption for a model-scored reading, and its badge keeps the file label', () => {
+    mockEvidence.rhythmPublic = true;
+    openResults('demo');
+    expect(screen.queryByText(en['results.basicAnalysis'])).toBeNull();
+    expect(screen.getAllByLabelText(en['evidence.publicData'])).toHaveLength(1);
   });
 
   it('draws no red on a flagged result (SAFE-1)', () => {

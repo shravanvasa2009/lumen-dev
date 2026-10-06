@@ -83,6 +83,21 @@ describe('readings', () => {
     expect(row?.demo).toBe(0);
   });
 
+  it('keeps which scorer gave the rhythm card, and reads an older reading without one', async () => {
+    const byRule = {
+      ...savedAt(2_000),
+      models: { ...MODELS, rhythm: { windowProbs: [], tauAf: 0.6, scorer: 'rule' as const } },
+    };
+    await saveReading(byRule);
+    const database = await lumenDatabase();
+    const row = await database.getFirstAsync<{ models_json: string }>('SELECT models_json FROM readings');
+    expect(JSON.parse(row?.models_json ?? 'null').rhythm.scorer).toBe('rule');
+    // No scorer field: the saved result of an older reading reads back unchanged, and the card treats it as the model's.
+    await saveReading(savedAt(1_000));
+    const older = await storedReadingById('reading-1000');
+    expect(older?.outcome.metrics.rhythm?.scorer).toBeUndefined();
+  });
+
   it('lists readings newest first', async () => {
     await saveReading(savedAt(2_000, 'quick'));
     await saveReading(savedAt(3_000));

@@ -182,6 +182,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           checkName={t('checks.afib.name')}
           icon="pulse"
           evidenceMetric="rhythm"
+          basicAnalysis={rhythm?.scorer === 'rule'}
           reading={
             rhythm && {
               ...rhythmWords(t, rhythm),

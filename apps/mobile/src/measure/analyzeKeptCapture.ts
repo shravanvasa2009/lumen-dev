@@ -53,7 +53,15 @@ function localDay(epochMs: number): string {
 // rhythm output.
 function ruleRhythmOutputs(analysis: ReadingAnalysis): RhythmOutputs | null {
   const entry = rhythmRuleEntry();
-  return entry === null ? null : logisticRhythmOutputs(entry, analysis.rhythmFeatures);
+  if (entry === null) return null;
+  try {
+    return { ...logisticRhythmOutputs(entry, analysis.rhythmFeatures), scorer: 'rule' };
+  } catch (error) {
+    // A RangeError is a window the rule cannot score; any other error is a broken manifest or a bug.
+    if (!(error instanceof RangeError)) throw error;
+    console.warn(`the basic-analysis rule could not score this reading: ${error.message}`);
+    return null;
+  }
 }
 
 async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs | null> {
@@ -70,15 +78,13 @@ async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs |
     if (sinus === undefined || af === undefined || other === undefined || typeof cut !== 'number')
       throw new Error('the rhythm model must score sinus, af and other and give an af threshold');
     if (!isProbabilityRow([sinus, af, other])) {
-      console.warn(
-        'rhythm model returned a row that is not a probability row; the reading has no rhythm card',
-      );
+      console.warn('rhythm model returned a row that is not a probability row; using basic analysis');
       return ruleRhythmOutputs(analysis);
     }
     windowProbs.push([sinus, af, other]);
     tauAf = cut;
   }
-  return tauAf === null ? null : { windowProbs, tauAf };
+  return tauAf === null ? null : { windowProbs, tauAf, scorer: 'model' };
 }
 
 // Only a Full Scan's reading can show a diabetes card, so only it runs the model. No pulse-shape beat, or no

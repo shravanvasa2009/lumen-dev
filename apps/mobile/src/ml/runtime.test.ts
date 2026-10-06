@@ -682,7 +682,11 @@ describe('the models the app ships', () => {
 
   it('load from the synced manifest and files, one per family', async () => {
     const runtime = await loadRuntime(appManifest, shippedFiles, appModels);
-    expect(Object.values(runtime.modelPlan()).map((plan) => plan.source)).toEqual(['model', 'model', 'model']);
+    expect(Object.values(runtime.modelPlan()).map((plan) => plan.source)).toEqual([
+      'model',
+      'model',
+      'model',
+    ]);
     expect(await runtime.classifyRhythm(features)).toMatchObject({ source: 'model' });
   });
 
@@ -706,7 +710,9 @@ describe('the rule entry', () => {
   });
 
   it('is null when no unshipped rhythm entry has a rule', async () => {
-    const runtime = await loadRuntime({ models: [rhythmEntry(), rhythmEntry({ ships: false, name: 'rhythm-net' })] });
+    const runtime = await loadRuntime({
+      models: [rhythmEntry(), rhythmEntry({ ships: false, name: 'rhythm-net' })],
+    });
     expect(runtime.rhythmRuleEntry()).toBeNull();
   });
 

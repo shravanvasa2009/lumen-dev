@@ -773,6 +773,7 @@
   "why.explainIrregular": "Your intervals changed without a repeating pattern.",
   "why.beat": "beat",
   "inconclusive.close": "Close",
+  "results.basicAnalysis": "Basic analysis",
   "results.bpm": "{{value}} bpm",
   "results.yourBand": "your band {{low}}–{{high}}",
   "results.noteIrregular": "AFib-like pattern",

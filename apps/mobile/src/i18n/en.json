@@ -1019,6 +1019,8 @@
   "quality.missingShort": "This scan was too short for this check.",
   "quality.missingBeats": "Too few beats were measured for this check.",
   "quality.missingWindows": "Too few steady stretches for this check.",
+  "quality.estimatesDisagree": "The three breathing signals disagreed, so one of them is shown",
+  "quality.phoneTier": "This phone is rated {{tier}}; this check is made for {{want}} phones",
   "quality.missingNoRhythm": "HRV needs a rhythm result first, and there was none.",
   "quality.missingNotSinus": "HRV is not shown when the rhythm was not clearly regular.",
   "results.breathing": "Breathing rate",

@@ -117,12 +117,12 @@ describe('practice reaching 30 of 30', () => {
 
   it('does not rate or move on before 30 of 30', async () => {
     mockLive = { ...running, cleanSeconds: 30.5 };
-    renderRouter('./app', { initialUrl: '/practice' });
+    const route = renderRouter('./app', { initialUrl: '/practice' });
     await settle();
     await pass(5000);
     expect(mockRatePhone).not.toHaveBeenCalled();
     expect(screen.queryByText(en['practice.done'])).toBeNull();
-    expect(screen.getPathname()).toBe('/practice');
+    expect(route.getPathname()).toBe('/practice');
   });
 
   it('rates first, says it is done, then moves to How to sit 1.5 s later', async () => {
@@ -133,33 +133,33 @@ describe('practice reaching 30 of 30', () => {
       }),
     );
     mockLive = finished;
-    renderRouter('./app', { initialUrl: '/practice' });
+    const route = renderRouter('./app', { initialUrl: '/practice' });
     await settle();
     expect(mockRatePhone).toHaveBeenCalledTimes(1);
     // The rating is not stored yet, so there is no done line and no countdown.
     await pass(5000);
     expect(screen.queryByText(en['practice.done'])).toBeNull();
-    expect(screen.getPathname()).toBe('/practice');
+    expect(route.getPathname()).toBe('/practice');
 
     await act(async () => storeRating({ score: 94 }));
     expect(screen.getByText(en['practice.done'])).toBeOnTheScreen();
     await pass(1499);
-    expect(screen.getPathname()).toBe('/practice');
+    expect(route.getPathname()).toBe('/practice');
     await pass(1);
-    expect(screen.getPathname()).toBe('/how-to-sit');
+    expect(route.getPathname()).toBe('/how-to-sit');
     expect(mockRatePhone).toHaveBeenCalledTimes(1);
   });
 
   it('stays with the unrated explanation, and does not move on, when no rating is settled', async () => {
     mockRatePhone.mockResolvedValue(null);
     mockLive = finished;
-    renderRouter('./app', { initialUrl: '/practice' });
+    const route = renderRouter('./app', { initialUrl: '/practice' });
     await settle();
     expect(screen.getByText(en['rating.pending'])).toBeOnTheScreen();
     expect(screen.getByText(en['rating.practiceAgain'])).toBeOnTheScreen();
     await pass(5000);
     expect(screen.queryByText(en['practice.done'])).toBeNull();
-    expect(screen.getPathname()).toBe('/practice');
+    expect(route.getPathname()).toBe('/practice');
   });
 });
 

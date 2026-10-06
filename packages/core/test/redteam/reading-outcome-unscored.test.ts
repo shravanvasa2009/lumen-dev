@@ -139,10 +139,15 @@ describe('red team: periodic stalls (thermal throttling) reach the mode target w
   // FAILS on b146460. 5 s clean, then 3.84 s stretches each followed by a 160 ms stall: no stretch holds a
   // 4 s window, so SQI-Net scores only the first 2 windows (pClean 0.9), yet each stretch's last ~0.9 s
   // counts clean. Quick to 140 s: b146460 saved 34.37 clean s, a reading; 808f37c 2.79, inconclusive.
-  it('Quick, 140 s of 3.84 s stretches and 160 ms stalls: inconclusive', () => {
+  it('Quick, 140 s of 3.84 s stretches and 160 ms stalls: short of Quick, a lower-quality reading', () => {
     const { analysis, scoredEnds } = replay(periodicStalls(5, 3.84, 0.16, 140), 0.9, 'quick');
     expect(scoredEnds.length).toBeLessThanOrEqual(2);
-    expect(readingOutcome(analysis).kind).toBe('inconclusive');
+    expect(analysis.cleanSeconds).toBeLessThan(DSP_CONFIG.rules.modeMinCleanS.quick);
+    // ADR 0104: below the target a capture with a heart rate is still a reading, tagged lower quality.
+    expect(analysis.heartRateBpm).toBeNull();
+    expect(readingOutcome(analysis).kind).toBe(
+      analysis.lowQuality.heartRateBpm === null ? 'inconclusive' : 'reading',
+    );
   });
 
   // SQI veto: every window scored 0. b146460 140 s Quick: 29.37 saved clean s from no clean window
@@ -158,10 +163,11 @@ describe('red team: a stall before the first 4 s turns unscored seconds into a Q
   // FAILS on b146460. A 250 ms stall at 3.95 s, then frames to 34.10 s: [0, 3.95] s is in no window yet
   // counts clean, so b146460 saves 30.03 clean s (3.93 never scored) and a reading; at a last frame of
   // 33.70 s it saves 29.63, inconclusive. Scored clean time is about 26.1 s, short of the Quick target.
-  it('Quick, a 250 ms stall at 3.95 s, last frame at 34.10 s: inconclusive', () => {
+  it('Quick, a 250 ms stall at 3.95 s, last frame at 34.10 s: short of Quick on scored time', () => {
     const { analysis, scoredEnds } = replay([...framesS(0, 3.95), ...framesS(4.2, 34.1)], 0.9, 'quick');
     const scoredCleanS = analysis.cleanSeconds - neverScoredCleanS(analysis, scoredEnds);
     expect(scoredCleanS).toBeLessThan(DSP_CONFIG.rules.modeMinCleanS.quick);
-    expect(readingOutcome(analysis).kind).toBe('inconclusive');
+    expect(analysis.cleanSeconds).toBeLessThan(DSP_CONFIG.rules.modeMinCleanS.quick);
+    expect(readingOutcome(analysis).kind).toBe('reading');
   });
 });

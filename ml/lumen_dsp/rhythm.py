@@ -122,10 +122,9 @@ def _window_features(start: int, intervals_s: list[float], atypical_beats: list[
     )
 
 
-def rhythm_windows(
+def _checked_inputs(
     intervals_s: Sequence[float], spans_artifact: Sequence[bool], atypical_beats: Sequence[bool]
-) -> list[RhythmWindow]:
-    # DSP-15: features per 32-interval window (step 16) within each run of usable intervals.
+) -> tuple[list[float], list[bool], list[bool]]:
     intervals = [float(value) for value in intervals_s]
     spans = [bool(flag) for flag in spans_artifact]
     atypical = [bool(flag) for flag in atypical_beats]
@@ -139,22 +138,55 @@ def rhythm_windows(
     for index, interval in enumerate(intervals):
         if not (math.isfinite(interval) and interval > 0):
             raise ValueError(f"interval {index} must be finite and positive seconds, got {interval}")
-    size, step = DSP_CONFIG["dsp15"]["windowIntervals"], DSP_CONFIG["dsp15"]["windowStep"]
-    windows = []
-    # An excluded interval ends the run: successive differences, turning points, Poincaré pairs, and
-    # sample-entropy templates must only pair intervals that are really adjacent in time.
+    return intervals, spans, atypical
+
+
+def _usable_runs(spans: list[bool]) -> list[tuple[int, int]]:
+    # Runs of intervals that span no artifact, as [start, end) indexes. An excluded interval ends the run:
+    # successive differences, turning points, Poincaré pairs, and sample-entropy templates must only pair
+    # intervals that are really adjacent in time.
+    runs = []
     run_start = 0
-    while run_start < len(intervals):
+    while run_start < len(spans):
         if spans[run_start]:
             run_start += 1
             continue
         run_end = run_start
-        while run_end < len(intervals) and not spans[run_end]:
+        while run_end < len(spans) and not spans[run_end]:
             run_end += 1
+        runs.append((run_start, run_end))
+        run_start = run_end
+    return runs
+
+
+def rhythm_windows(
+    intervals_s: Sequence[float], spans_artifact: Sequence[bool], atypical_beats: Sequence[bool]
+) -> list[RhythmWindow]:
+    # DSP-15: features per 32-interval window (step 16) within each run of usable intervals.
+    intervals, spans, atypical = _checked_inputs(intervals_s, spans_artifact, atypical_beats)
+    size, step = DSP_CONFIG["dsp15"]["windowIntervals"], DSP_CONFIG["dsp15"]["windowStep"]
+    windows = []
+    for run_start, run_end in _usable_runs(spans):
         for start in range(run_start, run_end - size + 1, step):
             windows.append(_window_features(start, intervals[start : start + size], atypical))
-        run_start = run_end
     return windows
+
+
+def reading_wide_window(
+    intervals_s: Sequence[float], spans_artifact: Sequence[bool], atypical_beats: Sequence[bool]
+) -> RhythmWindow | None:
+    # DSP-15 below its floors (ADR 0104): one window over the longest usable run (the first on a tie) when no
+    # 32-interval window fits, from three intervals; None otherwise.
+    intervals, spans, atypical = _checked_inputs(intervals_s, spans_artifact, atypical_beats)
+    longest = None
+    for run in _usable_runs(spans):
+        if run[1] - run[0] >= DSP_CONFIG["dsp15"]["windowIntervals"]:
+            return None
+        if longest is None or run[1] - run[0] > longest[1] - longest[0]:
+            longest = run
+    if longest is None or longest[1] - longest[0] < DSP_CONFIG["lowQuality"]["rhythmMinIntervals"]:
+        return None
+    return _window_features(longest[0], intervals[longest[0] : longest[1]], atypical)
 
 
 def _sample_entropy_upper_bound() -> float:

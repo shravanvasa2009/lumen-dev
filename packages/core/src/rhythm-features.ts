@@ -126,40 +126,72 @@ function windowFeatures(startInterval: number, intervalsS: number[], atypicalBea
   };
 }
 
-/** DSP-15: rhythm features per 32-interval window (step 16) within each run of usable intervals. */
-export function rhythmWindows(
-  intervalsS: number[],
-  spansArtifact: boolean[],
-  atypicalBeats: boolean[],
-): RhythmWindow[] {
+// ADR 0024: the feature vector is always finite, which needs every interval finite and positive.
+function checkRhythmInputs(intervalsS: number[], spansArtifact: boolean[], atypicalBeats: boolean[]): void {
   if (spansArtifact.length !== intervalsS.length)
     throw new RangeError(`${intervalsS.length} intervals but ${spansArtifact.length} artifact flags`);
   if (atypicalBeats.length !== intervalsS.length + 1)
     throw new RangeError(
       `${intervalsS.length} intervals need ${intervalsS.length + 1} beat flags, got ${atypicalBeats.length}`,
     );
-  // ADR 0024: the feature vector is always finite, which needs every interval finite and positive.
   intervalsS.forEach((intervalS, i) => {
     if (!(Number.isFinite(intervalS) && intervalS > 0))
       throw new RangeError(`interval ${i} must be finite and positive seconds, got ${intervalS}`);
   });
-  const { windowIntervals, windowStep } = DSP_CONFIG.dsp15;
-  const windows: RhythmWindow[] = [];
-  // An excluded interval ends the run: successive differences, turning points, Poincaré pairs, and
-  // sample-entropy templates must only pair intervals that are really adjacent in time.
-  for (let runStart = 0; runStart < intervalsS.length;) {
+}
+
+// Runs of intervals that span no artifact, as [start, end) indexes. An excluded interval ends the run:
+// successive differences, turning points, Poincaré pairs, and sample-entropy templates must only pair
+// intervals that are really adjacent in time.
+function usableRuns(spansArtifact: boolean[]): [number, number][] {
+  const runs: [number, number][] = [];
+  for (let runStart = 0; runStart < spansArtifact.length;) {
     if (spansArtifact[runStart]) {
       runStart++;
       continue;
     }
     let runEnd = runStart;
-    while (runEnd < intervalsS.length && !spansArtifact[runEnd]) runEnd++;
+    while (runEnd < spansArtifact.length && !spansArtifact[runEnd]) runEnd++;
+    runs.push([runStart, runEnd]);
+    runStart = runEnd;
+  }
+  return runs;
+}
+
+/** DSP-15: rhythm features per 32-interval window (step 16) within each run of usable intervals. */
+export function rhythmWindows(
+  intervalsS: number[],
+  spansArtifact: boolean[],
+  atypicalBeats: boolean[],
+): RhythmWindow[] {
+  checkRhythmInputs(intervalsS, spansArtifact, atypicalBeats);
+  const { windowIntervals, windowStep } = DSP_CONFIG.dsp15;
+  const windows: RhythmWindow[] = [];
+  for (const [runStart, runEnd] of usableRuns(spansArtifact)) {
     for (let start = runStart; start + windowIntervals <= runEnd; start += windowStep) {
       windows.push(windowFeatures(start, intervalsS.slice(start, start + windowIntervals), atypicalBeats));
     }
-    runStart = runEnd;
   }
   return windows;
+}
+
+/**
+ * DSP-15 below its floors (ADR 0104): one window over the longest usable run (the first on a tie) when no
+ * 32-interval window fits, from three intervals; null otherwise.
+ */
+export function readingWideWindow(
+  intervalsS: number[],
+  spansArtifact: boolean[],
+  atypicalBeats: boolean[],
+): RhythmWindow | null {
+  checkRhythmInputs(intervalsS, spansArtifact, atypicalBeats);
+  let longest: [number, number] | null = null;
+  for (const run of usableRuns(spansArtifact)) {
+    if (run[1] - run[0] >= DSP_CONFIG.dsp15.windowIntervals) return null;
+    if (longest === null || run[1] - run[0] > longest[1] - longest[0]) longest = run;
+  }
+  if (longest === null || longest[1] - longest[0] < DSP_CONFIG.lowQuality.rhythmMinIntervals) return null;
+  return windowFeatures(longest[0], intervalsS.slice(longest[0], longest[1]), atypicalBeats);
 }
 
 // Undefined sample entropy (A or B = 0) takes the Richman & Moorman (2000) upper bound, ln of the number

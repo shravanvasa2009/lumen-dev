@@ -36,10 +36,26 @@ function reading(daysAgo: number, change: (metrics: ReadingResult['metrics']) =>
 }
 
 const rhythm = (rhythmClass: 'sinus' | 'af') => (metrics: ReadingResult['metrics']) => {
-  metrics.rhythm = { class: rhythmClass, pAF: 0.1, evidence: 'experimental', confidence: 'high', flag: null };
+  metrics.rhythm = {
+    class: rhythmClass,
+    pAF: 0.1,
+    evidence: 'experimental',
+    confidence: 'high',
+    quality: 'standard',
+    qualityReasons: [],
+    flag: null,
+  };
 };
 const rmssd = (band: [number, number] | null) => (metrics: ReadingResult['metrics']) => {
-  metrics.rmssd = { value: 48.4, unit: 'ms', band, evidence: 'experimental', confidence: 'high' };
+  metrics.rmssd = {
+    value: 48.4,
+    unit: 'ms',
+    band,
+    evidence: 'experimental',
+    confidence: 'high',
+    quality: 'standard',
+    qualityReasons: [],
+  };
 };
 const diabetes = (flag: 'pattern' | null) => (metrics: ReadingResult['metrics']) => {
   metrics.diabetes = {
@@ -47,6 +63,8 @@ const diabetes = (flag: 'pattern' | null) => (metrics: ReadingResult['metrics'])
     readingsUsed: 1,
     evidence: 'experimental',
     confidence: 'high',
+    quality: 'standard',
+    qualityReasons: [],
     flag,
   };
 };

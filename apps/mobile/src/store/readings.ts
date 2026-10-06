@@ -1,4 +1,4 @@
-import type { ModelOutputs, ReadingContext, ReadingResult } from '@lumen/core';
+import type { ModelOutputs, PastReading, ReadingContext, ReadingResult } from '@lumen/core';
 
 import type { StoredReading } from '@/home/readings';
 import { parseMode, type MeasureMode } from '@/measure/mode';
@@ -49,6 +49,35 @@ export async function listReadings(): Promise<StoredReading[]> {
     `SELECT ${READING_COLUMNS} FROM readings ORDER BY created_at DESC`,
   );
   return rows.map(toStoredReading);
+}
+
+type HistoryRow = { created_at: number; context_json: string; results_json: string; models_json: string };
+
+/** Earlier readings as buildReadingResult's history rules read them, newest first. */
+export async function pastReadings(): Promise<PastReading[]> {
+  const database = await lumenDatabase();
+  const rows = await database.getAllAsync<HistoryRow>(
+    'SELECT created_at, context_json, results_json, models_json FROM readings ORDER BY created_at DESC',
+  );
+  return rows.map((row) => {
+    const context = JSON.parse(row.context_json) as ReadingContext;
+    const { metrics } = JSON.parse(row.results_json) as ReadingResult;
+    const models = JSON.parse(row.models_json) as ModelOutputs;
+    // ADR 0104: a lower-quality irregular flag still counts toward 2 of 3, but lower-quality values stay out of
+    // the personal band and the diabetes mean. A reading saved before the quality fields existed was standard.
+    const standard = (metric: { quality?: string } | null) => metric !== null && metric.quality !== 'low';
+    const day = context.recordedAt?.day;
+    return {
+      atMs: row.created_at,
+      rhythmPositive: metrics.rhythm?.flag != null,
+      rmssdMs: standard(metrics.rmssd) ? metrics.rmssd!.value : null,
+      // The card shows the mean over readings; the history needs this reading's own model output.
+      diabetes:
+        standard(metrics.diabetes) && models.diabetes && day
+          ? { day, probability: models.diabetes.probability, confidence: metrics.diabetes!.confidence }
+          : null,
+    };
+  });
 }
 
 export async function storedReadingById(id: string): Promise<StoredReading | null> {

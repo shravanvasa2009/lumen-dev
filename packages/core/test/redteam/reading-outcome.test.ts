@@ -59,17 +59,17 @@ function lostTotal(outcome: InconclusiveOutcome): number {
   return outcome.cleanSeconds + motion + pressure + coverage + coldHands + outcome.otherLostSeconds;
 }
 
-// What every outcome must satisfy, whatever the capture.
+// What every outcome must satisfy, whatever the capture. ADR 0104 (owner, 2026-10-05): any heart rate,
+// standard or lower quality, makes a reading; the mode target only tags it.
 function expectSound(analysis: ReadingAnalysis, outcome: ReadingOutcome): void {
   if (analysis.heartRateBpm !== null)
     expect(analysis.cleanSeconds).toBeGreaterThanOrEqual(DSP_CONFIG.dsp11.minCleanS);
+  const anyRate = analysis.heartRateBpm ?? analysis.lowQuality.heartRateBpm;
   if (outcome.kind === 'reading') {
-    expect(analysis.cleanSeconds).toBeGreaterThanOrEqual(
-      NEEDED[analysis.context.mode as keyof typeof NEEDED],
-    );
-    expect(analysis.heartRateBpm).not.toBeNull();
+    expect(anyRate).not.toBeNull();
     return;
   }
+  expect(anyRate).toBeNull();
   expect(Math.abs(lostTotal(outcome) - analysis.durationS)).toBeLessThan(SUM_TOLERANCE_S);
   for (const seconds of [...Object.values(outcome.lostSeconds), outcome.otherLostSeconds])
     expect(seconds).toBeGreaterThanOrEqual(0);
@@ -122,8 +122,22 @@ function analysisOf(
       coldHands: lost('coldHands'),
     },
     heartRateBpm: clean >= DSP_CONFIG.dsp11.minCleanS ? heartRateBpm : null,
+    // The averaged beat's typed arrays can be neither frozen nor structuredClone'd into Jest's realm; readingOutcome
+    // never reads it.
+    lowQuality: {
+      ...BASE.lowQuality,
+      heartRateBpm: clean >= DSP_CONFIG.dsp11.minCleanS ? null : heartRateBpm,
+      pulseShape: null,
+    },
   };
 }
+
+// The same capture with no rate at all, so its lost time is attributed (an inconclusive outcome).
+const withoutRate = (analysis: ReadingAnalysis): ReadingAnalysis => ({
+  ...analysis,
+  heartRateBpm: null,
+  lowQuality: { ...analysis.lowQuality, heartRateBpm: null },
+});
 
 describe('red team: readingOutcome on captures analyzeReading made (spec 07)', () => {
   it.each(MODES.flatMap((mode) => [30, 60, 240].map((fps) => [mode, fps] as const)))(
@@ -151,30 +165,31 @@ describe('red team: readingOutcome on captures analyzeReading made (spec 07)', (
     expect(inconclusive(outcome)).toMatchObject({ cleanSeconds: 0, causes: ['coverage'] });
   });
 
-  it('a finger lifted at 30.5 s of 60 s: a Quick Check reading, a Full Scan inconclusive on light', () => {
+  it('a finger lifted at 30.5 s of 60 s: a reading in both modes, its lost time on light (ADR 0104)', () => {
     const lifted: Channels = (tS) => (tS < 30.5 ? pulse(tS) : emptyRoom(tS));
     const capture = captureAt(regularOffsets(30, 60), lifted);
     expect(judge(capture, { mode: 'quick' }).outcome).toEqual({ kind: 'reading', urgent: null });
-    const full = inconclusive(judge(capture, { mode: 'full' }).outcome);
-    expect(full.reasons).toEqual(['tooFewCleanSeconds']);
+    const judged = judge(capture, { mode: 'full' });
+    expect(judged.outcome).toEqual({ kind: 'reading', urgent: null });
+    const full = inconclusive(readingOutcome(withoutRate(judged.analysis)));
+    expect(full.reasons).toEqual(['tooFewCleanSeconds', 'noHeartRate']);
     expect(full.cleanSeconds).toBeCloseTo(30.5, 6);
     expect(full.causes).toEqual(['coverage']);
   });
 
   it.each([
-    [16, ['tooFewCleanSeconds']],
-    [14, ['tooFewCleanSeconds', 'noHeartRate']],
-  ])(
-    'a finger on for only %i s of 100 s: DSP-11 gives HR only from 15 clean s; reasons %j',
-    (onS, reasons) => {
-      const lifted: Channels = (tS) => (tS < onS ? pulse(tS) : emptyRoom(tS));
-      const { analysis, outcome } = judge(captureAt(regularOffsets(30, 100), lifted), { mode: 'quick' });
-      expect(analysis.cleanSeconds).toBeCloseTo(onS, 6);
-      expect(inconclusive(outcome).reasons).toEqual(reasons);
-    },
-  );
+    [16, 'standard'],
+    [14, 'lower-quality'],
+  ])('a finger on for only %i s of 100 s: a reading on the %s DSP-11 rate (ADR 0104)', (onS, kind) => {
+    const lifted: Channels = (tS) => (tS < onS ? pulse(tS) : emptyRoom(tS));
+    const { analysis, outcome } = judge(captureAt(regularOffsets(30, 100), lifted), { mode: 'quick' });
+    expect(analysis.cleanSeconds).toBeCloseTo(onS, 6);
+    expect(outcome.kind).toBe('reading');
+    expect(analysis.heartRateBpm === null).toBe(kind === 'lower-quality');
+    expect(Math.abs((analysis.heartRateBpm ?? analysis.lowQuality.heartRateBpm)! - 75)).toBeLessThan(1);
+  });
 
-  it('a pulse with 3 s motion bursts every 10 s: Quick (45 s) is a reading, Full (100 s) is inconclusive', () => {
+  it('a pulse with 3 s motion bursts every 10 s: Quick (45 s) and Full (100 s) are readings', () => {
     const bursts = (capture: SyntheticCapture, seconds: number) =>
       Array.from({ length: Math.floor(seconds / 10) }, (_, k) => nsSpan(capture, 10 * k + 5, 10 * k + 8));
     // The accelerometer saw the motion, and the red channel jumped with it.
@@ -188,7 +203,9 @@ describe('red team: readingOutcome on captures analyzeReading made (spec 07)', (
       urgent: null,
     });
     const full = captureAt(regularOffsets(30, 100), shaken);
-    const outcome = inconclusive(judge(full, { mode: 'full', motionSpans: bursts(full, 100) }).outcome);
+    const judged = judge(full, { mode: 'full', motionSpans: bursts(full, 100) });
+    expect(judged.outcome.kind).toBe('reading');
+    const outcome = inconclusive(readingOutcome(withoutRate(judged.analysis)));
     expect(outcome.lostSeconds.motion).toBeCloseTo(30, 6);
     expect(outcome.causes).toEqual(['motion']);
   });
@@ -247,7 +264,8 @@ describe('red team: readingOutcome on captures analyzeReading made (spec 07)', (
       coldHandsSpans: [nsSpan(capture, 23, 30)],
       sqi: { threshold: 0.5, windows: [{ endNs: nsSpan(capture, 0, 40).endNs, pClean: 0.1 }] },
     });
-    const lost = inconclusive(outcome);
+    expect(outcome.kind).toBe('reading');
+    const lost = inconclusive(readingOutcome(withoutRate(analysis)));
     expect(lost.lostSeconds.motion).toBeCloseTo(analysis.lostSeconds.motion - 2, 6); // 8–10 s is coverage's
     expect(lost.lostSeconds.coldHands).toBeCloseTo(analysis.lostSeconds.coldHands - 2, 6); // 23–25 s is pressure's
     expect(lost.causes.slice(0, 2)).toEqual(['motion', 'coverage']);
@@ -263,14 +281,15 @@ describe('red team: Quick, Full, and Deep at their targets, at 30, 60, and 240 f
   );
 
   it.each(cases)(
-    '%s at %i fps: exactly %i s of frames is a reading; one frame less is not',
+    '%s at %i fps: exactly %i s of frames is a reading, and one frame less is too (ADR 0104)',
     (mode, fps, needed) => {
       const offsets = offsetsUpTo(fps, needed);
       const atTarget = judge(captureAt(offsets, pulse), { mode, captureFps: fps });
       expect(atTarget.analysis.cleanSeconds).toBe(needed);
       expect(atTarget.outcome).toEqual({ kind: 'reading', urgent: null });
       const short = judge(captureAt(offsets.slice(0, -1), pulse), { mode, captureFps: fps });
-      expect(inconclusive(short.outcome).reasons).toEqual(['tooFewCleanSeconds']);
+      expect(short.analysis.cleanSeconds).toBeLessThan(needed);
+      expect(short.outcome).toEqual({ kind: 'reading', urgent: null });
     },
     120_000,
   );
@@ -297,13 +316,21 @@ describe('red team: frame gaps are not clean seconds (spec 07: the countdown adv
       95,
       (tS: number) => tS < 20 || Math.round(tS * 30) % 6 === 0,
     ],
-  ])('%s: %s is inconclusive', (mode, _, seconds, kept) => {
-    const analysis = analyzeReading(captureAt(regularOffsets(30, seconds).filter(kept), pulse), {
-      ...CONTEXT,
-      mode,
-    });
-    expect(readingOutcome(analysis)).toMatchObject({ kind: 'inconclusive', reasons: ['tooFewCleanSeconds'] });
-  });
+  ])(
+    '%s: %s counts no gap as clean, and is a reading on the frames it has (ADR 0104)',
+    (mode, _, seconds, kept) => {
+      const analysis = analyzeReading(captureAt(regularOffsets(30, seconds).filter(kept), pulse), {
+        ...CONTEXT,
+        mode,
+      });
+      expect(analysis.cleanSeconds).toBeLessThan(NEEDED[mode as keyof typeof NEEDED]);
+      expect(readingOutcome(analysis).kind).toBe('reading');
+      expect(readingOutcome(withoutRate(analysis))).toMatchObject({
+        kind: 'inconclusive',
+        reasons: ['tooFewCleanSeconds', 'noHeartRate'],
+      });
+    },
+  );
 
   it('two frames 100 s apart are inconclusive (held only by noHeartRate today)', () => {
     const outcome = inconclusive(judge(captureAt([0, 100], pulse)).outcome);
@@ -321,7 +348,7 @@ describe('red team: the clean-seconds target under float error', () => {
   // Frame times 16.066666651 s to 16.766666651 s (whole ns) under motion, in a capture whose last frame is
   // at 30.7 s: 30 s clean to the ns, computed as 30 − 1 ulp. The error goes toward refusing, and the live
   // counter computes the same number from the same spans, so its ring had not completed either.
-  it('a true 30 s clean count computed as 29.999999999999996 is inconclusive, as the live count agrees', () => {
+  it('a true 30 s clean count computed as 29.999999999999996, as the live count agrees, is a reading', () => {
     const capture = captureAt([...regularOffsets(30, 30.7), 30.7], pulse);
     const startNs = capture.samples[0]!.tNs;
     const { analysis, outcome } = judge(capture, {
@@ -330,7 +357,7 @@ describe('red team: the clean-seconds target under float error', () => {
     });
     expect(analysis.cleanSeconds).toBe(29.999999999999996);
     expect(analysis.cleanSeconds).toBe(cleanSeconds(0, analysis.durationS, analysis.rejectedSpans));
-    expect(inconclusive(outcome).reasons).toEqual(['tooFewCleanSeconds']);
+    expect(outcome).toEqual({ kind: 'reading', urgent: null });
   });
 });
 
@@ -440,12 +467,17 @@ describe('red team: lost-time attribution on random span sets', () => {
   it('exact ties keep the §12 coaching order: coverage, motion, pressure, cold hands', () => {
     const outcome = inconclusive(
       readingOutcome(
-        analysisOf('quick', 30, [
-          { startS: 0, endS: 2, reason: 'coldHands' },
-          { startS: 3, endS: 5, reason: 'clipping' },
-          { startS: 6, endS: 8, reason: 'motion' },
-          { startS: 9, endS: 11, reason: 'coverage' },
-        ]),
+        analysisOf(
+          'quick',
+          30,
+          [
+            { startS: 0, endS: 2, reason: 'coldHands' },
+            { startS: 3, endS: 5, reason: 'clipping' },
+            { startS: 6, endS: 8, reason: 'motion' },
+            { startS: 9, endS: 11, reason: 'coverage' },
+          ],
+          null,
+        ),
       ),
     );
     expect(outcome.causes).toEqual(['coverage', 'motion', 'pressure', 'coldHands']);
@@ -458,10 +490,15 @@ describe('red team: lost-time attribution on random span sets', () => {
   it('a tie broken only by float rounding keeps the coaching order', () => {
     const outcome = inconclusive(
       readingOutcome(
-        analysisOf('quick', 30, [
-          { startS: 0, endS: 0.7, reason: 'coverage' },
-          { startS: 3, endS: 3.7, reason: 'motion' },
-        ]),
+        analysisOf(
+          'quick',
+          30,
+          [
+            { startS: 0, endS: 0.7, reason: 'coverage' },
+            { startS: 3, endS: 3.7, reason: 'motion' },
+          ],
+          null,
+        ),
       ),
     );
     expect(outcome.causes).toEqual(['coverage', 'motion']);
@@ -485,10 +522,15 @@ describe('red team: modes and purity', () => {
   };
 
   it('a deep-frozen analysis is read, not changed; outcomes are equal and share no objects', () => {
-    const analysis = analysisOf('full', 60, [
-      { startS: 5, endS: 9, reason: 'motion' },
-      { startS: 7, endS: 12, reason: 'coverage' },
-    ]);
+    const analysis = analysisOf(
+      'full',
+      60,
+      [
+        { startS: 5, endS: 9, reason: 'motion' },
+        { startS: 7, endS: 12, reason: 'coverage' },
+      ],
+      null,
+    );
     const before = structuredClone(analysis);
     deepFreeze(analysis);
     const first = inconclusive(readingOutcome(analysis));

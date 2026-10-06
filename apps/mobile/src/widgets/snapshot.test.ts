@@ -39,7 +39,15 @@ function snapshotOf(
 
 function rhythm(flag: 'irregular' | 'possibleAf' | null): Change {
   return (outcome) => {
-    outcome.metrics.rhythm = { class: 'sinus', pAF: 0.1, evidence: 'public-data', confidence: 'high', flag };
+    outcome.metrics.rhythm = {
+      class: 'sinus',
+      pAF: 0.1,
+      evidence: 'public-data',
+      confidence: 'high',
+      quality: 'standard',
+      qualityReasons: [],
+      flag,
+    };
   };
 }
 
@@ -56,6 +64,8 @@ function diabetes(evidence: 'public-data' | 'experimental'): Change {
       readingsUsed: 2,
       evidence,
       confidence: 'high',
+      quality: 'standard',
+      qualityReasons: [],
       flag: 'pattern',
     };
   };
@@ -173,6 +183,8 @@ const outcomes: readonly Outcome[] = [
         unit: 'bpm',
         evidence: 'checked',
         confidence: 'moderate',
+        quality: 'standard',
+        qualityReasons: [],
         flag: 'fastRegular',
       };
     },

@@ -298,6 +298,14 @@ export const DSP_CONFIG = {
     maxBpm: 180,
     minSnrDb: 6, // peak power over the median power of the scanned bins
   },
+  // Owner 2026-10-05 (ADR 0104): when a standard floor fails, the same math runs on whatever beats exist and
+  // the result is tagged lower quality. Each value is the fewest beats its method is defined on.
+  lowQuality: {
+    hrMinIntervals: 2, // DSP-11: the median of two accepted intervals
+    rmssdMinIntervals: 3, // DSP-12: two successive differences
+    rhythmMinIntervals: 3, // DSP-15: the turning-point ratio divides by n − 2
+    shapeMinBeats: 1, // DSP-14: one normal onset-to-onset beat
+  },
   // DSP-6 display only: the live graph's one-bump-per-beat pulse (displayPulse), never read by analysis.
   // A zero-phase low-pass a little above the beat rate removes the dicrotic wave's harmonics.
   displayPulse: {

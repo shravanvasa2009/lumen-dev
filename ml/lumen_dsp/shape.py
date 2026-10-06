@@ -82,14 +82,33 @@ def ensemble_beat(
     morphology_256: Sequence[float], onsets: Sequence[float], normal: Sequence[bool], capture_fps: float
 ) -> PulseShape | None:
     # DSP-14: ensemble beat of ≥ 20 normal beats of the 0.5–8 Hz morphology band at 256 Hz, with a–e labels.
-    if len(onsets) != len(normal):
-        raise ValueError(f"{len(onsets)} onsets but {len(normal)} normal-beat flags")
+    _check_pairs(onsets, normal)
     dsp14 = DSP_CONFIG["dsp14"]
-    samples, lead = dsp14["beatSamples"], dsp14["leadFraction"]
     # The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
     # nominal 60 fps session measures 59.9x. NaN and +Infinity are no rate, so both fail the gate.
     if not (math.isfinite(capture_fps) and capture_fps >= dsp14["minFps"]):
         return None
+    return _average_beat(morphology_256, onsets, normal, dsp14["minNormalBeats"])
+
+
+def low_quality_ensemble_beat(
+    morphology_256: Sequence[float], onsets: Sequence[float], normal: Sequence[bool]
+) -> PulseShape | None:
+    # DSP-14 below its floors (ADR 0104): the averaged beat at any frame rate, from one normal beat.
+    return _average_beat(morphology_256, onsets, normal, DSP_CONFIG["lowQuality"]["shapeMinBeats"])
+
+
+def _check_pairs(onsets: Sequence[float], normal: Sequence[bool]) -> None:
+    if len(onsets) != len(normal):
+        raise ValueError(f"{len(onsets)} onsets but {len(normal)} normal-beat flags")
+
+
+def _average_beat(
+    morphology_256: Sequence[float], onsets: Sequence[float], normal: Sequence[bool], min_normal_beats: int
+) -> PulseShape | None:
+    _check_pairs(onsets, normal)
+    dsp14 = DSP_CONFIG["dsp14"]
+    samples, lead = dsp14["beatSamples"], dsp14["leadFraction"]
     values = [float(value) for value in morphology_256]
     starts = [float(onset) for onset in onsets]
 
@@ -97,7 +116,7 @@ def ensemble_beat(
     candidates = [
         i for i in range(len(starts) - 1) if normal[i] and normal[i + 1] and starts[i + 1] - starts[i] > 0
     ]
-    if len(candidates) < dsp14["minNormalBeats"]:
+    if len(candidates) < min_normal_beats:
         return None
     longest_period = dsp14["maxPeriodRatio"] * median([starts[i + 1] - starts[i] for i in candidates])
 
@@ -125,7 +144,7 @@ def ensemble_beat(
         for k in range(samples):
             sums[k] += (raw[k] - low) / (high - low)
         beats_used += 1
-    if beats_used < dsp14["minNormalBeats"]:
+    if beats_used < min_normal_beats:
         return None
 
     beat = np.array([total / beats_used for total in sums])

@@ -221,6 +221,27 @@ test('metrics follow Appendix B and ADR 0037', () => {
   assert.deepEqual(metrics.recompute, { agent: null, matches: null });
 });
 
+test('values tagged lower quality stay out of the accuracy metrics (ADR 0104)', () => {
+  const low = { quality: 'low', qualityReasons: ['shortClean'] };
+  const captures = [
+    capture({ subject: 'P1', hr: 62, polarHr: 60, labels: { rhythm: 'sinus' } }),
+    capture({
+      subject: 'P2',
+      hr: 90,
+      polarHr: 60,
+      labels: { rhythm: 'sinus', pacedBrpm: 12 },
+      reading: {
+        metrics: { hr: { value: 90, ...low }, rmssd: { value: 1, ...low }, resp: { value: 20, ...low } },
+      },
+    }),
+  ];
+  const metrics = computeMetrics(captures, { commit: 'abc', date: '2026-10-20' }, () => {});
+  assert.equal(metrics.hr.readings, 1);
+  assert.equal(metrics.hr.maeBpm, 2);
+  assert.equal(metrics.rmssd.people, 1);
+  assert.deepEqual(metrics.resp, { maeBrpm: null, people: 0 });
+});
+
 function round2(value) {
   return Math.round(value * 100) / 100;
 }
@@ -729,7 +750,10 @@ test('rhythm development rates come from the shipped model and leave the label a
 test('a missing development metric becomes null and a manifest without one shipped rhythm model throws', () => {
   const manifest = rhythmManifest();
   delete manifest.models[1].development.metrics.falseAfRatePrematureReadings;
-  assert.equal(withRhythmDevelopment(seedEvidence(), manifest).metrics.rhythm.falseAfRatePrematureReadings, null);
+  assert.equal(
+    withRhythmDevelopment(seedEvidence(), manifest).metrics.rhythm.falseAfRatePrematureReadings,
+    null,
+  );
   manifest.models[1].ships = false;
   assert.throws(() => withRhythmDevelopment(seedEvidence(), manifest), /need exactly 1/);
 });

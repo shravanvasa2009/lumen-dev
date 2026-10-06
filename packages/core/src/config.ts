@@ -298,6 +298,17 @@ export const DSP_CONFIG = {
     maxBpm: 180,
     minSnrDb: 6, // peak power over the median power of the scanned bins
   },
+  // DSP-6 display only: the live graph's one-bump-per-beat pulse (displayPulse), never read by analysis.
+  // A zero-phase low-pass a little above the beat rate removes the dicrotic wave's harmonics.
+  displayPulse: {
+    order: 4, // run forward and backward: the 2nd harmonic keeps under 10% of its height
+    cutoffPerFundamental: 1.2,
+    cutoffRangeHz: [0.7, 3], // bounds for a live rate outside its own 40–180 bpm band
+    fallbackCutoffHz: 2.2, // no live rate yet
+    // A live rate locked on 2× (dicrotic wave, research C-phone-pulse-diagnosis §7): half of it is taken when
+    // the trace repeats this much better (normalized autocorrelation) after two of its beats than after one.
+    halfRateMargin: 0.1,
+  },
   // Lumen Compatibility Rating (§5.1 points, §5.2 tiers; spec initial values, "tune on real phones").
   // Readings of the spec where it is silent are in ADR 0058.
   rating: {

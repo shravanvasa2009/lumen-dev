@@ -38,6 +38,8 @@ type FingerPreviewProps = {
   cameraRunning: boolean;
   // A coaching line is showing: the ring turns from accent to flag.
   coaching: boolean;
+  // Spec 12: nothing moves during a capture except the waveform and the ring, so the colour and glow switch at once.
+  still?: boolean;
 };
 
 // Variant A: the rear camera's live view clipped to a circle inside a status ring, with its caption. Where there is
@@ -48,13 +50,14 @@ export function FingerPreview({
   size = PREVIEW_SIZE,
   cameraRunning,
   coaching,
+  still = false,
 }: FingerPreviewProps) {
   const { colors, spacing, radius } = useTheme();
   const { t } = useTranslation();
   const live = cameraRunning && LumenPreviewView !== null;
   const reduceMotion = useReduceMotion();
   // Built on the JS thread, as in ProgressRing: the worklets below must not call a plain function.
-  const timing = timingConfig(reduceMotion);
+  const timing = timingConfig(reduceMotion || still);
   const ringColor = coaching ? colors.flag : colors.accent;
   const glowOpacity = detected ? 1 : 0.3;
   const ringStyle = useAnimatedStyle(() => ({ borderColor: withTiming(ringColor, timing) }));

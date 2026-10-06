@@ -134,6 +134,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
               size={sizes.preview}
               cameraRunning={live.nativeCamera && running}
               coaching={paused}
+              still
             />
           </View>
           <View

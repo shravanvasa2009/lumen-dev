@@ -11,7 +11,7 @@ import { ListRow } from '@/components/ListRow';
 import { formatNumber } from '@/i18n/formatNumber';
 import { useTheme } from '@/theme';
 
-import { QualityChip } from './QualityChip';
+import { LowerQualityTag } from './LowerQualityTag';
 
 type ExperimentalCardProps = {
   experimental: ReadingResult['experimental'];
@@ -41,7 +41,7 @@ export function ExperimentalCard({ experimental, lowQualityReasons }: Experiment
       </View>
       {lowQualityReasons ? (
         <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>
-          <QualityChip small reasons={lowQualityReasons} />
+          <LowerQualityTag small reasons={lowQualityReasons} />
         </View>
       ) : null}
       <View style={{ borderTopColor: colors.line, borderTopWidth: 1 }}>

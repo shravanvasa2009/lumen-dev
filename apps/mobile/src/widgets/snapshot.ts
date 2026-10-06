@@ -1,6 +1,7 @@
 import type { ReadingResult } from '@lumen/core';
 
 import { latestReading, type StoredReading } from '@/home/readings';
+import { isLowQuality } from '@/results/quality';
 import type { Appearance } from '@/theme/preferences';
 
 // Spec §9.6: the four categories a widget may show. Null only before the first reading.
@@ -121,7 +122,8 @@ export function widgetSnapshot(input: SnapshotInput): WidgetSnapshot {
     updatedAt: isoSeconds(input.now),
     lastReadingAt: latest ? isoSeconds(latest.takenAt) : null,
     status: held ? 'see-doctor' : latest ? statusOf(latest.outcome) : null,
-    hrBpm: input.hideValues || hr === null ? null : Math.round(hr.value),
+    // ADR 0104: the home-screen widget has no room for the lower-quality tag, so it shows no such rate.
+    hrBpm: input.hideValues || hr === null || isLowQuality(hr) ? null : Math.round(hr.value),
     rhythmFlag: flagSources.some((outcome) => outcome.metrics.rhythm?.flag != null),
     diabetesFlag: flagSources.some(showsDiabetesFlag),
     nextConfirmationAt: input.nextConfirmationAt === null ? null : isoSeconds(input.nextConfirmationAt),

@@ -123,7 +123,12 @@ describe('pastReadings: what earlier readings give the history rules', () => {
   function withMetrics(createdAt: number, quality: 'standard' | 'low', flagged: boolean) {
     const saved = savedAt(createdAt);
     const { metrics } = saved.results;
-    const tag = { quality, qualityReasons: quality === 'low' ? (['shortClean'] as const) : [] };
+    const short = { kind: 'shortClean', haveS: 40, wantS: 60 } as const;
+    const tag = {
+      quality,
+      qualityReasons: quality === 'low' ? (['shortClean'] as const) : [],
+      qualityDetails: quality === 'low' ? [short] : [],
+    };
     metrics.rhythm = {
       class: flagged ? 'af' : 'sinus',
       pAF: flagged ? 0.9 : 0.1,
@@ -132,6 +137,7 @@ describe('pastReadings: what earlier readings give the history rules', () => {
       flag: flagged ? 'irregular' : null,
       ...tag,
       qualityReasons: [...tag.qualityReasons],
+      qualityDetails: [...tag.qualityDetails],
     };
     metrics.rmssd = { ...metrics.rmssd!, ...tag, qualityReasons: [...tag.qualityReasons] };
     // The card holds the mean over readings; the model's own output for this reading is in the models JSON.
@@ -143,6 +149,7 @@ describe('pastReadings: what earlier readings give the history rules', () => {
       flag: null,
       ...tag,
       qualityReasons: [...tag.qualityReasons],
+      qualityDetails: [...tag.qualityDetails],
     };
     return {
       ...saved,

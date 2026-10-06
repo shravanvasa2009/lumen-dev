@@ -24,13 +24,22 @@ jest.mock('@/evidence', () => {
   };
 });
 
-const mockRhythm = { unclear: false, ruleScored: false };
+const mockRhythm = { unclear: false, ruleScored: false, low: false };
 jest.mock('./fixtures', () => {
   const actual = jest.requireActual('./fixtures');
   return {
     ...actual,
     readingById: (id: string) => {
       const reading = actual.readingById(id);
+      if (mockRhythm.low) {
+        const low = { quality: 'low', qualityReasons: ['shortClean'], qualityDetails: [] };
+        const rhythm = { ...reading.scan.metrics.rhythm, ...low };
+        const quality = { level: 'low', reasons: [{ kind: 'shortClean', haveS: 40, wantS: 60 }] };
+        return {
+          ...reading,
+          scan: { ...reading.scan, quality, metrics: { ...reading.scan.metrics, rhythm } },
+        };
+      }
       if (!mockRhythm.unclear && !mockRhythm.ruleScored) return reading;
       const rhythm = mockRhythm.ruleScored
         ? { ...reading.scan.metrics.rhythm, scorer: 'rule' }
@@ -61,7 +70,14 @@ describe.each([
     mockScheme = scheme;
     mockRhythm.unclear = false;
     mockRhythm.ruleScored = false;
+    mockRhythm.low = false;
     mockEvidence.rhythmPublic = false;
+  });
+
+  it('tags a lower-quality rhythm (ADR 0104)', () => {
+    mockRhythm.low = true;
+    openWhy('demo');
+    expect(screen.getByRole('button', { name: en['quality.chip'] })).toBeOnTheScreen();
   });
 
   it('caps the rhythm badge at Experimental for a rule-scored reading (EVID-1, §11.10)', () => {

@@ -14,6 +14,7 @@ import {
   flagCounts,
   formatFullDate,
   reportEvidence,
+  qualityLines,
   stripsFor,
   tableRows,
 } from './model';
@@ -107,6 +108,12 @@ export function ReportCard({ reading, dayReadings, demo }: ReportCardProps) {
           </View>
         ))}
       </View>
+
+      {qualityLines(t, language, dayReadings).map((line) => (
+        <PaperText key={line} variant="caption" tone="textDim">
+          {line}
+        </PaperText>
+      ))}
 
       {diabetes ? (
         <Labelled label={t('report.diabetesLabel')}>{diabetesSentence(t, language, diabetes)}</Labelled>

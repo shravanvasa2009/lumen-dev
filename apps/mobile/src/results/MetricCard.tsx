@@ -12,7 +12,7 @@ import { useTheme } from '@/theme';
 
 import { CheckHeading } from './CheckHeading';
 import { ConfidenceDots } from './ConfidenceDots';
-import { QualityChip } from './QualityChip';
+import { LowerQualityTag } from './LowerQualityTag';
 
 type MetricCardProps = {
   title: string;
@@ -77,7 +77,7 @@ export function MetricCard({
           </View>
         ) : null}
       </View>
-      {reading && lowQualityReasons ? <QualityChip small reasons={lowQualityReasons} /> : null}
+      {reading && lowQualityReasons ? <LowerQualityTag small reasons={lowQualityReasons} /> : null}
       {reading ? (
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
           <AppText variant="title">{reading.value}</AppText>

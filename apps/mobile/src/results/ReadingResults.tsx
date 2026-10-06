@@ -22,7 +22,7 @@ import { Icon } from '@/components/Icon';
 import { MetricCard } from './MetricCard';
 import { PotsCard } from './PotsCard';
 import { missingReasonText, metricReasons, readingQuality } from './quality';
-import { QualityChip } from './QualityChip';
+import { LowerQualityTag } from './LowerQualityTag';
 import { rhythmWords } from './rhythmWords';
 import { SafetySheet } from './SafetySheet';
 import { clearSymptomsAsked, symptomsAskedFor } from './symptomsAsked';
@@ -150,7 +150,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           <AppText variant="caption" tone="textDim">
             {metaParts.join(' · ')}
           </AppText>
-          {quality.level === 'low' ? <QualityChip reasons={quality.reasons} /> : null}
+          {quality.level === 'low' ? <LowerQualityTag reasons={quality.reasons} /> : null}
         </HeadlineCard>
 
         {acuteFlag ? <Button label={t('results.findCare')} onPress={() => router.push('/care')} /> : null}
@@ -172,7 +172,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
               </AppText>
               <EvidenceBadge metric="diabetes" />
             </View>
-            {lowReasons(diabetes) ? <QualityChip small reasons={lowReasons(diabetes) ?? []} /> : null}
+            {lowReasons(diabetes) ? <LowerQualityTag small reasons={lowReasons(diabetes) ?? []} /> : null}
             <AppText>
               {t('results.diabetesSeen', {
                 readings: diabetesCard.readingsUsed,
@@ -243,7 +243,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
         />
         <DiabetesRiskRow readingId={reading.id} sample={reading.sample} />
         {showsPulseExtra(reading) && lowReasons(diabetes) ? (
-          <QualityChip small reasons={lowReasons(diabetes) ?? []} />
+          <LowerQualityTag small reasons={lowReasons(diabetes) ?? []} />
         ) : null}
         {showsPulseExtra(reading) ? <PulseExtraRow readingId={reading.id} /> : null}
         <PotsCard />

@@ -58,6 +58,7 @@ function flaggedReading(takenAt: number): StoredReading {
     confidence: 'high',
     quality: 'standard',
     qualityReasons: [],
+    qualityDetails: [],
     flag: 'possibleAf',
   };
   return { ...reading, mode: 'quick' };

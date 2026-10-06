@@ -702,6 +702,8 @@
   "coach.lighter": "Lighter touch.",
   "coach.still": "Hold still.",
   "coach.warm": "Warm your hands, then try again.",
+  "coach.brightness": "Adjusting brightness — keep your finger still",
+  "coach.notClean": "Hold still — this part isn't clean yet",
   "coach.flat": "Lay your finger flatter so it covers the flash.",
   "practice.progress": "{{done}} of {{total}} steady seconds",
   "practice.done": "Done — your phone is rated",

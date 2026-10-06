@@ -15,6 +15,7 @@ const running: LiveCapture = {
   signalLevel: 0.9,
   nativeCamera: false,
   advancing: true,
+  adjustingExposure: false,
 };
 
 describe('captureVerdict', () => {
@@ -32,13 +33,36 @@ describe('captureVerdict', () => {
 
   it('names the rejection open now when the session shows no coaching line yet', () => {
     const open = { startS: 25, endS: 30, reason: 'clipping' as const };
-    expect(captureVerdict({ ...running, advancing: false, rejectedSpans: [open] }).coaching).toBe('coach.lighter');
+    expect(captureVerdict({ ...running, advancing: false, rejectedSpans: [open] }).coaching).toBe(
+      'coach.lighter',
+    );
   });
 
-  it('ignores spans that ended earlier and causes with no coaching line', () => {
+  // Owner 2026-10-06: "either tell the user they arent clean seconds or let the recording progress".
+  it('never leaves a stopped count silent: an old span and no coaching line say "not clean yet"', () => {
     const old = { startS: 1, endS: 5, reason: 'motion' as const };
+    expect(captureVerdict({ ...running, advancing: false, rejectedSpans: [old] }).coaching).toBe(
+      'coach.notClean',
+    );
+    expect(captureVerdict({ ...running, advancing: false }).coaching).toBe('coach.notClean');
+  });
+
+  it('says the camera is adjusting brightness while the exposure lock steers, and for its grey seconds', () => {
+    expect(captureVerdict({ ...running, advancing: false, adjustingExposure: true }).coaching).toBe(
+      'coach.brightness',
+    );
     const exposure = { startS: 29, endS: 30, reason: 'exposure' as const };
-    expect(captureVerdict({ ...running, advancing: false, rejectedSpans: [old, exposure] }).coaching).toBeNull();
+    expect(captureVerdict({ ...running, advancing: false, rejectedSpans: [exposure] }).coaching).toBe(
+      'coach.brightness',
+    );
+    // A named cause wins over the steering.
+    const motion = { startS: 28, endS: 30, reason: 'motion' as const };
+    const both = { ...running, advancing: false, adjustingExposure: true, rejectedSpans: [motion] };
+    expect(captureVerdict(both).coaching).toBe('coach.still');
+  });
+
+  it('shows no line while the count advances, even while the lock steers', () => {
+    expect(captureVerdict({ ...running, adjustingExposure: true }).coaching).toBeNull();
   });
 
   it('has no level and no coaching before the capture runs', () => {

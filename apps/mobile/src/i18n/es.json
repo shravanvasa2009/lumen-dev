@@ -702,6 +702,8 @@
   "coach.lighter": "Presiona con menos fuerza.",
   "coach.still": "No te muevas.",
   "coach.warm": "Calienta tus manos y vuelve a intentarlo.",
+  "coach.brightness": "Ajustando el brillo: no muevas el dedo",
+  "coach.notClean": "Quédate quieto: esta parte aún no está limpia",
   "coach.flat": "Coloca el dedo más plano para que cubra el flash.",
   "practice.progress": "{{done}} de {{total}} segundos estables",
   "practice.done": "Listo: tu teléfono tiene calificación",

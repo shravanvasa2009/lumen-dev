@@ -12,6 +12,8 @@ import { useTheme } from '@/theme';
 
 import { CheckHeading } from './CheckHeading';
 import { ConfidenceDots } from './ConfidenceDots';
+import type { QualityReason } from './quality';
+import { QualityChip } from './QualityChip';
 
 type MetricCardProps = {
   title: string;
@@ -25,6 +27,10 @@ type MetricCardProps = {
   reading: { value: string; note: string; confidence: Confidence; flagged: boolean } | null;
   // What a null reading says when the check did not run at all, instead of "Not enough clean signal".
   missingText?: string;
+  // Set when this metric's quality is low; the card then carries the small tag.
+  lowQualityReasons?: readonly QualityReason[] | null;
+  // A line under the result, e.g. the advice to confirm a low-quality irregular rhythm.
+  footnote?: string;
 };
 
 export function MetricCard({
@@ -35,6 +41,8 @@ export function MetricCard({
   basicAnalysis = false,
   reading,
   missingText,
+  lowQualityReasons,
+  footnote,
 }: MetricCardProps) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
@@ -70,6 +78,7 @@ export function MetricCard({
           </View>
         ) : null}
       </View>
+      {reading && lowQualityReasons ? <QualityChip small reasons={lowQualityReasons} /> : null}
       {reading ? (
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
           <AppText variant="title">{reading.value}</AppText>
@@ -85,6 +94,7 @@ export function MetricCard({
           {t('results.basicAnalysis')}
         </AppText>
       ) : null}
+      {reading && footnote ? <AppText tone="textDim">{footnote}</AppText> : null}
     </Card>
   );
 }

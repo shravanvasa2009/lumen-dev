@@ -360,13 +360,13 @@ describe('red team 829c5c0: live and saved agree on urgent and clean seconds', (
   });
 });
 
-describe('red team 829c5c0: urgent rides on inconclusive outcomes', () => {
-  // A Quick-length capture refused under Full Scan's 90 s target still carries the trigger, and a
-  // capture refused for no HR (20 fps) carries slowBelow40 from the view.
-  it('60 s at 30 fps, 35 bpm, Full Scan: inconclusive (too few clean s) with slowBelow40', () => {
+describe('red team 829c5c0: urgent rides on every outcome', () => {
+  // A Quick-length capture under Full Scan's 90 s target (a lower-quality reading since ADR 0104) still
+  // carries the trigger, and a capture refused for no HR (20 fps) carries slowBelow40 from the view.
+  it('60 s at 30 fps, 35 bpm, Full Scan: a lower-quality reading with slowBelow40', () => {
     const run = replay({ offsetsS: evenFrames(30, 60), pulse: dicroticTrain(35, 0.3, 60) }, null);
     const outcome = readingOutcome(run.analysis);
-    expect(outcome.kind).toBe('inconclusive');
+    expect(outcome.kind).toBe('reading');
     expect(outcome.urgent?.slowBelow40).toBe(true);
   });
   it('95 s at even 20 fps, 35 bpm: inconclusive with slowBelow40, SQI alike', () => {

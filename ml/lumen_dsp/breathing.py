@@ -136,9 +136,14 @@ def _peak_brpm(runs: list[ResampledSegment]) -> float | None:
 
 # DSP-13: breathing rate in br/min from three modulations, fused only when they agree; None < 60 clean s.
 def breathing_rate(segments: Sequence[Sequence[MeasuredBeat]], clean_s: float) -> BreathingRate | None:
-    dsp13 = DSP_CONFIG["dsp13"]
-    if not clean_s >= dsp13["minCleanS"]:  # NaN fails
+    if not clean_s >= DSP_CONFIG["dsp13"]["minCleanS"]:  # NaN fails
         return None
+    return breathing_estimates(segments)
+
+
+# DSP-13 without its clean-seconds floor (ADR 0104): the three estimates and their fused rate.
+def breathing_estimates(segments: Sequence[Sequence[MeasuredBeat]]) -> BreathingRate:
+    dsp13 = DSP_CONFIG["dsp13"]
     series = breathing_series(segments)
     intensity, amplitude, interval = (_peak_brpm(series[kind]) for kind in KINDS)
     rate = None

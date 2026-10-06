@@ -56,6 +56,8 @@ function flaggedReading(takenAt: number): StoredReading {
     pAF: 0.9,
     evidence: 'public-data',
     confidence: 'high',
+    quality: 'standard',
+    qualityReasons: [],
     flag: 'possibleAf',
   };
   return { ...reading, mode: 'quick' };

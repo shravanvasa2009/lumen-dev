@@ -36,6 +36,7 @@ describe('replay on a clean synthetic capture (CLI end to end)', () => {
   it('writes the ReadingResult with its outcome, coreCommit, configHash, and inconclusive', () => {
     assert.deepEqual(Object.keys(written), [
       'headlineKey',
+      'quality',
       'cleanSeconds',
       'beats',
       'rejectedBeats',
@@ -103,13 +104,25 @@ describe('replayFolder', () => {
     assert.ok(output.outcome.cleanSeconds < output.outcome.neededCleanSeconds);
   });
 
-  it('refuses a clean capture shorter than its mode needs, and still writes its intervals', async () => {
+  // ADR 0104 (owner, 2026-10-05): short of its mode's clean seconds, a capture with a heart rate is a reading
+  // tagged lower quality, as the app shows it.
+  it('reads a clean capture shorter than its mode needs as lower quality, and writes its intervals', async () => {
     const folder = path.join(scratch, 'too-short');
     writeSyntheticCapture(folder, { seconds: 20, bpm: 75 });
     const { output } = await replayFolder(folder);
+    assert.equal(output.outcome.kind, 'reading');
+    assert.equal(output.inconclusive, false);
+    assert.equal(output.quality.level, 'low');
+    assert.ok(output.quality.reasons.some((reason) => reason.kind === 'shortClean'));
+    assert.ok(readIntervals(folder).rows.length > 0);
+  });
+
+  it('refuses a capture with no heart rate at all', async () => {
+    const folder = path.join(scratch, 'two-beats');
+    writeSyntheticCapture(folder, { seconds: 2, bpm: 75 });
+    const { output } = await replayFolder(folder);
     assert.equal(output.outcome.kind, 'inconclusive');
     assert.equal(output.inconclusive, true);
-    assert.ok(readIntervals(folder).rows.length > 0);
   });
 
   it('infers the capture rate and treats the phone as unrated when meta.json lacks them', async () => {
@@ -120,12 +133,13 @@ describe('replayFolder', () => {
     assert.equal(context.tier, null);
   });
 
-  it('without --rhythm-from-label: rhythmSource "none" and no RMSSD', async () => {
+  it('without --rhythm-from-label: rhythmSource "none" and a lower-quality RMSSD (no rhythm judged)', async () => {
     const folder = path.join(scratch, 'no-label-flag');
     writeSyntheticCapture(folder, { seconds: 95, meta: { labels: { rhythm: 'sinus' } } });
     const { output } = await replayFolder(folder);
     assert.equal(output.rhythmSource, 'none');
-    assert.equal(output.metrics.rmssd, null);
+    assert.equal(output.metrics.rmssd.quality, 'low');
+    assert.deepEqual(output.metrics.rmssd.qualityReasons, ['modelFallback']);
   });
 
   it('with --rhythm-from-label: the label opens the DSP-12 gate, but no rhythm card appears', async () => {

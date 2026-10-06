@@ -42,6 +42,7 @@ function analysisOf(
   durationS: number,
   rejectedSpans: RejectedSpan[],
   heartRateBpm: number | null = 72,
+  lowQualityBpm: number | null = null,
 ): ReadingAnalysis {
   return {
     ...BASE,
@@ -50,8 +51,12 @@ function analysisOf(
     rejectedSpans,
     cleanSeconds: cleanSeconds(0, durationS, rejectedSpans),
     heartRateBpm,
+    lowQuality: { ...BASE.lowQuality, heartRateBpm: lowQualityBpm },
   };
 }
+// No heart rate at all, standard or lower quality: the only capture that ends inconclusive (ADR 0104).
+const noRate = (mode: string, durationS: number, spans: RejectedSpan[]) =>
+  analysisOf(mode, durationS, spans, null, null);
 
 const NEEDED = DSP_CONFIG.rules.modeMinCleanS;
 
@@ -83,25 +88,38 @@ describe('readingOutcome (spec 07: finish, extend, or end as inconclusive)', () 
   });
 
   it.each(Object.entries(NEEDED))(
-    '%s: at %i clean s it is a reading, just below it is not',
+    '%s: below its %i clean s a capture with a heart rate is still a reading (ADR 0104)',
     (mode, needed) => {
       const atTarget = analysisOf(mode, needed + 10, [{ startS: 0, endS: 10, reason: 'motion' }]);
       expect(atTarget.cleanSeconds).toBe(needed);
       expect(readingOutcome(atTarget)).toEqual({ kind: 'reading', urgent: null });
 
-      const below = analysisOf(mode, needed + 10, [{ startS: 0, endS: 10.001, reason: 'motion' }]);
-      const outcome = readingOutcome(below);
+      const spans: RejectedSpan[] = [{ startS: 0, endS: 10.001, reason: 'motion' }];
+      expect(readingOutcome(analysisOf(mode, needed + 10, spans))).toEqual({ kind: 'reading', urgent: null });
+      // Below DSP-11's own floor the lower-quality rate is enough.
+      expect(readingOutcome(analysisOf(mode, 12, [], null, 70))).toEqual({ kind: 'reading', urgent: null });
+
+      const outcome = readingOutcome(noRate(mode, needed + 10, spans));
       expect(outcome.kind).toBe('inconclusive');
       if (outcome.kind !== 'inconclusive') return;
-      expect(outcome.reasons).toEqual(['tooFewCleanSeconds']);
+      expect(outcome.reasons).toEqual(['tooFewCleanSeconds', 'noHeartRate']);
       expect(outcome.cleanSeconds).toBeCloseTo(needed - 0.001, 9);
       expect(outcome.neededCleanSeconds).toBe(needed);
     },
   );
 
   it('with enough clean seconds but no heart rate (DSP-11 found nothing to report) it is inconclusive', () => {
-    const outcome = readingOutcome(analysisOf('quick', 40, [], null));
+    const outcome = readingOutcome(noRate('quick', 40, []));
     expect(outcome).toMatchObject({ kind: 'inconclusive', reasons: ['noHeartRate'], cleanSeconds: 40 });
+  });
+
+  it('a real capture under two accepted intervals is inconclusive; one just over it is a reading', () => {
+    const tooShort = analyzeReading(fingertip(2), { ...CONTEXT, mode: 'quick' });
+    expect(readingOutcome(tooShort)).toMatchObject({ kind: 'inconclusive' });
+    const short = analyzeReading(fingertip(8), { ...CONTEXT, mode: 'quick' });
+    expect(short.heartRateBpm).toBeNull();
+    expect(short.lowQuality.heartRateBpm).toBeCloseTo(72, 0);
+    expect(readingOutcome(short)).toEqual({ kind: 'reading', urgent: null });
   });
 
   it('each lost second is counted once, under the first cause in §12 coaching order', () => {
@@ -113,7 +131,7 @@ describe('readingOutcome (spec 07: finish, extend, or end as inconclusive)', () 
       { startS: 20, endS: 24, reason: 'quality' },
       { startS: 23, endS: 24.5, reason: 'exposure' },
     ];
-    const outcome = readingOutcome(analysisOf('quick', 30, spans));
+    const outcome = readingOutcome(noRate('quick', 30, spans));
     if (outcome.kind !== 'inconclusive') throw new Error('expected inconclusive');
     expect(outcome.cleanSeconds).toBeCloseTo(12.5, 9);
     expect(outcome.lostSeconds.coverage).toBeCloseTo(5, 9);
@@ -128,7 +146,7 @@ describe('readingOutcome (spec 07: finish, extend, or end as inconclusive)', () 
 
   it('the reported pressure cause also takes a pressure span, and spans past the capture are clipped', () => {
     const outcome = readingOutcome(
-      analysisOf('quick', 20, [
+      noRate('quick', 20, [
         { startS: -2, endS: 1, reason: 'pressure' },
         { startS: 18, endS: 25, reason: 'motion' },
       ]),
@@ -140,7 +158,7 @@ describe('readingOutcome (spec 07: finish, extend, or end as inconclusive)', () 
 
   it('causes run from most to least lost time, ties in §12 coaching order, causes with none left out', () => {
     const outcome = readingOutcome(
-      analysisOf('quick', 30, [
+      noRate('quick', 30, [
         { startS: 0, endS: 2, reason: 'coverage' },
         { startS: 5, endS: 9, reason: 'clipping' },
         { startS: 10, endS: 14, reason: 'motion' },
@@ -152,7 +170,7 @@ describe('readingOutcome (spec 07: finish, extend, or end as inconclusive)', () 
   });
 
   it('time lost only to quality or exposure names no coaching cause', () => {
-    const outcome = readingOutcome(analysisOf('quick', 30, [{ startS: 0, endS: 10, reason: 'quality' }]));
+    const outcome = readingOutcome(noRate('quick', 30, [{ startS: 0, endS: 10, reason: 'quality' }]));
     expect(outcome).toMatchObject({ kind: 'inconclusive', causes: [], otherLostSeconds: 10 });
   });
 

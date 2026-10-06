@@ -19,7 +19,8 @@ export function diabetesModelInput(
   analysis: ReadingAnalysis,
   rhythm: ReadingRhythm | null,
 ): DiabetesModelInput | null {
-  const shape = analysis.pulseShape;
+  // ADR 0104: below DSP-14's floors the lower-quality beat stands in; buildReadingResult tags the result.
+  const shape = analysis.pulseShape ?? analysis.lowQuality.pulseShape;
   if (!shape) return null;
   return {
     beat: shape.beat,

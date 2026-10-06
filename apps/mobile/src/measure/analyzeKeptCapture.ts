@@ -13,6 +13,7 @@ import {
   type ReadingContext,
   type ReadingResult,
   readingRhythm,
+  rhythmModelRows,
   type RhythmOutputs,
   type UrgentHeartRate,
 } from '@lumen/core';
@@ -21,6 +22,7 @@ import evidence from '../../assets/evidence.json';
 import { classifyRhythm, rhythmRuleEntry, scoreDiabetesInput } from '../ml/runtime';
 import { storedReadingTier } from '../store/deviceRating';
 import { loadProfile } from '../store/profile';
+import { pastReadings } from '../store/readings';
 import { type AnalysisProgress, type CheckOutputs, pendingProgress } from './analysisProgress';
 import type { KeptCapture } from './keptCapture';
 import type { MeasureMode } from './mode';
@@ -48,14 +50,14 @@ function localDay(epochMs: number): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-// §11.1 basic analysis: when the model is missing or fails on any window, the rhythm-logistic rule scores every
-// window, so one reading is never judged by a mix of two scorers. No rule entry leaves the reading without a
+// §11.1 basic analysis: when the model is missing or fails on any row, the rhythm-logistic rule scores every
+// row, so one reading is never judged by a mix of two scorers. No rule entry leaves the reading without a
 // rhythm output.
 function ruleRhythmOutputs(analysis: ReadingAnalysis): RhythmOutputs | null {
   const entry = rhythmRuleEntry();
   if (entry === null) return null;
   try {
-    return { ...logisticRhythmOutputs(entry, analysis.rhythmFeatures), scorer: 'rule' };
+    return { ...logisticRhythmOutputs(entry, rhythmModelRows(analysis)), scorer: 'rule' };
   } catch (error) {
     // A RangeError is a window the rule cannot score; any other error is a broken manifest or a bug.
     if (!(error instanceof RangeError)) throw error;
@@ -64,11 +66,13 @@ function ruleRhythmOutputs(analysis: ReadingAnalysis): RhythmOutputs | null {
   }
 }
 
+// The rows are the DSP-15 windows, or one reading-wide row on a short reading (ADR 0104).
 async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs | null> {
-  if (analysis.rhythmFeatures.length === 0) return null;
+  const rows = rhythmModelRows(analysis);
+  if (rows.length === 0) return null;
   const windowProbs: [number, number, number][] = [];
   let tauAf: number | null = null;
-  for (const features of analysis.rhythmFeatures) {
+  for (const features of rows) {
     const outcome = await classifyRhythm({
       features: { values: Float32Array.from(features), dims: [1, features.length] },
     });
@@ -87,14 +91,14 @@ async function rhythmOutputs(analysis: ReadingAnalysis): Promise<RhythmOutputs |
   return tauAf === null ? null : { windowProbs, tauAf, scorer: 'model' };
 }
 
-// Only a Full Scan's reading can show a diabetes card, so only it runs the model. No pulse-shape beat, or no
-// model, leaves the reading without one; buildReadingResult decides who may see the result.
+// A Full Scan, and a Quick Check as a lower-quality one (owner, ADR 0104), can show a diabetes card. No
+// averaged beat, or no model, leaves the reading without one; buildReadingResult decides how it is tagged.
 async function diabetesOutputs(
   analysis: ReadingAnalysis,
   rhythm: RhythmOutputs | null,
   profile: Profile,
 ): Promise<DiabetesOutputs | null> {
-  if (analysis.context.mode !== 'full') return null;
+  if (analysis.context.mode !== 'full' && analysis.context.mode !== 'quick') return null;
   const input = diabetesModelInput(analysis, readingRhythm(analysis, rhythm, profile));
   if (input === null) return null;
   const outcome = await scoreDiabetesInput(input);
@@ -153,13 +157,13 @@ export async function analyzeKeptCapture(
 
   report(step({ beats: 'done', breathing: 'done', rhythm: 'active' }, counts));
   await letScreenDraw();
-  const profile = await loadProfile();
+  const [profile, history] = await Promise.all([loadProfile(), pastReadings()]);
   const rhythm = await rhythmOutputs(analysis);
   const models: ModelOutputs = { rhythm, diabetes: await diabetesOutputs(analysis, rhythm, profile) };
 
   report(step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'active' }, counts));
   await letScreenDraw();
-  const reading = buildReadingResult(analysis, models, evidence, profile, []);
+  const reading = buildReadingResult(analysis, models, evidence, profile, history);
 
   const { rhythm: rhythmMetric, rmssd, diabetes } = reading.metrics;
   const finished = step({ beats: 'done', breathing: 'done', rhythm: 'done', baseline: 'done' }, counts, {

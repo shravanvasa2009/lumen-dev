@@ -18,7 +18,10 @@ export type {
   HrFlag,
   HrMetric,
   LostSeconds,
+  MetricQuality,
   NotChecked,
+  QualityReason,
+  ReadingQuality,
   ReadingResult,
   ReadingRhythm,
   RespMetric,
@@ -39,6 +42,7 @@ export { displayPulse } from './display-pulse';
 export { butterBandpass, butterLowpass, CausalFilter, filterZeroPhase, type SosSection } from './filters';
 export {
   hasEnoughUsableIntervals,
+  readingWideWindow,
   RHYTHM_FEATURE_NAMES,
   rhythmFeatureVector,
   rhythmV2Features,
@@ -54,17 +58,26 @@ export {
   type Upstroke,
 } from './beats';
 export { classifyBeats } from './beat-classes';
-export { ensembleBeat, savgolFilter, type PulseShape, type WaveLabels } from './pulse-shape';
+export {
+  ensembleBeat,
+  lowQualityEnsembleBeat,
+  savgolFilter,
+  type PulseShape,
+  type WaveLabels,
+} from './pulse-shape';
 export {
   cleanSeconds,
   heartRate,
   hrv,
+  lowQualityHeartRate,
+  lowQualityRmssd,
   measureBeats,
   perfusionIndex,
   type Hrv,
   type MeasuredBeat,
 } from './reading-metrics';
 export {
+  breathingEstimates,
   breathingRate,
   breathingSeries,
   welchPsd,
@@ -85,6 +98,7 @@ export {
   buildReadingResult,
   isProbabilityRow,
   readingRhythm,
+  rhythmModelRows,
   type DiabetesOutputs,
   type EvidenceFile,
   type ModelOutputs,

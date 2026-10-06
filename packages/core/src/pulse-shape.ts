@@ -127,6 +127,11 @@ function allFinite(values: ArrayLike<number>, from: number, to: number): boolean
   return true;
 }
 
+function checkPairs(onsets: number[], normal: boolean[]): void {
+  if (onsets.length !== normal.length)
+    throw new RangeError(`${onsets.length} onsets but ${normal.length} normal-beat flags`);
+}
+
 /** DSP-14: ensemble beat of ≥ 20 normal beats of the 0.5–8 Hz morphology band at 256 Hz, with a–e labels. */
 export function ensembleBeat(
   morphology256: ArrayLike<number>,
@@ -134,12 +139,31 @@ export function ensembleBeat(
   normal: boolean[],
   captureFps: number,
 ): PulseShape | null {
-  if (onsets.length !== normal.length)
-    throw new RangeError(`${onsets.length} onsets but ${normal.length} normal-beat flags`);
-  const { minNormalBeats, beatSamples, leadFraction, minFps, maxPeriodRatio } = DSP_CONFIG.dsp14;
+  checkPairs(onsets, normal);
+  const { minNormalBeats, minFps } = DSP_CONFIG.dsp14;
   // The configured capture rate (capture header fps, CaptureConfig.targetFps), not a measured one: a
   // nominal 60 fps session measures 59.9x. NaN and +Infinity are no rate, so both fail the gate.
   if (!(Number.isFinite(captureFps) && captureFps >= minFps)) return null;
+  return averageBeat(morphology256, onsets, normal, minNormalBeats);
+}
+
+/** DSP-14 below its floors (ADR 0104): the averaged beat at any frame rate, from one normal beat. */
+export function lowQualityEnsembleBeat(
+  morphology256: ArrayLike<number>,
+  onsets: number[],
+  normal: boolean[],
+): PulseShape | null {
+  return averageBeat(morphology256, onsets, normal, DSP_CONFIG.lowQuality.shapeMinBeats);
+}
+
+function averageBeat(
+  morphology256: ArrayLike<number>,
+  onsets: number[],
+  normal: boolean[],
+  minNormalBeats: number,
+): PulseShape | null {
+  checkPairs(onsets, normal);
+  const { beatSamples, leadFraction, maxPeriodRatio } = DSP_CONFIG.dsp14;
 
   // A beat runs from its onset to the next one, so both beats must be normal.
   const candidates: number[] = [];

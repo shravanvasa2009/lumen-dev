@@ -132,9 +132,15 @@ function neverScoredCleanS(analysis: ReadingAnalysis, scoredEnds: number[]): num
   );
 }
 
+// ADR 0104 (owner, 2026-10-05): a capture with any heart rate is a reading. A standard rate must still be
+// within 5 bpm; without one, the reading shows the lower-quality rate, which the result tags as such.
 function expectAccurateOrRefused(analysis: ReadingAnalysis, trueBpm: number): void {
   if (readingOutcome(analysis).kind !== 'reading') return;
-  expect(Math.abs(analysis.heartRateBpm! - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
+  if (analysis.heartRateBpm === null) {
+    expect(analysis.lowQuality.heartRateBpm).not.toBeNull();
+    return;
+  }
+  expect(Math.abs(analysis.heartRateBpm - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
 }
 
 describe('red team: seconds around a finger lift (47b95bb unscoredSpan from the newest window)', () => {
@@ -275,10 +281,12 @@ describe('red team: a 24 fps capture with sub-ms jitter falls under the 24 fps f
   // without SQI. This errs toward refusing; whether to allow slack is an open owner question in ADR 0077,
   // so these pin today's behaviour rather than the red team's proposed one.
   it.each([0.0001, 0.001, 0.003])(
-    'KNOWN LIMITATION: 24 fps jittered ±%p s, Quick, 60 s, is refused',
+    'KNOWN LIMITATION: 24 fps jittered ±%p s, Quick, 60 s, has no clean seconds; ADR 0104 reads it lower quality',
     (amplitudeS) => {
       const analysis = analyzeReading(capture(covered(jitteredOffsets(24, 60, amplitudeS)), 100), CONTEXT);
-      expect(readingOutcome(analysis).kind).toBe('inconclusive');
+      expect(analysis.heartRateBpm).toBeNull();
+      expect(readingOutcome(analysis).kind).toBe('reading');
+      expect(Math.abs(analysis.lowQuality.heartRateBpm! - 100)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
     },
   );
 

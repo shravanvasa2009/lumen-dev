@@ -83,10 +83,12 @@ describe('diabetes model inputs', () => {
     expect(models.diabetes).toEqual({ probability: 0.31, tauDm: 0.56 });
   });
 
-  it('leaves diabetes out when the format has no pulse shape', async () => {
-    const { models } = await analyse(steadyPulse(30), 'full');
-    expect(mockScoreDiabetes).not.toHaveBeenCalled();
-    expect(models.diabetes).toBeNull();
+  it('scores the lower-quality beat below 60 fps, and the result is tagged (ADR 0104)', async () => {
+    const { models, reading } = await analyse(steadyPulse(30), 'full');
+    expect(mockScoreDiabetes).toHaveBeenCalledTimes(1);
+    expect(models.diabetes).toEqual({ probability: 0.31, tauDm: 0.56 });
+    expect(reading.metrics.diabetes).toMatchObject({ quality: 'low', flag: null });
+    expect(reading.metrics.diabetes!.qualityReasons).toContain('lowFps');
   });
 
   it('leaves diabetes out when the model gave basic analysis', async () => {
@@ -95,9 +97,10 @@ describe('diabetes model inputs', () => {
     expect(models.diabetes).toBeNull();
   });
 
-  it('does not run the model for a Quick Check', async () => {
-    const { models } = await analyse(steadyPulse(60), 'quick');
-    expect(mockScoreDiabetes).not.toHaveBeenCalled();
-    expect(models.diabetes).toBeNull();
+  it('runs the model for a Quick Check too, tagged quickMode (owner, ADR 0104)', async () => {
+    const { models, reading } = await analyse(steadyPulse(60), 'quick');
+    expect(mockScoreDiabetes).toHaveBeenCalledTimes(1);
+    expect(models.diabetes).toEqual({ probability: 0.31, tauDm: 0.56 });
+    expect(reading.metrics.diabetes!.qualityReasons).toContain('quickMode');
   });
 });

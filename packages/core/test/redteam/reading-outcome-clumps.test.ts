@@ -100,9 +100,15 @@ function replay(
   };
 }
 
+// ADR 0104 (owner, 2026-10-05): a capture with any heart rate is a reading. A standard rate must still be
+// within 5 bpm; without one, the reading shows the lower-quality rate, which the result tags as such.
 function expectAccurateOrRefused(analysis: ReadingAnalysis, trueBpm: number): void {
   if (readingOutcome(analysis).kind !== 'reading') return;
-  expect(Math.abs(analysis.heartRateBpm! - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
+  if (analysis.heartRateBpm === null) {
+    expect(analysis.lowQuality.heartRateBpm).not.toBeNull();
+    return;
+  }
+  expect(Math.abs(analysis.heartRateBpm - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
 }
 
 // Fewest frames in any closed span of spanS that starts on a frame, as the 96-frame and 1 s counts.

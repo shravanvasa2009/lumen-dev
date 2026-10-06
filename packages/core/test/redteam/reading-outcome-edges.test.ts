@@ -47,9 +47,15 @@ function judge(capture: SyntheticCapture, mode = 'full'): ReadingAnalysis {
   return analyzeReading(capture, { ...CONTEXT, mode });
 }
 
+// ADR 0104 (owner, 2026-10-05): a capture with any heart rate is a reading. A standard rate must still be
+// within 5 bpm; without one, the reading shows the lower-quality rate, which the result tags as such.
 function expectAccurateOrRefused(analysis: ReadingAnalysis, trueBpm: number): void {
   if (readingOutcome(analysis).kind !== 'reading') return;
-  expect(Math.abs(analysis.heartRateBpm! - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
+  if (analysis.heartRateBpm === null) {
+    expect(analysis.lowQuality.heartRateBpm).not.toBeNull();
+    return;
+  }
+  expect(Math.abs(analysis.heartRateBpm - trueBpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
 }
 
 describe('red team: the mode target against one gap at dsp2.maxGapS, to the ns', () => {
@@ -75,7 +81,8 @@ describe('red team: the mode target against one gap at dsp2.maxGapS, to the ns',
       const analysis = judge(capture, mode);
       const cleanNs = gapNs > MAX_GAP_NS ? lastNs - gapNs : lastNs;
       expect(Math.round(analysis.cleanSeconds * 1e9)).toBe(cleanNs);
-      expect(readingOutcome(analysis).kind).toBe(cleanNs >= NEEDED[mode] * 1e9 ? 'reading' : 'inconclusive');
+      // ADR 0104: either side of the target it is a reading; below it, the results are tagged lower quality.
+      expect(readingOutcome(analysis).kind).toBe('reading');
     },
   );
 
@@ -119,15 +126,11 @@ describe('red team: the mode target against one gap at dsp2.maxGapS, to the ns',
       .reduce((sum, intervalNs) => sum + intervalNs, 0);
     expect(Math.round(analysis.cleanSeconds * 1e6)).toBe(Math.round((lastNs - gapsNs) / 1e3));
     // With 200 gaps every DSP-2 segment but the last is under dsp7.minSegmentS, so its beats span about
-    // 3 s: under DSP-11's 15 s of accepted intervals (ADR 0080), so there is no heart rate. Until PR #171
-    // round 3 this read from 4 intervals.
-    const reasons = [
-      ...(lastNs - gapsNs >= 90e9 ? [] : ['tooFewCleanSeconds']),
-      ...(gapCount === 200 ? ['noHeartRate'] : []),
-    ];
-    const outcome = readingOutcome(analysis);
-    expect(outcome.kind === 'inconclusive' ? outcome.reasons : []).toEqual(reasons);
-    expect(outcome.kind).toBe(reasons.length > 0 ? 'inconclusive' : 'reading');
+    // 3 s: under DSP-11's 15 s of accepted intervals (ADR 0080), so there is no standard heart rate. Until
+    // PR #171 round 3 this read from 4 intervals; under ADR 0104 they give the lower-quality rate.
+    expect(analysis.heartRateBpm === null).toBe(gapCount === 200);
+    expect(readingOutcome(analysis).kind).toBe('reading');
+    expectAccurateOrRefused(analysis, 75);
   });
 });
 
@@ -150,17 +153,22 @@ describe('red team: sparse frames with no DSP-2 gap (dropped frames, thermal thr
     expect(analysis.cleanSeconds).toBeLessThan(1);
   });
 
-  // These read within 5 bpm on 808f37c; under ADR 0077 (owner, option C) they are below Lumen's 24 fps
-  // floor (§5.1) and refused by design.
+  // These read within 5 bpm on 808f37c. Under ADR 0077 (owner, option C) they are below Lumen's 24 fps
+  // floor (§5.1), so none of their seconds is clean and there is no standard rate; under ADR 0104 (owner)
+  // the beats still give the lower-quality rate, which must be right too.
   it.each([60, 100, 130, 160, 190, 220])(
-    'at 10, 12, and 15 fps (regular and jittered) %i bpm is refused',
+    'at 10, 12, and 15 fps (regular and jittered) %i bpm reads within 5 bpm, standard or lower quality',
     (bpm) => {
       for (const fps of [10, 12, 15])
         for (const offsets of [
           framesNs(0, 100e9, 1e9 / fps).map((ns) => ns / 1e9),
           jitteredOffsets(fps, 100, 0.3 / fps),
-        ])
-          expect(readingOutcome(judge(captureAt(offsets, regularPulse(bpm)))).kind).toBe('inconclusive');
+        ]) {
+          const analysis = judge(captureAt(offsets, regularPulse(bpm)));
+          expectAccurateOrRefused(analysis, bpm);
+          const lowBpm = analysis.lowQuality.heartRateBpm;
+          if (lowBpm !== null) expect(Math.abs(lowBpm - bpm)).toBeLessThanOrEqual(HR_TOLERANCE_BPM);
+        }
     },
   );
 
@@ -307,7 +315,8 @@ describe('red team: live and saved agree however frames are batched around gaps'
     expect(saved.rejectedSpans).toEqual(session.rejectedSpans);
     const liveTrueS = cleanSeconds(0, saved.durationS, session.rejectedSpans);
     expect(saved.cleanSeconds).toBe(liveTrueS);
-    expect(readingOutcome(saved).kind).toBe(liveTrueS >= 90 ? 'reading' : 'inconclusive');
+    // ADR 0104: short of 90 s it is still a reading, tagged lower quality on its results.
+    expect(readingOutcome(saved).kind).toBe('reading');
   });
 
   it('an exposure change on the first frame after a gap: the gap and the 1 s hold are each lost once', () => {

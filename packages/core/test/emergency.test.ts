@@ -67,6 +67,9 @@ function analysisOf(
     rejectedSpans,
     intervals,
     heartRateBpm,
+    // structuredClone makes typed arrays of Node's realm, which toEqual tells apart from Jest's; the
+    // averaged beat plays no part in the emergency rule.
+    lowQuality: { ...BASE.lowQuality, pulseShape: null },
   };
 }
 
@@ -258,14 +261,12 @@ describe('emergencyHeartRate (§10.1 Emergency screen: HR > 150 sustained 60 s a
 
 describe('emergencyHeartRate on captures analyzeReading made', () => {
   it.each([30, 240])(
-    '155 bpm for 70 s at %i fps on a Full Scan: inconclusive AND urgent',
+    '155 bpm for 70 s at %i fps on a Full Scan: a lower-quality reading (ADR 0104) AND urgent',
     (fps) => {
       const analysis = analyzeReading(fingertip(155, 70, fps), { ...CONTEXT, captureFps: fps });
       expect(analysis.heartRateBpm).toBeCloseTo(155, 0);
-      const outcome = readingOutcome(analysis);
-      expect(outcome).toMatchObject({
-        kind: 'inconclusive',
-        reasons: ['tooFewCleanSeconds'],
+      expect(readingOutcome(analysis)).toEqual({
+        kind: 'reading',
         urgent: { fastSustained: true, slowBelow40: false },
       });
     },
@@ -276,7 +277,7 @@ describe('emergencyHeartRate on captures analyzeReading made', () => {
     '145 bpm for 70 s at %i fps: not urgent',
     (fps) => {
       const analysis = analyzeReading(fingertip(145, 70, fps), { ...CONTEXT, captureFps: fps });
-      expect(readingOutcome(analysis)).toMatchObject({ kind: 'inconclusive', urgent: null });
+      expect(readingOutcome(analysis)).toEqual({ kind: 'reading', urgent: null });
     },
     60_000,
   );
@@ -358,9 +359,11 @@ describe('emergency view leaves out frame-floor windows', () => {
     CONTEXT,
   );
 
-  it('170 bpm at 20 fps: inconclusive, and urgent with fastSustained', () => {
+  it('170 bpm at 20 fps: a lower-quality reading (ADR 0104), and urgent with fastSustained', () => {
     const outcome = readingOutcome(analysis);
-    expect(outcome.kind).toBe('inconclusive');
+    expect(analysis.heartRateBpm).toBeNull();
+    expect(analysis.lowQuality.heartRateBpm).not.toBeNull();
+    expect(outcome.kind).toBe('reading');
     expect(outcome.urgent?.fastSustained).toBe(true);
   });
 

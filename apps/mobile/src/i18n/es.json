@@ -1014,6 +1014,7 @@
   "quality.modelFallback": "Se usó un método de ritmo más simple",
   "quality.quickMode": "La Revisión rápida es corta (30 s); un Escaneo completo es más fiable",
   "quality.contact": "Solo el {{pct}}% del escaneo fue limpio (contacto del dedo o movimiento)",
+  "quality.sqiFlagged": "La revisión de calidad de la señal marcó {{windows}} de {{total}} partes de esta lectura",
   "quality.rhythmUnjudged": "La VFC se calculó sin comprobar que el ritmo fuera regular",
   "quality.marked": "{{value}} (menor calidad)",
   "quality.fewBeats": "Solo se midieron {{beats}} latidos (conviene {{want}} o más)",

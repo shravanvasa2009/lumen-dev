@@ -359,19 +359,33 @@ describe('red team: sparse bad frames keep SQI-Net from ever scoring', () => {
   const rejectAll = { score: () => 0.1 };
   const isBad = (k: number) => k % 180 === 90;
 
-  it('control: noise with a frame dropped every 3 s is rejected by SQI-Net and gives no heart rate', () => {
+  // OWNER QUESTION (owner 2026-10-06 made SQI-Net advisory). SQI-Net was the only check that refused covered
+  // noise with no pulse: with its scores rejecting nothing, these 30 s of noise count about 30 clean s and give a
+  // standard heart rate of 107.6 bpm, tagged sqiFlagged with every window flagged (26 of 26). Each `test.failing`
+  // below states the behaviour before the decision and turns red if noise is refused again.
+  it('advisory SQI-Net: noise scored unclean everywhere carries the tag on every window', () => {
     const offsets = regularOffsets(60, 30).filter((_, k) => !isBad(k));
     const saved = expectParity(replay(captureAt(offsets, noise), 60, rejectAll), 60);
-    expect(saved.cleanSeconds).toBeLessThan(2);
-    expect(saved.heartRateBpm).toBeNull();
+    expect(saved.sqiFlagged!.windows).toBe(saved.sqiFlagged!.total);
+    expect(saved.sqiFlagged!.total).toBeGreaterThan(0);
   });
+
+  test.failing(
+    'control: noise with a frame dropped every 3 s is rejected by SQI-Net and gives no heart rate',
+    () => {
+      const offsets = regularOffsets(60, 30).filter((_, k) => !isBad(k));
+      const saved = expectParity(replay(captureAt(offsets, noise), 60, rejectAll), 60);
+      expect(saved.cleanSeconds).toBeLessThan(2);
+      expect(saved.heartRateBpm).toBeNull();
+    },
+  );
 
   // Found by red team. 60 fps, 30 s of noise (no pulse), NaN red on one frame every 3 s (frames 90, 270,
   // …), and a stand-in SQI-Net that rejects every window it is given. No 4 s window is ever covered, so
   // setSqi is never called. Observed: 29.82 of 29.98 s clean, sqiAvailable false, heart rate 112 bpm
   // from noise. Expected: as with the frames dropped, the noise is rejected and there is no heart rate.
   // The same happens with a finite one-frame coverage failure (finger off for 17 ms) every 3 s: 51.8 bpm.
-  it.each([
+  test.failing.each([
     ['NaN red', { r: NaN }],
     ['finger off', { r: 0.2, g: 0.3, b: 0.3 }],
   ])('noise with one %s frame every 3 s is not counted clean and gives no heart rate', (_label, patch) => {
@@ -392,9 +406,12 @@ describe('red team: sparse bad frames keep SQI-Net from ever scoring', () => {
     expect(cleanSeconds(0, 2, saved.rejectedSpans)).toBeLessThan(0.05);
   });
 
-  it('control: a good first frame, SQI-Net rejecting every window: none of [0, 2] is clean', () => {
-    const saved = expectParity(replay(captureAt(regularOffsets(60, 30), sinePulse(72)), 60, rejectAll), 60);
-    expect(cleanSeconds(0, 2, saved.rejectedSpans)).toBe(0);
+  // Advisory SQI-Net (owner 2026-10-06): scores reject nothing, so [0, 2] is as clean as with no scores at all.
+  it('control: a good first frame, SQI-Net scoring every window low: [0, 2] as clean as unscored', () => {
+    const pulse = captureAt(regularOffsets(60, 30), sinePulse(72));
+    const saved = expectParity(replay(pulse, 60, rejectAll), 60);
+    const unscored = expectParity(replay(pulse, 60), 60);
+    expect(cleanSeconds(0, 2, saved.rejectedSpans)).toBe(cleanSeconds(0, 2, unscored.rejectedSpans));
   });
 });
 

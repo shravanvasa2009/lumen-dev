@@ -85,9 +85,17 @@ function tag(reasons: QualityReason[]): {
   };
 }
 
-// The tag and the metric's confidence: a lower-quality value is never above low confidence.
+// The tag and the metric's confidence: a lower-quality value is never above low confidence, except one tagged only
+// by advisory SQI-Net, which readingConfidence already caps at moderate.
 function graded(reasons: QualityReason[], confidence: Confidence) {
-  return { ...tag(reasons), confidence: reasons.length > 0 ? ('low' as const) : confidence };
+  const floorMissed = reasons.some((reason) => reason.kind !== 'sqiFlagged');
+  return { ...tag(reasons), confidence: floorMissed ? ('low' as const) : confidence };
+}
+
+// Owner 2026-10-06 ("Advisory + tag"): every value is read from beats SQI-Net may have flagged.
+function sqiReasons(analysis: ReadingAnalysis): QualityReason[] {
+  const flagged = analysis.sqiFlagged;
+  return flagged && flagged.windows > 0 ? [{ kind: 'sqiFlagged', ...flagged }] : [];
 }
 
 const shortClean = (analysis: ReadingAnalysis, wantS: number): QualityReason[] =>
@@ -127,14 +135,16 @@ function tierAtLeast(analysis: ReadingAnalysis, needed: Tier): boolean {
   return TIER_ORDER.indexOf(effectiveTier(analysis)) >= TIER_ORDER.indexOf(needed);
 }
 
-// §7: clean coverage, capped at moderate without SQI scores and on a Limited or unrated phone.
+// §7: clean coverage, capped at moderate without SQI scores, with SQI-flagged windows, and on a Limited or
+// unrated phone.
 function readingConfidence(analysis: ReadingAnalysis): Confidence {
   const { highCoverage, moderateCoverage } = DSP_CONFIG.confidence;
   const coverage = analysis.durationS > 0 ? analysis.cleanSeconds / analysis.durationS : 0;
   const fromCoverage: Confidence =
     coverage >= highCoverage ? 'high' : coverage >= moderateCoverage ? 'moderate' : 'low';
   const { tier } = analysis.context;
-  const capped = !analysis.sqiAvailable || tier === null || tier === 'limited';
+  const capped =
+    !analysis.sqiAvailable || sqiReasons(analysis).length > 0 || tier === null || tier === 'limited';
   return capped ? lowest(fromCoverage, 'moderate') : fromCoverage;
 }
 
@@ -147,6 +157,7 @@ function confidenceReasons(analysis: ReadingAnalysis): QualityReason[] | null {
   if (coverage < DSP_CONFIG.confidence.highCoverage)
     reasons.push({ kind: 'contact', coveredPct: 100 * coverage });
   if (!analysis.sqiAvailable) reasons.push({ kind: 'noSqi' });
+  reasons.push(...sqiReasons(analysis));
   if (tier === 'limited') reasons.push(...rateReasons(analysis, 'basic', 30));
   return reasons;
 }
@@ -185,11 +196,11 @@ function hrMetric(
   const bpm = analysis.heartRateBpm ?? lowBpm;
   if (bpm === null) return null;
   const { minCleanS } = DSP_CONFIG.dsp11;
-  const reasons: QualityReason[] = [];
+  const reasons = sqiReasons(analysis);
   if (analysis.heartRateBpm === null) {
     reasons.push(...shortClean(analysis, minCleanS));
     // Otherwise the accepted intervals spanned under minCleanS (ADR 0080): want enough beats to span it.
-    if (reasons.length === 0)
+    if (!reasons.some((reason) => reason.kind === 'shortClean'))
       reasons.push({
         kind: 'fewBeats',
         beats: analysis.intervals.filter((interval) => interval.accepted).length,
@@ -249,7 +260,7 @@ function readingRhythmProbs(
   if (!outputs || profile.pacemaker || rows === 0) return null;
 
   const { minUsableIntervals } = DSP_CONFIG.dsp15;
-  const reasons = shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS);
+  const reasons = [...sqiReasons(analysis), ...shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS)];
   if (!analysis.enoughRhythmIntervals)
     reasons.push({ kind: 'fewBeats', beats: analysis.usableRhythmIntervals, wantBeats: minUsableIntervals });
   if (analysis.rhythmFeatures.length === 0) reasons.push({ kind: 'fewWindows', windows: 0, wantWindows: 1 });
@@ -395,10 +406,10 @@ function rmssdMetric(
     rhythmClass === null ? [{ kind: 'rhythmUnjudged' }] : [...(rhythm?.reasons ?? [])];
   reasons.push(...rateReasons(analysis, 'full', config.minFps));
 
-  let value =
-    reasons.length === 0
-      ? (hrv(analysis.segments, 'sinus', captureFps, analysis.cleanSeconds)?.rmssdMs ?? null)
-      : null;
+  // Advisory SQI-Net does not move RMSSD off its standard path; it only tags it.
+  let value = reasons.every((reason) => reason.kind === 'sqiFlagged')
+    ? (hrv(analysis.segments, 'sinus', captureFps, analysis.cleanSeconds)?.rmssdMs ?? null)
+    : null;
   if (value === null) {
     const low = lowQualityRmssd(analysis.segments);
     if (low === null) return null;
@@ -408,7 +419,7 @@ function rmssdMetric(
       reasons.push({ kind: 'fewBeats', beats: low.nnIntervals, wantBeats: config.rmssdMinIntervals });
   }
   const earlier = history.flatMap((past) => (past.rmssdMs === null ? [] : [past.rmssdMs]));
-  const kept = unique(reasons);
+  const kept = unique([...reasons, ...sqiReasons(analysis)]);
   const metric: RmssdMetric = {
     value,
     unit: 'ms',
@@ -430,6 +441,7 @@ function respMetric(
   const value = estimates?.rateBrpm ?? estimates?.intervalBrpm ?? null;
   if (estimates === null || value === null) return null;
   const reasons: QualityReason[] = [
+    ...sqiReasons(analysis),
     ...shortClean(analysis, DSP_CONFIG.dsp13.minCleanS),
     ...tierReasons(analysis, 'basic', 30),
   ];
@@ -464,6 +476,7 @@ function diabetesMetric(
   const reasons: QualityReason[] = [
     // §11.4's Full Scan is a floor of this pattern alone (owner 2026-10-06, ADR 0104 answer 4).
     ...(mode === 'quick' ? [{ kind: 'quickMode' } as const] : []),
+    ...sqiReasons(analysis),
     ...rateReasons(analysis, 'full', 60),
     ...shortClean(analysis, rules.diabetesMinCleanS),
     // The rhythm call opens diabetes-net's HRV summary (diabetesModelInput), so a lower-quality call makes a
@@ -512,7 +525,7 @@ function diabetesMetric(
 function experimentalMeasurements(analysis: ReadingAnalysis): Graded<ExperimentalMeasurements> {
   const beats = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');
   const atypical = beats.filter((beat) => beat.beatClass === 'atypical').length;
-  const reasons = shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS);
+  const reasons = [...sqiReasons(analysis), ...shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS)];
   const metric: ExperimentalMeasurements = {
     extraBeatsPerMin: analysis.cleanSeconds > 0 ? atypical / (analysis.cleanSeconds / 60) : 0,
     longPauses: beats.filter((beat) => beat.longPause).length,

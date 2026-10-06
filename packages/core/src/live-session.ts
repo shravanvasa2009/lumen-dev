@@ -38,8 +38,8 @@ export interface SqiWindow {
 export interface LiveSession {
   pushSamples(batch: SampleBatch): void;
   pushStatus(status: CaptureStatus): void;
-  // SQI-Net runs in the app every 1 s on the last 4 s window (§11.2). Pass sqiWindow.endS unchanged. A
-  // RangeError for an end outside the reading or not a whole ns (readingInput could not hand it on
+  // SQI-Net runs in the app every 1 s on the last 4 s window (§11.2). Pass sqiWindow.endS unchanged. Its score
+  // is advisory (owner 2026-10-06): a low one tags the reading and rejects nothing. A RangeError for an end outside the reading or not a whole ns (readingInput could not hand it on
   // exactly), or a pClean outside [0, 1].
   setSqi(windowEndS: number, pClean: number): void;
   readonly cleanSeconds: number;

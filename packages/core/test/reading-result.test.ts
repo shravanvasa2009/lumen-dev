@@ -91,6 +91,42 @@ const build = (
   history: PastReading[] = [],
 ) => buildReadingResult(analysis, models, evidence, profile, history);
 
+// Owner 2026-10-06 ("Advisory + tag"): SQI-Net's low scores tag the reading and cap confidence at moderate; they
+// never stop the count, never hide a flag the rules raise, and never drop a value to low confidence on their own.
+describe('advisory SQI-Net (sqiFlagged)', () => {
+  const flagged = analysisWith({ sqiFlagged: { windows: 7, total: 91 } });
+
+  it('tags every value with the flagged windows, at moderate confidence', () => {
+    const outcome = build(flagged, AF);
+    expect(outcome.quality).toEqual({
+      level: 'low',
+      reasons: [{ kind: 'sqiFlagged', windows: 7, total: 91 }],
+    });
+    const { hr, rhythm, rmssd, resp } = outcome.metrics;
+    for (const metric of [hr, rhythm, resp])
+      expect(metric).toMatchObject({
+        quality: 'low',
+        qualityReasons: ['sqiFlagged'],
+        confidence: 'moderate',
+      });
+    expect(rmssd).toBeNull();
+    expect(outcome.experimental).toMatchObject({ quality: 'low', qualityReasons: ['sqiFlagged'] });
+    expect(build(flagged).metrics.rmssd!.value).toBe(build(BASE).metrics.rmssd!.value);
+  });
+
+  it('keeps the irregular flag and the heart-rate flags the rules raise', () => {
+    expect(build(flagged, AF).metrics.rhythm).toMatchObject({ class: 'af', flag: 'irregular' });
+    const slow = analysisWith({ sqiFlagged: { windows: 7, total: 91 }, heartRateBpm: 45 });
+    expect(build(slow).metrics.hr).toMatchObject({ flag: 'slowResting', quality: 'low' });
+  });
+
+  it('adds nothing when no window was flagged or SQI-Net never ran', () => {
+    expect(build(analysisWith({ sqiFlagged: { windows: 0, total: 91 } })).quality.level).toBe('standard');
+    const noModel = build(analysisWith({ sqiFlagged: null, sqiAvailable: false }));
+    expect(noModel.quality.reasons.map((reason) => reason.kind)).not.toContain('sqiFlagged');
+  });
+});
+
 describe('ReadingResult shape', () => {
   it('copies counts and losses, and always lists what was not checked', () => {
     const outcome = build(BASE);

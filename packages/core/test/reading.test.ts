@@ -265,15 +265,18 @@ describe('analyzeReading acquisition spans', () => {
     expect(analysis.lostSeconds.motion).toBeCloseTo(4, 9);
   });
 
-  it('rejects the 4 s window behind each SQI score under the threshold', () => {
+  // Owner 2026-10-06 ("Advisory + tag", superseding H-024's reject-only guard).
+  it('counts the SQI scores under the threshold and rejects nothing for them', () => {
     const windows = [10, 11, 12].map((endS) => ({
       endNs: CLOCK_START_NS + endS * 1e9,
       pClean: endS === 11 ? 0.2 : 0.9,
     }));
     const analysis = analyze(syntheticReading(), { sqi: { threshold: 0.5, windows } });
     expect(analysis.sqiAvailable).toBe(true);
-    expect(spansOf(analysis, 'quality')).toEqual([{ startS: 7, endS: 11, reason: 'quality' }]);
-    expect(analysis.cleanSeconds).toBeCloseTo(analysis.durationS - 4, 9);
+    expect(analysis.sqiFlagged).toEqual({ windows: 1, total: 3 });
+    expect(spansOf(analysis, 'quality')).toEqual([]);
+    expect(analysis.cleanSeconds).toBeCloseTo(analysis.durationS, 9);
+    expect(analyze(syntheticReading()).sqiFlagged).toBeNull();
   });
 
   it('ADR 0023: rejects each 4 s window of equal red frames from the capture, with or without SQI-Net', () => {

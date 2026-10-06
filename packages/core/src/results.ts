@@ -39,7 +39,10 @@ export type QualityReason =
   // §5.2: the phone's rating, not its frame rate, is below the tier the output needs.
   | { kind: 'phoneTier'; tier: Tier; wantTier: Tier }
   // No rhythm model or rule judged the rhythm, so RMSSD was computed without checking it is sinus (DSP-12).
-  | { kind: 'rhythmUnjudged' };
+  | { kind: 'rhythmUnjudged' }
+  // SQI-Net scored `windows` of its `total` windows under its threshold. Advisory (owner 2026-10-06): those
+  // seconds still count as clean, and this reason alone caps confidence at moderate instead of low.
+  | { kind: 'sqiFlagged'; windows: number; total: number };
 // 'low': a standard floor failed and the same math ran on the beats there were.
 export type MetricQuality = 'standard' | 'low';
 // 'low' when any metric is; reasons are the union over the metrics, one per kind.

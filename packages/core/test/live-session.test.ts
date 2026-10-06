@@ -193,7 +193,9 @@ describe('LiveSession rejected spans and clean seconds', () => {
     expect(Math.abs(span!.endS - 23)).toBeLessThanOrEqual(0.1);
   });
 
-  it('never shows clean seconds going down: after a late SQI rejection the count pauses, then catches up', () => {
+  // Owner 2026-10-06: a late low SQI score no longer rejects counted seconds, so the count never pauses for one
+  // (the phone stall). The never-step-back display after a late flat-run rejection is reading-outcome-gaps'.
+  it('a late low SQI score neither lowers the true count nor pauses the shown one', () => {
     // True clean seconds, from the spans: what analyzeReading and the result use.
     const trueClean = (live: LiveSession) => {
       const { tS } = live.recentWaveform;
@@ -205,8 +207,8 @@ describe('LiveSession rejected spans and clean seconds', () => {
       onBatch: (live, tS) => {
         if (!rejected && tS >= 20) {
           const before = live.cleanSeconds;
-          live.setSqi(20, 0.1); // rejects 16–20 s, after those seconds were already counted
-          expect(trueClean(live)).toBeCloseTo(before - 4, 9);
+          live.setSqi(20, 0.1);
+          expect(trueClean(live)).toBeCloseTo(before, 9);
           expect(live.cleanSeconds).toBe(before);
           rejected = true;
         }
@@ -218,24 +220,27 @@ describe('LiveSession rejected spans and clean seconds', () => {
     shown.forEach((entry) => expect(entry.exposed).toBeGreaterThanOrEqual(entry.truth));
     const at = (tS: number) =>
       shown.reduce((best, entry) => (Math.abs(entry.tS - tS) < Math.abs(best.tS - tS) ? entry : best));
-    // Paused from 20 s until the true count reaches it again, about 4 s later.
-    expect(at(22).exposed).toBe(at(20.1).exposed);
-    expect(at(28).exposed).toBeCloseTo(at(28).truth, 9);
-    expect(shown.at(-1)!.exposed).toBeCloseTo(30 - 1 / 60 - 4, 9);
+    expect(at(22).exposed).toBeGreaterThan(at(20.1).exposed);
+    shown.forEach((entry) => expect(entry.exposed).toBeCloseTo(entry.truth, 9));
+    expect(shown.at(-1)!.exposed).toBeCloseTo(30 - 1 / 60, 9);
   });
 
-  it('SQI: a score under the threshold rejects its 4 s window; none before the first score', () => {
+  // Owner 2026-10-06 ("Advisory + tag", superseding H-024's reject-only guard): a low score is kept for the
+  // reading's tag and never stops the clean count.
+  it('SQI: a score under the threshold rejects nothing and is handed on to the reading', () => {
     const pending = [12, 13];
+    const plain = play(frames({ seconds: 30 })).session;
     const { session } = play(frames({ seconds: 30 }), {
       onBatch: (live, tS) => {
         // Each score arrives once its window has ended: setSqi refuses an end after the newest frame.
         if (pending.length === 0 || tS < pending[0]!) return;
-        if (pending[0] === 12) expect(spansOf(live, 'quality')).toEqual([]);
         const endS = pending.shift()!;
         live.setSqi(endS, endS === 12 ? 0.2 : 0.9);
       },
     });
-    expect(spansOf(session, 'quality')).toEqual([{ startS: 8, endS: 12, reason: 'quality' }]);
+    expect(spansOf(session, 'quality')).toEqual([]);
+    expect(session.cleanSeconds).toBe(plain.cleanSeconds);
+    expect(session.readingInput().sqi!.windows.map((window) => window.pClean)).toEqual([0.2, 0.9]);
   });
 
   it('a flat window never reaches the model and counts as rejected (ADR 0023)', () => {
@@ -341,7 +346,8 @@ describe('LiveSession input checks and buffer size', () => {
     expect(() => session.setSqi(10 + 1 / 3, 0.1)).toThrow(RangeError);
     expect(session.readingInput().sqi).toBeNull();
     session.setSqi(10.3, 0.1);
-    expect(spansOf(session, 'quality')).toEqual([{ startS: 10.3 - 4, endS: 10.3, reason: 'quality' }]);
+    expect(session.readingInput().sqi!.windows).toHaveLength(1);
+    expect(spansOf(session, 'quality')).toEqual([]);
   });
 
   it('takes a frame with non-finite red as uncovered and keeps the waveform finite', () => {
@@ -612,6 +618,7 @@ describe('readingInput hands analyzeReading what the session saw (H-025)', () =>
     it('the saved spans and clean seconds equal the live ones', () => {
       const fromSession = analyzeInput(mixedSession);
       const reasons = new Set(fromSession.rejectedSpans.map((span) => span.reason));
+      // 'quality' only from the flat windows: the 0.1 score at 25 s rejects nothing (owner 2026-10-06).
       expect([...reasons].sort()).toEqual(['coldHands', 'motion', 'quality']);
       expect(fromSession.rejectedSpans).toEqual(mixedSession.rejectedSpans);
       expect(fromSession.cleanSeconds).toBe(mixedSession.cleanSeconds);
@@ -629,10 +636,9 @@ describe('readingInput hands analyzeReading what the session saw (H-025)', () =>
         windows: [{ endNs: toNs(25), pClean: 0.1 }],
       });
       const quality = analyzeInput(mixedSession).rejectedSpans.filter((span) => span.reason === 'quality');
-      expect(quality[0]).toEqual({ startS: 21, endS: 25, reason: 'quality' });
       // The flat windows lie wholly inside frames 1800–2219 (30 s to 36.98 s).
-      expect(quality.length).toBeGreaterThan(1);
-      for (const span of quality.slice(1)) {
+      expect(quality.length).toBeGreaterThan(0);
+      for (const span of quality) {
         expect(span.startS).toBeGreaterThanOrEqual(30);
         expect(span.endS).toBeLessThanOrEqual(2219 / 60);
       }
@@ -787,17 +793,18 @@ describe('SQI-Net is a reject-only guard (order D.AC_TASK-sqi-guard-role, owner 
     }
   });
 
-  it('setSqi(windowEndS, 0) is the veto: it rejects exactly that window', () => {
-    let vetoed: number | null = null;
+  it('setSqi(windowEndS, 0) is no longer a veto: it rejects nothing and the reading counts it', () => {
+    let scored: number | null = null;
     const { session } = play(frames({ seconds: 20 }), {
       onBatch: (live, tS) => {
-        if (vetoed !== null || tS < 12 || !live.sqiWindow) return;
-        vetoed = live.sqiWindow.endS;
-        live.setSqi(vetoed, 0);
+        if (scored !== null || tS < 12 || !live.sqiWindow) return;
+        scored = live.sqiWindow.endS;
+        live.setSqi(scored, 0);
       },
     });
-    expect(session.rejectedSpans).toEqual([{ startS: vetoed! - 4, endS: vetoed!, reason: 'quality' }]);
-    expect(saved(session).rejectedSpans).toEqual(session.rejectedSpans);
+    expect(session.rejectedSpans).toEqual([]);
+    expect(saved(session).rejectedSpans).toEqual([]);
+    expect(saved(session).sqiFlagged).toEqual({ windows: 1, total: 1 });
   });
 });
 

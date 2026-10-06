@@ -52,7 +52,8 @@ beforeEach(() => {
 });
 afterEach(() => jest.useRealTimers());
 
-it('scores a 256-sample window about once a second, and a low P(clean) rejects those 4 s', async () => {
+// Owner 2026-10-06 ("Advisory + tag"): SQI-Net's low scores no longer stop the count.
+it('scores a 256-sample window about once a second, and a low P(clean) rejects nothing', async () => {
   const replay = new ReplayCapture(syntheticRecording(20));
   const { result: live } = renderHook(() => useLiveCapture(replay));
   await act(async () => {});
@@ -64,9 +65,9 @@ it('scores a 256-sample window about once a second, and a low P(clean) rejects t
   // 4 s of covered signal first, then one window per second.
   expect(mockScoreSqiWindow.mock.calls.length).toBeGreaterThanOrEqual(8);
   expect(mockScoreSqiWindow.mock.calls.length).toBeLessThanOrEqual(11);
-  expect(live.current.rejectedSpans.some((span) => span.reason === 'quality')).toBe(true);
-  // The count stops once the first rejection lands (it never goes backwards), far short of the 14 s elapsed.
-  expect(live.current.cleanSeconds).toBeLessThan(8);
+  expect(live.current.rejectedSpans.some((span) => span.reason === 'quality')).toBe(false);
+  // Every scored window was flagged, yet the count kept up with the frames (it once stopped under 8 s).
+  expect(live.current.cleanSeconds).toBeGreaterThan(12);
 
   const kept = keptCapture();
   expect(kept?.sqi?.threshold).toBe(0.5);

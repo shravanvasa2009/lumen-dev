@@ -25,6 +25,7 @@ const allReasons: QualityReason[] = [
   { kind: 'estimatesDisagree' },
   { kind: 'phoneTier', tier: 'basic', wantTier: 'full' },
   { kind: 'rhythmUnjudged' },
+  { kind: 'sqiFlagged', windows: 7, total: 40 },
 ];
 
 type Injected = {
@@ -121,6 +122,7 @@ describe('lower-quality tag', () => {
     expect(screen.getByText(/Only 2 of 5 steady stretches/)).toBeOnTheScreen();
     expect(screen.getByText(en['quality.estimatesDisagree'], { exact: false })).toBeOnTheScreen();
     expect(screen.getByText(/rated Basic; this check is made for Full phones/)).toBeOnTheScreen();
+    expect(screen.getByText(/signal-quality check flagged 7 of 40 parts/)).toBeOnTheScreen();
     expect(screen.getByText(en['quality.betterTitle'])).toBeOnTheScreen();
   });
 
@@ -144,6 +146,7 @@ describe('lower-quality tag', () => {
       expect(
         screen.getByText(/calificación Básica; esta revisión está hecha para teléfonos Completa/),
       ).toBeOnTheScreen();
+      expect(screen.getByText(/calidad de la señal marcó 7 de 40 partes/)).toBeOnTheScreen();
       expect(screen.getByText(es['quality.betterTitle'])).toBeOnTheScreen();
     } finally {
       await act(() => i18next.changeLanguage('en'));

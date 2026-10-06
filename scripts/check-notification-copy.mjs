@@ -11,20 +11,56 @@ if (!fs.existsSync(path.join(RES, 'values', LOCK_RES))) {
   console.error(`WID-2 failed: ${RES}/values/${LOCK_RES} is missing`);
   process.exit(1);
 }
+// Android's own escapes and the XML entities, so the banned patterns see the text the widget shows.
+const unescapeAndroid = (text) =>
+  text
+    .replace(/\\(['"@?])/g, '$1')
+    .replace(/\\[nt]/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+
+// Fails closed: every <string> and every <item> of a <plurals> or <string-array> must be plain text. Markup
+// (<b>, <xliff:g>, CDATA) could hide a value from the patterns below, and the lock widget needs none, so a string
+// with markup, or any entry the patterns here don't read, is a failure rather than skipped.
+const unreadable = [];
+function readLockStrings(xml, where) {
+  const strings = {};
+  for (const [, name, body] of xml.matchAll(/<string\s+name="([^"]+)"[^>]*>([\s\S]*?)<\/string>/g))
+    strings[name] = body;
+  for (const [, kind, name, items] of xml.matchAll(
+    /<(plurals|string-array)\s+name="([^"]+)"[^>]*>([\s\S]*?)<\/\1>/g,
+  )) {
+    [...items.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/g)].forEach(([, body], index) => {
+      strings[`${kind} ${name}[${index}]`] = body;
+    });
+  }
+  const entries = (xml.match(/<string[\s>]/g) ?? []).length + (xml.match(/<item[\s>]/g) ?? []).length;
+  if (Object.keys(strings).length !== entries)
+    unreadable.push(`${where}: read ${Object.keys(strings).length} of ${entries} entries`);
+  for (const [name, body] of Object.entries(strings)) {
+    if (/[<>]/.test(body)) unreadable.push(`${where} ${name}: markup this check can't read: ${body.trim()}`);
+    else strings[name] = unescapeAndroid(body);
+  }
+  return strings;
+}
+
 const lockResFolders = fs
   .readdirSync(RES)
   .filter((folder) => /^values(-|$)/.test(folder) && fs.existsSync(path.join(RES, folder, LOCK_RES)));
 for (const folder of lockResFolders) {
   const xml = fs.readFileSync(path.join(RES, folder, LOCK_RES), 'utf8');
-  copy[`android ${folder}`] = Object.fromEntries(
-    [...xml.matchAll(/<string name="([a-z0-9_]+)"[^>]*>([^<]*)<\/string>/g)].map(([, name, text]) => [
-      name,
-      text.replace(/\'/g, "'").replace(/&amp;/g, '&'),
-    ]),
-  );
+  copy[`android ${folder}`] = readLockStrings(xml, `${folder}/${LOCK_RES}`);
+}
+if (unreadable.length) {
+  console.error(`WID-2 failed:\n${unreadable.join('\n')}`);
+  process.exit(1);
 }
 const BANNED = [
-  /\d+\s*(bpm|lpm)\b/i,
+  // The unit alone: a placeholder ("%d bpm", "{{bpm}} lpm") is a value once filled in.
+  /\b(bpm|lpm)\b/i,
   /\bafib\b/i,
   /\bfibrilaci[oó]n\b/i,
   /\bdiabet/i,

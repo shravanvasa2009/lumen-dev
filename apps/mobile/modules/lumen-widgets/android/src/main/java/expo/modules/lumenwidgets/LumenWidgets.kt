@@ -109,17 +109,13 @@ internal class WidgetColors(private val theme: String, private val light: Palett
     }
 }
 
-private val WidgetView.colors get() = WidgetColors(theme, light, dark)
-
-private fun WidgetView.color(pick: (Palette) -> Long): ColorProvider = colors.of(pick)
-
 // The colors the app uses for each kind of result; mockup 32's dot is the up-to-date accent.
 private fun WidgetView.statusColor(): ColorProvider? =
     when (statusKey) {
         null -> null
-        "regular" -> color { it.accent }
-        "see-doctor" -> color { it.criticalText }
-        else -> color { it.flag }
+        "regular" -> colors.of { it.accent }
+        "see-doctor" -> colors.of { it.criticalText }
+        else -> colors.of { it.flag }
     }
 
 private fun joinLine(vararg parts: String?): String? = parts.filterNotNull().joinToString(" · ").ifEmpty { null }
@@ -237,7 +233,7 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
                                 ImageProvider(icon),
                                 contentDescription = null,
                                 modifier = GlanceModifier.size((11 * scale).dp),
-                                colorFilter = ColorFilter.tint(view.color { it.textDim }),
+                                colorFilter = ColorFilter.tint(view.colors.of { it.textDim }),
                             )
                         }
                     }
@@ -253,11 +249,11 @@ private fun SmallBody(view: WidgetView, scale: Float, check: Action) {
             Spacer(GlanceModifier.defaultWeight())
             Text(
                 title,
-                style = TextStyle(color = view.color { it.text }, fontSize = (18 * scale).sp, fontWeight = FontWeight.Bold),
+                style = TextStyle(color = view.colors.of { it.text }, fontSize = (18 * scale).sp, fontWeight = FontWeight.Bold),
                 maxLines = 2,
             )
             if (detail != null && detailFits) {
-                Text(detail, style = TextStyle(color = view.color { it.textDim }, fontSize = (13 * scale).sp), maxLines = 1)
+                Text(detail, style = TextStyle(color = view.colors.of { it.textDim }, fontSize = (13 * scale).sp), maxLines = 1)
             }
             Spacer(GlanceModifier.height((10 * scale).dp))
             Pill(view.colors, view.checkNow, check, filled = true, scale = scale, modifier = GlanceModifier.fillMaxWidth())
@@ -279,12 +275,12 @@ private fun CheckRow(view: WidgetView, scale: Float) {
                     ImageProvider(icon),
                     contentDescription = null,
                     modifier = GlanceModifier.size((12 * scale).dp),
-                    colorFilter = ColorFilter.tint(view.color { it.accent }),
+                    colorFilter = ColorFilter.tint(view.colors.of { it.accent }),
                 )
                 Spacer(GlanceModifier.width((3 * scale).dp))
                 Text(
                     name,
-                    style = TextStyle(color = view.color { it.text }, fontSize = (12 * scale).sp, fontWeight = FontWeight.Medium),
+                    style = TextStyle(color = view.colors.of { it.text }, fontSize = (12 * scale).sp, fontWeight = FontWeight.Medium),
                     maxLines = 1,
                 )
                 if (index == DIABETES_CHECK && view.diabetesTag != null) {
@@ -292,13 +288,13 @@ private fun CheckRow(view: WidgetView, scale: Float) {
                     Box(
                         modifier =
                             GlanceModifier
-                                .background(view.color { it.badgeExperimentalBg })
+                                .background(view.colors.of { it.badgeExperimentalBg })
                                 .cornerRadius((8 * scale).dp)
                                 .padding(horizontal = (5 * scale).dp, vertical = (1 * scale).dp),
                     ) {
                         Text(
                             view.diabetesTag,
-                            style = TextStyle(color = view.color { it.badgeExperimentalFg }, fontSize = (9 * scale).sp),
+                            style = TextStyle(color = view.colors.of { it.badgeExperimentalFg }, fontSize = (9 * scale).sp),
                             maxLines = 1,
                         )
                     }
@@ -313,8 +309,8 @@ private fun CheckRow(view: WidgetView, scale: Float) {
 // takes the number's place; before the first reading, the empty-state title and body do.
 @Composable
 private fun MediumBody(view: WidgetView, scale: Float, width: Dp, check: Action, fullScan: Action) {
-    val text = view.color { it.text }
-    val dim = view.color { it.textDim }
+    val text = view.colors.of { it.text }
+    val dim = view.colors.of { it.textDim }
     Card(view.colors, scale) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
             Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
@@ -368,7 +364,7 @@ private fun MediumBody(view: WidgetView, scale: Float, width: Dp, check: Action,
             }
             if (view.checks.isNotEmpty()) {
                 Spacer(GlanceModifier.height((6 * scale).dp))
-                Box(modifier = GlanceModifier.fillMaxWidth().height(BORDER.dp).background(view.color { it.line })) {}
+                Box(modifier = GlanceModifier.fillMaxWidth().height(BORDER.dp).background(view.colors.of { it.line })) {}
                 Spacer(GlanceModifier.height((6 * scale).dp))
                 CheckRow(view, scale)
             }

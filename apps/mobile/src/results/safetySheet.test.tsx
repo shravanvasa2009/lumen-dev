@@ -5,7 +5,7 @@ import { Dimensions, ScrollView, StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 
-import { SafetySheet } from './SafetySheet';
+import { CLOSE_SHIELD_MS, SafetySheet } from './SafetySheet';
 
 import '@/i18n';
 
@@ -13,6 +13,9 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'light',
 }));
+
+beforeEach(() => jest.useFakeTimers());
+afterEach(() => jest.useRealTimers());
 
 const originalWindow = Dimensions.get('window');
 
@@ -30,10 +33,12 @@ describe('SafetySheet on a 360x640 phone at the largest font', () => {
     expect(scrolling.getByText(en['safety.question'])).toBeOnTheScreen();
     expect(scrolling.getByRole('header', { name: en['safety.title'] })).toBeOnTheScreen();
     expect(scrolling.queryByRole('button')).toBeNull();
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
-    expect(onNo).toHaveBeenCalledTimes(1);
     fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
     expect(onYes).toHaveBeenCalledTimes(1);
+    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    expect(onNo).not.toHaveBeenCalled();
+    act(() => jest.advanceTimersByTime(CLOSE_SHIELD_MS));
+    expect(onNo).toHaveBeenCalledTimes(1);
   });
 
   it('caps the panel below the screen height so the scroll area can shrink', () => {
@@ -53,5 +58,15 @@ describe('SafetySheet on a 360x640 phone at the largest font', () => {
     } finally {
       await act(() => i18next.changeLanguage('en'));
     }
+  });
+
+  it('ignores a second tap on No while it closes, and closes once', () => {
+    const onNo = jest.fn();
+    render(<SafetySheet visible onNo={onNo} />);
+    const no = screen.getByRole('button', { name: en['safety.no'] });
+    fireEvent.press(no);
+    fireEvent.press(no);
+    act(() => jest.advanceTimersByTime(CLOSE_SHIELD_MS));
+    expect(onNo).toHaveBeenCalledTimes(1);
   });
 });

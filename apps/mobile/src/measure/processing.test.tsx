@@ -5,7 +5,9 @@ import { router } from 'expo-router';
 import { BackHandler, Modal } from 'react-native';
 
 import en from '@/i18n/en.json';
+import { CLOSE_SHIELD_MS } from '@/results/SafetySheet';
 import { expectNavTitle } from '@/testing/navHeader';
+import { pressNo } from '@/testing/pressNo';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import { keepCapture } from './keptCapture';
@@ -258,7 +260,7 @@ describe('urgent heart rates (SAFE-1, ADR 0076)', () => {
   it('continues to the result when the answer is No', () => {
     mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo', urgent: slow };
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    pressNo();
     expect(route.getPathname()).toBe('/results/demo');
   });
 
@@ -267,7 +269,10 @@ describe('urgent heart rates (SAFE-1, ADR 0076)', () => {
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
     expect(route.getPathname()).toBe('/measure/processing');
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    pressNo(CLOSE_SHIELD_MS - 1);
+    expect(route.getPathname()).toBe('/measure/processing');
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    act(() => jest.advanceTimersByTime(1));
     expect(route.getPathname()).toBe('/measure/inconclusive');
   });
 
@@ -313,7 +318,7 @@ describe('urgent heart rates (SAFE-1, ADR 0076)', () => {
       mockAnalysis = failedWith(slow);
       const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
       expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
-      fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+      pressNo();
       expect(route.getPathname()).toBe('/measure/processing');
       expect(screen.getByText(en['processing.failed'])).toBeOnTheScreen();
     });
@@ -383,7 +388,7 @@ describe('the symptom question is asked once per reading', () => {
       urgent: { fastSustained: false, slowBelow40: true },
     };
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    pressNo();
     expect(route.getPathname()).toBe('/results/demo-hr-flag');
     expect(screen.queryByText(en['safety.question'])).toBeNull();
   });
@@ -403,7 +408,7 @@ describe('the symptom question is asked once per reading', () => {
       urgent: { fastSustained: false, slowBelow40: true },
     };
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    pressNo();
     expect(route.getSearchParams()).toEqual({ id: 'demo-hr-flag' });
   });
 });
@@ -453,7 +458,7 @@ describe('urgent flags known while the analysis still runs (SAFE-1)', () => {
     mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo-hr-flag', urgent: slow };
     act(() => router.setParams({ mode: 'quick' }));
     expect(route.getPathname()).toBe('/measure/processing');
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    pressNo();
     expect(route.getPathname()).toBe('/results/demo-hr-flag');
     expect(screen.queryByText(en['safety.question'])).toBeNull();
   });
@@ -462,7 +467,7 @@ describe('urgent flags known while the analysis still runs (SAFE-1)', () => {
     mockAnalysis = running(slow);
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
     const replace = jest.spyOn(router, 'replace');
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    pressNo();
     expect(replace).not.toHaveBeenCalled();
     expect(route.getPathname()).toBe('/measure/processing');
     mockAnalysis = { phase: 'done', progress: finished, readingId: 'demo-hr-flag', urgent: slow };

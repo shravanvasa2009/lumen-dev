@@ -6,7 +6,9 @@ import en from '@/i18n/en.json';
 import diabetes from '@/i18n/diabetes.json';
 import es from '@/i18n/es.json';
 import { focusedNavHeader } from '@/testing/navHeader';
+import { pressNo } from '@/testing/pressNo';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import { CLOSE_SHIELD_MS } from './SafetySheet';
 import tokens from '@/theme/tokens.json';
 
 import { readingById } from './fixtures';
@@ -262,7 +264,7 @@ describe.each([
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
     act(() => screen.UNSAFE_getByType(Modal).props.onRequestClose());
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    pressNo();
     expect(screen.queryByText(en['safety.question'])).toBeNull();
   });
 
@@ -326,8 +328,21 @@ describe.each([
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
     expect(screen.getByText(en['result.irregularRetake'])).toBeOnTheScreen();
     expect(screen.getByText('Please take 2 more readings today.')).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
+    pressNo();
     expect(screen.queryByText(en['safety.title'])).toBeNull();
+  });
+
+  it('keeps the sheet up, dimmed and inert, until the close delay ends, and stays on Results (SAFE-1)', () => {
+    const route = renderRouter('./app', { initialUrl: '/results/demo-flag' });
+    const no = screen.getByRole('button', { name: en['safety.no'] });
+    pressNo(CLOSE_SHIELD_MS - 1);
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    fireEvent.press(no);
+    fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
+    expect(route.getPathname()).toBe('/results/demo-flag');
+    act(() => jest.advanceTimersByTime(1));
+    expect(screen.queryByText(en['safety.title'])).toBeNull();
+    expect(route.getPathname()).toBe('/results/demo-flag');
   });
 
   it('lays the safety question out large, in amber, and Yes still opens emergency at once (SAFE-1)', () => {

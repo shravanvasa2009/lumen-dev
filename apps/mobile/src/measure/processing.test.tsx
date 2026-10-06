@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { BackHandler, Modal } from 'react-native';
 
 import en from '@/i18n/en.json';
+import { CLOSE_SHIELD_MS } from '@/results/SafetySheet';
 import { expectNavTitle } from '@/testing/navHeader';
 import { pressNo } from '@/testing/pressNo';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -268,7 +269,10 @@ describe('urgent heart rates (SAFE-1, ADR 0076)', () => {
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
     expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
     expect(route.getPathname()).toBe('/measure/processing');
-    pressNo();
+    pressNo(CLOSE_SHIELD_MS - 1);
+    expect(route.getPathname()).toBe('/measure/processing');
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+    act(() => jest.advanceTimersByTime(1));
     expect(route.getPathname()).toBe('/measure/inconclusive');
   });
 

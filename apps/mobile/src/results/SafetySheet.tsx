@@ -19,7 +19,7 @@ const ANSWER_HEIGHT = 72;
 // After No the sheet stops taking presses but stays up this long before it closes. A second tap on the
 // same spot (the first one gave no feedback on a slow phone) then lands on the sheet, not on whatever the
 // next screen puts under the No button (Processing hands over to Retake at that spot).
-const CLOSE_SHIELD_MS = 400;
+export const CLOSE_SHIELD_MS = 400;
 
 // SAFE-1: shown when any flag fires (heart rate, rhythm, or the diabetes pattern card, §12.5).
 // Yes opens emergency guidance at once; No closes it. A tap outside and Android Back do nothing, so a slip
@@ -32,7 +32,10 @@ export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
   const [answeredNo, setAnsweredNo] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (visible) setAnsweredNo(false);
+    if (visible) {
+      setAnsweredNo(false);
+      closeTimer.current = null;
+    }
   }, [visible]);
   useEffect(
     () => () => {
@@ -41,7 +44,7 @@ export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
     [],
   );
   const closeAfterShield = () => {
-    if (answeredNo) return;
+    if (closeTimer.current !== null) return;
     setAnsweredNo(true);
     closeTimer.current = setTimeout(onNo, CLOSE_SHIELD_MS);
   };

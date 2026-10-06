@@ -5,12 +5,7 @@ import { Dimensions, ScrollView, StyleSheet } from 'react-native';
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 
-import { SafetySheet } from './SafetySheet';
-
-const pressedNoSettles = () =>
-  act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  });
+import { CLOSE_SHIELD_MS, SafetySheet } from './SafetySheet';
 
 import '@/i18n';
 
@@ -19,6 +14,9 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => 'light',
 }));
 
+beforeEach(() => jest.useFakeTimers());
+afterEach(() => jest.useRealTimers());
+
 const originalWindow = Dimensions.get('window');
 
 afterEach(() => {
@@ -26,7 +24,7 @@ afterEach(() => {
 });
 
 describe('SafetySheet on a 360x640 phone at the largest font', () => {
-  it('scrolls the title and question, and keeps Yes and No outside the scroll', async () => {
+  it('scrolls the title and question, and keeps Yes and No outside the scroll', () => {
     act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 2 } }));
     const onNo = jest.fn();
     const onYes = jest.fn();
@@ -39,7 +37,7 @@ describe('SafetySheet on a 360x640 phone at the largest font', () => {
     expect(onYes).toHaveBeenCalledTimes(1);
     fireEvent.press(screen.getByRole('button', { name: en['safety.no'] }));
     expect(onNo).not.toHaveBeenCalled();
-    await pressedNoSettles();
+    act(() => jest.advanceTimersByTime(CLOSE_SHIELD_MS));
     expect(onNo).toHaveBeenCalledTimes(1);
   });
 
@@ -62,13 +60,13 @@ describe('SafetySheet on a 360x640 phone at the largest font', () => {
     }
   });
 
-  it('ignores a second tap on No while it closes, and closes once', async () => {
+  it('ignores a second tap on No while it closes, and closes once', () => {
     const onNo = jest.fn();
     render(<SafetySheet visible onNo={onNo} />);
     const no = screen.getByRole('button', { name: en['safety.no'] });
     fireEvent.press(no);
     fireEvent.press(no);
-    await pressedNoSettles();
+    act(() => jest.advanceTimersByTime(CLOSE_SHIELD_MS));
     expect(onNo).toHaveBeenCalledTimes(1);
   });
 });

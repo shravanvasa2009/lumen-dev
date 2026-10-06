@@ -3,11 +3,12 @@ import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testi
 import { Modal, StyleSheet } from 'react-native';
 
 import en from '@/i18n/en.json';
-import { pressNo } from '@/testing/pressNo';
 import diabetes from '@/i18n/diabetes.json';
 import es from '@/i18n/es.json';
 import { focusedNavHeader } from '@/testing/navHeader';
+import { pressNo } from '@/testing/pressNo';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import { CLOSE_SHIELD_MS } from './SafetySheet';
 import tokens from '@/theme/tokens.json';
 
 import { readingById } from './fixtures';
@@ -331,12 +332,15 @@ describe.each([
     expect(screen.queryByText(en['safety.title'])).toBeNull();
   });
 
-  it('stays on Results after No, and a second tap on No changes nothing (SAFE-1)', () => {
+  it('keeps the sheet up, dimmed and inert, until the close delay ends, and stays on Results (SAFE-1)', () => {
     const route = renderRouter('./app', { initialUrl: '/results/demo-flag' });
     const no = screen.getByRole('button', { name: en['safety.no'] });
+    pressNo(CLOSE_SHIELD_MS - 1);
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
     fireEvent.press(no);
-    fireEvent.press(no);
-    act(() => jest.advanceTimersByTime(500));
+    fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
+    expect(route.getPathname()).toBe('/results/demo-flag');
+    act(() => jest.advanceTimersByTime(1));
     expect(screen.queryByText(en['safety.title'])).toBeNull();
     expect(route.getPathname()).toBe('/results/demo-flag');
   });

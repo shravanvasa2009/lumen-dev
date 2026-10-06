@@ -2,6 +2,8 @@
 // 2026-10-05 proposal, variant A) with the timer ring beneath it, not over it, so on most phones the Checking
 // panel is reached by scrolling (the body is a ScrollView and Stop sits in the footer). Only a short screen,
 // such as 360 x 640 dp, shrinks the view and drops the extras so the panel stays on screen above Stop.
+import { CAPTION_ROW, LIVE_RING_GAP, LIVE_RING_WIDTH } from '@/onboarding/practiceParts';
+
 const HEADER_AND_STATUS = 44 + 26;
 const MESSAGE = 22;
 const WAVEFORM_HEIGHT = 96;
@@ -11,7 +13,8 @@ const PANEL_STACKED_DP = 150;
 const FULL_PREVIEW = 176;
 const FULL_RING = 150;
 // Ring stroke and gap around the view, twice, plus the caption row and its gap under it.
-const LIVE_FRAME = 2 * (4 + 3) + 8 + 20;
+const CAPTION_GAP = 8;
+const LIVE_FRAME = 2 * (LIVE_RING_WIDTH + LIVE_RING_GAP) + CAPTION_GAP + CAPTION_ROW;
 
 const TIGHT_BELOW_VIEWPORT = 600;
 const TIGHT_WAVEFORM_HEIGHT = 40;

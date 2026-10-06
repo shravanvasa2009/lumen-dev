@@ -27,9 +27,9 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 // The picture is a camera image, not themed; the chip sits on it in a fixed dark scrim.
 const LIVE_CHIP_BG = 'rgba(10,6,6,0.55)';
 const LIVE_CHIP_FG = '#FFFFFF';
-const LIVE_RING_WIDTH = 4;
-const LIVE_RING_GAP = 3;
-const CAPTION_ROW = 20;
+export const LIVE_RING_WIDTH = 4;
+export const LIVE_RING_GAP = 3;
+export const CAPTION_ROW = 20;
 
 type FingerPreviewProps = {
   detected: boolean;

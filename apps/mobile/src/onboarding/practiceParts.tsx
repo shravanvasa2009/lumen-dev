@@ -13,7 +13,7 @@ import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop } from 'r
 import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
-import { glideConfig, useReduceMotion } from '@/theme/motion';
+import { glideConfig, timingConfig, useReduceMotion } from '@/theme/motion';
 
 import { LumenPreviewView } from '../../modules/lumen-capture/src/LumenPreviewView';
 
@@ -52,39 +52,40 @@ export function FingerPreview({
   const { colors, spacing, radius } = useTheme();
   const { t } = useTranslation();
   const live = cameraRunning && LumenPreviewView !== null;
+  const reduceMotion = useReduceMotion();
+  // Built on the JS thread, as in ProgressRing: the worklets below must not call a plain function.
+  const timing = timingConfig(reduceMotion);
+  const ringColor = coaching ? colors.flag : colors.accent;
+  const glowOpacity = detected ? 1 : 0.3;
+  const ringStyle = useAnimatedStyle(() => ({ borderColor: withTiming(ringColor, timing) }));
+  const glowStyle = useAnimatedStyle(() => ({ opacity: withTiming(glowOpacity, timing) }));
   return (
     <View style={{ alignItems: 'center', gap: spacing.sm }}>
-      <View
+      <Animated.View
         accessible={live}
         accessibilityLabel={live ? t('capture.liveViewA11y') : undefined}
         accessibilityElementsHidden={!live}
         importantForAccessibility={live ? 'yes' : 'no-hide-descendants'}
-        style={{
-          padding: LIVE_RING_GAP,
-          borderWidth: LIVE_RING_WIDTH,
-          borderRadius: radius.pill,
-          borderColor: coaching ? colors.flag : colors.accent,
-        }}
+        style={[
+          { padding: LIVE_RING_GAP, borderWidth: LIVE_RING_WIDTH, borderRadius: radius.pill },
+          ringStyle,
+        ]}
       >
         <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
           {live && LumenPreviewView ? (
             <LumenPreviewView style={{ width: size, height: size }} />
           ) : (
-            <Svg width={size} height={size}>
-              <Defs>
-                <RadialGradient id="finger-glow" cx="50%" cy="50%" r="50%">
-                  <Stop offset="0" stopColor={colors.pulse} stopOpacity={0.75} />
-                  <Stop offset="1" stopColor={colors.pulse} stopOpacity={1} />
-                </RadialGradient>
-              </Defs>
-              <Circle
-                cx={size / 2}
-                cy={size / 2}
-                r={size / 2}
-                fill="url(#finger-glow)"
-                opacity={detected ? 1 : 0.3}
-              />
-            </Svg>
+            <Animated.View style={glowStyle}>
+              <Svg width={size} height={size}>
+                <Defs>
+                  <RadialGradient id="finger-glow" cx="50%" cy="50%" r="50%">
+                    <Stop offset="0" stopColor={colors.pulse} stopOpacity={0.75} />
+                    <Stop offset="1" stopColor={colors.pulse} stopOpacity={1} />
+                  </RadialGradient>
+                </Defs>
+                <Circle cx={size / 2} cy={size / 2} r={size / 2} fill="url(#finger-glow)" />
+              </Svg>
+            </Animated.View>
           )}
           {live ? (
             <View
@@ -108,7 +109,7 @@ export function FingerPreview({
             </View>
           ) : null}
         </View>
-      </View>
+      </Animated.View>
       <View
         style={{
           minHeight: CAPTION_ROW,

@@ -1,6 +1,7 @@
 import { useIsFocused } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
@@ -15,10 +16,18 @@ import { useLiveCapture } from '@/measure/useLiveCapture';
 import { FingerPreview, ProgressRing, SignalMeter, SignalScale } from '@/onboarding/practiceParts';
 import { practiceSteadySeconds, STEADY_SECONDS_NEEDED } from '@/onboarding/practiceProgress';
 import { useTheme } from '@/theme';
+import { easeOut, motion, reduceMotionMode, useReduceMotion } from '@/theme/motion';
 
 export default function PracticeScreen() {
   const { t } = useTranslation();
   const { colors, spacing, radius } = useTheme();
+  const reduceMotion = useReduceMotion();
+  const mode = reduceMotionMode(reduceMotion);
+  // The coaching line comes and goes while the finger moves; it fades, and what sits under it slides to its place
+  // instead of jumping by the line's height.
+  const fade = (animation: typeof FadeIn | typeof FadeOut) =>
+    animation.duration(motion.durationMs).easing(easeOut).reduceMotion(mode);
+  const settle = LinearTransition.duration(motion.durationMs).easing(easeOut).reduceMotion(mode);
   // The stack keeps this screen mounted under How to sit, and the rating reads the capture's last seconds, so
   // the camera stops when the screen is left.
   const live = useLiveCapture(undefined, { enabled: useIsFocused() });
@@ -62,7 +71,9 @@ export default function PracticeScreen() {
           coaching={coachingKey !== null}
         />
         {coachingKey ? (
-          <View
+          <Animated.View
+            entering={fade(FadeIn)}
+            exiting={fade(FadeOut)}
             accessibilityRole="alert"
             style={{
               paddingHorizontal: spacing.lg,
@@ -74,20 +85,24 @@ export default function PracticeScreen() {
             <AppText variant="caption" style={{ fontWeight: '600' }}>
               {coachingText(t)[coachingKey]}
             </AppText>
-          </View>
+          </Animated.View>
         ) : null}
       </View>
-      <View style={{ gap: spacing.xs }}>
+      <Animated.View layout={settle} style={{ gap: spacing.xs }}>
         <SignalMeter level={verdict.level} />
         <SignalScale level={verdict.level} />
-      </View>
-      <Card>
-        <LiveWaveform pulse={live.recentPulse} red={live.recentRed} />
-      </Card>
+      </Animated.View>
+      <Animated.View layout={settle}>
+        <Card>
+          <LiveWaveform pulse={live.recentPulse} red={live.recentRed} />
+        </Card>
+      </Animated.View>
       {live.phase === 'denied' ? null : (
-        <AppText variant="caption" tone="textDim">
-          {caption}
-        </AppText>
+        <Animated.View layout={settle}>
+          <AppText variant="caption" tone="textDim">
+            {caption}
+          </AppText>
+        </Animated.View>
       )}
     </OnboardingStep>
   );

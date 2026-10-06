@@ -8,6 +8,7 @@ import { useSavedLanguage } from '@/i18n/language';
 import { showNotificationsInForeground } from '@/notifications/foreground';
 import { useOpenTappedNotification } from '@/notifications/openTapped';
 import { useTheme } from '@/theme';
+import { useReduceMotion } from '@/theme/motion';
 
 showNotificationsInForeground();
 
@@ -21,6 +22,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 // Pushed screens show a centred nav-bar title and a teal back chevron, as the mockups do; RouteShell sets the title.
 export default function RootLayout() {
   const { colors, isDark, type } = useTheme();
+  const reduceMotion = useReduceMotion();
   useOpenTappedNotification();
   useSavedLanguage();
   return (
@@ -41,6 +43,7 @@ export default function RootLayout() {
           headerStyle: { backgroundColor: colors.bg },
           headerTintColor: colors.accent,
           contentStyle: { backgroundColor: colors.bg },
+          animation: reduceMotion ? 'none' : 'default',
         }}
       >
         <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />

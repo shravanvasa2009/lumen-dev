@@ -1,5 +1,7 @@
 import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
+import type { RhythmMetric } from '@lumen/core';
+
 import { enterDemo, exitDemo } from '@/demo/demoSession';
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
@@ -70,6 +72,17 @@ describe('Trends from readings saved on this phone', () => {
   });
 });
 
+const lowRhythm = (rhythmClass: RhythmMetric['class'], flag: RhythmMetric['flag']): RhythmMetric => ({
+  class: rhythmClass,
+  pAF: 0.5,
+  evidence: 'experimental',
+  confidence: 'low',
+  quality: 'low',
+  qualityReasons: [],
+  qualityDetails: [],
+  flag,
+});
+
 describe('historyFromStored', () => {
   it('keeps the measured values, leaves missing ones null, and never invents a caffeine answer', () => {
     const [mapped] = historyFromStored([makeReading(lastMonth(25), 61, null)]);
@@ -92,9 +105,9 @@ describe('historyFromStored', () => {
 
   it('keeps a flagged lower-quality rhythm, marked, and leaves a lower-quality one without a flag out', () => {
     const flagged = makeReading(lastMonth(25), 61, 40);
-    flagged.outcome.metrics.rhythm = { class: 'af', flag: 'irregular', quality: 'low' } as never;
+    flagged.outcome.metrics.rhythm = lowRhythm('af', 'irregular');
     const unflagged = makeReading(lastMonth(26), 62, 40);
-    unflagged.outcome.metrics.rhythm = { class: 'other', flag: null, quality: 'low' } as never;
+    unflagged.outcome.metrics.rhythm = lowRhythm('other', null);
     const [kept, left] = historyFromStored([flagged, unflagged]);
     expect(kept).toMatchObject({ rhythm: null, flaggedLowRhythm: 'af' });
     expect(left).toMatchObject({ rhythm: null, flaggedLowRhythm: null });

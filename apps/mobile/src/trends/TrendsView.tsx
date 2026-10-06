@@ -167,7 +167,7 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
                           {fixture?.synthetic ? <SyntheticTag /> : null}
                           {point.caffeine ? <CupIcon size={16} color={colors.flag} /> : null}
-                          <AppText tone="textDim">{word ? `${value} · ${word}` : value}</AppText>
+                          <AppText tone="textDim">{[value, word].filter(Boolean).join(' · ')}</AppText>
                         </View>
                       }
                     />

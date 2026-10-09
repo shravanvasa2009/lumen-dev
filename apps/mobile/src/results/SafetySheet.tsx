@@ -22,14 +22,19 @@ const ANSWER_HEIGHT = 72;
 export const CLOSE_SHIELD_MS = 400;
 
 // SAFE-1: shown when any flag fires (heart rate, rhythm, or the diabetes pattern card, §12.5).
-// Yes opens emergency guidance at once; No closes it. A tap outside and Android Back do nothing, so a slip
-// cannot skip the question (ADR 0093). Yes uses the amber flag tokens,
-// because red belongs to the emergency screen alone.
+// Yes opens emergency guidance at once; No closes it, and so does a downward swipe on the sheet (owner,
+// 2026-10-09: "the swipe down doesnt work either. fix this."). A tap outside and Android Back still do nothing
+// (ADR 0093). Yes uses the amber flag tokens, because red belongs to the emergency screen alone.
 export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors, radius, spacing } = useTheme();
   const [answeredNo, setAnsweredNo] = useState(false);
+  // Android's scroll view claims every vertical drag, even with nothing to scroll, which swallowed the swipe
+  // down. It only scrolls when the title and question overflow (the largest font on a small phone).
+  const [scrollBoxHeight, setScrollBoxHeight] = useState(0);
+  const [scrollContentHeight, setScrollContentHeight] = useState(0);
+  const overflowing = scrollContentHeight > scrollBoxHeight + 1;
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (visible) {
@@ -57,7 +62,7 @@ export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
     router.push('/emergency');
   };
   return (
-    <BottomSheet visible={visible}>
+    <BottomSheet visible={visible} onSwipeDown={closeAfterShield}>
       <View
         pointerEvents={answeredNo ? 'none' : 'auto'}
         style={{ gap: spacing.lg, flexShrink: 1, opacity: answeredNo ? 0.5 : 1 }}
@@ -73,7 +78,13 @@ export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
         />
         {/* Only the title and question scroll: at the largest font on a 360x640 phone they are taller than the
           sheet, and Yes and No must stay on screen below them. */}
-        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.lg }}>
+        <ScrollView
+          scrollEnabled={overflowing}
+          onLayout={(event) => setScrollBoxHeight(event.nativeEvent.layout.height)}
+          onContentSizeChange={(_width, height) => setScrollContentHeight(height)}
+          style={{ flexShrink: 1 }}
+          contentContainerStyle={{ gap: spacing.lg }}
+        >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <View
               style={{

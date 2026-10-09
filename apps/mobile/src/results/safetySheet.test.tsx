@@ -43,7 +43,8 @@ describe('SafetySheet on a 360x640 phone at the largest font', () => {
 
   it('caps the panel below the screen height so the scroll area can shrink', () => {
     render(<SafetySheet visible onNo={jest.fn()} />);
-    expect(StyleSheet.flatten(screen.getByTestId('sheet-panel').props.style).maxHeight).toBe('90%');
+    expect(StyleSheet.flatten(screen.getByTestId('sheet-drag').props.style).maxHeight).toBe('90%');
+    expect(StyleSheet.flatten(screen.getByTestId('sheet-panel').props.style).flexShrink).toBe(1);
     expect(StyleSheet.flatten(screen.UNSAFE_getByType(ScrollView).props.style).flexShrink).toBe(1);
   });
 

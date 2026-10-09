@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
@@ -45,26 +46,42 @@ export function MetricCard({
 }: MetricCardProps) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
+  // Measured, not left to flex wrapping: on the Galaxy A17 a wrapping row still squeezed "AFib · Heart rhythm"
+  // to a letter-wide column beside the Flag, Experimental and dots badges (owner, 2026-10-09). When the name's
+  // natural width and the badges don't fit on one line, the badges get their own line under the name, left-aligned with the tag below them.
+  const [rowWidth, setRowWidth] = useState(0);
+  const [nameWidth, setNameWidth] = useState(0);
+  const [badgesWidth, setBadgesWidth] = useState(0);
+  const stacked = reading !== null && rowWidth > 0 && nameWidth + spacing.sm + badgesWidth > rowWidth;
   return (
     <Card>
       <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: spacing.sm,
-        }}
+        onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}
+        style={
+          stacked
+            ? { gap: spacing.sm }
+            : { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm }
+        }
       >
+        <View
+          onLayout={(event) => setNameWidth(event.nativeEvent.layout.width)}
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ position: 'absolute', opacity: 0, flexDirection: 'row' }}
+        >
+          <CheckHeading icon={icon} name={checkName} label={title} />
+        </View>
         <CheckHeading icon={icon} name={checkName} label={title} />
         {reading ? (
           <View
+            onLayout={(event) => setBadgesWidth(event.nativeEvent.layout.width)}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
+              alignSelf: stacked ? 'flex-start' : 'auto',
               gap: spacing.sm,
               flexShrink: 0,
-              marginLeft: 'auto',
             }}
           >
             {reading.flagged ? (

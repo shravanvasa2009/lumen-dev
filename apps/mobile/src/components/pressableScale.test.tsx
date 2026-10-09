@@ -89,7 +89,7 @@ describe('BottomSheet motion', () => {
   const animationType = () => screen.UNSAFE_getByType(Modal).props.animationType;
   const entering = (testID: string) => screen.getByTestId(testID).props.entering;
 
-  it('leaves the fade to the scrim and the slide to the panel, never to the OS', () => {
+  it('fades the scrim and the panel in itself, never through the OS', () => {
     render(sheet);
     expect(animationType()).toBe('none');
     expect(entering('sheet-scrim')).toBeDefined();
@@ -97,10 +97,14 @@ describe('BottomSheet motion', () => {
   });
 
   it('runs both at the 200 ms token and follows Reduce Motion while open', () => {
-    const builders = [reanimated.FadeIn, reanimated.SlideInDown];
+    const builders = [reanimated.FadeIn];
     const durations = builders.map((builder) => jest.spyOn(builder, 'duration'));
     const modes = builders.map((builder) => jest.spyOn(builder, 'reduceMotion'));
+    // A Reanimated slide left the panel's touch geometry below the screen on Android, so a tap that moved at
+    // all was dropped (owner, Galaxy A17, 2026-10-09). The panel must not slide in.
+    const slide = jest.spyOn(reanimated.SlideInDown, 'duration');
     render(sheet);
+    expect(slide).not.toHaveBeenCalled();
     durations.forEach((spy) => expect(spy).toHaveBeenLastCalledWith(motion.durationMs));
     modes.forEach((spy) => expect(spy).toHaveBeenLastCalledWith(ReduceMotion.Never));
     setSystemReduceMotion(true);

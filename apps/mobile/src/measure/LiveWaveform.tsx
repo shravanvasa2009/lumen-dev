@@ -1,13 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
-import Svg, { Line, Polyline } from 'react-native-svg';
+import Animated, {
+  Easing,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
+import { useReduceMotion } from '@/theme/motion';
 
 import { quantileRange } from './waveformScale';
+import { easeRange, smoothPath, type Range } from './waveformPath';
 
 const DEFAULT_HEIGHT = 96;
 const PADDING = 8;
@@ -16,71 +25,142 @@ const ROBUST_LOW = 0.03;
 const ROBUST_HIGH = 0.97;
 const RAW_HEIGHT_SHARE = 0.5;
 const MIN_RAW_HEIGHT = 24;
+// The window the screen keeps is 6 s (useLiveCapture), so the trace scrolls the card's width in 6 s.
+const WINDOW_MS = 6000;
+// Samples reach the screen in batches about every 100 ms; between batches the trace glides on at the scroll speed.
+// A longer gap (a stalled phone) glides no further than this, then waits for the next batch.
+const MAX_GLIDE_MS = 250;
+// The vertical scale follows the robust range with this time constant, so it settles in about a second.
+const RANGE_SETTLE_MS = 400;
+const DOT_RADIUS = 3;
+const HALO_RADIUS = 7;
+// Room at the right for the leading dot, so the glide never pushes it past the card edge.
+const DOT_INSET = HALO_RADIUS + 1;
+const FADE_START_OPACITY = 0.15;
 
 type Scale = 'minMax' | 'robust';
 
-// `upIsHigh`: the filtered pulse is already flipped (a beat is a peak); raw red falls as blood fills the
-// fingertip, so it is flipped here to draw each beat as a peak too.
-function waveformPoints(
-  values: readonly number[],
-  width: number,
-  height: number,
-  scale: Scale,
-  upIsHigh: boolean,
-): string {
-  const range =
-    scale === 'robust'
-      ? quantileRange(values, ROBUST_LOW, ROBUST_HIGH)
-      : quantileRange(values, 0, 1);
-  const low = range?.low ?? 0;
-  const span = (range?.high ?? 0) - low;
-  return values
-    .map((value, index) => {
-      const x = (index / Math.max(1, values.length - 1)) * width;
-      const unit = span > 0 ? Math.min(1, Math.max(0, (value - low) / span)) : 0.5;
-      const drawn = upIsHigh ? 1 - unit : unit;
-      return `${x.toFixed(1)},${(PADDING + drawn * (height - 2 * PADDING)).toFixed(1)}`;
-    })
-    .join(' ');
-}
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type TraceProps = {
   values: readonly number[];
   width: number;
   height: number;
   scale: Scale;
+  // The filtered pulse is already flipped (a beat is a peak); raw red falls as blood fills the fingertip, so it is
+  // flipped here to draw each beat as a peak too.
   upIsHigh: boolean;
   stroke: string;
   strokeWidth: number;
   testID: string;
 };
 
+// Draws the newest `values` right-aligned as a smooth curve ending in a soft dot. A path update lands every ~100 ms,
+// so each one starts shifted right by the distance the trace scrolled meanwhile and slides back to rest on the UI
+// thread; the eye sees a steady sweep and the JS thread does no per-frame work.
 function Trace({ values, width, height, scale, upIsHigh, stroke, strokeWidth, testID }: TraceProps) {
   const { colors } = useTheme();
-  const points = useMemo(
-    () => waveformPoints(values, width, height, scale, upIsHigh),
-    [values, width, height, scale, upIsHigh],
-  );
+  const reduceMotion = useReduceMotion();
+  const pathD = useSharedValue('');
+  const dotY = useSharedValue(height / 2);
+  const shift = useSharedValue(0);
+  const easedRange = useRef<Range | null>(null);
+  const updatedAt = useRef<number | null>(null);
+  const capacity = useRef(0);
+  const hasTrace = values.length >= 2;
+  const drawable = hasTrace && width > 0;
+
+  useEffect(() => {
+    if (!drawable) {
+      easedRange.current = null;
+      updatedAt.current = null;
+      capacity.current = 0;
+      return;
+    }
+    const now = performance.now();
+    const elapsed = updatedAt.current === null ? 0 : now - updatedAt.current;
+    updatedAt.current = now;
+    const target =
+      scale === 'robust' ? quantileRange(values, ROBUST_LOW, ROBUST_HIGH) : quantileRange(values, 0, 1);
+    easedRange.current = easeRange(easedRange.current, target, elapsed, RANGE_SETTLE_MS);
+    const low = easedRange.current?.low ?? 0;
+    const span = (easedRange.current?.high ?? 0) - low;
+    capacity.current = Math.max(capacity.current, values.length);
+    const right = width - DOT_INSET;
+    const step = right / (capacity.current - 1);
+    const points = values.map((value, index) => {
+      const unit = span > 0 ? Math.min(1, Math.max(0, (value - low) / span)) : 0.5;
+      const drawn = upIsHigh ? 1 - unit : unit;
+      return {
+        x: right - (values.length - 1 - index) * step,
+        y: PADDING + drawn * (height - 2 * PADDING),
+      };
+    });
+    pathD.value = smoothPath(points, height);
+    dotY.value = points[points.length - 1]!.y;
+    const glideMs = Math.min(elapsed, MAX_GLIDE_MS);
+    if (reduceMotion || glideMs === 0) {
+      shift.value = 0;
+      return;
+    }
+    shift.value = (glideMs / WINDOW_MS) * width;
+    shift.value = withTiming(0, { duration: glideMs, easing: Easing.linear });
+  }, [values, width, height, scale, upIsHigh, reduceMotion, drawable, pathD, dotY, shift]);
+
+  const pathProps = useAnimatedProps(() => ({ d: pathD.value }));
+  const dotProps = useAnimatedProps(() => ({ cy: dotY.value }));
+  const slideStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shift.value }] }));
+  const fadeId = `${testID}-fade`;
   return (
-    <Svg
-      width="100%"
-      height={height}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
-      {values.length < 2 ? (
-        <Line x1="0%" y1={height / 2} x2="100%" y2={height / 2} stroke={colors.line2} strokeWidth={2} />
-      ) : (
-        <Polyline
-          testID={testID}
-          points={points}
-          fill="none"
-          stroke={stroke}
-          strokeWidth={strokeWidth}
-          strokeLinejoin="round"
-        />
-      )}
-    </Svg>
+    <View style={{ height, overflow: 'hidden' }}>
+      <Animated.View style={slideStyle}>
+        <Svg
+          width="100%"
+          height={height}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          {hasTrace ? (
+            <>
+              <Defs>
+                <LinearGradient id={fadeId} gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={width} y2={0}>
+                  <Stop offset="0" stopColor={stroke} stopOpacity={FADE_START_OPACITY} />
+                  <Stop offset="1" stopColor={stroke} stopOpacity={1} />
+                </LinearGradient>
+              </Defs>
+              <AnimatedPath
+                testID={testID}
+                animatedProps={pathProps}
+                fill="none"
+                stroke={`url(#${fadeId})`}
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <AnimatedCircle
+                animatedProps={dotProps}
+                cx={width - DOT_INSET}
+                r={HALO_RADIUS}
+                fill={stroke}
+                fillOpacity={0.22}
+              />
+              <AnimatedCircle animatedProps={dotProps} cx={width - DOT_INSET} r={DOT_RADIUS} fill={stroke} />
+            </>
+          ) : (
+            <Line
+              x1="0%"
+              y1={height / 2}
+              x2="100%"
+              y2={height / 2}
+              stroke={colors.line2}
+              strokeWidth={2}
+              strokeLinecap="round"
+            />
+          )}
+        </Svg>
+      </Animated.View>
+    </View>
   );
 }
 

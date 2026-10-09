@@ -93,14 +93,17 @@ const build = (
 
 // Owner 2026-10-06 ("Advisory + tag"): SQI-Net's low scores tag the reading and cap confidence at moderate; they
 // never stop the count, never hide a flag the rules raise, and never drop a value to low confidence on their own.
+// Owner 2026-10-09: "make the standards for a good reading lower": the tag needs more than
+// dsp3.sqiFlaggedMaxShare of the scored windows flagged.
 describe('advisory SQI-Net (sqiFlagged)', () => {
-  const flagged = analysisWith({ sqiFlagged: { windows: 7, total: 91 } });
+  const flagged = analysisWith({ sqiFlagged: { windows: 46, total: 91 } });
 
   it('tags every value with the flagged windows, at moderate confidence', () => {
+    expect(46 / 91).toBeGreaterThan(DSP_CONFIG.dsp3.sqiFlaggedMaxShare);
     const outcome = build(flagged, AF);
     expect(outcome.quality).toEqual({
       level: 'low',
-      reasons: [{ kind: 'sqiFlagged', windows: 7, total: 91 }],
+      reasons: [{ kind: 'sqiFlagged', windows: 46, total: 91 }],
     });
     const { hr, rhythm, rmssd, resp } = outcome.metrics;
     for (const metric of [hr, rhythm, resp])
@@ -116,32 +119,38 @@ describe('advisory SQI-Net (sqiFlagged)', () => {
 
   it('keeps the irregular flag and the heart-rate flags the rules raise', () => {
     expect(build(flagged, AF).metrics.rhythm).toMatchObject({ class: 'af', flag: 'irregular' });
-    const slow = analysisWith({ sqiFlagged: { windows: 7, total: 91 }, heartRateBpm: 45 });
+    const slow = analysisWith({ sqiFlagged: { windows: 46, total: 91 }, heartRateBpm: 45 });
     expect(build(slow).metrics.hr).toMatchObject({ flag: 'slowResting', quality: 'low' });
   });
 
-  // Red team on #299: pure noise SQI-Net flagged in every window read "Possible AFib". Pending owner confirmation.
-  it('judges no rhythm when SQI-Net flagged more than half its windows', () => {
-    const share = DSP_CONFIG.rules.rhythmMaxSqiFlaggedShare;
+  // Owner 2026-10-09, reverting c93617d's "no class" rule: "dont keep that, state the result but state that its
+  // low quality". Red team on #299 found pure noise SQI-Net flagged everywhere reads "Possible AFib"; that call
+  // now shows tagged sqiFlagged.
+  it('keeps the rhythm class and flag, tagged, when SQI-Net flagged more than half its windows', () => {
     const past: PastReading = { atMs: NOW_MS - HOUR_MS, rhythmPositive: true, rmssdMs: null, diabetes: null };
-    const mostly = build(
-      analysisWith({ sqiFlagged: { windows: 46, total: 91 } }),
-      AF,
-      seedEvidence,
-      PROFILE,
-      [past],
-    );
-    expect(mostly.metrics.rhythm).toMatchObject({ class: null, pAF: null, flag: null, quality: 'low' });
-    expect(mostly.headlineKey).toBe('result.hrOnly');
-    expect(mostly.metrics.rmssd!.qualityReasons).toContain('rhythmUnjudged');
-    expect(46 / 91).toBeGreaterThan(share);
-    const half = build(analysisWith({ sqiFlagged: { windows: 45, total: 90 } }), AF);
-    expect(half.metrics.rhythm).toMatchObject({ class: 'af', flag: 'irregular' });
-    expect(45 / 90).toBe(share);
+    const mostly = build(flagged, AF, seedEvidence, PROFILE, [past]);
+    expect(mostly.metrics.rhythm).toMatchObject({ class: 'af', flag: 'possibleAf', quality: 'low' });
+    expect(mostly.metrics.rhythm!.qualityReasons).toContain('sqiFlagged');
+    expect(mostly.metrics.rhythm!.pAF).not.toBeNull();
+    expect(mostly.headlineKey).toBe('result.possibleAf');
   });
 
-  it('adds nothing when no window was flagged or SQI-Net never ran', () => {
-    expect(build(analysisWith({ sqiFlagged: { windows: 0, total: 91 } })).quality.level).toBe('standard');
+  it('leaves a reading with at most the share of windows flagged standard', () => {
+    expect(45 / 90).toBe(DSP_CONFIG.dsp3.sqiFlaggedMaxShare);
+    for (const sqiFlagged of [
+      { windows: 0, total: 91 },
+      { windows: 1, total: 91 },
+      { windows: 45, total: 90 },
+    ]) {
+      const outcome = build(analysisWith({ sqiFlagged }), AF);
+      expect(outcome.quality.reasons.map((reason) => reason.kind)).not.toContain('sqiFlagged');
+      expect(outcome.metrics.rhythm).toMatchObject({ class: 'af', flag: 'irregular' });
+      expect(outcome.metrics.hr!.qualityReasons).not.toContain('sqiFlagged');
+    }
+    expect(build(analysisWith({ sqiFlagged: { windows: 1, total: 91 } }))).toEqual(build(BASE));
+  });
+
+  it('adds nothing when SQI-Net never ran', () => {
     const noModel = build(analysisWith({ sqiFlagged: null, sqiAvailable: false }));
     expect(noModel.quality.reasons.map((reason) => reason.kind)).not.toContain('sqiFlagged');
   });

@@ -46,7 +46,7 @@ function scoresFor(
   return { threshold: THRESHOLD, windows };
 }
 
-describe('red team: advisory SQI-Net never stops the clean count and always tags the reading', () => {
+describe('red team: advisory SQI-Net never stops the clean count and tags a mostly flagged reading', () => {
   const sqiContexts = BATTERY_CONTEXTS.filter(({ context }) => context.sqi !== null);
   it.each(BATTERY_CAPTURES.map((capture) => [capture.name, capture] as const))(
     '%s',
@@ -74,10 +74,12 @@ describe('red team: advisory SQI-Net never stops the clean count and always tags
               profile,
               [],
             );
+            // Owner 2026-10-09 ("make the standards for a good reading lower"): tagged only above the share.
+            const tagged = low / sqi.windows.length > DSP_CONFIG.dsp3.sqiFlaggedMaxShare;
             const tag = built.quality.reasons.find((reason) => reason.kind === 'sqiFlagged');
-            if (low === 0) expect(tag).toBeUndefined();
+            if (!tagged) expect(tag).toBeUndefined();
             else expect(tag).toEqual({ kind: 'sqiFlagged', windows: low, total: sqi.windows.length });
-            if (low > 0 && built.metrics.hr) expect(built.metrics.hr.qualityReasons).toContain('sqiFlagged');
+            if (built.metrics.hr) expect(built.metrics.hr.qualityReasons.includes('sqiFlagged')).toBe(tagged);
             // A flag the rules raise is never hidden by the tag.
             const plain = buildReadingResult(
               passing,

@@ -227,7 +227,7 @@ class Session implements LiveSession {
     if (!(pClean >= 0 && pClean <= 1)) throw new RangeError(`P(clean) must be in [0, 1], got ${pClean}`);
     this.modelRan = true;
     // Advisory (owner 2026-10-06, superseding H-024's reject-only guard): a low score is kept for the reading's
-    // sqiFlagged tag and never stops the clean count.
+    // sqiFlagged tag (above dsp3.sqiFlaggedMaxShare) and never stops the clean count.
     this.scores.push({ endS: windowEndS, pClean });
   }
 

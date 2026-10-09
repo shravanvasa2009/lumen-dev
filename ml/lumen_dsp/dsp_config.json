@@ -11,7 +11,8 @@
     "dcCutoffHz": 0.3,
     "dcOrder": 2,
     "modelWindowS": 4,
-    "sqiUnscoredMaxS": 4
+    "sqiUnscoredMaxS": 4,
+    "sqiFlaggedMaxShare": 0.5
   },
   "dsp4": {
     "minRedRatio": 2,
@@ -120,7 +121,6 @@
     "fastRegularMaxNormalizedRmssd": 0.03,
     "rhythmMinCleanS": 60,
     "uncertainBelowTopProb": 0.6,
-    "rhythmMaxSqiFlaggedShare": 0.5,
     "rhythmRowSumTolerance": 1e-5,
     "possibleAfPositives": 2,
     "possibleAfReadings": 3,

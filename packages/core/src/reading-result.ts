@@ -571,10 +571,11 @@ function headline(hr: HrMetric | null, rhythm: RhythmCall | null): HeadlineKey {
   return rhythm.metric.class === 'sinus' ? 'result.regular' : 'result.irregularRetake';
 }
 
-// Owner 2026-10-06 (ADR 0104 answer 2): a lower-quality rate past SAFE-1's levels asks for a retake now. The
-// Emergency screen stays with emergencyHeartRate, which reads only the standard analysis.
-function retakePrompt(hr: HrMetric | null): RetakePrompt | null {
-  if (hr?.quality !== 'low') return null;
+// Owner 2026-10-06 (ADR 0104 answer 2): a rate only the lower-quality path found (under 15 clean s), past SAFE-1's
+// levels, asks for a retake now. A standard rate tagged only by SQI-Net is not short, and SAFE-1 already judges it
+// (red team on #299). The Emergency screen stays with emergencyHeartRate, which reads only the standard analysis.
+function retakePrompt(analysis: ReadingAnalysis, hr: HrMetric | null): RetakePrompt | null {
+  if (hr === null || analysis.heartRateBpm !== null) return null;
   const { slowBpm, fastBpm } = DSP_CONFIG.rules.emergency;
   return hr.value < slowBpm ? 'shortSlow' : hr.value > fastBpm ? 'shortFast' : null;
 }
@@ -604,7 +605,7 @@ export function buildReadingResult(
   return {
     headlineKey: headline(hr?.metric ?? null, rhythm),
     quality,
-    retakePrompt: retakePrompt(hr?.metric ?? null),
+    retakePrompt: retakePrompt(analysis, hr?.metric ?? null),
     cleanSeconds: analysis.cleanSeconds,
     beats: beats.length,
     rejectedBeats: beats.filter((beat) => beat.beatClass === 'artifact').length,

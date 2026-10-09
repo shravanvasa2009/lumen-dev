@@ -168,10 +168,11 @@ describe('red team PR #299: the retake prompt and SAFE-1', () => {
   const pulse = (bpm: number, seconds: number) =>
     captureAt(regularOffsets(30, seconds), beatTrain(beatTimes([60 / bpm], seconds + 5)));
 
-  // Found by red team. A rate that meets every floor is tagged low by one SQI-flagged window (1 of 71 or 56), so
-  // retakePrompt says the reading was short ('shortFast' / 'shortSlow') on a 75 s or 60 s reading while
-  // emergencyHeartRate opens the Emergency screen on the same rate. Answer 2 is for a rate under 15 clean s.
-  test.failing.each([
+  // Found by red team. A rate that meets every floor is tagged low by one SQI-flagged window (1 of 71 or 56), and
+  // retakePrompt said the reading was short ('shortFast' / 'shortSlow') on a 75 s or 60 s reading while
+  // emergencyHeartRate opens the Emergency screen on the same rate. Answer 2 is for a rate under 15 clean s, so the
+  // prompt is only for a rate the standard analysis has none of.
+  it.each([
     [170, 75],
     [35, 60],
   ])('%i bpm, %i s, one window flagged: no short-reading prompt beside SAFE-1', (bpm, seconds) => {

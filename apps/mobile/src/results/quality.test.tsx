@@ -9,6 +9,8 @@ import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
+import tokens from '@/theme/tokens.json';
+
 import { metricReasons } from './quality';
 
 jest.mock('@/profile/riskScore', () => ({ useStoredRiskScore: () => null }));
@@ -244,6 +246,46 @@ describe('rhythm too short to judge', () => {
     // The header chip and the rhythm card's.
     expect(screen.getAllByRole('button', { name: en['quality.chip'] })).toHaveLength(2);
     expect(screen.getByText(en['quality.missingNoRhythm'])).toBeOnTheScreen();
+  });
+});
+
+const drawsColor = (drawn: string, name: 'badgeExperimentalBg' | 'badgeFlagBg') =>
+  drawn.includes(tokens.dark[name]) || drawn.includes(tokens.light[name]);
+
+describe('a flag on a lower-quality value (ADR 0104, owner 2026-10-09)', () => {
+  it('keeps the flag, leads with the quality message, quiets the badge and moves Find care below the cards', () => {
+    mockInjected.lowMetrics = ['rhythm'];
+    openResults('demo-flag');
+    expect(screen.getByText(en['results.lowQualityLead'])).toBeOnTheScreen();
+    expect(screen.getByText(en['result.irregularRetake'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.flag'])).toBeOnTheScreen();
+    // The lower-quality chip is amber too, so the flag badge itself is what is checked.
+    let badgeNode = screen.getByText(en['results.flag']).parent;
+    while (badgeNode && !JSON.stringify(badgeNode.props.style ?? '').includes('backgroundColor'))
+      badgeNode = badgeNode.parent;
+    const badge = JSON.stringify(badgeNode?.props.style);
+    expect(drawsColor(badge, 'badgeExperimentalBg')).toBe(true);
+    expect(screen.getByRole('button', { name: en['results.findCare'] })).toBeOnTheScreen();
+    // The safety sheet is unchanged.
+    expect(screen.getByText(en['safety.question'])).toBeOnTheScreen();
+  });
+
+  it('puts Find care after the last metric card, and standard cards before the lower-quality one', () => {
+    mockInjected.lowMetrics = ['rhythm'];
+    openResults('demo-flag');
+    const order = JSON.stringify(screen.toJSON());
+    const at = (text: string) => order.indexOf(text);
+    expect(at(en['results.heartRate'])).toBeGreaterThan(-1);
+    expect(at(en['results.heartRate'])).toBeLessThan(at(en['results.heartRhythm']));
+    expect(at(en['results.heartRhythm'])).toBeLessThan(at(en['results.findCare']));
+  });
+
+  it('keeps today’s order, headline and amber badge when the flagged value is standard quality', () => {
+    openResults('demo-flag');
+    expect(screen.queryByText(en['results.lowQualityLead'])).toBeNull();
+    const order = JSON.stringify(screen.toJSON());
+    expect(order.indexOf(en['results.findCare'])).toBeLessThan(order.indexOf(en['results.heartRhythm']));
+    expect(drawsColor(order, 'badgeFlagBg')).toBe(true);
   });
 });
 

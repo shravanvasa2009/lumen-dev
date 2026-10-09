@@ -30,6 +30,8 @@ type MetricCardProps = {
   lowQualityReasons?: readonly QualityReason[] | null;
   // A line under the result, e.g. the advice to confirm a low-quality irregular rhythm.
   footnote?: string;
+  // A flag on a lower-quality value stays visible but wears the neutral badge instead of the amber one (ADR 0104).
+  quietFlag?: boolean;
 };
 
 export function MetricCard({
@@ -42,6 +44,7 @@ export function MetricCard({
   missingText,
   lowQualityReasons,
   footnote,
+  quietFlag = false,
 }: MetricCardProps) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
@@ -70,13 +73,16 @@ export function MetricCard({
             {reading.flagged ? (
               <View
                 style={{
-                  backgroundColor: colors.badgeFlagBg,
+                  backgroundColor: quietFlag ? colors.badgeExperimentalBg : colors.badgeFlagBg,
                   borderRadius: radius.pill,
                   paddingHorizontal: spacing.md,
                   paddingVertical: spacing.xs,
                 }}
               >
-                <AppText variant="caption" style={{ color: colors.badgeFlagFg }}>
+                <AppText
+                  variant="caption"
+                  style={{ color: quietFlag ? colors.badgeExperimentalFg : colors.badgeFlagFg }}
+                >
                   {t('results.flag')}
                 </AppText>
               </View>

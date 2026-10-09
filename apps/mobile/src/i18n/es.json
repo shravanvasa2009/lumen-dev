@@ -825,6 +825,7 @@
   "why.plainWords": "En palabras sencillas",
   "dm.experimental": "Experimental: patrón del pulso relacionado con la diabetes en investigaciones. No es una prueba de diabetes.",
   "demo.banner": "Datos de demostración: una medición de ejemplo, no la tuya",
+  "results.lowQualityLead": "Esta fue una lectura de menor calidad; tómala como una guía aproximada.",
   "results.flag": "Aviso",
   "result.regular": "Ritmo regular, {{hr}} lpm.",
   "fix.lead.pressure": "Tu última medición perdió señal por <cause>presionar demasiado.</cause>",

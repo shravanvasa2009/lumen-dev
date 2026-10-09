@@ -15,6 +15,12 @@ NotificationsEmitterModule.getLastNotificationResponse = () => null;
 // The real worklets runtime needs the native module, so its own mock stands in for it.
 // expo-router/testing-library installs the same Reanimated mock itself.
 // https://docs.swmansion.com/react-native-reanimated/docs/guides/testing/
+// Reanimated's mock has no useFrameCallback, so a frame callback that never fires is added to it; the frame maths
+// is tested as plain functions in waveformPlayback.test.ts. It is added to the shared mock module because
+// expo-router's testing library installs its own jest.mock of Reanimated from the same module.
+Object.assign(jest.requireActual('react-native-reanimated/mock'), {
+  useFrameCallback: () => ({ setActive: () => undefined, isActive: false, callbackId: -1 }),
+});
 jest.mock('react-native-reanimated', () => jest.requireActual('react-native-reanimated/mock'));
 jest.mock('react-native-worklets', () => jest.requireActual('react-native-worklets/src/mock'));
 

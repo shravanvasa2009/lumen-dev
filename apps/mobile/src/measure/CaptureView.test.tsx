@@ -38,6 +38,7 @@ const base: LiveCapture = {
   failure: null,
   status: { fingerCovered: true, motionRms: 0, thermal: 'nominal', fps: 60, droppedFrac: 0 },
   recentRed: [],
+  recentRedTS: [],
   recentPulse: [],
   elapsedS: 12.4,
   cleanSeconds: null,
@@ -138,7 +139,12 @@ describe('CaptureView', () => {
   });
 
   it('draws the pulse from the module samples', () => {
-    show({ recentRed: [0.6, 0.62, 0.58, 0.61], recentPulse: [0.1, 0.4, -0.1, 0.2] });
+    show({
+      recentRed: [0.6, 0.62, 0.58, 0.61],
+      recentRedTS: [0, 0.1, 0.2, 0.3],
+      recentPulse: [0.1, 0.4, -0.1, 0.2],
+      recentWaveform: { tS: [0, 0.1, 0.2, 0.3], ppg: [0.1, 0.4, -0.1, 0.2] },
+    });
     expect(screen.getByTestId('live-waveform', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.getByTestId('live-waveform-raw', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.queryByText(en['capture.noWaveform'])).toBeNull();

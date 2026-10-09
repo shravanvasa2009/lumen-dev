@@ -50,6 +50,8 @@ export interface LiveCapture {
   status: CaptureStatus | null;
   // Raw red means of the last 6 s, as the module reports them; the screen only scales them to fit.
   recentRed: readonly number[];
+  // Seconds since the first frame of each recentRed value, on the same clock as recentWaveform.tS.
+  recentRedTS: readonly number[];
   // The same 6 s of the session's pulse drawn with one smooth bump per beat (display only); empty without a
   // session.
   recentPulse: readonly number[];
@@ -83,6 +85,7 @@ const idle = (phase: LivePhase): LiveState => ({
   failure: null,
   status: null,
   recentRed: [],
+  recentRedTS: [],
   recentPulse: [],
   elapsedS: 0,
   cleanSeconds: null,
@@ -331,6 +334,7 @@ export function useLiveCapture(
         ...previous,
         advancing: session !== null && advancing,
         recentRed: recent.map((sample) => sample.r),
+        recentRedTS: recent.map((sample) => (sample.tNs - startNs) / 1e9),
         elapsedS: (newest.tNs - startNs) / 1e9,
         ...(session && waveform
           ? {

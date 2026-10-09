@@ -167,3 +167,62 @@ describe('red team PR #308: the share counts each SQI-Net window once', () => {
     expect(sqi!.windows).toEqual([expect.objectContaining({ pClean: 0.1 })]);
   });
 });
+
+describe('red team PR #308 at c420d64: variants near the fixed share', () => {
+  const startNs = analyzeReading(noiseCapture(), FULL_30).startNs;
+  const scoredNoise = (sqi: SqiScores) => analyzeReading(noiseCapture(), { ...FULL_30, sqi });
+
+  it('1 of 2 flagged reaches the share and tags the reading', () => {
+    const analysis = scoredNoise(sqiScores(startNs, 2, (k) => k === 0));
+    expect(analysis.sqiFlagged).toEqual({ windows: 1, total: 2 });
+    expect(built(analysis).quality.reasons).toContainEqual({ kind: 'sqiFlagged', windows: 1, total: 2 });
+  });
+
+  it('44 of 89 (just under half) stays untagged by sqiFlagged', () => {
+    const analysis = scoredNoise(sqiScores(startNs, 89, (k) => k % 2 === 1));
+    expect(analysis.sqiFlagged).toEqual({ windows: 44, total: 89 });
+    expect(built(analysis).quality.reasons.some((reason) => reason.kind === 'sqiFlagged')).toBe(false);
+  });
+
+  it('duplicates in reverse order: each window still counts once', () => {
+    const once = sqiScores(startNs, 91, () => true);
+    const analysis = scoredNoise({
+      threshold: THRESHOLD,
+      windows: [...once.windows, ...once.windows].reverse(),
+    });
+    expect(analysis.sqiFlagged).toEqual({ windows: 91, total: 91 });
+  });
+
+  // Found by red team on PR #308 at c420d64. "First score wins" depends on the order the scores arrive in. Observed:
+  // noise with every window flagged (P(clean) 0.1), but a clean 0.9 score for each window listed first, counts 0 of
+  // 91 flagged; the same scores in the other order count 91 of 91. A window any score flagged should count as
+  // flagged, whatever the order, so a reading cannot be made standard by the order of its scores.
+  it.failing('a clean score arriving before a flagged one for the same window does not hide the flag', () => {
+    const flaggedScores = sqiScores(startNs, 91, () => true);
+    const cleanFirst: SqiScores = {
+      threshold: THRESHOLD,
+      windows: [
+        ...flaggedScores.windows.map((window) => ({ ...window, pClean: 0.9 })),
+        ...flaggedScores.windows,
+      ],
+    };
+    expect(scoredNoise(cleanFirst).sqiFlagged).toEqual({ windows: 91, total: 91 });
+  });
+
+  // Found by red team on PR #308 at c420d64. Observed: 91 flagged windows inside the 95 s reading plus 91 clean
+  // windows that end after it (96 to 186 s) count 91 of 182, so the noise reading is untagged. LiveSession.setSqi
+  // refuses a window outside the reading; analyzeReading counts it.
+  it.failing('scores for windows outside the reading do not dilute the share (analyzeReading)', () => {
+    const inside = sqiScores(startNs, 91, () => true);
+    const after = Array.from({ length: 91 }, (_, k) => ({ endNs: startNs + (96 + k) * 1e9, pClean: 0.9 }));
+    const outcome = (() => {
+      try {
+        return scoredNoise({ threshold: THRESHOLD, windows: [...inside.windows, ...after] }).sqiFlagged;
+      } catch (error) {
+        if (error instanceof RangeError) return 'RangeError';
+        throw error;
+      }
+    })();
+    if (outcome !== 'RangeError') expect(outcome).toEqual({ windows: 91, total: 91 });
+  });
+});

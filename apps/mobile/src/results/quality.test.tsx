@@ -280,7 +280,7 @@ describe('a flag on a lower-quality value (ADR 0104, owner 2026-10-09)', () => {
     expect(at(en['results.heartRhythm'])).toBeLessThan(at(en['results.findCare']));
   });
 
-  it('keeps today's order, headline and amber badge when the flagged value is standard quality', () => {
+  it('keeps the usual order, headline and amber badge when the flagged value is standard quality', () => {
     openResults('demo-flag');
     expect(screen.queryByText(en['results.lowQualityLead'])).toBeNull();
     const order = JSON.stringify(screen.toJSON());

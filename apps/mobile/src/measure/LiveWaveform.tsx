@@ -28,6 +28,8 @@ import {
 } from './waveformPlayback';
 import { WAVEFORM_WINDOW_NS } from './waveformWindow';
 
+// Share of the trace's span below which an easing range counts as settled (see rangeMoved).
+const RANGE_SETTLED_SHARE = 0.001;
 const DEFAULT_HEIGHT = 96;
 const PADDING = 8;
 // The filtered trace is scaled to its 3rd to 97th percentile and clamped, so one spike does not flatten the beats.
@@ -120,7 +122,15 @@ function Trace({ values, timesS, width, height, scale, upIsHigh, stroke, strokeW
         elapsed,
         RANGE_SETTLE_MS,
       );
-      const rangeMoved = range?.low !== easedRange.value?.low || range?.high !== easedRange.value?.high;
+      // The eased range only approaches its target, so a change under a thousandth of the span (well under a
+      // pixel) counts as settled and an idle trace stops redrawing.
+      const previous = easedRange.value;
+      const settleTolerance = range ? (range.high - range.low) * RANGE_SETTLED_SHARE : 0;
+      const rangeMoved =
+        !range ||
+        !previous ||
+        Math.abs(range.low - previous.low) > settleTolerance ||
+        Math.abs(range.high - previous.high) > settleTolerance;
       easedRange.value = range;
       if (!range) return;
       if (edge === drawnEdge.value && batch.version === drawnVersion.value && !rangeMoved) return;
@@ -131,7 +141,18 @@ function Trace({ values, timesS, width, height, scale, upIsHigh, stroke, strokeW
       pathD.value = drawn.d;
       dotY.value = drawn.dotY;
     },
-    [playback, seenVersion, clockOffsetMs, playhead, easedRange, drawnEdge, drawnVersion, geometryOnUi, pathD, dotY],
+    [
+      playback,
+      seenVersion,
+      clockOffsetMs,
+      playhead,
+      easedRange,
+      drawnEdge,
+      drawnVersion,
+      geometryOnUi,
+      pathD,
+      dotY,
+    ],
   );
   const frames = useFrameCallback(drawFrame, false);
 

@@ -8,7 +8,14 @@ import {
   type TraceGeometry,
 } from './waveformPlayback';
 
-const geometry: TraceGeometry = { width: 308, height: 100, dotX: 300, padding: 8, windowS: 6, upIsHigh: false };
+const geometry: TraceGeometry = {
+  width: 308,
+  height: 100,
+  dotX: 300,
+  padding: 8,
+  windowS: 6,
+  upIsHigh: false,
+};
 const range = { low: 0, high: 1 };
 const series = (from: number, to: number, stepS = 0.04) => {
   const t: number[] = [];
@@ -19,11 +26,7 @@ const xs = (d: string) => [...d.matchAll(/(-?\d+\.\d),-?\d+\.\d/g)].map((match) 
 
 describe('mergeSeries', () => {
   it('replaces the stored samples a newer window covers and trims to the keep span', () => {
-    const merged = mergeSeries(
-      { t: [0, 1, 2, 3], v: [0, 1, 2, 3] },
-      { t: [2.5, 3.5, 4.5], v: [9, 9, 9] },
-      3,
-    );
+    const merged = mergeSeries({ t: [0, 1, 2, 3], v: [0, 1, 2, 3] }, { t: [2.5, 3.5, 4.5], v: [9, 9, 9] }, 3);
     expect(merged.t).toEqual([2, 2.5, 3.5, 4.5]);
     expect(merged.v).toEqual([2, 9, 9, 9]);
   });

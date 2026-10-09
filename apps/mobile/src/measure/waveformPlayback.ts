@@ -33,12 +33,8 @@ const MAX_CATCH_UP = 1.25;
 const OFFSET_RISE_SHARE = 0.02;
 
 // Appends the newer window to the stored series; samples the new window covers are replaced by it.
-export function mergeSeries(
-  stored: Series,
-  incoming: Series,
-  keepS: number,
-): Series {
-    const firstNew = incoming.t[0];
+export function mergeSeries(stored: Series, incoming: Series, keepS: number): Series {
+  const firstNew = incoming.t[0];
   if (firstNew === undefined || incoming.t.length !== incoming.v.length) return { t: [], v: [] };
   let keepUntil = 0;
   while (keepUntil < stored.t.length && stored.t[keepUntil]! < firstNew) keepUntil += 1;

@@ -164,7 +164,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
             </View>
           </View>
           {coaching ? (
-            <Reveal>
+            <Reveal settle>
               <View
                 accessible
                 accessibilityRole="alert"
@@ -195,7 +195,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
           )}
 
           {fingerOn ? null : (
-            <Reveal>
+            <Reveal settle>
               <AppText tone="textDim" style={{ textAlign: 'center' }}>
                 {t('placement.flashOutsideBump')}
               </AppText>

@@ -1,3 +1,4 @@
+import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, type LayoutChangeEvent } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
@@ -6,7 +7,7 @@ import { AppText } from '@/components/AppText';
 import { ValueSettle } from '@/components/Reveal';
 import { labelAt } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
-import { enterTransition, glideConfig, useReduceMotion } from '@/theme/motion';
+import { enterTransition, glideConfig, StillMotion, useReduceMotion } from '@/theme/motion';
 
 const BAR_WIDTH = 4;
 const BAR_HEIGHT = 11;
@@ -17,7 +18,8 @@ const BARS = { weak: 1, ok: 2, strong: 3 } as const;
 function QualityBar({ lit }: { lit: boolean }) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
-  const glide = glideConfig(reduceMotion);
+  const still = useContext(StillMotion);
+  const glide = glideConfig(reduceMotion || still);
   const barStyle = useAnimatedStyle(() => ({ opacity: withTiming(lit ? 1 : DIM_OPACITY, glide) }));
   return (
     <Animated.View
@@ -48,6 +50,7 @@ export function QualityChip({
   const { t } = useTranslation();
   const { colors, spacing, radius } = useTheme();
   const reduceMotion = useReduceMotion();
+  const still = useContext(StillMotion);
   const band = labelAt(level);
   if (band === null && !checking) return null;
   const word =
@@ -56,7 +59,7 @@ export function QualityChip({
       : { weak: t('signal.weak'), ok: t('signal.ok'), strong: t('capture.qualityGood') }[band];
   return (
     <Animated.View
-      entering={enterTransition(reduceMotion)}
+      entering={still ? undefined : enterTransition(reduceMotion)}
       accessible
       accessibilityLabel={`${t('capture.quality')} ${word}`}
       onLayout={onLayout}

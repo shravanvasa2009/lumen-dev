@@ -17,11 +17,7 @@ export default function TrendsScreen() {
   const saved = useMemo(() => historyFromStored(stored), [stored]);
   return (
     <RouteShell tabRoot title={t('trends.title')}>
-      <TrendsView
-        readings={demo ? demoHistory : saved}
-        now={demo ? demoNow : new Date()}
-        demo={demo}
-      />
+      <TrendsView readings={demo ? demoHistory : saved} now={demo ? demoNow : new Date()} demo={demo} />
     </RouteShell>
   );
 }

@@ -123,7 +123,7 @@ function Home() {
           />
         </Reveal>
         {promoDismissed ? null : (
-          <Reveal index={4}>
+          <Reveal index={4} settle>
             <WidgetPromo onDismiss={() => setPromoDismissed(true)} />
           </Reveal>
         )}

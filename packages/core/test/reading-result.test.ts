@@ -127,6 +127,61 @@ describe('advisory SQI-Net (sqiFlagged)', () => {
   });
 });
 
+// Owner 2026-10-09: "A fingertip held over pure noise showing a heart rate, should be tagged as low quality." SQI-Net
+// is the only check that tells noise from a pulse, so a rate it did not score is tagged: noSqi when it never ran,
+// sqiUnscored when it stopped partway (red team on #299: 85 unscored seconds of noise read standard at high).
+describe('heart rate SQI-Net did not score', () => {
+  const scoredWhere = (keep: (k: number) => boolean) =>
+    analyzeReading(cleanCapture(), {
+      ...CONTEXT,
+      sqi: { ...PASSING_SQI, windows: PASSING_SQI.windows.filter((_, k) => keep(k)) },
+    });
+
+  it('tags the rate noSqi when SQI-Net never ran, at moderate confidence', () => {
+    const hr = build(analyzeReading(cleanCapture(), CONTEXT), NO_MODELS).metrics.hr!;
+    expect(hr).toMatchObject({ quality: 'low', qualityReasons: ['noSqi'], confidence: 'moderate' });
+    expect(hr.value).toBe(BASE.heartRateBpm);
+  });
+
+  it('tags the rate sqiUnscored when SQI-Net stopped after 10 s, and caps confidence at moderate', () => {
+    const stopped = scoredWhere((k) => k < 7);
+    expect(stopped.sqiUnscoredS).toBeGreaterThan(80);
+    const outcome = build(stopped, AF);
+    expect(outcome.metrics.hr).toMatchObject({ quality: 'low', confidence: 'moderate' });
+    expect(outcome.metrics.hr!.qualityDetails).toContainEqual({
+      kind: 'sqiUnscored',
+      seconds: stopped.sqiUnscoredS,
+    });
+    expect(outcome.metrics.rhythm!.confidence).not.toBe('high');
+    expect(outcome.quality.level).toBe('low');
+  });
+
+  it('does not tag a slow phone that scores every third window, or a last score still running', () => {
+    const everyThird = scoredWhere((k) => k % 3 === 0);
+    expect(everyThird.sqiUnscoredS).toBeLessThanOrEqual(DSP_CONFIG.dsp3.sqiUnscoredMaxS);
+    expect(build(everyThird).metrics.hr).toMatchObject({ quality: 'standard', confidence: 'high' });
+    const tailMissing = scoredWhere((k) => k < 89);
+    expect(tailMissing.sqiUnscoredS).toBeLessThanOrEqual(DSP_CONFIG.dsp3.sqiUnscoredMaxS);
+    expect(build(tailMissing).metrics.hr!.quality).toBe('standard');
+  });
+
+  it('counts only clean seconds no scored window covers', () => {
+    expect(BASE.sqiUnscoredS).toBeLessThan(1.01);
+    expect(analyzeReading(cleanCapture(), CONTEXT).sqiUnscoredS).toBeNull();
+    const motion = { startNs: CLOCK_START_NS + 20e9, endNs: CLOCK_START_NS + 95e9 };
+    const stoppedInMotion = analyzeReading(cleanCapture(), {
+      ...CONTEXT,
+      motionSpans: [motion],
+      sqi: { ...PASSING_SQI, windows: PASSING_SQI.windows.filter((_, k) => k < 17) },
+    });
+    expect(stoppedInMotion.sqiUnscoredS).toBeLessThan(0.01);
+  });
+
+  it('never moves the retake prompt', () => {
+    expect(build(scoredWhere((k) => k < 7)).retakePrompt).toBeNull();
+  });
+});
+
 describe('ReadingResult shape', () => {
   it('copies counts and losses, and always lists what was not checked', () => {
     const outcome = build(BASE);

@@ -67,6 +67,8 @@ export function reasonText(t: TFunction, reason: QualityReason): string {
       return t('quality.rhythmUnjudged');
     case 'sqiFlagged':
       return t('quality.sqiFlagged', { windows: reason.windows, total: reason.total });
+    case 'sqiUnscored':
+      return t('quality.sqiUnscored', { seconds: Math.round(reason.seconds) });
   }
 }
 

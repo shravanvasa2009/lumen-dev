@@ -10,7 +10,8 @@
   "dsp3": {
     "dcCutoffHz": 0.3,
     "dcOrder": 2,
-    "modelWindowS": 4
+    "modelWindowS": 4,
+    "sqiUnscoredMaxS": 4
   },
   "dsp4": {
     "minRedRatio": 2,

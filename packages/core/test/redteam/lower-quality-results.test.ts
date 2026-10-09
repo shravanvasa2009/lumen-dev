@@ -70,14 +70,29 @@ interface MainCase {
   metrics: Record<MetricKey, Record<string, unknown> | null>;
 }
 
+// The battery's SQI contexts hold no scores, which before SQI-Net was advisory meant no window vetoed. Since the
+// owner's 2026-10-09 ruling a rate SQI-Net never scored is tagged, so here SQI-Net passes one window a second, as
+// the app sends them; a score rejects nothing, so the analysis is otherwise the same.
+function scoredContext(capture: { samples: Sample[] }, context: ReadingContext): ReadingContext {
+  if (context.sqi === null) return context;
+  const firstNs = capture.samples[0]!.tNs;
+  const lastS = (capture.samples[capture.samples.length - 1]!.tNs - firstNs) / 1e9;
+  const windowS = DSP_CONFIG.dsp3.modelWindowS;
+  const windows = Array.from({ length: Math.max(0, Math.floor(lastS) - windowS + 1) }, (_, k) => ({
+    endNs: firstNs + (k + windowS) * 1e9,
+    pClean: 0.9,
+  }));
+  return { ...context, sqi: { ...context.sqi, windows } };
+}
+
 // The battery analysed once per context; each analysis takes 0.1–1 s.
 const analyses = new Map<string, ReadingAnalysis>();
 function batteryAnalysis(captureName: string, contextName: string): ReadingAnalysis {
   const key = `${captureName} | ${contextName}`;
   if (!analyses.has(key)) {
-    const capture = BATTERY_CAPTURES.find(({ name }) => name === captureName)!;
+    const capture = BATTERY_CAPTURES.find(({ name }) => name === captureName)!.build();
     const { context } = BATTERY_CONTEXTS.find(({ name }) => name === contextName)!;
-    analyses.set(key, analyzeReading(capture.build(), context));
+    analyses.set(key, analyzeReading(capture, scoredContext(capture, context)));
   }
   return analyses.get(key)!;
 }
@@ -122,7 +137,10 @@ describe('red team ADR 0104: the standard path is main’s (fixture made by core
           continue;
         }
         expect(after).not.toBeNull();
-        expect(after!.quality).toBe('standard');
+        // Owner 2026-10-09: a rate SQI-Net never scored is tagged noSqi, and nothing else about it changes.
+        if (key === 'hr' && !analysis.sqiAvailable)
+          expect(after).toMatchObject({ quality: 'low', qualityReasons: ['noSqi'] });
+        else expect(after!.quality).toBe('standard');
         expect(withoutTag(after!)).toEqual(before);
       }
       // 78fdcf5: an unjudged rhythm states only the rate instead of "Couldn't tell".
@@ -178,9 +196,16 @@ function expectHonestTags(built: ReadingResult, context: ReadingContext) {
     ...METRIC_KEYS.map((key) => built.metrics[key] as (Tagged & object) | null),
     built.experimental as Tagged,
   ].filter((metric): metric is Tagged => metric !== null);
+  // SQI-Net's own reasons are advisory (owner 2026-10-06 and 2026-10-09): readingConfidence caps them at moderate.
+  // noSqi is advisory on the heart rate only; on a rhythm call it is a confidence shortfall, as before.
+  const advisory = (metric: Tagged, kind: string) =>
+    kind === 'sqiFlagged' || kind === 'sqiUnscored' || (kind === 'noSqi' && metric === built.metrics.hr);
   for (const metric of tagged) {
     expect(metric.quality === 'low').toBe(metric.qualityReasons.length > 0);
-    if (metric.quality === 'low' && metric.confidence !== undefined) expect(metric.confidence).toBe('low');
+    const floorMissed = metric.qualityReasons.some((kind) => !advisory(metric, kind));
+    if (floorMissed && metric.confidence !== undefined) expect(metric.confidence).toBe('low');
+    if (metric.quality === 'low' && !floorMissed && metric.confidence !== undefined)
+      expect(metric.confidence).not.toBe('high');
     for (const kind of metric.qualityReasons) expect(readingKinds).toContain(kind);
   }
   const metricKinds = new Set(tagged.flatMap((metric) => metric.qualityReasons));
@@ -210,8 +235,9 @@ function expectRhythmJudgedFromEnoughIntervals(built: ReadingResult, analysis: R
     expect(rhythm).toMatchObject({ pAF: null, flag: null, quality: 'low' });
     expect(built.headlineKey).toBe('result.hrOnly');
   }
+  // Red team on #299: the prompt is for a rate only the lower-quality path found, never a standard one.
   const hr = built.metrics.hr;
-  const extreme = hr !== null && hr.quality === 'low' && (hr.value < 40 || hr.value > 150);
+  const extreme = hr !== null && analysis.heartRateBpm === null && (hr.value < 40 || hr.value > 150);
   expect(built.retakePrompt !== null).toBe(extreme);
 }
 
@@ -342,10 +368,11 @@ describe('red team ADR 0104 SAFE-1: the emergency rules never read the lower-qua
     '%s: a retake prompt only on a lower-quality rate under 40 or over 150 bpm',
     (name) => {
       for (const { name: contextName } of BATTERY_CONTEXTS) {
-        const hr = batteryResult(batteryAnalysis(name, contextName), 1, profileNamed('no flags'));
+        const analysis = batteryAnalysis(name, contextName);
+        const hr = batteryResult(analysis, 1, profileNamed('no flags'));
         const metric = hr.metrics.hr;
         const extreme =
-          metric !== null && metric.quality === 'low' && (metric.value < 40 || metric.value > 150);
+          metric !== null && analysis.heartRateBpm === null && (metric.value < 40 || metric.value > 150);
         expect(hr.retakePrompt !== null).toBe(extreme);
       }
     },

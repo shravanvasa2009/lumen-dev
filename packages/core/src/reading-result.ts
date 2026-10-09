@@ -86,9 +86,13 @@ function tag(reasons: QualityReason[]): {
 }
 
 // The tag and the metric's confidence: a lower-quality value is never above low confidence, except one tagged only
-// by advisory SQI-Net, which readingConfidence already caps at moderate.
-function graded(reasons: QualityReason[], confidence: Confidence) {
-  const floorMissed = reasons.some((reason) => reason.kind !== 'sqiFlagged');
+// by the `advisory` SQI-Net reasons, which readingConfidence already caps at moderate.
+function graded(
+  reasons: QualityReason[],
+  confidence: Confidence,
+  advisory: readonly QualityReason['kind'][] = ['sqiFlagged', 'sqiUnscored'],
+) {
+  const floorMissed = reasons.some((reason) => !advisory.includes(reason.kind));
   return { ...tag(reasons), confidence: floorMissed ? ('low' as const) : confidence };
 }
 
@@ -96,6 +100,14 @@ function graded(reasons: QualityReason[], confidence: Confidence) {
 function sqiReasons(analysis: ReadingAnalysis): QualityReason[] {
   const flagged = analysis.sqiFlagged;
   return flagged && flagged.windows > 0 ? [{ kind: 'sqiFlagged', ...flagged }] : [];
+}
+
+// Owner 2026-10-09: "A fingertip held over pure noise showing a heart rate, should be tagged as low quality."
+// SQI-Net is the only check that tells noise from a pulse, so a rate it never scored, in whole or in part, is.
+function unscoredReasons(analysis: ReadingAnalysis): QualityReason[] {
+  if (!analysis.sqiAvailable) return [{ kind: 'noSqi' }];
+  const seconds = analysis.sqiUnscoredS ?? 0;
+  return seconds > DSP_CONFIG.dsp3.sqiUnscoredMaxS ? [{ kind: 'sqiUnscored', seconds }] : [];
 }
 
 const shortClean = (analysis: ReadingAnalysis, wantS: number): QualityReason[] =>
@@ -135,8 +147,8 @@ function tierAtLeast(analysis: ReadingAnalysis, needed: Tier): boolean {
   return TIER_ORDER.indexOf(effectiveTier(analysis)) >= TIER_ORDER.indexOf(needed);
 }
 
-// §7: clean coverage, capped at moderate without SQI scores, with SQI-flagged windows, and on a Limited or
-// unrated phone.
+// §7: clean coverage, capped at moderate without SQI scores (in whole or in part), with SQI-flagged windows, and on
+// a Limited or unrated phone.
 function readingConfidence(analysis: ReadingAnalysis): Confidence {
   const { highCoverage, moderateCoverage } = DSP_CONFIG.confidence;
   const coverage = analysis.durationS > 0 ? analysis.cleanSeconds / analysis.durationS : 0;
@@ -144,7 +156,10 @@ function readingConfidence(analysis: ReadingAnalysis): Confidence {
     coverage >= highCoverage ? 'high' : coverage >= moderateCoverage ? 'moderate' : 'low';
   const { tier } = analysis.context;
   const capped =
-    !analysis.sqiAvailable || sqiReasons(analysis).length > 0 || tier === null || tier === 'limited';
+    unscoredReasons(analysis).length > 0 ||
+    sqiReasons(analysis).length > 0 ||
+    tier === null ||
+    tier === 'limited';
   return capped ? lowest(fromCoverage, 'moderate') : fromCoverage;
 }
 
@@ -156,8 +171,7 @@ function confidenceReasons(analysis: ReadingAnalysis): QualityReason[] | null {
   const reasons: QualityReason[] = [];
   if (coverage < DSP_CONFIG.confidence.highCoverage)
     reasons.push({ kind: 'contact', coveredPct: 100 * coverage });
-  if (!analysis.sqiAvailable) reasons.push({ kind: 'noSqi' });
-  reasons.push(...sqiReasons(analysis));
+  reasons.push(...unscoredReasons(analysis), ...sqiReasons(analysis));
   if (tier === 'limited') reasons.push(...rateReasons(analysis, 'basic', 30));
   return reasons;
 }
@@ -196,7 +210,7 @@ function hrMetric(
   const bpm = analysis.heartRateBpm ?? lowBpm;
   if (bpm === null) return null;
   const { minCleanS } = DSP_CONFIG.dsp11;
-  const reasons = sqiReasons(analysis);
+  const reasons = [...sqiReasons(analysis), ...unscoredReasons(analysis)];
   if (analysis.heartRateBpm === null) {
     reasons.push(...shortClean(analysis, minCleanS));
     // Otherwise the accepted intervals spanned under minCleanS (ADR 0080): want enough beats to span it.
@@ -207,7 +221,8 @@ function hrMetric(
         wantBeats: Math.ceil((minCleanS * bpm) / 60),
       });
   }
-  const grade = graded(reasons, confidence);
+  // Like sqiFlagged, an unscored rate is only capped at moderate (readingConfidence), so its §10.1 flags still show.
+  const grade = graded(reasons, confidence, ['sqiFlagged', 'sqiUnscored', 'noSqi']);
   const metric: HrMetric = {
     value: bpm,
     unit: 'bpm',

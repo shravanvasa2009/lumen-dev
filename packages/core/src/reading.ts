@@ -75,6 +75,8 @@ export interface ReadingAnalysis {
   // SQI-Net is advisory (owner 2026-10-06, superseding H-024's reject-only guard): windows scored under its
   // threshold stay clean and are only counted here; null when it never ran.
   sqiFlagged: { windows: number; total: number } | null;
+  // Clean seconds no scored SQI-Net window covers, as when it stops scoring partway; null when it never ran.
+  sqiUnscoredS: number | null;
   rejectedSpans: RejectedSpan[]; // seconds from the first frame, sorted by start
   cleanSeconds: number;
   lostSeconds: LostSeconds;
@@ -162,6 +164,27 @@ function sqiFlaggedWindows(sqi: SqiScores | null): ReadingAnalysis['sqiFlagged']
   if (sqi === null) return null;
   const windows = sqi.windows.filter((window) => window.pClean < sqi.threshold).length;
   return { windows, total: sqi.windows.length };
+}
+
+// Owner 2026-10-09: a rate SQI-Net never looked at is tagged, so the clean time outside every scored window
+// [endS − modelWindowS, endS] is counted.
+function sqiUnscoredSeconds(
+  sqi: SqiScores | null,
+  startNs: number,
+  durationS: number,
+  rejectedSpans: RejectedSpan[],
+): number | null {
+  if (sqi === null) return null;
+  const windowS = DSP_CONFIG.dsp3.modelWindowS;
+  const ends = sqi.windows.map((window) => (window.endNs - startNs) / 1e9).sort((x, y) => x - y);
+  let unscored = 0;
+  let scoredToS = 0;
+  for (const endS of [...ends, durationS + windowS]) {
+    const gapEndS = Math.min(endS - windowS, durationS);
+    if (gapEndS > scoredToS) unscored += cleanSeconds(scoredToS, gapEndS, rejectedSpans);
+    scoredToS = Math.max(scoredToS, endS);
+  }
+  return unscored;
 }
 
 // ADR 0023 flat windows (at the live session's once-per-second checks) and ADR 0057 flat runs, found
@@ -456,6 +479,7 @@ export function analyzeReading(
     durationS,
     sqiAvailable: modelRan,
     sqiFlagged: sqiFlaggedWindows(context.sqi),
+    sqiUnscoredS: sqiUnscoredSeconds(context.sqi, timebase.startNs, durationS, rejectedSpans),
     rejectedSpans,
     cleanSeconds: clean,
     lostSeconds: lostSecondsOf(rejectedSpans, durationS),

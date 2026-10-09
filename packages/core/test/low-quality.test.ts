@@ -190,9 +190,22 @@ function fingertip(seconds: number, bpm = 72, second = 0, fps = 30) {
   });
 }
 
+// SQI-Net scoring every 4 s window clean, once a second, as on a phone that runs it. Without it the heart rate is
+// tagged noSqi (owner 2026-10-09), which the result tests below are not about.
+function scoredAnalysis(capture: ReturnType<typeof fingertip>, context: ReadingContext = CONTEXT) {
+  const firstNs = capture.samples[0]!.tNs;
+  const lastS = (capture.samples[capture.samples.length - 1]!.tNs - firstNs) / 1e9;
+  const windowS = DSP_CONFIG.dsp3.modelWindowS;
+  const windows = Array.from({ length: Math.max(0, Math.floor(lastS) - windowS + 1) }, (_, k) => ({
+    endNs: firstNs + (k + windowS) * 1e9,
+    pClean: 0.9,
+  }));
+  return analyzeReading(capture, { ...context, sqi: { threshold: 0.5, windows } });
+}
+
 describe('analyzeReading and the results on the beats there are (ADR 0104)', () => {
   it('a 10 s capture: no standard heart rate, a lower-quality one, a reading-wide rhythm row', () => {
-    const analysis = analyzeReading(fingertip(10), CONTEXT);
+    const analysis = scoredAnalysis(fingertip(10));
     expect(analysis.heartRateBpm).toBeNull();
     expect(analysis.lowQuality.heartRateBpm).toBeCloseTo(72, 0);
     expect(analysis.rhythmFeatures).toEqual([]);
@@ -285,7 +298,7 @@ describe('analyzeReading and the results on the beats there are (ADR 0104)', () 
 // not the Emergency screen: SAFE-1 still reads only the standard analysis.
 describe('retake prompt for an extreme lower-quality rate (SAFE-1 unchanged)', () => {
   const resultOf = (seconds: number, bpm: number, mode: ReadingContext['mode'] = 'quick') => {
-    const analysis = analyzeReading(fingertip(seconds, bpm), { ...CONTEXT, mode });
+    const analysis = scoredAnalysis(fingertip(seconds, bpm), { ...CONTEXT, mode });
     const reading = buildReadingResult(analysis, { rhythm: null, diabetes: null }, seedEvidence, PROFILE, []);
     return { analysis, reading };
   };
@@ -320,7 +333,7 @@ describe('retake prompt for an extreme lower-quality rate (SAFE-1 unchanged)', (
 
 describe('Quick Check tags only what misses a floor (owner 2026-10-06, ADR 0104 answer 4)', () => {
   it('a 30 s Quick at good quality: a standard heart rate, a rhythm tagged for its 60 clean seconds', () => {
-    const analysis = analyzeReading(fingertip(30), CONTEXT);
+    const analysis = scoredAnalysis(fingertip(30));
     expect(analysis.heartRateBpm).not.toBeNull();
     const rhythm = {
       windowProbs: rhythmModelRows(analysis).map((): [number, number, number] => [0.9, 0.05, 0.05]),

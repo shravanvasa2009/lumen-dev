@@ -1,5 +1,6 @@
 import {
   analyzeReading,
+  buildReadingResult,
   cleanSeconds,
   createLiveSession,
   DSP_CONFIG,
@@ -11,6 +12,7 @@ import {
 } from '../../src';
 import { captureAt, regularOffsets, type SyntheticCapture } from '../synthetic';
 import { beatTimes, beatTrain, flatRed, seededNormal, sinePulse, type Channels } from './attacks';
+import { PASSED_EVIDENCE } from './lower-quality-battery';
 
 // Red team for the PR #120 reading-input hardening (ADR 0057 follow-up): non-finite frames as coverage,
 // splines over finite runs only, FlatRuns, the clamped first window, the live filter hold, and the setSqi
@@ -373,15 +375,17 @@ describe('red team: sparse bad frames keep SQI-Net from ever scoring', () => {
   // …), and a stand-in SQI-Net that rejects every window it is given: 29.82 of 29.98 s clean and 112 bpm
   // from noise; with a finite one-frame coverage failure (finger off for 17 ms) every 3 s, 51.8 bpm. Under
   // the owner's 2026-10-09 ruling a rate from noise is acceptable only when the reading carries a
-  // lower-quality tag: noSqi when no window was scored, sqiFlagged when one was.
+  // lower-quality tag on the heart-rate card itself.
   it.each([
     ['NaN red', { r: NaN }],
     ['finger off', { r: 0.2, g: 0.3, b: 0.3 }],
   ])('noise with one %s frame every 3 s is tagged lower quality', (_label, patch) => {
     const channels = patchFrames(noise, 60, isBad, patch);
     const saved = expectParity(replay(captureAt(regularOffsets(60, 30), channels), 60, rejectAll), 60);
-    const tagged = !saved.sqiAvailable || (saved.sqiFlagged?.windows ?? 0) > 0;
-    expect(tagged).toBe(true);
+    const profile = { athlete: false, betaBlocker: false, pacemaker: false, knownAf: false };
+    const built = buildReadingResult(saved, { rhythm: null, diabetes: null }, PASSED_EVIDENCE, profile, []);
+    expect(built.metrics.hr).not.toBeNull();
+    expect(built.metrics.hr!.quality).toBe('low');
   });
 
   // Found by red team. ADR 0057 clamps the first window to the first frame so [0, 1) is judged by the

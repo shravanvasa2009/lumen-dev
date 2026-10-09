@@ -1017,6 +1017,7 @@
   "quality.quickMode": "Quick Check is short (30 s); a Full Scan is more reliable",
   "quality.contact": "Only {{pct}}% of the scan was clean (finger contact or movement)",
   "quality.sqiFlagged": "The signal-quality check flagged {{windows}} of {{total}} parts of this reading",
+  "quality.sqiUnscored": "The signal-quality check skipped {{seconds}} seconds of this reading",
   "quality.rhythmUnjudged": "HRV was worked out without checking that the rhythm was regular",
   "quality.marked": "{{value}} (lower quality)",
   "quality.fewBeats": "Only {{beats}} beats were measured (we like {{want}} or more)",

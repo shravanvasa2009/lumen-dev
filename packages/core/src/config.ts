@@ -15,6 +15,11 @@ export const DSP_CONFIG = {
     // the DC, about 0.06% of DC for a 1% pulse, with less ringing at baseline steps than a higher order.
     dcOrder: 2,
     modelWindowS: 4, // model inputs are z-scored per window of this length (SQI-Net: 256 samples at 64 Hz)
+    // Owner 2026-10-09 (noise showing a rate is tagged); pending owner confirmation. Clean seconds outside every
+    // scored window before the heart rate is tagged sqiUnscored. One window: the app skips ticks while a score is
+    // running and the last score can still be running at the stop, which leaves less; SQI-Net that stopped
+    // partway (red team on #299: 85 of 95 s) leaves more.
+    sqiUnscoredMaxS: 4,
   },
   // Spec initial values (§10 DSP-4): a frame is covered when all four hold. A frame failing only the clip
   // limit is a "clipping" span, any other failure a "coverage" span (ADR 0041).

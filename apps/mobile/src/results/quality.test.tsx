@@ -26,6 +26,7 @@ const allReasons: QualityReason[] = [
   { kind: 'phoneTier', tier: 'basic', wantTier: 'full' },
   { kind: 'rhythmUnjudged' },
   { kind: 'sqiFlagged', windows: 7, total: 40 },
+  { kind: 'sqiUnscored', seconds: 84.6 },
 ];
 
 type Injected = {

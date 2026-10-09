@@ -96,8 +96,8 @@ describe('red team PR #299: noise SQI-Net stopped scoring', () => {
   // Found by red team. Observed: 98.4 bpm, quality standard, confidence high; with rhythm-lgbm's own output and
   // one positive reading an hour before, headline "Possible AFib", rhythm quality standard, confidence high, and
   // the reading standard: no lower-quality tag anywhere. 85 of its 95 s were never scored, yet readingConfidence
-  // treats sqiAvailable as the whole reading scored. Expected (owner 2026-10-09): noise showing a rate is tagged.
-  test.failing('noise after SQI-Net stops scoring is tagged lower quality', () => {
+  // treated sqiAvailable as the whole reading scored. Owner 2026-10-09: noise showing a rate is tagged.
+  it('noise after SQI-Net stops scoring is tagged lower quality', () => {
     const built = buildReadingResult(
       noise,
       { rhythm: lgbmOn(noise), diabetes: null },
@@ -112,10 +112,10 @@ describe('red team PR #299: noise SQI-Net stopped scoring', () => {
 });
 
 describe('red team PR #299: noise when SQI-Net never ran', () => {
-  // Found by red team. 79958b9 counts !sqiAvailable as the noise reading's tag, but noSqi reaches only the
-  // rhythm card's reasons (confidenceReasons), never the heart rate. Observed: 98.4 bpm, quality standard. OWNER
-  // DECISION: tagging every no-SQI rate would tag every reading on a phone that cannot run SQI-Net.
-  test.failing('noise with no SQI-Net scores tags the heart rate', () => {
+  // Found by red team. 79958b9 counted !sqiAvailable as the noise reading's tag, but noSqi reached only the
+  // rhythm card's reasons (confidenceReasons), never the heart rate. Observed: 98.4 bpm, quality standard. Under
+  // the owner's 2026-10-09 ruling every rate SQI-Net never scored is tagged, on any phone.
+  it('noise with no SQI-Net scores tags the heart rate', () => {
     const analysis = analyzeReading(noiseCapture(), FULL_30);
     expect(analysis.heartRateBpm).toBeCloseTo(98.4, 1);
     const built = buildReadingResult(

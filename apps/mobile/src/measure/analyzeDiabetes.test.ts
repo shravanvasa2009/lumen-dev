@@ -97,6 +97,7 @@ describe('diabetes model inputs', () => {
     expect(models.diabetes).toBeNull();
   });
 
+  // A Full Scan is a floor of the diabetes pattern alone (§11.4), so a Quick value is tagged for it (owner answer 4).
   it('runs the model for a Quick Check too, tagged quickMode (owner, ADR 0104)', async () => {
     const { models, reading } = await analyse(steadyPulse(60), 'quick');
     expect(mockScoreDiabetes).toHaveBeenCalledTimes(1);

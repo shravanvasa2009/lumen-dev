@@ -5,7 +5,7 @@ import pytest
 from lumen_dsp.breathing import breathing_estimates, breathing_rate
 from lumen_dsp.config import DSP_CONFIG
 from lumen_dsp.metrics import MeasuredBeat, low_quality_heart_rate, low_quality_rmssd
-from lumen_dsp.rhythm import reading_wide_window, rhythm_windows
+from lumen_dsp.rhythm import judges_rhythm, reading_wide_window, rhythm_windows
 from lumen_dsp.shape import ensemble_beat, low_quality_ensemble_beat
 
 # Mirrors packages/core/test/low-quality.test.ts (ADR 0104) with the same inputs and expected values (§10.2).
@@ -86,6 +86,19 @@ def test_reading_wide_window_takes_the_first_tie_and_needs_three_intervals():
     window = reading_wide_window(_intervals(7), spans, [False] * 8)
     assert window is not None and window.start_interval == 0
     assert reading_wide_window(_intervals(2), [False, False], [False] * 3) is None
+
+
+def test_reading_wide_window_gives_a_class_only_from_20_intervals():
+    def window(count):
+        found = reading_wide_window(_intervals(count), [False] * count, [False] * (count + 1))
+        assert found is not None
+        return found
+
+    assert DSP_CONFIG["lowQuality"]["rhythmClassMinIntervals"] == 20
+    assert not judges_rhythm(window(3))
+    assert not judges_rhythm(window(19))
+    assert judges_rhythm(window(20))
+    assert judges_rhythm(window(31))
 
 
 def test_reading_wide_window_is_none_whenever_a_standard_window_fits():

@@ -71,6 +71,9 @@ export interface LiveCapture {
   // The live level and the coaching line can look fine while every frame is rejected (clipped red, a
   // settling exposure), so "good" on screen must follow this, not the level.
   advancing: boolean;
+  // From the finger covering the lens until lockExposure settles: the camera is steering its brightness
+  // (1–3 compensation steps on a Galaxy A17, each greying about 1 s under DSP-5).
+  adjustingExposure: boolean;
 }
 
 type LiveState = Omit<LiveCapture, 'nativeCamera'>;
@@ -88,6 +91,7 @@ const idle = (phase: LivePhase): LiveState => ({
   rejectedSpans: [],
   signalLevel: null,
   advancing: false,
+  adjustingExposure: false,
 });
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -187,6 +191,12 @@ export function useLiveCapture(
     // plan (unlocked for 2 s, then locked at a brighter target), which this path does not implement yet.
     let lockWanted = false;
     let lockTimer: ReturnType<typeof setTimeout> | null = null;
+    let adjusting = false;
+    const setAdjusting = (now: boolean) => {
+      if (adjusting === now) return;
+      adjusting = now;
+      setLive((previous) => ({ ...previous, adjustingExposure: now }));
+    };
 
     const cancelLock = () => {
       if (lockTimer) clearTimeout(lockTimer);
@@ -199,20 +209,26 @@ export function useLiveCapture(
       if (!started || !lockWanted) return;
       if (!status.fingerCovered) {
         cancelLock();
+        setAdjusting(false);
         return;
       }
+      setAdjusting(true);
       lockTimer ??= setTimeout(() => {
         lockTimer = null;
         lockWanted = false;
         capture
           .lockExposure()
-          .catch((error: unknown) => console.warn(`Exposure did not lock: ${reasonOf(error)}`));
+          .catch((error: unknown) => console.warn(`Exposure did not lock: ${reasonOf(error)}`))
+          .finally(() => {
+            if (started) setAdjusting(false);
+          });
       }, EXPOSURE_SETTLE_MS);
     };
 
     const stopCamera = () => {
       cancelLock();
       lockWanted = false;
+      adjusting = false;
       subscriptions.forEach((subscription) => subscription.remove());
       subscriptions = [];
       if (started) {

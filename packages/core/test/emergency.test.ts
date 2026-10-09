@@ -314,7 +314,8 @@ describe('emergencyHeartRate on captures analyzeReading made', () => {
   });
 
   it('SQI-Net neither raises nor suppresses it: the rule sees the beats and spans of an SQI-free analysis', () => {
-    // 170 bpm for 200 s; SQI-Net rejects three adjacent 1 s ticks (a 6 s span) every 25 s.
+    // 170 bpm for 200 s; SQI-Net scores three adjacent 1 s ticks low every 25 s. Advisory since the owner's
+    // 2026-10-06 decision, so the scored analysis is the SQI-free one throughout.
     const capture = fingertip(170, 200);
     const firstNs = capture.samples[0]!.tNs;
     const windows = Array.from({ length: 7 }, (_, k) =>
@@ -324,7 +325,8 @@ describe('emergencyHeartRate on captures analyzeReading made', () => {
     const scored = analyzeReading(capture, { ...CONTEXT, sqi: { threshold: 0.5, windows } });
     expect(plain.withoutSqiNet).toBeNull();
     expect(scored.withoutSqiNet).toEqual({ intervals: plain.intervals, rejectedSpans: plain.rejectedSpans });
-    expect(scored.intervals).not.toEqual(plain.intervals);
+    expect(scored.intervals).toEqual(plain.intervals);
+    expect(scored.sqiFlagged).toEqual({ windows: 21, total: 21 });
     expect(emergencyHeartRate(plain)?.fastSustained).toBe(true);
     expect(emergencyHeartRate(scored)?.fastSustained).toBe(true);
     // The same 6 s as accelerometer motion is rule-based evidence and restarts the count.

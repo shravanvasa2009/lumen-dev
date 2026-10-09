@@ -46,6 +46,7 @@ const running: LiveCapture = {
   signalLevel: null,
   nativeCamera: false,
   advancing: false,
+  adjustingExposure: false,
 };
 
 jest.setTimeout(30_000);

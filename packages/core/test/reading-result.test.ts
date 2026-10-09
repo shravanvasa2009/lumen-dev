@@ -91,6 +91,117 @@ const build = (
   history: PastReading[] = [],
 ) => buildReadingResult(analysis, models, evidence, profile, history);
 
+// Owner 2026-10-06 ("Advisory + tag"): SQI-Net's low scores tag the reading and cap confidence at moderate; they
+// never stop the count, never hide a flag the rules raise, and never drop a value to low confidence on their own.
+describe('advisory SQI-Net (sqiFlagged)', () => {
+  const flagged = analysisWith({ sqiFlagged: { windows: 7, total: 91 } });
+
+  it('tags every value with the flagged windows, at moderate confidence', () => {
+    const outcome = build(flagged, AF);
+    expect(outcome.quality).toEqual({
+      level: 'low',
+      reasons: [{ kind: 'sqiFlagged', windows: 7, total: 91 }],
+    });
+    const { hr, rhythm, rmssd, resp } = outcome.metrics;
+    for (const metric of [hr, rhythm, resp])
+      expect(metric).toMatchObject({
+        quality: 'low',
+        qualityReasons: ['sqiFlagged'],
+        confidence: 'moderate',
+      });
+    expect(rmssd).toBeNull();
+    expect(outcome.experimental).toMatchObject({ quality: 'low', qualityReasons: ['sqiFlagged'] });
+    expect(build(flagged).metrics.rmssd!.value).toBe(build(BASE).metrics.rmssd!.value);
+  });
+
+  it('keeps the irregular flag and the heart-rate flags the rules raise', () => {
+    expect(build(flagged, AF).metrics.rhythm).toMatchObject({ class: 'af', flag: 'irregular' });
+    const slow = analysisWith({ sqiFlagged: { windows: 7, total: 91 }, heartRateBpm: 45 });
+    expect(build(slow).metrics.hr).toMatchObject({ flag: 'slowResting', quality: 'low' });
+  });
+
+  // Red team on #299: pure noise SQI-Net flagged in every window read "Possible AFib". Pending owner confirmation.
+  it('judges no rhythm when SQI-Net flagged more than half its windows', () => {
+    const share = DSP_CONFIG.rules.rhythmMaxSqiFlaggedShare;
+    const past: PastReading = { atMs: NOW_MS - HOUR_MS, rhythmPositive: true, rmssdMs: null, diabetes: null };
+    const mostly = build(
+      analysisWith({ sqiFlagged: { windows: 46, total: 91 } }),
+      AF,
+      seedEvidence,
+      PROFILE,
+      [past],
+    );
+    expect(mostly.metrics.rhythm).toMatchObject({ class: null, pAF: null, flag: null, quality: 'low' });
+    expect(mostly.headlineKey).toBe('result.hrOnly');
+    expect(mostly.metrics.rmssd!.qualityReasons).toContain('rhythmUnjudged');
+    expect(46 / 91).toBeGreaterThan(share);
+    const half = build(analysisWith({ sqiFlagged: { windows: 45, total: 90 } }), AF);
+    expect(half.metrics.rhythm).toMatchObject({ class: 'af', flag: 'irregular' });
+    expect(45 / 90).toBe(share);
+  });
+
+  it('adds nothing when no window was flagged or SQI-Net never ran', () => {
+    expect(build(analysisWith({ sqiFlagged: { windows: 0, total: 91 } })).quality.level).toBe('standard');
+    const noModel = build(analysisWith({ sqiFlagged: null, sqiAvailable: false }));
+    expect(noModel.quality.reasons.map((reason) => reason.kind)).not.toContain('sqiFlagged');
+  });
+});
+
+// Owner 2026-10-09: "A fingertip held over pure noise showing a heart rate, should be tagged as low quality." SQI-Net
+// is the only check that tells noise from a pulse, so a rate it did not score is tagged: noSqi when it never ran,
+// sqiUnscored when it stopped partway (red team on #299: 85 unscored seconds of noise read standard at high).
+describe('heart rate SQI-Net did not score', () => {
+  const scoredWhere = (keep: (k: number) => boolean) =>
+    analyzeReading(cleanCapture(), {
+      ...CONTEXT,
+      sqi: { ...PASSING_SQI, windows: PASSING_SQI.windows.filter((_, k) => keep(k)) },
+    });
+
+  it('tags the rate noSqi when SQI-Net never ran, at moderate confidence', () => {
+    const hr = build(analyzeReading(cleanCapture(), CONTEXT), NO_MODELS).metrics.hr!;
+    expect(hr).toMatchObject({ quality: 'low', qualityReasons: ['noSqi'], confidence: 'moderate' });
+    expect(hr.value).toBe(BASE.heartRateBpm);
+  });
+
+  it('tags the rate sqiUnscored when SQI-Net stopped after 10 s, and caps confidence at moderate', () => {
+    const stopped = scoredWhere((k) => k < 7);
+    expect(stopped.sqiUnscoredS).toBeGreaterThan(80);
+    const outcome = build(stopped, AF);
+    expect(outcome.metrics.hr).toMatchObject({ quality: 'low', confidence: 'moderate' });
+    expect(outcome.metrics.hr!.qualityDetails).toContainEqual({
+      kind: 'sqiUnscored',
+      seconds: stopped.sqiUnscoredS,
+    });
+    expect(outcome.metrics.rhythm!.confidence).not.toBe('high');
+    expect(outcome.quality.level).toBe('low');
+  });
+
+  it('does not tag a slow phone that scores every third window, or a last score still running', () => {
+    const everyThird = scoredWhere((k) => k % 3 === 0);
+    expect(everyThird.sqiUnscoredS).toBeLessThanOrEqual(DSP_CONFIG.dsp3.sqiUnscoredMaxS);
+    expect(build(everyThird).metrics.hr).toMatchObject({ quality: 'standard', confidence: 'high' });
+    const tailMissing = scoredWhere((k) => k < 89);
+    expect(tailMissing.sqiUnscoredS).toBeLessThanOrEqual(DSP_CONFIG.dsp3.sqiUnscoredMaxS);
+    expect(build(tailMissing).metrics.hr!.quality).toBe('standard');
+  });
+
+  it('counts only clean seconds no scored window covers', () => {
+    expect(BASE.sqiUnscoredS).toBeLessThan(1.01);
+    expect(analyzeReading(cleanCapture(), CONTEXT).sqiUnscoredS).toBeNull();
+    const motion = { startNs: CLOCK_START_NS + 20e9, endNs: CLOCK_START_NS + 95e9 };
+    const stoppedInMotion = analyzeReading(cleanCapture(), {
+      ...CONTEXT,
+      motionSpans: [motion],
+      sqi: { ...PASSING_SQI, windows: PASSING_SQI.windows.filter((_, k) => k < 17) },
+    });
+    expect(stoppedInMotion.sqiUnscoredS).toBeLessThan(0.01);
+  });
+
+  it('never moves the retake prompt', () => {
+    expect(build(scoredWhere((k) => k < 7)).retakePrompt).toBeNull();
+  });
+});
+
 describe('ReadingResult shape', () => {
   it('copies counts and losses, and always lists what was not checked', () => {
     const outcome = build(BASE);
@@ -256,27 +367,36 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
     expect(outcome.headlineKey).toBe('result.hrOnly');
   });
 
-  it('runs the rhythm check on a Quick Check too, tagged lower quality (owner, ADR 0104)', () => {
+  // Owner 2026-10-06 (ADR 0104 answer 4): Quick tags only the values that miss a floor.
+  it('runs the rhythm check on a Quick Check too, tagged only for the floor it missed', () => {
     const quick = analysisWith({ cleanSeconds: 30, durationS: 30 }, { mode: 'quick' });
     const outcome = build(quick, SINUS);
-    expect(outcome.metrics.hr).toMatchObject({ value: BASE.heartRateBpm, quality: 'standard' });
+    expect(outcome.metrics.hr).toMatchObject({
+      value: BASE.heartRateBpm,
+      quality: 'standard',
+      qualityReasons: [],
+    });
     expect(outcome.metrics.rhythm).toMatchObject({
       class: 'sinus',
       quality: 'low',
-      qualityReasons: ['quickMode', 'shortClean'],
+      qualityReasons: ['shortClean'],
+      qualityDetails: [{ kind: 'shortClean', haveS: 30, wantS: 60 }],
       confidence: 'low',
     });
     expect(outcome.headlineKey).toBe('result.regular');
     expect(outcome.quality.level).toBe('low');
-    expect(outcome.quality.reasons).toContainEqual({ kind: 'quickMode' });
+    expect(outcome.quality.reasons.map((reason) => reason.kind)).not.toContain('quickMode');
     expect(outcome.quality.reasons).toContainEqual({ kind: 'shortClean', haveS: 30, wantS: 60 });
     // With no rhythm model at all, nothing judged the rhythm.
     expect(build(quick, NO_MODELS).headlineKey).toBe('result.hrOnly');
   });
 
-  it('a standard reading is standard everywhere, with no reasons', () => {
+  it('a standard reading is standard everywhere, with no reasons, in either mode', () => {
+    for (const mode of ['full', 'quick'] as const) {
+      const outcome = build(analysisWith({}, { mode }));
+      expect(outcome.quality).toEqual({ level: 'standard', reasons: [] });
+    }
     const outcome = build(BASE);
-    expect(outcome.quality).toEqual({ level: 'standard', reasons: [] });
     const { hr, rhythm, rmssd, resp } = outcome.metrics;
     for (const metric of [hr, rhythm, rmssd, resp, outcome.experimental])
       expect(metric).toMatchObject({ quality: 'standard', qualityReasons: [], qualityDetails: [] });
@@ -341,7 +461,11 @@ describe('rhythm card, headline, and the 2-of-3 rule', () => {
     const oneWide = analysisWith({
       rhythmWindows: [],
       rhythmFeatures: [],
-      lowQuality: { ...BASE.lowQuality, rhythmFeatures: BASE.rhythmFeatures[0]! },
+      lowQuality: {
+        ...BASE.lowQuality,
+        rhythmWindow: BASE.rhythmWindows[0]!,
+        rhythmFeatures: BASE.rhythmFeatures[0]!,
+      },
     });
     const oneRow: ModelOutputs = { rhythm: { windowProbs: [[0.9, 0.05, 0.05]], tauAf: 0.5 }, diabetes: null };
     expect(build(oneWide, oneRow).metrics.rhythm).toMatchObject({
@@ -665,6 +789,7 @@ describe('diabetes card (§10.1, §11.4)', () => {
     const history = [earlier('2026-10-02', 0.7)];
     const cases: [Partial<ReadingAnalysis>, Partial<ReadingContext>, string][] = [
       [{}, { mode: 'quick' }, 'quickMode'],
+      [{ cleanSeconds: 30, durationS: 30 }, { mode: 'quick' }, 'shortClean'],
       [{}, { tier: 'basic' }, 'phoneTier'],
       [{ cleanSeconds: 89.9, durationS: 89.9 }, {}, 'shortClean'],
     ];
@@ -690,7 +815,11 @@ describe('diabetes card (§10.1, §11.4)', () => {
     const oneWide = analysisWith({
       rhythmWindows: [],
       rhythmFeatures: [],
-      lowQuality: { ...BASE.lowQuality, rhythmFeatures: BASE.rhythmFeatures[0]! },
+      lowQuality: {
+        ...BASE.lowQuality,
+        rhythmWindow: BASE.rhythmWindows[0]!,
+        rhythmFeatures: BASE.rhythmFeatures[0]!,
+      },
     });
     const models: ModelOutputs = {
       rhythm: { windowProbs: [[0.9, 0.05, 0.05]], tauAf: 0.5 },

@@ -7,6 +7,7 @@ const STANDARD = { quality: 'standard' as const, qualityReasons: [], qualityDeta
 const appendixBExample: ReadingResult = {
   headlineKey: 'result.regular',
   quality: { level: 'standard', reasons: [] },
+  retakePrompt: null,
   cleanSeconds: 92,
   beats: 104,
   rejectedBeats: 6,

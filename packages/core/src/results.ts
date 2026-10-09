@@ -29,6 +29,7 @@ export type QualityReason =
   | { kind: 'lowFps'; fps: number; wantFps: number }
   | { kind: 'noSqi' }
   | { kind: 'modelFallback' }
+  // The diabetes pattern's Full Scan floor (§11.4). Before owner answer 4 (2026-10-06) it tagged every Quick value.
   | { kind: 'quickMode' }
   | { kind: 'contact'; coveredPct: number }
   | { kind: 'fewBeats'; beats: number; wantBeats: number }
@@ -38,7 +39,12 @@ export type QualityReason =
   // §5.2: the phone's rating, not its frame rate, is below the tier the output needs.
   | { kind: 'phoneTier'; tier: Tier; wantTier: Tier }
   // No rhythm model or rule judged the rhythm, so RMSSD was computed without checking it is sinus (DSP-12).
-  | { kind: 'rhythmUnjudged' };
+  | { kind: 'rhythmUnjudged' }
+  // SQI-Net scored `windows` of its `total` windows under its threshold. Advisory (owner 2026-10-06): those
+  // seconds still count as clean, and this reason alone caps confidence at moderate instead of low.
+  | { kind: 'sqiFlagged'; windows: number; total: number }
+  // SQI-Net ran but no scored window covers `seconds` clean seconds, as when it stops partway (owner 2026-10-09).
+  | { kind: 'sqiUnscored'; seconds: number };
 // 'low': a standard floor failed and the same math ran on the beats there were.
 export type MetricQuality = 'standard' | 'low';
 // 'low' when any metric is; reasons are the union over the metrics, one per kind.
@@ -72,10 +78,10 @@ export interface HrMetric extends MetricQualityFields {
 }
 // §11.10: the rhythm model, or the logistic rule ("basic analysis") when the model could not run.
 export type RhythmScorer = 'model' | 'rule';
-// §11, DSP-15.
+// §11, DSP-15. class and pAF are null when a reading-wide window was too short to judge (ADR 0104 answer 5).
 export interface RhythmMetric extends MetricQualityFields {
-  class: RhythmClass;
-  pAF: number;
+  class: RhythmClass | null;
+  pAF: number | null;
   evidence: EvidenceLabel;
   scorer?: RhythmScorer; // absent in readings saved before the rule fallback: those were model-scored
   confidence: Confidence;
@@ -119,9 +125,14 @@ export interface LostSeconds {
   coldHands: number;
 }
 
+// A lower-quality heart rate under 40 or over 150 bpm: retake now, sitting still (owner 2026-10-06, ADR 0104
+// answer 2). Not the Emergency screen: SAFE-1 reads only the standard analysis.
+export type RetakePrompt = 'shortSlow' | 'shortFast';
+
 export interface ReadingResult {
   headlineKey: HeadlineKey;
   quality: ReadingQuality;
+  retakePrompt: RetakePrompt | null;
   cleanSeconds: number;
   beats: number;
   rejectedBeats: number;

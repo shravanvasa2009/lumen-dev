@@ -1,6 +1,5 @@
-import { Pressable } from 'react-native';
-
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { Icon, type IconName } from '@/components/Icon';
 import { useTheme } from '@/theme';
 
@@ -15,7 +14,7 @@ export function ContextChip({ label, icon, selected, onToggle }: ContextChipProp
   const { colors, spacing, radius, control } = useTheme();
   const textColor = selected ? colors.badgeCheckedFg : colors.text;
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="checkbox"
       accessibilityLabel={label}
       accessibilityState={{ checked: selected }}
@@ -34,6 +33,6 @@ export function ContextChip({ label, icon, selected, onToggle }: ContextChipProp
     >
       {icon ? <Icon name={icon} size={18} color={textColor} /> : null}
       <AppText style={{ color: textColor }}>{label}</AppText>
-    </Pressable>
+    </PressableScale>
   );
 }

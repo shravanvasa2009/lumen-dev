@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
@@ -46,7 +47,7 @@ export function WidgetPromo({ onDismiss }: { onDismiss: () => void }) {
   return (
     <Card>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-        <Pressable
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel={`${t('home.promoTitle')}. ${t('home.promoBody')}`}
           onPress={() => router.push('/settings/widgets')}
@@ -59,8 +60,8 @@ export function WidgetPromo({ onDismiss }: { onDismiss: () => void }) {
               {t('home.promoBody')}
             </AppText>
           </View>
-        </Pressable>
-        <Pressable
+        </PressableScale>
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel={t('home.promoDismiss')}
           onPress={onDismiss}
@@ -73,7 +74,7 @@ export function WidgetPromo({ onDismiss }: { onDismiss: () => void }) {
           }}
         >
           <Icon name="close" size={control.chevronSize} color={colors.textDim} />
-        </Pressable>
+        </PressableScale>
       </View>
     </Card>
   );

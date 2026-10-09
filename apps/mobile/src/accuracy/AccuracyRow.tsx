@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon, type IconName } from '@/components/Icon';
 import type { EvidenceMetric } from '@/evidence';
@@ -31,7 +32,7 @@ export function AccuracyRow({ metric, heading, icon, figures, last }: AccuracyRo
         borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
       }}
     >
-      <Pressable
+      <PressableScale
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(!open)}
@@ -52,7 +53,7 @@ export function AccuracyRow({ metric, heading, icon, figures, last }: AccuracyRo
         <View style={{ transform: [{ rotate: open ? '-90deg' : '90deg' }] }}>
           <Icon name="chevron" size={control.chevronSize} color={colors.textDim} />
         </View>
-      </Pressable>
+      </PressableScale>
       {open ? (
         <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.xs }}>
           {details.map((line) => (

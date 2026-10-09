@@ -428,8 +428,8 @@ describe('red team a88af8a: the rebase onto #171 kept the trigger (regression gu
   const evenThirty = evenFrames(30, TOTAL_S);
   const urgentOf = (run: Replay): UrgentHeartRate | null => readingOutcome(run.analysis).urgent;
 
-  // SQI-Net can neither raise nor suppress (ADR 0076 item 2): SQI 0.1 rejects every window, the outcome
-  // is inconclusive, and urgent is what SQI 0.9 and no SQI-Net give.
+  // SQI-Net can neither raise nor suppress (ADR 0076 item 2): urgent is the same with SQI 0.1, 0.9 and none.
+  // Since the owner made SQI-Net advisory (2026-10-06) SQI 0.1 rejects nothing, so every run is a reading.
   it.each([
     [170, { fastSustained: true, slowBelow40: false }],
     [72, null],
@@ -438,7 +438,7 @@ describe('red team a88af8a: the rebase onto #171 kept the trigger (regression gu
     for (const pClean of [0.1, 0.9, null]) {
       const run = replay(evenThirty, dicroticTrain(bpm, 0.3), 30, pClean);
       expect(urgentOf(run)).toEqual(expected);
-      expect(readingOutcome(run.analysis).kind).toBe(pClean === 0.1 ? 'inconclusive' : 'reading');
+      expect(readingOutcome(run.analysis).kind).toBe('reading');
     }
   });
 

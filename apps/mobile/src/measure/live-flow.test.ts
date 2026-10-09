@@ -199,10 +199,12 @@ describe('reading analysis of a kept capture', () => {
     if (!stored) throw new Error('the finished reading was not saved');
 
     renderRouter('./app', { initialUrl: `/results/${analysis.current.readingId}` });
-    // The bundled rhythm model or its rule judges a Quick Check too (ADR 0104), tagged lower quality as Quick.
+    // The bundled rhythm model or its rule judges a Quick Check too (ADR 0104), tagged for the 60 clean seconds it
+    // missed; Quick alone is no reason (owner answer 4).
     const { rhythm } = stored.outcome.metrics;
     expect(rhythm).toMatchObject({ quality: 'low' });
-    expect(rhythm!.qualityReasons).toContain('quickMode');
+    expect(rhythm!.qualityReasons).toContain('shortClean');
+    expect(rhythm!.qualityReasons).not.toContain('quickMode');
     expect(stored.outcome.quality.level).toBe('low');
     expect(stored.outcome.headlineKey).toBe(
       rhythm!.class === 'sinus' ? 'result.regular' : 'result.irregularRetake',

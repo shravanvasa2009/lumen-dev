@@ -24,7 +24,7 @@ jest.mock('@/evidence', () => {
   };
 });
 
-const mockRhythm = { unclear: false, ruleScored: false, low: false };
+const mockRhythm = { unclear: false, ruleScored: false, low: false, tooShort: false };
 jest.mock('./fixtures', () => {
   const actual = jest.requireActual('./fixtures');
   return {
@@ -39,6 +39,10 @@ jest.mock('./fixtures', () => {
           ...reading,
           scan: { ...reading.scan, quality, metrics: { ...reading.scan.metrics, rhythm } },
         };
+      }
+      if (mockRhythm.tooShort) {
+        const rhythm = { ...reading.scan.metrics.rhythm, class: null, pAF: null, flag: null };
+        return { ...reading, scan: { ...reading.scan, metrics: { ...reading.scan.metrics, rhythm } } };
       }
       if (!mockRhythm.unclear && !mockRhythm.ruleScored) return reading;
       const rhythm = mockRhythm.ruleScored
@@ -71,6 +75,7 @@ describe.each([
     mockRhythm.unclear = false;
     mockRhythm.ruleScored = false;
     mockRhythm.low = false;
+    mockRhythm.tooShort = false;
     mockEvidence.rhythmPublic = false;
   });
 
@@ -164,6 +169,15 @@ describe.each([
     expect(screen.getByText(en['why.explainOther'])).toBeOnTheScreen();
     expect(screen.queryByText(en['why.titleRegular'])).toBeNull();
     expect(screen.queryByText(en['why.explainRegular'])).toBeNull();
+  });
+
+  it('says a rhythm too short to judge is that, never regular or irregular (ADR 0104 answer 5)', () => {
+    mockRhythm.tooShort = true;
+    openWhy('demo');
+    expect(screen.getByRole('header', { name: en['results.rhythmTooShort'] })).toBeOnTheScreen();
+    expect(screen.getByText(en['why.explainTooShort'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['why.titleRegular'])).toBeNull();
+    expect(screen.queryByText(en['why.titleIrregular'])).toBeNull();
   });
 
   it('labels the irregular demo as synthetic', () => {

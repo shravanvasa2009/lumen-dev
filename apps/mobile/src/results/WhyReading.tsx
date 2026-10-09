@@ -46,11 +46,14 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
     );
   }
 
-  const why = {
-    af: { title: t('why.titleIrregular'), explain: t('why.explainIrregular') },
-    sinus: { title: t('why.titleRegular'), explain: t('why.explainRegular') },
-    other: { title: t('why.titleOther'), explain: t('why.explainOther') },
-  }[rhythm.class];
+  const why =
+    rhythm.class === null
+      ? { title: t('results.rhythmTooShort'), explain: t('why.explainTooShort') }
+      : {
+          af: { title: t('why.titleIrregular'), explain: t('why.explainIrregular') },
+          sinus: { title: t('why.titleRegular'), explain: t('why.explainRegular') },
+          other: { title: t('why.titleOther'), explain: t('why.explainOther') },
+        }[rhythm.class];
   const axis = intervalAxis(reading.intervalsMs);
   const seriesColor = rhythm.flag ? colors.flag : colors.accent;
   // The accent text colour fails contrast on the dark plot panel; the fill teal passes (tokens.json).

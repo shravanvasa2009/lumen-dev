@@ -72,6 +72,11 @@ export interface ReadingAnalysis {
   startNs: number;
   durationS: number; // first to last frame
   sqiAvailable: boolean;
+  // SQI-Net is advisory (owner 2026-10-06, superseding H-024's reject-only guard): windows scored under its
+  // threshold stay clean and are only counted here; null when it never ran.
+  sqiFlagged: { windows: number; total: number } | null;
+  // Clean seconds no scored SQI-Net window covers, as when it stops scoring partway; null when it never ran.
+  sqiUnscoredS: number | null;
   rejectedSpans: RejectedSpan[]; // seconds from the first frame, sorted by start
   cleanSeconds: number;
   lostSeconds: LostSeconds;
@@ -144,23 +149,42 @@ function exposureSpans(timebase: Timebase): RejectedSpan[] {
   return spans;
 }
 
-// The accelerometer and cold-hands spans, and SQI-Net's rejected windows kept apart.
-function callerSpans(context: ReadingContext, startNs: number) {
+// The accelerometer and cold-hands spans.
+function sensorSpans(context: ReadingContext, startNs: number): RejectedSpan[] {
   const seconds = (tNs: number) => (tNs - startNs) / 1e9;
   const fromNs = (spans: NsSpan[], reason: RejectionReason) =>
     spans.map((span): RejectedSpan => ({ startS: seconds(span.startNs), endS: seconds(span.endNs), reason }));
-  const motion = fromNs(context.motionSpans, 'motion');
-  const coldHands = fromNs(context.coldHandsSpans, 'coldHands');
+  return [...fromNs(context.motionSpans, 'motion'), ...fromNs(context.coldHandsSpans, 'coldHands')];
+}
+
+// Owner 2026-10-06 ("Advisory + tag"): SQI-Net v1 accepted about 64% of clean development windows, and each
+// window it vetoed stopped the clean count. Its scores now reject nothing; the reading counts the windows under
+// the threshold, and buildReadingResult tags the reading with them.
+function sqiFlaggedWindows(sqi: SqiScores | null): ReadingAnalysis['sqiFlagged'] {
+  if (sqi === null) return null;
+  const windows = sqi.windows.filter((window) => window.pClean < sqi.threshold).length;
+  return { windows, total: sqi.windows.length };
+}
+
+// Owner 2026-10-09: a rate SQI-Net never looked at is tagged, so the clean time outside every scored window
+// [endS − modelWindowS, endS] is counted.
+function sqiUnscoredSeconds(
+  sqi: SqiScores | null,
+  startNs: number,
+  durationS: number,
+  rejectedSpans: RejectedSpan[],
+): number | null {
+  if (sqi === null) return null;
   const windowS = DSP_CONFIG.dsp3.modelWindowS;
-  const { sqi } = context;
-  const quality = (sqi?.windows ?? [])
-    .filter((window) => sqi !== null && window.pClean < sqi.threshold)
-    .map((window): RejectedSpan => ({
-      startS: seconds(window.endNs) - windowS,
-      endS: seconds(window.endNs),
-      reason: 'quality',
-    }));
-  return { sensors: [...motion, ...coldHands], sqiNet: quality };
+  const ends = sqi.windows.map((window) => (window.endNs - startNs) / 1e9).sort((x, y) => x - y);
+  let unscored = 0;
+  let scoredToS = 0;
+  for (const endS of [...ends, durationS + windowS]) {
+    const gapEndS = Math.min(endS - windowS, durationS);
+    if (gapEndS > scoredToS) unscored += cleanSeconds(scoredToS, gapEndS, rejectedSpans);
+    scoredToS = Math.max(scoredToS, endS);
+  }
+  return unscored;
 }
 
 // ADR 0023 flat windows (at the live session's once-per-second checks) and ADR 0057 flat runs, found
@@ -398,12 +422,16 @@ export function analyzeReading(
   const timebase = buildTimebase(capture.samples, capture.stats);
   const durationS = timebase.tS[timebase.tS.length - 1]!;
   const modelRan = context.sqi !== null;
-  const caller = callerSpans(context, timebase.startNs);
   const frameQuality = frameQualitySpans(timebase, capture.samples, capture.stats, modelRan);
-  const otherSpans = [...exposureSpans(timebase), ...caller.sensors, ...caller.sqiNet, ...frameQuality.all];
-  // The §10.1 emergency view leaves out SQI-Net's spans (ADR 0076 item 2) and the frame-floor windows
-  // (owner, "242 A"), so neither an AI output nor the frame floor can raise or hide the trigger.
-  const notInEmergencySpans = new Set([...caller.sqiNet, ...frameQuality.unscored, ...frameQuality.sparse]);
+  const otherSpans = [
+    ...exposureSpans(timebase),
+    ...sensorSpans(context, timebase.startNs),
+    ...frameQuality.all,
+  ];
+  // The §10.1 emergency view leaves out the windows SQI-Net could not score (ADR 0076 item 2) and the
+  // frame-floor windows (owner, "242 A"), so neither the model's presence nor the frame floor can raise or hide
+  // the trigger. SQI-Net's scores reject nothing anywhere (owner 2026-10-06).
+  const notInEmergencySpans = new Set([...frameQuality.unscored, ...frameQuality.sparse]);
   const emergencyView = modelRan || frameQuality.sparse.length > 0;
   const inEmergencyView = (span: RejectedSpan) => !notInEmergencySpans.has(span);
   const byStart = (x: RejectedSpan, y: RejectedSpan) => x.startS - y.startS;
@@ -450,6 +478,8 @@ export function analyzeReading(
     startNs: timebase.startNs,
     durationS,
     sqiAvailable: modelRan,
+    sqiFlagged: sqiFlaggedWindows(context.sqi),
+    sqiUnscoredS: sqiUnscoredSeconds(context.sqi, timebase.startNs, durationS, rejectedSpans),
     rejectedSpans,
     cleanSeconds: clean,
     lostSeconds: lostSecondsOf(rejectedSpans, durationS),

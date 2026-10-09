@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
+import type { ReadingResult } from '@lumen/core';
+
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
@@ -77,6 +79,9 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   // Null when the cause is the signal itself, which keeps "Not enough clean signal".
   const knownMissing = missingReasonText(t, quality.reasons) ?? undefined;
   const acuteFlag = Boolean(hr?.flag) || Boolean(rhythm?.flag);
+  // Owner 2026-10-06 (ADR 0104 answer 2): a short reading's rate under 40 or over 150 bpm. Not the Emergency
+  // screen; readings saved before the field have none.
+  const retake = (scan.retakePrompt as ReadingResult['retakePrompt'] | undefined) ?? null;
 
   // ADR 0046, §12.5: the amber card needs the flag and a passed accuracy criterion. Without the passed
   // criterion the estimate gets the quiet Experimental card (ADR 0082); with it and no flag, nothing is shown.
@@ -86,7 +91,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const [sheetOpen, setSheetOpen] = useState(anyFlag && !symptomsAskedFor(reading.id));
   useEffect(() => clearSymptomsAsked(reading.id), [reading.id]);
 
-  const hrvMissingText = !rhythm
+  const hrvMissingText = !rhythm?.class
     ? t('quality.missingNoRhythm')
     : rhythm.class !== 'sinus'
       ? t('quality.missingNotSinus')
@@ -155,6 +160,30 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
             {quality.level === 'low' ? <LowerQualityTag reasons={quality.reasons} /> : null}
           </HeadlineCard>
         </Reveal>
+
+        {retake ? (
+          <Reveal index={1}>
+            <View
+              accessibilityRole="alert"
+              style={{
+                backgroundColor: colors.flagBg,
+                borderColor: colors.flag,
+                borderWidth: 1,
+                borderRadius: radius.card,
+                padding: spacing.lg,
+                gap: spacing.sm,
+              }}
+            >
+              <AppText variant="headline">
+                {retake === 'shortSlow' ? t('results.retakeShortSlow') : t('results.retakeShortFast')}
+              </AppText>
+              <Button
+                label={t('results.retakeNow')}
+                onPress={() => router.replace(`/measure/capture?mode=${reading.mode}`)}
+              />
+            </View>
+          </Reveal>
+        ) : null}
 
         {acuteFlag ? (
           <Reveal index={1}>

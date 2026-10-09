@@ -150,12 +150,13 @@ describe('red team: periodic stalls (thermal throttling) reach the mode target w
     );
   });
 
-  // SQI veto: every window scored 0. b146460 140 s Quick: 29.37 saved clean s from no clean window
-  // (inconclusive only because no heart rate survives); 808f37c 0.77. Full (90 s) is not reached within
-  // the 360 s, 13 500-frame reading cap: 420 s of the same gives 70.53 clean s on b146460.
-  it('every scored window vetoed (pClean 0): almost no clean seconds', () => {
-    const { analysis } = replay(periodicStalls(5, 3.84, 0.16, 140), 0, 'quick');
-    expect(analysis.cleanSeconds).toBeLessThan(1);
+  // Every window scored 0. Before the owner made SQI-Net advisory (2026-10-06) this was a veto: 808f37c 0.77
+  // clean s. Now the scores reject nothing: the clean count is the 0.9 run's, and every scored window is flagged.
+  it('every scored window scored 0: the 0.9 clean count, every scored window flagged', () => {
+    const { analysis, scoredEnds } = replay(periodicStalls(5, 3.84, 0.16, 140), 0, 'quick');
+    const { analysis: passing } = replay(periodicStalls(5, 3.84, 0.16, 140), 0.9, 'quick');
+    expect(analysis.cleanSeconds).toBeCloseTo(passing.cleanSeconds, 9);
+    expect(analysis.sqiFlagged).toEqual({ windows: scoredEnds.length, total: scoredEnds.length });
   });
 });
 

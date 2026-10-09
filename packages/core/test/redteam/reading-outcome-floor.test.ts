@@ -187,8 +187,12 @@ describe('red team: seconds around a finger lift (47b95bb unscoredSpan from the 
     expect(liveCleanS).toBeCloseTo(analysis.cleanSeconds, 9);
   });
 
-  it('0.2 s lifts every 3 s with every window vetoed (pClean 0): nothing clean', () => {
-    expect(replay(repeated, 75, 0).analysis.cleanSeconds).toBe(0);
+  // Advisory SQI-Net (owner 2026-10-06): scores of 0 reject nothing, so the clean count is the 0.9 one, and the
+  // lifts are still not clean.
+  it('0.2 s lifts every 3 s with every window scored 0: the same clean seconds as at 0.9', () => {
+    const vetoed = replay(repeated, 75, 0).analysis;
+    expect(vetoed.cleanSeconds).toBeCloseTo(replay(repeated, 75, 0.9).analysis.cleanSeconds, 9);
+    for (const [fromS, toS] of repeatedLifts) expect(cleanSeconds(fromS, toS, vetoed.rejectedSpans)).toBe(0);
   });
 });
 

@@ -261,11 +261,12 @@ describe('red team v2 SAFE-1: withoutSqiNet', () => {
     SLOW_TEST_MS,
   );
 
-  it('170 bpm for 75 s with every SQI-Net window rejected: inconclusive, urgent.fastSustained', () => {
+  // Advisory SQI-Net (owner 2026-10-06): every window scored 0.1 rejects nothing, so this is a reading.
+  it('170 bpm for 75 s with every SQI-Net window scored low: a reading, urgent.fastSustained', () => {
     const capture = captureAt(regularOffsets(30, 75), regular(170, 75));
     const windows = sqiWindows(capture, 75, () => 0.1);
     const outcome = readingOutcome(analyzeReading(capture, { ...CONTEXT, sqi: { threshold: 0.5, windows } }));
-    expect(outcome).toMatchObject({ kind: 'inconclusive', urgent: { fastSustained: true } });
+    expect(outcome).toMatchObject({ kind: 'reading', urgent: { fastSustained: true } });
   });
 
   // Measured 745 ms with sqi null and 664 ms with SQI-Net (DSP-9 twice) on this PC; the bound only catches a

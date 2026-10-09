@@ -63,3 +63,23 @@ export function outcomeOf(
     throw error;
   }
 }
+
+// A covered lens with no pulse: Gaussian noise of `amplitude` (0.006 is a 1% pulse's size) per frame on a 0.6
+// red level, through a one-pole low-pass of pole `smoothing` (0 is white; 0.8 and 0.95 move its energy into the
+// pulse band, like tremor and slow drift).
+export function coveredNoise(
+  fps: number,
+  seconds: number,
+  seed: number,
+  amplitude: number,
+  smoothing: number,
+): Channels {
+  const normal = seededNormal(seed);
+  const smoothed: number[] = [];
+  let level = 0;
+  for (let k = 0; k < fps * (seconds + 2); k++) {
+    level = smoothing * level + (1 - smoothing) * normal();
+    smoothed.push(level);
+  }
+  return (tS) => ({ r: 0.6 + amplitude * smoothed[Math.round(tS * fps)]!, g: 0.1, b: 0.05 });
+}

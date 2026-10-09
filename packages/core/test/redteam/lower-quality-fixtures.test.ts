@@ -17,7 +17,8 @@ import { parityInput, parityMorphology, rhythmAttacks } from './lower-quality-ba
 
 // The fixtures ml/tests/redteam/test_redteam_lower_quality.py reads must be what core makes from
 // lower-quality-battery.ts today: the parity inputs and TypeScript outputs (§10.2), and the rhythm model rows
-// of the Quick, sub-60 s, and few-second captures it scores with the shipped models.
+// of the Quick, sub-60 s, and few-second captures it scores with the shipped models, with the reading-wide window's
+// interval count that decides whether a row may give a class (ADR 0104 answer 5).
 
 describe('red team ADR 0104: the parity fixture is core’s output on lower-quality-battery inputs', () => {
   it.each(parityFixture.cases.map((entry) => [entry.input.seed, entry]))('seed %i', (seed, entry) => {
@@ -67,6 +68,7 @@ describe('red team ADR 0104: the rhythm-row fixture is core’s rows for the rhy
     (_, attack, entry) => {
       const analysis = analyzeReading(attack.build(), attack.context);
       expect(analysis.rhythmFeatures.length > 0).toBe(entry.standardRows);
+      expect(analysis.lowQuality.rhythmWindow?.intervalsS.length ?? null).toBe(entry.windowIntervals);
       const rows = rhythmModelRows(analysis);
       expect(rows.length).toBe(entry.rows.length);
       rows.forEach((row, r) => row.forEach((value, f) => expect(value).toBeCloseTo(entry.rows[r]![f]!, 12)));

@@ -323,18 +323,16 @@ describe('red team: the live ring completes, then a late rejection leaves the ca
   // live.minFlatS plus the capture screen's latency for a flat stretch. Frame gaps cannot cause it: a gap
   // span arrives with the frame that ends it (the gap tests above), and the unscored spans after a gap
   // start at that frame (reading-outcome-edges.test.ts).
-  it('the last window scored unclean after the ring reached 30 s: shortfall ≤ one 4 s window', () => {
+  // Advisory SQI-Net (owner 2026-10-06): a late low score leaves no shortfall at all; it only flags a window.
+  it('the last window scored unclean after the ring reached 30 s: no shortfall, one flagged window', () => {
     const capture = captureAt(regularOffsets(30, 30.05), pulse);
     const session = replay(capture, { score: (endS) => (endS < 29 ? 0.9 : null) });
     expect(session.cleanSeconds).toBeGreaterThanOrEqual(30);
     session.setSqi(session.sqiWindow!.endS, 0.1);
     const saved = savedFrom(session, 'quick');
-    expect(session.cleanSeconds).toBeGreaterThanOrEqual(30);
-    expect(saved.cleanSeconds).toBeLessThan(30);
+    expect(saved.cleanSeconds).toBeCloseTo(session.cleanSeconds, 9);
+    expect(saved.sqiFlagged!.windows).toBe(1);
     expect(readingOutcome(saved).kind).toBe('reading');
-    const shortfallS = session.cleanSeconds - saved.cleanSeconds;
-    expect(shortfallS).toBeGreaterThan(0);
-    expect(shortfallS).toBeLessThanOrEqual(DSP_CONFIG.dsp3.modelWindowS);
   });
 
   it('red frozen from 28.5 s, ring at 30 s, stopped 0.5 s later: shortfall ≤ minFlatS + 0.5 s', () => {

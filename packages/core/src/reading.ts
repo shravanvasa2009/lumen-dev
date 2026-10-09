@@ -160,6 +160,23 @@ function sensorSpans(context: ReadingContext, startNs: number): RejectedSpan[] {
 // Owner 2026-10-06 ("Advisory + tag"): SQI-Net v1 accepted about 64% of clean development windows, and each
 // window it vetoed stopped the clean count. Its scores now reject nothing; the reading counts the windows under
 // the threshold, and buildReadingResult tags the reading with them.
+// Red team on #308: the scored windows inside the reading, each once by its lowest score, so repeats, their order,
+// and windows outside the frames cannot dilute the flagged share. A window any score flagged counts as flagged.
+function sqiWindowsInside(sqi: SqiScores | null, startNs: number, durationS: number): SqiScores | null {
+  if (sqi === null) return null;
+  const windowS = DSP_CONFIG.dsp3.modelWindowS;
+  const lowest = new Map<number, number>();
+  for (const { endNs, pClean } of sqi.windows) {
+    const endS = (endNs - startNs) / 1e9;
+    if (endS - windowS < 0 || endS > durationS) continue;
+    lowest.set(endNs, Math.min(pClean, lowest.get(endNs) ?? pClean));
+  }
+  return {
+    threshold: sqi.threshold,
+    windows: Array.from(lowest, ([endNs, pClean]) => ({ endNs, pClean })),
+  };
+}
+
 function sqiFlaggedWindows(sqi: SqiScores | null): ReadingAnalysis['sqiFlagged'] {
   if (sqi === null) return null;
   const windows = sqi.windows.filter((window) => window.pClean < sqi.threshold).length;
@@ -422,6 +439,7 @@ export function analyzeReading(
   const timebase = buildTimebase(capture.samples, capture.stats);
   const durationS = timebase.tS[timebase.tS.length - 1]!;
   const modelRan = context.sqi !== null;
+  const scoredWindows = sqiWindowsInside(context.sqi, timebase.startNs, durationS);
   const frameQuality = frameQualitySpans(timebase, capture.samples, capture.stats, modelRan);
   const otherSpans = [
     ...exposureSpans(timebase),
@@ -478,8 +496,8 @@ export function analyzeReading(
     startNs: timebase.startNs,
     durationS,
     sqiAvailable: modelRan,
-    sqiFlagged: sqiFlaggedWindows(context.sqi),
-    sqiUnscoredS: sqiUnscoredSeconds(context.sqi, timebase.startNs, durationS, rejectedSpans),
+    sqiFlagged: sqiFlaggedWindows(scoredWindows),
+    sqiUnscoredS: sqiUnscoredSeconds(scoredWindows, timebase.startNs, durationS, rejectedSpans),
     rejectedSpans,
     cleanSeconds: clean,
     lostSeconds: lostSecondsOf(rejectedSpans, durationS),

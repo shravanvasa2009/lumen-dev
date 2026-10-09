@@ -138,11 +138,12 @@ describe('red team PR #299: rhythm flags from noise SQI-Net flagged everywhere',
     expect(flagged.rhythmFeatures.length).toBe(1);
   });
 
-  // Found by red team (ADR 0104 question 6 asked about noise's "flags"; the 2026-10-09 ruling covers the heart
-  // rate). Observed: with the shipped rhythm-lgbm and with the app's rule fallback (rhythm-logistic, P(AF) 0.980),
-  // pure noise flagged in all 91 windows read "irregular", and with one positive an hour before "Possible AFib".
-  // Before PR #299 SQI-Net rejected these windows and the capture was inconclusive. Now a reading SQI-Net flagged
-  // mostly (rules.rhythmMaxSqiFlaggedShare, pending owner confirmation) gets the "too short to judge" card.
+  // Found by red team (ADR 0104 question 6 asked about noise's "flags"). Observed: with the shipped rhythm-lgbm and
+  // with the app's rule fallback (rhythm-logistic, P(AF) 0.980), pure noise flagged in all 91 windows reads
+  // "irregular", and with one positive an hour before "Possible AFib". Before PR #299 SQI-Net rejected these
+  // windows and the capture was inconclusive. c93617d then gave such a reading no rhythm class; the owner reverted
+  // that on 2026-10-09: "dont keep that, state the result but state that its low quality". The call must show
+  // tagged sqiFlagged, at no more than moderate confidence, so the card never presents it as a standard result.
   it.each([
     ['rhythm-lgbm', (analysis: ReadingAnalysis) => lgbmOn(analysis)],
     [
@@ -152,7 +153,7 @@ describe('red team PR #299: rhythm flags from noise SQI-Net flagged everywhere',
         scorer: 'rule',
       }),
     ],
-  ])('%s: no rhythm flag on noise SQI-Net flagged everywhere', (_, outputs) => {
+  ])('%s: the rhythm flag on noise SQI-Net flagged everywhere is tagged lower quality', (_, outputs) => {
     const built = buildReadingResult(
       flagged,
       { rhythm: outputs(flagged), diabetes: null },
@@ -160,9 +161,13 @@ describe('red team PR #299: rhythm flags from noise SQI-Net flagged everywhere',
       NO_FLAGS,
       BATTERY_HISTORY,
     );
-    expect(built.metrics.rhythm).toMatchObject({ class: null, pAF: null, flag: null, quality: 'low' });
-    expect(built.metrics.rhythm!.qualityReasons).toContain('sqiFlagged');
-    expect(built.headlineKey).toBe('result.hrOnly');
+    const rhythm = built.metrics.rhythm!;
+    expect(rhythm.class).not.toBeNull();
+    expect(rhythm.flag).not.toBeNull();
+    expect(rhythm.quality).toBe('low');
+    expect(rhythm.qualityReasons).toContain('sqiFlagged');
+    expect(rhythm.confidence).not.toBe('high');
+    expect(built.quality.reasons).toContainEqual({ kind: 'sqiFlagged', windows: 91, total: 91 });
   });
 });
 

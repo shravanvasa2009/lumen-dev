@@ -96,10 +96,15 @@ function graded(
   return { ...tag(reasons), confidence: floorMissed ? ('low' as const) : confidence };
 }
 
-// Owner 2026-10-06 ("Advisory + tag"): every value is read from beats SQI-Net may have flagged.
+// Owner 2026-10-06 ("Advisory + tag"): every value is read from beats SQI-Net may have flagged. Owner 2026-10-09:
+// "make the standards for a good reading lower", so only a reading flagged in at least the share is tagged.
 function sqiReasons(analysis: ReadingAnalysis): QualityReason[] {
   const flagged = analysis.sqiFlagged;
-  return flagged && flagged.windows > 0 ? [{ kind: 'sqiFlagged', ...flagged }] : [];
+  const mostlyFlagged =
+    flagged !== null &&
+    flagged.total > 0 &&
+    flagged.windows / flagged.total >= DSP_CONFIG.dsp3.sqiFlaggedTagShare;
+  return mostlyFlagged ? [{ kind: 'sqiFlagged', ...flagged }] : [];
 }
 
 // Owner 2026-10-09: "A fingertip held over pure noise showing a heart rate, should be tagged as low quality."
@@ -288,15 +293,9 @@ function readingRhythmProbs(
   });
   // Owner 2026-10-06 (ADR 0104 answer 5): a reading-wide window under rhythmClassMinIntervals gives no class.
   const wide = analysis.lowQuality.rhythmWindow;
-  const flagged = analysis.sqiFlagged;
-  // Red team on #299: the rhythm models call pure noise AF, and advisory SQI-Net no longer removes it, so a
-  // reading SQI-Net flagged mostly gets no class either.
-  const mostlyFlagged =
-    flagged !== null &&
-    flagged.total > 0 &&
-    flagged.windows / flagged.total > DSP_CONFIG.rules.rhythmMaxSqiFlaggedShare;
-  const judged =
-    !mostlyFlagged && (analysis.rhythmFeatures.length > 0 || wide === null || judgesRhythm(wide));
+  // Owner 2026-10-09 reverted c93617d's "no class" rule for a mostly flagged reading: "dont keep that, state the
+  // result but state that its low quality". sqiReasons tags it.
+  const judged = analysis.rhythmFeatures.length > 0 || wide === null || judgesRhythm(wide);
   return { probs, judged, reasons };
 }
 

@@ -20,6 +20,11 @@ export const DSP_CONFIG = {
     // running and the last score can still be running at the stop, which leaves less; SQI-Net that stopped
     // partway (red team on #299: 85 of 95 s) leaves more.
     sqiUnscoredMaxS: 4,
+    // Owner 2026-10-09: "make the standards for a good reading lower". A reading is tagged sqiFlagged only when
+    // at least this share of its scored windows is flagged; below it SQI-Net leaves it standard. 0.5, at or above
+    // half, is the main session's safe default pending the owner's check of the number (ADR 0104; red team on
+    // #308: half noise read standard and high under a strict ">").
+    sqiFlaggedTagShare: 0.5,
   },
   // Spec initial values (§10 DSP-4): a frame is covered when all four hold. A frame failing only the clip
   // limit is a "clipping" span, any other failure a "coverage" span (ADR 0041).
@@ -182,10 +187,6 @@ export const DSP_CONFIG = {
     fastRegularMaxNormalizedRmssd: 0.03, // strictly below
     rhythmMinCleanS: 60, // irregular rhythm; also needs dsp15.minUsableIntervals
     uncertainBelowTopProb: 0.6, // "Couldn't tell — retake"
-    // Pending owner confirmation. Red team on #299: rhythm-lgbm and rhythm-logistic put P(AF) ≥ 0.8 on 43 and 53
-    // of 72 captures of pure covered-lens noise, which advisory SQI-Net (owner 2026-10-06) no longer rejects. A
-    // reading with more than this share of its scored windows flagged gets no rhythm class or flag.
-    rhythmMaxSqiFlaggedShare: 0.5,
     // §11.1 Rhythm-Net output check (initial): each window's sinus, af, other must sum to 1 within this.
     // ONNX Runtime returns float32 softmax rows, whose sums are off by a few 1e-7.
     rhythmRowSumTolerance: 1e-5,

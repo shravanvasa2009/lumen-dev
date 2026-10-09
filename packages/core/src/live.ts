@@ -226,8 +226,15 @@ class Session implements LiveSession {
       throw new RangeError(`window end ${windowEndS} s is not a whole ns; pass sqiWindow.endS unchanged`);
     if (!(pClean >= 0 && pClean <= 1)) throw new RangeError(`P(clean) must be in [0, 1], got ${pClean}`);
     this.modelRan = true;
+    // Red team on #308: a repeated window would dilute the flagged share, so it keeps its lowest score, which
+    // flags it if any score does, whatever the order.
+    const repeated = this.scores.find((score) => score.endS === windowEndS);
+    if (repeated) {
+      repeated.pClean = Math.min(repeated.pClean, pClean);
+      return;
+    }
     // Advisory (owner 2026-10-06, superseding H-024's reject-only guard): a low score is kept for the reading's
-    // sqiFlagged tag and never stops the clean count.
+    // sqiFlagged tag (dsp3.sqiFlaggedTagShare) and never stops the clean count.
     this.scores.push({ endS: windowEndS, pClean });
   }
 

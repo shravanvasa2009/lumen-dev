@@ -140,7 +140,7 @@ describe('red team PR #308: the share counts each SQI-Net window once', () => {
   // analyzeReading refuses a second score for the same window. Observed: noise with all 91 windows flagged, each
   // window scored again at P(clean) 0.9, counts 91 of 182 (0.5), so the noise rate is standard and high and the
   // Possible AFib card standard and high. Under the old any-window rule a duplicate changed nothing. Fixed: each
-  // window counts once, by its first score, in analyzeReading and in LiveSession.setSqi.
+  // window counts once, by its lowest score, in analyzeReading and in LiveSession.setSqi.
   it('a second score for a window SQI-Net already flagged does not dilute the share (analyzeReading)', () => {
     const startNs = analyzeReading(noiseCapture(), FULL_30).startNs;
     const once = sqiScores(startNs, 91, () => true);
@@ -196,8 +196,9 @@ describe('red team PR #308 at c420d64: variants near the fixed share', () => {
   // Found by red team on PR #308 at c420d64. "First score wins" depends on the order the scores arrive in. Observed:
   // noise with every window flagged (P(clean) 0.1), but a clean 0.9 score for each window listed first, counts 0 of
   // 91 flagged; the same scores in the other order count 91 of 91. A window any score flagged should count as
-  // flagged, whatever the order, so a reading cannot be made standard by the order of its scores.
-  it.failing('a clean score arriving before a flagged one for the same window does not hide the flag', () => {
+  // flagged, whatever the order, so a reading cannot be made standard by the order of its scores. Fixed: each
+  // window keeps its lowest score, in analyzeReading and LiveSession.setSqi.
+  it('a clean score arriving before a flagged one for the same window does not hide the flag', () => {
     const flaggedScores = sqiScores(startNs, 91, () => true);
     const cleanFirst: SqiScores = {
       threshold: THRESHOLD,
@@ -211,18 +212,26 @@ describe('red team PR #308 at c420d64: variants near the fixed share', () => {
 
   // Found by red team on PR #308 at c420d64. Observed: 91 flagged windows inside the 95 s reading plus 91 clean
   // windows that end after it (96 to 186 s) count 91 of 182, so the noise reading is untagged. LiveSession.setSqi
-  // refuses a window outside the reading; analyzeReading counts it.
-  it.failing('scores for windows outside the reading do not dilute the share (analyzeReading)', () => {
+  // refuses a window outside the reading; analyzeReading counted it. Fixed: analyzeReading counts only windows
+  // that start at or after the first frame and end by the last.
+  it('scores for windows outside the reading do not dilute the share (analyzeReading)', () => {
     const inside = sqiScores(startNs, 91, () => true);
     const after = Array.from({ length: 91 }, (_, k) => ({ endNs: startNs + (96 + k) * 1e9, pClean: 0.9 }));
-    const outcome = (() => {
-      try {
-        return scoredNoise({ threshold: THRESHOLD, windows: [...inside.windows, ...after] }).sqiFlagged;
-      } catch (error) {
-        if (error instanceof RangeError) return 'RangeError';
-        throw error;
-      }
-    })();
-    if (outcome !== 'RangeError') expect(outcome).toEqual({ windows: 91, total: 91 });
+    const before = { endNs: startNs + 3e9, pClean: 0.9 };
+    const windows = [...inside.windows, ...after, before];
+    expect(scoredNoise({ threshold: THRESHOLD, windows }).sqiFlagged).toEqual({ windows: 91, total: 91 });
+  });
+
+  it('a clean score after a flagged one for the same window keeps it flagged (LiveSession.setSqi)', () => {
+    const session = createLiveSession({
+      captureFps: 30,
+      sqiThreshold: THRESHOLD,
+      perfusionFloorPct: DSP_CONFIG.live.defaultPerfusionFloorPct,
+    });
+    const capture = noiseCapture();
+    session.pushSamples({ samples: capture.samples.slice(0, 300), stats: capture.stats.slice(0, 300) });
+    session.setSqi(8, 0.9);
+    session.setSqi(8, 0.1);
+    expect(session.readingInput().sqi!.windows).toEqual([expect.objectContaining({ pClean: 0.1 })]);
   });
 });

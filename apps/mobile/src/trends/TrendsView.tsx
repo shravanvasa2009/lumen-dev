@@ -8,6 +8,7 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { ListRow } from '@/components/ListRow';
+import { Reveal, ValueSettle } from '@/components/Reveal';
 import { DemoBanner } from '@/results/DemoBanner';
 import { readingById } from '@/results/fixtures';
 import { formatClock, formatDay } from '@/results/format';
@@ -76,18 +77,20 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
   return (
     <>
       {demo ? (
-        <>
+        <Reveal>
           <DemoBanner synthetic={false} />
           <AppText variant="caption" tone="textDim">
             {t('trends.demoNote')}
           </AppText>
-        </>
+        </Reveal>
       ) : null}
       {readings.length === 0 ? (
-        <Card>
-          <AppText variant="headline">{t('trends.emptyTitle')}</AppText>
-          <AppText tone="textDim">{t('trends.emptyBody')}</AppText>
-        </Card>
+        <Reveal>
+          <Card>
+            <AppText variant="headline">{t('trends.emptyTitle')}</AppText>
+            <AppText tone="textDim">{t('trends.emptyBody')}</AppText>
+          </Card>
+        </Reveal>
       ) : (
         <>
           <Segmented
@@ -104,29 +107,31 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
             selected={metric}
             onSelect={setMetric}
           />
-          <Card>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <AppText variant="headline">{metricName(t, metric)}</AppText>
-              <EvidenceBadge metric={metric} />
-            </View>
-            {first && last ? (
-              <TrendChart
-                points={points}
-                band={series.band}
-                label={t('trends.chartLabel', { metric: metricName(t, metric), count: points.length })}
-                firstLabel={dayLabel(first.createdAt)}
-                lastLabel={dayLabel(last.createdAt)}
-              />
-            ) : (
-              <AppText tone="textDim">{t('trends.noneInRange')}</AppText>
-            )}
-            {series.baselineCount > 0 && !series.band ? (
-              <AppText variant="caption" tone="textDim">
-                {t('trends.learning', { count: series.baselineCount, total: learningReadings })}
-              </AppText>
-            ) : null}
-          </Card>
-          <View style={{ flexDirection: 'row', gap: spacing.md }}>
+          <ValueSettle value={`${metric}-${range}`}>
+            <Card>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <AppText variant="headline">{metricName(t, metric)}</AppText>
+                <EvidenceBadge metric={metric} />
+              </View>
+              {first && last ? (
+                <TrendChart
+                  points={points}
+                  band={series.band}
+                  label={t('trends.chartLabel', { metric: metricName(t, metric), count: points.length })}
+                  firstLabel={dayLabel(first.createdAt)}
+                  lastLabel={dayLabel(last.createdAt)}
+                />
+              ) : (
+                <AppText tone="textDim">{t('trends.noneInRange')}</AppText>
+              )}
+              {series.baselineCount > 0 && !series.band ? (
+                <AppText variant="caption" tone="textDim">
+                  {t('trends.learning', { count: series.baselineCount, total: learningReadings })}
+                </AppText>
+              ) : null}
+            </Card>
+          </ValueSettle>
+          <Reveal style={{ flexDirection: 'row', gap: spacing.md }}>
             <Tile
               title={t('trends.median')}
               value={series.median === null ? '—' : metricValue(t, metric, series.median)}
@@ -136,44 +141,46 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
               value={series.band ? `${Math.round(series.band.low)}–${Math.round(series.band.high)}` : '—'}
             />
             <Tile title={t('trends.readings')} value={String(points.length)} />
-          </View>
+          </Reveal>
           {rows.length > 0 ? (
-            <Card flush>
-              {rows
-                .slice(-recentRows)
-                .reverse()
-                .map((point, index, shown) => {
-                  const word = point.flaggedLow
-                    ? t('quality.marked', { value: rhythmClassWords(t, point.flaggedLow).value })
-                    : point.rhythm
-                      ? rhythmClassWords(t, point.rhythm).value
-                      : null;
-                  const value = point.value === null ? null : metricValue(t, metric, point.value);
-                  // Saved readings always open. Sample rows open only when a fixture has that id.
-                  const fixture = demo ? readingById(point.id) : undefined;
-                  const opens = !demo || fixture !== undefined;
-                  const clock = formatClock(point.createdAt, i18n.language);
-                  const when = isToday(point.createdAt)
-                    ? t('trends.todayAt', { time: clock })
-                    : t('results.dayAt', { day: formatDay(point.createdAt, i18n.language), time: clock });
-                  return (
-                    <ListRow
-                      key={point.id}
-                      title={when}
-                      last={index === shown.length - 1}
-                      chevron={opens}
-                      onPress={opens ? () => router.push(`/results/${point.id}`) : undefined}
-                      trailing={
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-                          {fixture?.synthetic ? <SyntheticTag /> : null}
-                          {point.caffeine ? <CupIcon size={16} color={colors.flag} /> : null}
-                          <AppText tone="textDim">{[value, word].filter(Boolean).join(' · ')}</AppText>
-                        </View>
-                      }
-                    />
-                  );
-                })}
-            </Card>
+            <Reveal>
+              <Card flush>
+                {rows
+                  .slice(-recentRows)
+                  .reverse()
+                  .map((point, index, shown) => {
+                    const word = point.flaggedLow
+                      ? t('quality.marked', { value: rhythmClassWords(t, point.flaggedLow).value })
+                      : point.rhythm
+                        ? rhythmClassWords(t, point.rhythm).value
+                        : null;
+                    const value = point.value === null ? null : metricValue(t, metric, point.value);
+                    // Saved readings always open. Sample rows open only when a fixture has that id.
+                    const fixture = demo ? readingById(point.id) : undefined;
+                    const opens = !demo || fixture !== undefined;
+                    const clock = formatClock(point.createdAt, i18n.language);
+                    const when = isToday(point.createdAt)
+                      ? t('trends.todayAt', { time: clock })
+                      : t('results.dayAt', { day: formatDay(point.createdAt, i18n.language), time: clock });
+                    return (
+                      <ListRow
+                        key={point.id}
+                        title={when}
+                        last={index === shown.length - 1}
+                        chevron={opens}
+                        onPress={opens ? () => router.push(`/results/${point.id}`) : undefined}
+                        trailing={
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                            {fixture?.synthetic ? <SyntheticTag /> : null}
+                            {point.caffeine ? <CupIcon size={16} color={colors.flag} /> : null}
+                            <AppText tone="textDim">{[value, word].filter(Boolean).join(' · ')}</AppText>
+                          </View>
+                        }
+                      />
+                    );
+                  })}
+              </Card>
+            </Reveal>
           ) : null}
         </>
       )}
@@ -220,7 +227,9 @@ function Tile({ title, value }: { title: string; value: string }) {
       <AppText variant="caption" tone="textDim">
         {title}
       </AppText>
-      <AppText variant="headline">{value}</AppText>
+      <ValueSettle value={value}>
+        <AppText variant="headline">{value}</AppText>
+      </ValueSettle>
     </View>
   );
 }

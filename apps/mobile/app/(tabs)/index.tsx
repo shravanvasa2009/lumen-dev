@@ -5,6 +5,7 @@ import { ScrollView, useWindowDimensions, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { NavButton } from '@/components/NavButton';
+import { Reveal, Settle } from '@/components/Reveal';
 import { Screen } from '@/components/Screen';
 import { useDemoActive } from '@/demo/demoSession';
 import { ChecksSection } from '@/home/ChecksSection';
@@ -73,7 +74,7 @@ function Home() {
           paddingBottom: compact ? 0 : spacing.lg,
         }}
       >
-        <View>
+        <Reveal>
           {compact ? null : <AppText tone="textDim">{dateLine(now, i18n.language)}</AppText>}
           <AppText
             variant="display"
@@ -86,8 +87,8 @@ function Home() {
           >
             {greetings[dayPeriod(now.getHours())]}
           </AppText>
-        </View>
-        <View style={{ alignItems: 'center' }}>
+        </Reveal>
+        <Reveal index={1} style={{ alignItems: 'center' }}>
           <MeasureButton
             label={t('home.measure')}
             modeLabel={modeLabel}
@@ -97,9 +98,11 @@ function Home() {
           <View style={{ marginTop: -(compact ? COMPACT_LINK_OVERLAP : LINK_OVERLAP) }}>
             <NavButton label={t('home.changeMode')} href="/measure/mode" variant="link" />
           </View>
-        </View>
-        <ChecksSection readings={readings} now={now} compact={compact} />
-        <View style={{ flexDirection: 'row', gap: compact ? spacing.sm : spacing.md }}>
+        </Reveal>
+        <Reveal index={2}>
+          <ChecksSection readings={readings} now={now} compact={compact} />
+        </Reveal>
+        <Reveal index={3} style={{ flexDirection: 'row', gap: compact ? spacing.sm : spacing.md }}>
           <MetricTile
             label={t('home.restingHr')}
             unit={t('home.unitBpm')}
@@ -118,9 +121,15 @@ function Home() {
             points={tileSeries(readings, 'resp')}
             compact={compact}
           />
-        </View>
-        {promoDismissed ? null : <WidgetPromo onDismiss={() => setPromoDismissed(true)} />}
-        <NavButton label={t('home.followUp')} href="/follow-up" variant="link" />
+        </Reveal>
+        {promoDismissed ? null : (
+          <Reveal index={4}>
+            <WidgetPromo onDismiss={() => setPromoDismissed(true)} />
+          </Reveal>
+        )}
+        <Settle>
+          <NavButton label={t('home.followUp')} href="/follow-up" variant="link" />
+        </Settle>
       </ScrollView>
     </Screen>
   );

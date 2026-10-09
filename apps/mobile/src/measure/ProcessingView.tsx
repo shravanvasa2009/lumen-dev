@@ -9,6 +9,7 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon, type IconName } from '@/components/Icon';
+import { ValueSettle } from '@/components/Reveal';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
 import { ProgressRing } from '@/onboarding/practiceParts';
@@ -70,9 +71,11 @@ function CheckSummary({ mode, progress }: { mode: MeasureMode; progress: Analysi
             <Icon name={CHECK_ICON[check]} size={20} color={colors.accent} />
             <AppText variant="headline">{names[check]}</AppText>
             {pill === null ? null : <EvidenceBadge metric={pill} />}
-            <AppText variant="caption" tone="textDim" style={{ flex: 1, textAlign: 'right' }}>
-              {stateOf(check)}
-            </AppText>
+            <ValueSettle value={stateOf(check)} style={{ flex: 1 }}>
+              <AppText variant="caption" tone="textDim" style={{ textAlign: 'right' }}>
+                {stateOf(check)}
+              </AppText>
+            </ValueSettle>
           </View>
         );
       })}
@@ -145,7 +148,9 @@ export function ProcessingView({ analysis, mode }: { analysis: AnalysisState; mo
           >
             <ProgressRing fraction={(percent ?? 0) / 100} size={RING_SIZE} strokeWidth={RING_STROKE} />
             <View style={{ position: 'absolute' }}>
-              <AppText variant="title">{percentText}</AppText>
+              <ValueSettle value={percentText}>
+                <AppText variant="title">{percentText}</AppText>
+              </ValueSettle>
             </View>
           </View>
           <AppText variant="title" accessibilityRole="header" style={{ textAlign: 'center' }}>

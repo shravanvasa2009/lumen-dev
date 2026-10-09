@@ -1,9 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { Card } from '@/components/Card';
+import { ValueSettle } from '@/components/Reveal';
 import { useTheme } from '@/theme';
 
 import { Sparkline } from './Sparkline';
@@ -20,7 +22,7 @@ export function MetricTile({ label, unit, points, compact = false }: MetricTileP
   const latest = points.at(-1);
   const value = latest === undefined ? t('home.noValue') : String(Math.round(latest));
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${latest === undefined ? t('home.noReadingsShort') : `${value} ${unit}`}`}
       onPress={() => router.push('/trends')}
@@ -31,7 +33,9 @@ export function MetricTile({ label, unit, points, compact = false }: MetricTileP
           {label}
         </AppText>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
-          <AppText variant="title">{value}</AppText>
+          <ValueSettle value={value}>
+            <AppText variant="title">{value}</AppText>
+          </ValueSettle>
           {latest === undefined ? null : (
             <AppText variant="caption" tone="textDim">
               {unit}
@@ -42,6 +46,6 @@ export function MetricTile({ label, unit, points, compact = false }: MetricTileP
           <Sparkline points={points} height={compact ? SPARKLINE_COMPACT : undefined} />
         </View>
       </Card>
-    </Pressable>
+    </PressableScale>
   );
 }

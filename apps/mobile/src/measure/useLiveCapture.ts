@@ -26,9 +26,8 @@ import {
 import { scoreSqiWindow, sqiThreshold } from '../ml/runtime';
 import { keepCapture, keepLiveCapture, liveCaptureChanged } from './keptCapture';
 import { signalLevel } from './signalLevel';
+import { WAVEFORM_WINDOW_NS } from './waveformWindow';
 
-// The live waveform card shows the last 6 s (spec §12).
-const WAVEFORM_WINDOW_NS = 6e9;
 // The signal meter is re-read once per second of frames; its spectrum needs the last liveHr.windowS seconds.
 const LEVEL_EVERY_NS = 1e9;
 // Clean seconds are summed from accepted frames, so between two rises there can be a short gap; two seconds

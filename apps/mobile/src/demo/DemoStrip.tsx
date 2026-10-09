@@ -19,6 +19,13 @@ export function useWindowInsets(): EdgeInsets {
   return useContext(WindowInsetsContext) ?? reduced;
 }
 
+// The device's real bottom inset for a sheet drawn over everything, 0 where no provider is mounted (tests).
+export function useWindowBottomInset(): number {
+  const real = useContext(WindowInsetsContext);
+  const reduced = useContext(SafeAreaInsetsContext);
+  return (real ?? reduced)?.bottom ?? 0;
+}
+
 // §8.5: a persistent demo bar on every screen. It sits under the navigator and pads for the bottom inset
 // itself, so the screens above it see a bottom inset of 0 and do not pad for it twice. The tree is the same
 // with Demo on or off, so entering or leaving Demo never remounts the navigator.

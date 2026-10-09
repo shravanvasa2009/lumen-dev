@@ -7,8 +7,6 @@ import { useTheme } from '@/theme';
 type CheckHeadingProps = { icon: IconName; name?: string; label: string };
 
 // "AFib · Heart rhythm": the check's icon and short name, then the dimmer description.
-// It grows from its natural width (not flex: 1's zero basis), so a wrapping row moves badges beside it to the
-// next line instead of squeezing the label to a letter-wide column.
 export function CheckHeading({ icon, name, label }: CheckHeadingProps) {
   const { colors, spacing } = useTheme();
   return (

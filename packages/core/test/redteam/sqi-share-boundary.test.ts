@@ -12,7 +12,7 @@ import {
   type RhythmOutputs,
   type SqiScores,
 } from '../../src';
-import { captureAt, regularOffsets } from '../synthetic';
+import { captureAt, jitteredOffsets, regularOffsets } from '../synthetic';
 import { beatTimes, beatTrain, coveredNoise } from './attacks';
 import { BATTERY_CONTEXTS, BATTERY_HISTORY, PASSED_EVIDENCE } from './lower-quality-battery';
 
@@ -233,5 +233,60 @@ describe('red team PR #308 at c420d64: variants near the fixed share', () => {
     session.setSqi(8, 0.9);
     session.setSqi(8, 0.1);
     expect(session.readingInput().sqi!.windows).toEqual([expect.objectContaining({ pClean: 0.1 })]);
+  });
+});
+
+describe('red team PR #308 at ff902ff: windows at the edges of the reading', () => {
+  const capture = noiseCapture();
+  const startNs = capture.samples[0]!.tNs;
+  const lastNs = capture.samples[capture.samples.length - 1]!.tNs;
+  const windowNs = DSP_CONFIG.dsp3.modelWindowS * 1e9;
+  const flaggedAt = (endsNs: number[]) =>
+    analyzeReading(noiseCapture(), {
+      ...FULL_30,
+      sqi: { threshold: THRESHOLD, windows: endsNs.map((endNs) => ({ endNs, pClean: 0.1 })) },
+    }).sqiFlagged;
+
+  it('a window ending exactly at the last frame counts', () => {
+    expect(flaggedAt([lastNs])).toEqual({ windows: 1, total: 1 });
+  });
+
+  it('a window starting exactly at the first frame counts; one starting 1 ns before does not', () => {
+    expect(flaggedAt([startNs + windowNs])).toEqual({ windows: 1, total: 1 });
+    expect(flaggedAt([startNs + windowNs - 1])).toEqual({ windows: 0, total: 0 });
+  });
+
+  it('a window ending 1 ns after the last frame does not count', () => {
+    expect(flaggedAt([lastNs + 1])).toEqual({ windows: 0, total: 0 });
+  });
+
+  // The app's path: every window LiveSession offers, scored flagged, reaches analyzeReading, from the first
+  // to the last, on regular and on jittered (±5 ms) frame times.
+  it.each([
+    ['regular', regularOffsets(30, SECONDS)],
+    ['jittered', jitteredOffsets(30, SECONDS, 0.005)],
+  ])('%s frames: no live window is lost at the edges', (_, offsets) => {
+    const live = captureAt(offsets, coveredNoise(30, SECONDS, 2, 0.006, 0.8));
+    const session = createLiveSession({
+      captureFps: 30,
+      sqiThreshold: THRESHOLD,
+      perfusionFloorPct: DSP_CONFIG.live.defaultPerfusionFloorPct,
+    });
+    let scored = 0;
+    let scoredEndS: number | null = null;
+    for (let frame = 0; frame < live.samples.length; frame++) {
+      session.pushSamples({ samples: [live.samples[frame]!], stats: [live.stats[frame]!] });
+      session.pushStatus({ fingerCovered: true, motionRms: 0, thermal: 'nominal', fps: 30, droppedFrac: 0 });
+      const window = session.sqiWindow;
+      if (window && window.endS !== scoredEndS) {
+        scoredEndS = window.endS;
+        session.setSqi(window.endS, 0.1);
+        scored += 1;
+      }
+    }
+    const { capture: saved, ...spans } = session.readingInput();
+    const analysis = analyzeReading(saved, { ...FULL_30, ...spans });
+    expect(scored).toBeGreaterThan(80);
+    expect(analysis.sqiFlagged).toEqual({ windows: scored, total: scored });
   });
 });

@@ -189,6 +189,12 @@ def reading_wide_window(
     return _window_features(longest[0], intervals[longest[0] : longest[1]], atypical)
 
 
+def judges_rhythm(window: RhythmWindow) -> bool:
+    # DSP-15 below its floors: a reading-wide window under rhythmClassMinIntervals gives no rhythm class
+    # (owner 2026-10-06, ADR 0104 answer 5).
+    return len(window.intervals_s) >= DSP_CONFIG["lowQuality"]["rhythmClassMinIntervals"]
+
+
 def _sample_entropy_upper_bound() -> float:
     # Undefined sample entropy (A or B = 0) takes the Richman & Moorman (2000) upper bound, ln of the number
     # of template pairs, ln((N − m)(N − m − 1) / 2): the owner's choice in H-012 (ADR 0024).

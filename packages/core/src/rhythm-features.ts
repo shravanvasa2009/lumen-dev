@@ -194,6 +194,11 @@ export function readingWideWindow(
   return windowFeatures(longest[0], intervalsS.slice(longest[0], longest[1]), atypicalBeats);
 }
 
+/** DSP-15 below its floors: whether a reading-wide window has the intervals for a rhythm class (ADR 0104). */
+export function judgesRhythm(window: RhythmWindow): boolean {
+  return window.intervalsS.length >= DSP_CONFIG.lowQuality.rhythmClassMinIntervals;
+}
+
 // Undefined sample entropy (A or B = 0) takes the Richman & Moorman (2000) upper bound, ln of the number
 // of template pairs, ln((N − m)(N − m − 1) / 2): the owner's choice in H-012 (ADR 0024).
 function sampleEntropyUpperBound(): number {

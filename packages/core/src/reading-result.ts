@@ -2,6 +2,7 @@ import { DSP_CONFIG } from './config';
 import { median } from './median';
 import type { ReadingAnalysis, Tier } from './reading';
 import { hrv, lowQualityRmssd } from './reading-metrics';
+import { judgesRhythm } from './rhythm-features';
 import type {
   Confidence,
   DiabetesMetric,
@@ -16,6 +17,7 @@ import type {
   ReadingResult,
   ReadingRhythm,
   RespMetric,
+  RetakePrompt,
   RhythmClass,
   RhythmMetric,
   RhythmScorer,
@@ -83,15 +85,33 @@ function tag(reasons: QualityReason[]): {
   };
 }
 
-// The tag and the metric's confidence: a lower-quality value is never above low confidence.
-function graded(reasons: QualityReason[], confidence: Confidence) {
-  return { ...tag(reasons), confidence: reasons.length > 0 ? ('low' as const) : confidence };
+// The tag and the metric's confidence: a lower-quality value is never above low confidence, except one tagged only
+// by the `advisory` SQI-Net reasons, which readingConfidence already caps at moderate.
+function graded(
+  reasons: QualityReason[],
+  confidence: Confidence,
+  advisory: readonly QualityReason['kind'][] = ['sqiFlagged', 'sqiUnscored'],
+) {
+  const floorMissed = reasons.some((reason) => !advisory.includes(reason.kind));
+  return { ...tag(reasons), confidence: floorMissed ? ('low' as const) : confidence };
+}
+
+// Owner 2026-10-06 ("Advisory + tag"): every value is read from beats SQI-Net may have flagged.
+function sqiReasons(analysis: ReadingAnalysis): QualityReason[] {
+  const flagged = analysis.sqiFlagged;
+  return flagged && flagged.windows > 0 ? [{ kind: 'sqiFlagged', ...flagged }] : [];
+}
+
+// Owner 2026-10-09: "A fingertip held over pure noise showing a heart rate, should be tagged as low quality."
+// SQI-Net is the only check that tells noise from a pulse, so a rate it never scored, in whole or in part, is.
+function unscoredReasons(analysis: ReadingAnalysis): QualityReason[] {
+  if (!analysis.sqiAvailable) return [{ kind: 'noSqi' }];
+  const seconds = analysis.sqiUnscoredS ?? 0;
+  return seconds > DSP_CONFIG.dsp3.sqiUnscoredMaxS ? [{ kind: 'sqiUnscored', seconds }] : [];
 }
 
 const shortClean = (analysis: ReadingAnalysis, wantS: number): QualityReason[] =>
   analysis.cleanSeconds < wantS ? [{ kind: 'shortClean', haveS: analysis.cleanSeconds, wantS }] : [];
-const quickMode = (analysis: ReadingAnalysis): QualityReason[] =>
-  analysis.context.mode === 'quick' ? [{ kind: 'quickMode' }] : [];
 // The frame-rate and rating gates of an output that needs `needed` and `wantFps`: lowFps when the capture format runs
 // slower, else phoneTier when the §5.2 rating (which also weighs the score and ambient light) is below the tier. A
 // format with no finite, positive rate counts as 0 fps, so the Results JSON never holds NaN or Infinity.
@@ -127,14 +147,19 @@ function tierAtLeast(analysis: ReadingAnalysis, needed: Tier): boolean {
   return TIER_ORDER.indexOf(effectiveTier(analysis)) >= TIER_ORDER.indexOf(needed);
 }
 
-// §7: clean coverage, capped at moderate without SQI scores and on a Limited or unrated phone.
+// §7: clean coverage, capped at moderate without SQI scores (in whole or in part), with SQI-flagged windows, and on
+// a Limited or unrated phone.
 function readingConfidence(analysis: ReadingAnalysis): Confidence {
   const { highCoverage, moderateCoverage } = DSP_CONFIG.confidence;
   const coverage = analysis.durationS > 0 ? analysis.cleanSeconds / analysis.durationS : 0;
   const fromCoverage: Confidence =
     coverage >= highCoverage ? 'high' : coverage >= moderateCoverage ? 'moderate' : 'low';
   const { tier } = analysis.context;
-  const capped = !analysis.sqiAvailable || tier === null || tier === 'limited';
+  const capped =
+    unscoredReasons(analysis).length > 0 ||
+    sqiReasons(analysis).length > 0 ||
+    tier === null ||
+    tier === 'limited';
   return capped ? lowest(fromCoverage, 'moderate') : fromCoverage;
 }
 
@@ -146,7 +171,7 @@ function confidenceReasons(analysis: ReadingAnalysis): QualityReason[] | null {
   const reasons: QualityReason[] = [];
   if (coverage < DSP_CONFIG.confidence.highCoverage)
     reasons.push({ kind: 'contact', coveredPct: 100 * coverage });
-  if (!analysis.sqiAvailable) reasons.push({ kind: 'noSqi' });
+  reasons.push(...unscoredReasons(analysis), ...sqiReasons(analysis));
   if (tier === 'limited') reasons.push(...rateReasons(analysis, 'basic', 30));
   return reasons;
 }
@@ -185,18 +210,19 @@ function hrMetric(
   const bpm = analysis.heartRateBpm ?? lowBpm;
   if (bpm === null) return null;
   const { minCleanS } = DSP_CONFIG.dsp11;
-  const reasons: QualityReason[] = [];
+  const reasons = [...sqiReasons(analysis), ...unscoredReasons(analysis)];
   if (analysis.heartRateBpm === null) {
     reasons.push(...shortClean(analysis, minCleanS));
     // Otherwise the accepted intervals spanned under minCleanS (ADR 0080): want enough beats to span it.
-    if (reasons.length === 0)
+    if (!reasons.some((reason) => reason.kind === 'shortClean'))
       reasons.push({
         kind: 'fewBeats',
         beats: analysis.intervals.filter((interval) => interval.accepted).length,
         wantBeats: Math.ceil((minCleanS * bpm) / 60),
       });
   }
-  const grade = graded(reasons, confidence);
+  // Like sqiFlagged, an unscored rate is only capped at moderate (readingConfidence), so its §10.1 flags still show.
+  const grade = graded(reasons, confidence, ['sqiFlagged', 'sqiUnscored', 'noSqi']);
   const metric: HrMetric = {
     value: bpm,
     unit: 'bpm',
@@ -209,7 +235,7 @@ function hrMetric(
 
 interface RhythmCall {
   metric: RhythmMetric;
-  topProb: number;
+  topProb: number | null; // null with no class
   positive: boolean; // the irregular rule fired (before the 2-of-3 rule)
   reasons: QualityReason[];
 }
@@ -238,7 +264,7 @@ function readingRhythmProbs(
   analysis: ReadingAnalysis,
   outputs: RhythmOutputs | null,
   profile: Profile,
-): { probs: number[]; reasons: QualityReason[] } | null {
+): { probs: number[]; judged: boolean; reasons: QualityReason[] } | null {
   const rows = rhythmModelRows(analysis).length;
   if (outputs && outputs.windowProbs.length !== rows)
     throw new RangeError(`${rows} rhythm rows but ${outputs.windowProbs.length} probability rows`);
@@ -249,10 +275,7 @@ function readingRhythmProbs(
   if (!outputs || profile.pacemaker || rows === 0) return null;
 
   const { minUsableIntervals } = DSP_CONFIG.dsp15;
-  const reasons: QualityReason[] = [
-    ...quickMode(analysis),
-    ...shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS),
-  ];
+  const reasons = [...sqiReasons(analysis), ...shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS)];
   if (!analysis.enoughRhythmIntervals)
     reasons.push({ kind: 'fewBeats', beats: analysis.usableRhythmIntervals, wantBeats: minUsableIntervals });
   if (analysis.rhythmFeatures.length === 0) reasons.push({ kind: 'fewWindows', windows: 0, wantWindows: 1 });
@@ -263,14 +286,25 @@ function readingRhythmProbs(
     for (const row of outputs.windowProbs) total += row[c]!;
     return total / rows;
   });
-  return { probs, reasons };
+  // Owner 2026-10-06 (ADR 0104 answer 5): a reading-wide window under rhythmClassMinIntervals gives no class.
+  const wide = analysis.lowQuality.rhythmWindow;
+  const flagged = analysis.sqiFlagged;
+  // Red team on #299: the rhythm models call pure noise AF, and advisory SQI-Net no longer removes it, so a
+  // reading SQI-Net flagged mostly gets no class either.
+  const mostlyFlagged =
+    flagged !== null &&
+    flagged.total > 0 &&
+    flagged.windows / flagged.total > DSP_CONFIG.rules.rhythmMaxSqiFlaggedShare;
+  const judged =
+    !mostlyFlagged && (analysis.rhythmFeatures.length > 0 || wide === null || judgesRhythm(wide));
+  return { probs, judged, reasons };
 }
 
 // The class with the highest probability, the first in RHYTHM_CLASSES order on a tie.
 const topClass = (probs: number[]) => probs.indexOf(Math.max(...probs));
 
 // With no rhythm model output it is the replay validation label (ADR 0041), null in the app.
-/** The rhythm decision that opens DSP-12 and diabetes-net's hrSummary; null with no rhythm card. */
+/** The rhythm decision that opens DSP-12 and diabetes-net's hrSummary; null when no class was judged. */
 export function readingRhythm(
   analysis: ReadingAnalysis,
   outputs: RhythmOutputs | null,
@@ -279,7 +313,7 @@ export function readingRhythm(
   // Validation only (ADR 0041): with no rhythm model output, a labelled rhythm stands in.
   if (outputs === null) return analysis.context.validationRhythmLabel;
   const call = readingRhythmProbs(analysis, outputs, profile);
-  if (!call) return null;
+  if (!call?.judged) return null;
   const top = topClass(call.probs);
   return call.probs[top]! >= DSP_CONFIG.rules.uncertainBelowTopProb ? RHYTHM_CLASSES[top]! : 'uncertain';
 }
@@ -295,6 +329,18 @@ function rhythmCall(
   const rules = DSP_CONFIG.rules;
   const call = readingRhythmProbs(analysis, outputs, profile);
   if (!outputs || !call) return null;
+  if (!call.judged) {
+    // "Too short to judge the rhythm": the card, its tag, and no class, probability, or flag.
+    const metric: RhythmMetric = {
+      class: null,
+      pAF: null,
+      evidence: outputs.scorer === 'rule' ? 'experimental' : evidenceLabel(evidence, 'rhythm'),
+      scorer: outputs.scorer,
+      ...graded(call.reasons, confidence),
+      flag: null,
+    };
+    return { metric, topProb: null, positive: false, reasons: call.reasons };
+  }
   const { probs } = call;
   const top = topClass(probs);
   const topProb = probs[top]!;
@@ -383,20 +429,20 @@ function rmssdMetric(
     rhythmClass === null ? [{ kind: 'rhythmUnjudged' }] : [...(rhythm?.reasons ?? [])];
   reasons.push(...rateReasons(analysis, 'full', config.minFps));
 
-  let value =
-    reasons.length === 0
-      ? (hrv(analysis.segments, 'sinus', captureFps, analysis.cleanSeconds)?.rmssdMs ?? null)
-      : null;
+  // Advisory SQI-Net does not move RMSSD off its standard path; it only tags it.
+  let value = reasons.every((reason) => reason.kind === 'sqiFlagged')
+    ? (hrv(analysis.segments, 'sinus', captureFps, analysis.cleanSeconds)?.rmssdMs ?? null)
+    : null;
   if (value === null) {
     const low = lowQualityRmssd(analysis.segments);
     if (low === null) return null;
     value = low.rmssdMs;
-    reasons.push(...quickMode(analysis), ...shortClean(analysis, config.rmssdMinCleanS));
+    reasons.push(...shortClean(analysis, config.rmssdMinCleanS));
     if (low.nnIntervals < config.rmssdMinIntervals)
       reasons.push({ kind: 'fewBeats', beats: low.nnIntervals, wantBeats: config.rmssdMinIntervals });
   }
   const earlier = history.flatMap((past) => (past.rmssdMs === null ? [] : [past.rmssdMs]));
-  const kept = unique(reasons);
+  const kept = unique([...reasons, ...sqiReasons(analysis)]);
   const metric: RmssdMetric = {
     value,
     unit: 'ms',
@@ -418,7 +464,7 @@ function respMetric(
   const value = estimates?.rateBrpm ?? estimates?.intervalBrpm ?? null;
   if (estimates === null || value === null) return null;
   const reasons: QualityReason[] = [
-    ...quickMode(analysis),
+    ...sqiReasons(analysis),
     ...shortClean(analysis, DSP_CONFIG.dsp13.minCleanS),
     ...tierReasons(analysis, 'basic', 30),
   ];
@@ -451,7 +497,9 @@ function diabetesMetric(
   const { mode, recordedAt } = analysis.context;
   if (!outputs || (mode !== 'full' && mode !== 'quick')) return null;
   const reasons: QualityReason[] = [
-    ...quickMode(analysis),
+    // §11.4's Full Scan is a floor of this pattern alone (owner 2026-10-06, ADR 0104 answer 4).
+    ...(mode === 'quick' ? [{ kind: 'quickMode' } as const] : []),
+    ...sqiReasons(analysis),
     ...rateReasons(analysis, 'full', 60),
     ...shortClean(analysis, rules.diabetesMinCleanS),
     // The rhythm call opens diabetes-net's HRV summary (diabetesModelInput), so a lower-quality call makes a
@@ -500,7 +548,7 @@ function diabetesMetric(
 function experimentalMeasurements(analysis: ReadingAnalysis): Graded<ExperimentalMeasurements> {
   const beats = analysis.segments.flat().filter((beat) => beat.beatClass !== 'not-a-beat');
   const atypical = beats.filter((beat) => beat.beatClass === 'atypical').length;
-  const reasons = [...quickMode(analysis), ...shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS)];
+  const reasons = [...sqiReasons(analysis), ...shortClean(analysis, DSP_CONFIG.rules.rhythmMinCleanS)];
   const metric: ExperimentalMeasurements = {
     extraBeatsPerMin: analysis.cleanSeconds > 0 ? atypical / (analysis.cleanSeconds / 60) : 0,
     longPauses: beats.filter((beat) => beat.longPause).length,
@@ -541,9 +589,18 @@ function headline(hr: HrMetric | null, rhythm: RhythmCall | null): HeadlineKey {
   // No rhythm card means the rhythm was not judged (pacemaker or no model). "Regular rhythm" would claim a
   // judgement (ADR 0041) and "Couldn't tell" would ask to retake a good heart rate, so the headline states
   // only the rate; the rhythm card says why it is missing.
-  if (!rhythm) return 'result.hrOnly';
+  if (!rhythm || rhythm.topProb === null) return 'result.hrOnly';
   if (rhythm.topProb < DSP_CONFIG.rules.uncertainBelowTopProb) return 'result.uncertain';
   return rhythm.metric.class === 'sinus' ? 'result.regular' : 'result.irregularRetake';
+}
+
+// Owner 2026-10-06 (ADR 0104 answer 2): a rate only the lower-quality path found (under 15 clean s), past SAFE-1's
+// levels, asks for a retake now. A standard rate tagged only by SQI-Net is not short, and SAFE-1 already judges it
+// (red team on #299). The Emergency screen stays with emergencyHeartRate, which reads only the standard analysis.
+function retakePrompt(analysis: ReadingAnalysis, hr: HrMetric | null): RetakePrompt | null {
+  if (hr === null || analysis.heartRateBpm !== null) return null;
+  const { slowBpm, fastBpm } = DSP_CONFIG.rules.emergency;
+  return hr.value < slowBpm ? 'shortSlow' : hr.value > fastBpm ? 'shortFast' : null;
 }
 
 // Evidence labels come from evidence.json only (EVID-1).
@@ -571,6 +628,7 @@ export function buildReadingResult(
   return {
     headlineKey: headline(hr?.metric ?? null, rhythm),
     quality,
+    retakePrompt: retakePrompt(analysis, hr?.metric ?? null),
     cleanSeconds: analysis.cleanSeconds,
     beats: beats.length,
     rejectedBeats: beats.filter((beat) => beat.beatClass === 'artifact').length,

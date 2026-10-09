@@ -8,7 +8,13 @@ import pytest
 
 from lumen_dsp.breathing import breathing_estimates
 from lumen_dsp.metrics import MeasuredBeat, low_quality_heart_rate, low_quality_rmssd
-from lumen_dsp.rhythm import reading_wide_window, rhythm_feature_vector, rhythm_v2_features
+from lumen_dsp.config import DSP_CONFIG
+from lumen_dsp.rhythm import (
+    judges_rhythm,
+    reading_wide_window,
+    rhythm_feature_vector,
+    rhythm_v2_features,
+)
 from lumen_dsp.shape import low_quality_ensemble_beat
 
 # Red team (§16) for ADR 0104 at 3ad37eb: the Python half of
@@ -107,6 +113,13 @@ def _reading_probs(entry, rows):
     return session.run(None, {"features": features})[0].astype(float).mean(axis=0)
 
 
+def _judged(case):
+    # ADR 0104 answer 5 (owner 2026-10-06): a reading-wide row under rhythmClassMinIntervals gives no class
+    # (judgesRhythm in core, judges_rhythm here).
+    floor = DSP_CONFIG["lowQuality"]["rhythmClassMinIntervals"]
+    return case["standardRows"] or case["windowIntervals"] >= floor
+
+
 def _calls(entry, cases):
     tau_af = entry["threshold"]["af"]
     for case in cases:
@@ -114,8 +127,9 @@ def _calls(entry, cases):
             continue
         probs = _reading_probs(entry, case["rows"])
         top = int(np.argmax(probs))
-        flagged = probs[top] >= max(ABSTAIN_BELOW, HIGH_TOP_PROB) and probs[1] >= tau_af
-        regular = top == 0 and probs[top] >= ABSTAIN_BELOW
+        judged = _judged(case)
+        flagged = judged and probs[top] >= max(ABSTAIN_BELOW, HIGH_TOP_PROB) and probs[1] >= tau_af
+        regular = judged and top == 0 and probs[top] >= ABSTAIN_BELOW
         yield case["name"], probs, flagged, regular
 
 
@@ -143,14 +157,25 @@ def test_af_quick_and_sub_60_s_is_never_called_regular(entry):
     assert regular == []
 
 
-# OWNER DECISION at 3ad37eb: with only 4–8 s of AF beats a Full Scan has one reading-wide row of 3–9
-# intervals, and a model can call it sinus, which buildReadingResult headlines "Regular rhythm" (tagged lower
-# quality) and the app counts as the regular Full Check that clears a held possible-AFib result
-# (isRegularFullCheck). The shipped rhythm-lgbm does this for 1 of 60 (AF 75 bpm, CV 0.2, seed 4, full 4 s:
-# 0.663 / 0.056 / 0.282), rhythm-logistic for 10 of 60. Strict: passes while it fails, turns red once no
-# short AF reads regular.
-@pytest.mark.xfail(strict=True, reason="ADR 0104 lets 3 intervals make a rhythm call; owner to decide")
+# OWNER DECISION, answered 2026-10-06 (ADR 0104 answer 5). With only 4–8 s of AF beats a Full Scan has one
+# reading-wide row of 4–13 intervals. At 3ad37eb a model could call it sinus, which headlined "Regular
+# rhythm" and could clear a held possible-AFib result (isRegularFullCheck): rhythm-lgbm for 1 of 60 (AF
+# 75 bpm, CV 0.2, seed 4, full 4 s: 0.663 / 0.056 / 0.282), rhythm-logistic for 10 of 60. Under 20
+# intervals there is now no class, so none reads regular.
 @pytest.mark.parametrize("entry", RHYTHM_MODELS, ids=[entry["name"] for entry in RHYTHM_MODELS])
 def test_af_with_a_few_seconds_of_beats_is_never_called_regular(entry):
+    assert all(not _judged(case) for case in AF_SHORT)
     regular = [name for name, _, _, is_regular in _calls(entry, AF_SHORT) if is_regular]
     assert regular == []
+
+
+def test_short_reading_wide_rows_get_no_class_in_both_languages():
+    # judges_rhythm reads the same floor core's judgesRhythm does, on the fixture's window lengths.
+    assert len(AF_SHORT) == 60
+    for case in ROWS:
+        if case["windowIntervals"] is None:
+            continue
+        intervals = [0.8 if i % 2 == 0 else 0.9 for i in range(case["windowIntervals"])]
+        n = len(intervals)
+        window = reading_wide_window(intervals, [False] * n, [False] * (n + 1))
+        assert judges_rhythm(window) == _judged(case)

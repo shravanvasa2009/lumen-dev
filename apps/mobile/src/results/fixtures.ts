@@ -46,6 +46,7 @@ const demo: FixtureReading = {
   scan: {
     headlineKey: 'result.regular',
     quality: { level: 'standard', reasons: [] },
+    retakePrompt: null,
     cleanSeconds: 92,
     beats: 104,
     rejectedBeats: 6,
@@ -125,6 +126,7 @@ const demoFlag: FixtureReading = {
   scan: {
     headlineKey: 'result.irregularRetake',
     quality: { level: 'standard', reasons: [] },
+    retakePrompt: null,
     cleanSeconds: 58,
     beats: 66,
     rejectedBeats: 4,
@@ -179,6 +181,7 @@ const demoInconclusive: FixtureReading = {
   scan: {
     headlineKey: 'result.inconclusive',
     quality: { level: 'standard', reasons: [] },
+    retakePrompt: null,
     cleanSeconds: 38,
     beats: 0,
     rejectedBeats: 0,
@@ -211,6 +214,7 @@ const demoHrFlag: FixtureReading = {
   scan: {
     headlineKey: 'result.regular',
     quality: { level: 'standard', reasons: [] },
+    retakePrompt: null,
     cleanSeconds: 60,
     beats: 112,
     rejectedBeats: 2,

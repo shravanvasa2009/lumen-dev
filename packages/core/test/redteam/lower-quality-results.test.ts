@@ -70,14 +70,29 @@ interface MainCase {
   metrics: Record<MetricKey, Record<string, unknown> | null>;
 }
 
+// The battery's SQI contexts hold no scores, which before SQI-Net was advisory meant no window vetoed. Since the
+// owner's 2026-10-09 ruling a rate SQI-Net never scored is tagged, so here SQI-Net passes one window a second, as
+// the app sends them; a score rejects nothing, so the analysis is otherwise the same.
+function scoredContext(capture: { samples: Sample[] }, context: ReadingContext): ReadingContext {
+  if (context.sqi === null) return context;
+  const firstNs = capture.samples[0]!.tNs;
+  const lastS = (capture.samples[capture.samples.length - 1]!.tNs - firstNs) / 1e9;
+  const windowS = DSP_CONFIG.dsp3.modelWindowS;
+  const windows = Array.from({ length: Math.max(0, Math.floor(lastS) - windowS + 1) }, (_, k) => ({
+    endNs: firstNs + (k + windowS) * 1e9,
+    pClean: 0.9,
+  }));
+  return { ...context, sqi: { ...context.sqi, windows } };
+}
+
 // The battery analysed once per context; each analysis takes 0.1–1 s.
 const analyses = new Map<string, ReadingAnalysis>();
 function batteryAnalysis(captureName: string, contextName: string): ReadingAnalysis {
   const key = `${captureName} | ${contextName}`;
   if (!analyses.has(key)) {
-    const capture = BATTERY_CAPTURES.find(({ name }) => name === captureName)!;
+    const capture = BATTERY_CAPTURES.find(({ name }) => name === captureName)!.build();
     const { context } = BATTERY_CONTEXTS.find(({ name }) => name === contextName)!;
-    analyses.set(key, analyzeReading(capture.build(), context));
+    analyses.set(key, analyzeReading(capture, scoredContext(capture, context)));
   }
   return analyses.get(key)!;
 }
@@ -95,9 +110,9 @@ function batteryResult(analysis: ReadingAnalysis, seed: number, profile: Profile
 const MAIN_CASES = mainFixture.cases as MainCase[];
 
 describe('red team ADR 0104: the standard path is main’s (fixture made by core a1cf170)', () => {
-  // 8 captures × 5 contexts × 2 rhythm seeds × 2 profiles, every flag allowed by evidence. At 3ad37eb: urgent
-  // and outcome always match; every metric main showed is unchanged and standard, except on a Quick Check, where
-  // the owner's rule tags it (values unchanged, confidence low, reason quickMode only).
+  // 8 captures × 5 contexts × 2 rhythm seeds × 2 profiles, every flag allowed by evidence. Urgent and outcome
+  // always match; every metric main showed is unchanged and standard, on a Quick Check too, which since the
+  // owner's answer 4 (2026-10-06) tags only a value that misses a floor.
   it.each(
     MAIN_CASES.map((main) => [
       `${main.capture} | ${main.context} | seed ${main.seed} | ${main.profile}`,
@@ -115,17 +130,18 @@ describe('red team ADR 0104: the standard path is main’s (fixture made by core
         const before = main.metrics[key];
         const after = built.metrics[key] as (Tagged & object) | null;
         if (before === null) {
-          if (after !== null) expect(after.quality).toBe('low');
+          // On a Quick Check a value meeting every floor is standard; the diabetes pattern's floors include a
+          // Full Scan (§11.4), so it stays tagged there.
+          const floorsMet = analysis.context.mode === 'quick' && key !== 'diabetes';
+          if (after !== null && !floorsMet) expect(after.quality).toBe('low');
           continue;
         }
         expect(after).not.toBeNull();
-        if (analysis.context.mode === 'quick' && after!.quality === 'low') {
-          expect(after!.qualityReasons).toEqual(['quickMode']);
-          expect({ ...withoutTag(after!), confidence: null }).toEqual({ ...before, confidence: null });
-        } else {
-          expect(after!.quality).toBe('standard');
-          expect(withoutTag(after!)).toEqual(before);
-        }
+        // Owner 2026-10-09: a rate SQI-Net never scored is tagged noSqi, and nothing else about it changes.
+        if (key === 'hr' && !analysis.sqiAvailable)
+          expect(after).toMatchObject({ quality: 'low', qualityReasons: ['noSqi'] });
+        else expect(after!.quality).toBe('standard');
+        expect(withoutTag(after!)).toEqual(before);
       }
       // 78fdcf5: an unjudged rhythm states only the rate instead of "Couldn't tell".
       const rhythm = built.metrics.rhythm;
@@ -180,9 +196,16 @@ function expectHonestTags(built: ReadingResult, context: ReadingContext) {
     ...METRIC_KEYS.map((key) => built.metrics[key] as (Tagged & object) | null),
     built.experimental as Tagged,
   ].filter((metric): metric is Tagged => metric !== null);
+  // SQI-Net's own reasons are advisory (owner 2026-10-06 and 2026-10-09): readingConfidence caps them at moderate.
+  // noSqi is advisory on the heart rate only; on a rhythm call it is a confidence shortfall, as before.
+  const advisory = (metric: Tagged, kind: string) =>
+    kind === 'sqiFlagged' || kind === 'sqiUnscored' || (kind === 'noSqi' && metric === built.metrics.hr);
   for (const metric of tagged) {
     expect(metric.quality === 'low').toBe(metric.qualityReasons.length > 0);
-    if (metric.quality === 'low' && metric.confidence !== undefined) expect(metric.confidence).toBe('low');
+    const floorMissed = metric.qualityReasons.some((kind) => !advisory(metric, kind));
+    if (floorMissed && metric.confidence !== undefined) expect(metric.confidence).toBe('low');
+    if (metric.quality === 'low' && !floorMissed && metric.confidence !== undefined)
+      expect(metric.confidence).not.toBe('high');
     for (const kind of metric.qualityReasons) expect(readingKinds).toContain(kind);
   }
   const metricKinds = new Set(tagged.flatMap((metric) => metric.qualityReasons));
@@ -199,6 +222,23 @@ function expectHonestTags(built: ReadingResult, context: ReadingContext) {
   const rhythmWindows = built.quality.reasons.find((reason) => reason.kind === 'fewWindows');
   if (rhythmWindows?.kind === 'fewWindows' && built.metrics.resp?.quality !== 'low')
     expect(rhythmWindows.windows).toBeLessThan(rhythmWindows.wantWindows);
+}
+
+// Owner 2026-10-06 (ADR 0104 answers 2 and 5): a reading-wide rhythm row under 20 intervals gives no class and no
+// flag; a retake prompt appears exactly on a lower-quality rate under 40 or over 150 bpm.
+function expectRhythmJudgedFromEnoughIntervals(built: ReadingResult, analysis: ReadingAnalysis) {
+  const rhythm = built.metrics.rhythm;
+  const wide = analysis.lowQuality.rhythmWindow;
+  const tooShort = analysis.rhythmFeatures.length === 0 && wide !== null && wide.intervalsS.length < 20;
+  if (rhythm !== null) expect(rhythm.class === null).toBe(tooShort);
+  if (rhythm?.class === null) {
+    expect(rhythm).toMatchObject({ pAF: null, flag: null, quality: 'low' });
+    expect(built.headlineKey).toBe('result.hrOnly');
+  }
+  // Red team on #299: the prompt is for a rate only the lower-quality path found, never a standard one.
+  const hr = built.metrics.hr;
+  const extreme = hr !== null && analysis.heartRateBpm === null && (hr.value < 40 || hr.value > 150);
+  expect(built.retakePrompt !== null).toBe(extreme);
 }
 
 describe('red team ADR 0104: every lower-quality value carries its tag and honest reasons', () => {
@@ -225,6 +265,7 @@ describe('red team ADR 0104: every lower-quality value carries its tag and hones
                   history,
                 );
                 expectHonestTags(built, context);
+                expectRhythmJudgedFromEnoughIntervals(built, analysis);
               }
       }
     },
@@ -299,16 +340,15 @@ describe('red team ADR 0104 SAFE-1: the emergency rules never read the lower-qua
     60_000,
   );
 
-  // OWNER DECISION (pinned as it is at 3ad37eb, not a fix the red team can choose). Under 15 clean s there is no
-  // standard rate, so SAFE-1 cannot fire and no HR flag fires (a lower-quality rate has low confidence), yet the
-  // reading now shows the rate: 35 bpm or 190 bpm on screen with no urgent screen and no slow/fast flag. On
-  // main the capture was inconclusive and showed no number.
+  // OWNER DECISION, answered 2026-10-06 (ADR 0104 answer 2). Under 15 clean s there is no standard rate, so
+  // SAFE-1 cannot fire and no HR flag fires (a lower-quality rate has low confidence). The reading shows the rate
+  // tagged, with a "retake now" prompt instead of the Emergency screen.
   it.each([
-    [35, 12],
-    [190, 12],
-  ])(
-    'OWNER DECISION: %i bpm for %i s shows that rate tagged, with no urgent screen and no flag',
-    (bpm, seconds) => {
+    [35, 12, 'shortSlow'],
+    [190, 12, 'shortFast'],
+  ] as const)(
+    'OWNER DECISION: %i bpm for %i s shows that rate tagged with the %s retake prompt, no urgent screen',
+    (bpm, seconds, prompt) => {
       const analysis = analyzeReading(captureAt(regularOffsets(30, seconds), pulse(bpm, seconds)), {
         ...BATTERY_CONTEXTS[2]!.context,
         mode: 'quick',
@@ -317,17 +357,33 @@ describe('red team ADR 0104 SAFE-1: the emergency rules never read the lower-qua
       expect(Math.abs(analysis.lowQuality.heartRateBpm! - bpm)).toBeLessThan(1);
       const outcome = readingOutcome(analysis);
       expect(outcome).toEqual({ kind: 'reading', urgent: null });
-      const hr = batteryResult(analysis, 1, profileNamed('no flags')).metrics.hr!;
-      expect(hr).toMatchObject({ quality: 'low', flag: null });
+      const built = batteryResult(analysis, 1, profileNamed('no flags'));
+      expect(built.metrics.hr!).toMatchObject({ quality: 'low', flag: null });
+      expect(built.retakePrompt).toBe(prompt);
     },
+  );
+
+  // The prompt reads only the lower-quality rate: a standard rate never has one, whatever SAFE-1 says.
+  it.each(BATTERY_CAPTURES.map(({ name }) => name))(
+    '%s: a retake prompt only on a lower-quality rate under 40 or over 150 bpm',
+    (name) => {
+      for (const { name: contextName } of BATTERY_CONTEXTS) {
+        const analysis = batteryAnalysis(name, contextName);
+        const hr = batteryResult(analysis, 1, profileNamed('no flags'));
+        const metric = hr.metrics.hr;
+        const extreme =
+          metric !== null && analysis.heartRateBpm === null && (metric.value < 40 || metric.value > 150);
+        expect(hr.retakePrompt !== null).toBe(extreme);
+      }
+    },
+    60_000,
   );
 });
 
 describe('red team ADR 0104 ML-6 and rhythm claims on lower-quality readings', () => {
-  // OWNER DECISION (pinned as it is at 3ad37eb). The diabetes pattern's own floors are met, so it flags, while
-  // another card (here RMSSD without a rhythm model, tagged rhythmUnjudged) makes the reading "Lower-quality".
-  // ADR 0104 says a lower-quality *pattern* never flags; whether a lower-quality *reading* may carry a diabetes
-  // flag is the owner's call. 95 s of sinus at 75 bpm, Full Scan, Full tier, 60 fps, no rhythm model.
+  // OWNER DECISION, answered 2026-10-06 (ADR 0104 answer 3: keep). The diabetes pattern's own floors are met, so
+  // it flags, while another card (here RMSSD without a rhythm model, tagged rhythmUnjudged) makes the reading
+  // "Lower-quality". 95 s of sinus at 75 bpm, Full Scan, Full tier, 60 fps, no rhythm model.
   it('OWNER DECISION: a reading tagged lower quality can still carry a standard diabetes flag', () => {
     const analysis = batteryAnalysis('sinus 75 bpm, 95 s at 60 fps', 'Full Scan, Full tier, 60 fps, SQI');
     const built = buildReadingResult(
@@ -342,29 +398,32 @@ describe('red team ADR 0104 ML-6 and rhythm claims on lower-quality readings', (
     expect(built.metrics.diabetes).toMatchObject({ quality: 'standard', flag: 'pattern' });
   });
 
-  // OWNER DECISION (pinned as it is at 3ad37eb). A Full Scan with 10 s of beats gets one reading-wide rhythm row;
-  // when that row says sinus the headline is "Regular rhythm", tagged lower quality. The app's ADR 0005 check
-  // (isRegularFullCheck: mode full and headline result.regular) does not read the tag, so such a reading clears
-  // a held "see a doctor" possible-AFib status. The shipped rhythm-lgbm calls 3–6 AF intervals sinus in 6–12% of
-  // windows (ml/tests/redteam/test_redteam_lower_quality.py).
-  it('OWNER DECISION: a lower-quality Full Scan can headline "Regular rhythm"', () => {
-    const analysis = analyzeReading(
-      captureAt(regularOffsets(60, 10), pulse(75, 10)),
-      BATTERY_CONTEXTS[0]!.context,
-    );
-    expect(analysis.rhythmFeatures).toEqual([]);
-    expect(rhythmModelRows(analysis)).toHaveLength(1);
-    const built = buildReadingResult(
-      analysis,
-      { rhythm: { windowProbs: [[0.9, 0.05, 0.05]], tauAf: 0.25 }, diabetes: null },
-      PASSED_EVIDENCE,
-      profileNamed('no flags'),
-      [],
-    );
-    expect(built.headlineKey).toBe('result.regular');
-    expect(built.metrics.rhythm).toMatchObject({ class: 'sinus', quality: 'low' });
-    expect(built.quality.level).toBe('low');
-  });
+  // OWNER DECISION, answered 2026-10-06 (ADR 0104 answer 5). A Full Scan with 10 s of beats gets one reading-wide
+  // rhythm row of about 12 intervals. At 3ad37eb a sinus row headlined "Regular rhythm", and the shipped
+  // rhythm-lgbm calls 3–6 AF intervals sinus in 6–12% of windows (ml/tests/redteam/test_redteam_lower_quality.py).
+  // Under 20 intervals the card now reads "too short to judge": no class, no flag, and the headline is the rate,
+  // so isRegularFullCheck (mode full and headline result.regular) cannot clear a held flag.
+  it.each([[[0.9, 0.05, 0.05]], [[0.05, 0.9, 0.05]]] as const)(
+    'OWNER DECISION: 10 s of beats on a Full Scan is too short to judge the rhythm (%j)',
+    (probs) => {
+      const analysis = analyzeReading(
+        captureAt(regularOffsets(60, 10), pulse(75, 10)),
+        BATTERY_CONTEXTS[0]!.context,
+      );
+      expect(analysis.rhythmFeatures).toEqual([]);
+      expect(rhythmModelRows(analysis)).toHaveLength(1);
+      const built = buildReadingResult(
+        analysis,
+        { rhythm: { windowProbs: [[...probs]], tauAf: 0.25 }, diabetes: null },
+        PASSED_EVIDENCE,
+        profileNamed('no flags'),
+        [],
+      );
+      expect(built.headlineKey).toBe('result.hrOnly');
+      expect(built.metrics.rhythm).toMatchObject({ class: null, pAF: null, flag: null, quality: 'low' });
+      expect(built.quality.level).toBe('low');
+    },
+  );
 });
 
 // The app's loop as reading-outcome-harmonics: SQI 0.9 on every window, batches of 3 frames, then the saved

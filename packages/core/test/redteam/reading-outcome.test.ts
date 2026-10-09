@@ -241,7 +241,9 @@ describe('red team: readingOutcome on captures analyzeReading made (spec 07)', (
     });
   });
 
-  it('white noise at full coverage that SQI-Net scores unclean is inconclusive', () => {
+  // OWNER QUESTION (owner 2026-10-06 made SQI-Net advisory): this noise is now a reading of 121.1 bpm, standard,
+  // tagged sqiFlagged 97 of 97. `test.failing` states the behaviour before the decision.
+  test.failing('white noise at full coverage that SQI-Net scores unclean is inconclusive', () => {
     const noise = seededNormal(7);
     const capture = captureAt(regularOffsets(30, 100), () => ({ r: 0.6 + 0.003 * noise(), g: 0.1, b: 0.05 }));
     const windows = Array.from({ length: 97 }, (_, k) => ({
@@ -269,7 +271,8 @@ describe('red team: readingOutcome on captures analyzeReading made (spec 07)', (
     expect(lost.lostSeconds.motion).toBeCloseTo(analysis.lostSeconds.motion - 2, 6); // 8–10 s is coverage's
     expect(lost.lostSeconds.coldHands).toBeCloseTo(analysis.lostSeconds.coldHands - 2, 6); // 23–25 s is pressure's
     expect(lost.causes.slice(0, 2)).toEqual(['motion', 'coverage']);
-    expect(lost.otherLostSeconds).toBeGreaterThan(4); // the SQI window and the exposure second
+    // The exposure second; the low SQI score rejects nothing since the owner's 2026-10-06 decision.
+    expect(lost.otherLostSeconds).toBeGreaterThan(1);
   });
 });
 

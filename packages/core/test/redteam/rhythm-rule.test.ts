@@ -273,7 +273,7 @@ describe('red team: synthetic readings through analyzeReading → logistic rule 
       if (rhythm.windowProbs.every((row) => Math.max(...row) < ABSTAIN)) expectNoClaim(reading);
       // "high" needs the reading-level top probability (the mean over windows) at or above highTopProb.
       const card = reading.metrics.rhythm;
-      if (card?.confidence === 'high') {
+      if (card?.confidence === 'high' && card.class !== null) {
         const column = CLASSES.indexOf(card.class);
         const meanTop =
           rhythm.windowProbs.reduce((total, row) => total + row[column]!, 0) / rhythm.windowProbs.length;

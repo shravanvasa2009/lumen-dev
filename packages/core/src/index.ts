@@ -42,6 +42,7 @@ export { displayPulse } from './display-pulse';
 export { butterBandpass, butterLowpass, CausalFilter, filterZeroPhase, type SosSection } from './filters';
 export {
   hasEnoughUsableIntervals,
+  judgesRhythm,
   readingWideWindow,
   RHYTHM_FEATURE_NAMES,
   rhythmFeatureVector,

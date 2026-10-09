@@ -373,8 +373,10 @@ describe('red team: setSqi and readingInput calls', () => {
     ['off the grid on a whole ns (10.3 s)', 10.3],
     ['off the grid, a sum that rounds to a whole ns (0.1 + 0.2 + 10)', 0.1 + 0.2 + 10],
   ])('setSqi with an end %s: live and saved spans agree', (_label, endS) => {
+    // Advisory SQI-Net (owner 2026-10-06): the score rejects nothing, live or saved.
     const session = rejectAt(endS);
-    expect(qualitySpans(session.rejectedSpans)).toHaveLength(1);
+    expect(qualitySpans(session.rejectedSpans)).toHaveLength(0);
+    expect(session.readingInput().sqi!.windows).toHaveLength(1);
     expectParity(session);
   });
 

@@ -84,8 +84,9 @@ function PracticeRun({ onPracticeAgain }: { onPracticeAgain: () => void }) {
   // With no finger the module's own contact flag is the coaching: Cover the lens and the flash.
   const verdict = captureVerdict(live);
   const cameraShown = cameraOn && live.nativeCamera && live.phase === 'running';
-  // With the camera off (done, or screen left) there is no live finger to coach.
-  const coachingKey = cameraOn ? (verdict.coaching ?? (fingerOn ? null : 'coach.cover')) : null;
+  // With the camera off (done, or screen left) there is no live finger to coach. Without a finger, covering the
+  // lens comes before any stalled-count line.
+  const coachingKey = cameraOn ? (fingerOn ? verdict.coaching : 'coach.cover') : null;
   return (
     <OnboardingStep
       step={5}

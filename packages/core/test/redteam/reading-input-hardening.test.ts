@@ -1,5 +1,6 @@
 import {
   analyzeReading,
+  buildReadingResult,
   cleanSeconds,
   createLiveSession,
   DSP_CONFIG,
@@ -11,6 +12,7 @@ import {
 } from '../../src';
 import { captureAt, regularOffsets, type SyntheticCapture } from '../synthetic';
 import { beatTimes, beatTrain, flatRed, seededNormal, sinePulse, type Channels } from './attacks';
+import { PASSED_EVIDENCE } from './lower-quality-battery';
 
 // Red team for the PR #120 reading-input hardening (ADR 0057 follow-up): non-finite frames as coverage,
 // splines over finite runs only, FlatRuns, the clamped first window, the live filter hold, and the setSqi
@@ -359,26 +361,31 @@ describe('red team: sparse bad frames keep SQI-Net from ever scoring', () => {
   const rejectAll = { score: () => 0.1 };
   const isBad = (k: number) => k % 180 === 90;
 
-  it('control: noise with a frame dropped every 3 s is rejected by SQI-Net and gives no heart rate', () => {
+  // Owner 2026-10-06 made SQI-Net advisory, and on 2026-10-09 ruled that covered noise with no pulse may give a
+  // heart rate as long as the reading is tagged lower quality. These 30 s of noise count about 30 clean s and
+  // give 107.6 bpm, tagged sqiFlagged with every window flagged (26 of 26).
+  it('advisory SQI-Net: noise scored unclean everywhere carries the tag on every window', () => {
     const offsets = regularOffsets(60, 30).filter((_, k) => !isBad(k));
     const saved = expectParity(replay(captureAt(offsets, noise), 60, rejectAll), 60);
-    expect(saved.cleanSeconds).toBeLessThan(2);
-    expect(saved.heartRateBpm).toBeNull();
+    expect(saved.sqiFlagged!.windows).toBe(saved.sqiFlagged!.total);
+    expect(saved.sqiFlagged!.total).toBeGreaterThan(0);
   });
 
   // Found by red team. 60 fps, 30 s of noise (no pulse), NaN red on one frame every 3 s (frames 90, 270,
-  // …), and a stand-in SQI-Net that rejects every window it is given. No 4 s window is ever covered, so
-  // setSqi is never called. Observed: 29.82 of 29.98 s clean, sqiAvailable false, heart rate 112 bpm
-  // from noise. Expected: as with the frames dropped, the noise is rejected and there is no heart rate.
-  // The same happens with a finite one-frame coverage failure (finger off for 17 ms) every 3 s: 51.8 bpm.
+  // …), and a stand-in SQI-Net that rejects every window it is given: 29.82 of 29.98 s clean and 112 bpm
+  // from noise; with a finite one-frame coverage failure (finger off for 17 ms) every 3 s, 51.8 bpm. Under
+  // the owner's 2026-10-09 ruling a rate from noise is acceptable only when the reading carries a
+  // lower-quality tag on the heart-rate card itself.
   it.each([
     ['NaN red', { r: NaN }],
     ['finger off', { r: 0.2, g: 0.3, b: 0.3 }],
-  ])('noise with one %s frame every 3 s is not counted clean and gives no heart rate', (_label, patch) => {
+  ])('noise with one %s frame every 3 s is tagged lower quality', (_label, patch) => {
     const channels = patchFrames(noise, 60, isBad, patch);
     const saved = expectParity(replay(captureAt(regularOffsets(60, 30), channels), 60, rejectAll), 60);
-    expect(saved.cleanSeconds).toBeLessThan(15);
-    expect(saved.heartRateBpm).toBeNull();
+    const profile = { athlete: false, betaBlocker: false, pacemaker: false, knownAf: false };
+    const built = buildReadingResult(saved, { rhythm: null, diabetes: null }, PASSED_EVIDENCE, profile, []);
+    expect(built.metrics.hr).not.toBeNull();
+    expect(built.metrics.hr!.quality).toBe('low');
   });
 
   // Found by red team. ADR 0057 clamps the first window to the first frame so [0, 1) is judged by the
@@ -392,9 +399,12 @@ describe('red team: sparse bad frames keep SQI-Net from ever scoring', () => {
     expect(cleanSeconds(0, 2, saved.rejectedSpans)).toBeLessThan(0.05);
   });
 
-  it('control: a good first frame, SQI-Net rejecting every window: none of [0, 2] is clean', () => {
-    const saved = expectParity(replay(captureAt(regularOffsets(60, 30), sinePulse(72)), 60, rejectAll), 60);
-    expect(cleanSeconds(0, 2, saved.rejectedSpans)).toBe(0);
+  // Advisory SQI-Net (owner 2026-10-06): scores reject nothing, so [0, 2] is as clean as with no scores at all.
+  it('control: a good first frame, SQI-Net scoring every window low: [0, 2] as clean as unscored', () => {
+    const pulse = captureAt(regularOffsets(60, 30), sinePulse(72));
+    const saved = expectParity(replay(pulse, 60, rejectAll), 60);
+    const unscored = expectParity(replay(pulse, 60), 60);
+    expect(cleanSeconds(0, 2, saved.rejectedSpans)).toBe(cleanSeconds(0, 2, unscored.rejectedSpans));
   });
 });
 

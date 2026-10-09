@@ -47,6 +47,7 @@ const base: LiveCapture = {
   signalLevel: null,
   nativeCamera: false,
   advancing: false,
+  adjustingExposure: false,
 };
 
 const FULL_PHONE: PlanPhone = { tier: 'full', ambient: false, fps60: true };
@@ -286,7 +287,7 @@ describe('CaptureView', () => {
     });
 
     it('keeps the whole Checking panel inside the scrolling body on a 360 x 640 screen', () => {
-      show({ cleanSeconds: 40 }, 'full');
+      show({ cleanSeconds: 40, advancing: true }, 'full');
       fireEvent(screen.UNSAFE_getByType(ScrollView), 'layout', {
         nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 508 } },
       });
@@ -399,11 +400,24 @@ describe('CaptureView', () => {
       expect(screen.getAllByText(en['checks.state.off'])).toHaveLength(4);
     });
 
+    // Owner 2026-10-06: a stopped count always says why.
+    it('says "not clean yet" when the count stops with no other cause, and brightness while the lock steers', () => {
+      show({ cleanSeconds: 12 }, 'full');
+      expect(screen.getByRole('alert')).toHaveTextContent(en['coach.notClean']);
+      expect(screen.getByText(en['capture.pausedOf'].replace('{{total}}', '90'))).toBeOnTheScreen();
+      screen.unmount();
+      show({ cleanSeconds: 12, adjustingExposure: true }, 'full');
+      expect(screen.getByRole('alert')).toHaveTextContent(en['coach.brightness']);
+      screen.unmount();
+      show({ cleanSeconds: 12, advancing: true, adjustingExposure: true }, 'full');
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
     it('greys a ready check while the coaching message is showing', () => {
-      show({ cleanSeconds: 60 }, 'full');
+      show({ cleanSeconds: 60, advancing: true }, 'full');
       const lit = afibColour();
       screen.unmount();
-      show({ cleanSeconds: 60, coachingKey: 'coach.lighter' }, 'full');
+      show({ cleanSeconds: 60, advancing: true, coachingKey: 'coach.lighter' }, 'full');
       expect(screen.getByRole('alert')).toHaveTextContent(en['coach.lighter']);
       expect(afibColour()).not.toBe(lit);
     });

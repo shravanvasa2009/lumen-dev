@@ -428,12 +428,15 @@ describe('red team ML-6: readingRhythm agrees with buildReadingResult', () => {
           [],
         );
         const card = built.metrics.rhythm;
-        expect(rhythm === null).toBe(card === null);
+        // A card with no class is "too short to judge" (ADR 0104 answer 5): no decision opens DSP-12 either.
+        expect(rhythm === null).toBe(card === null || card.class === null);
         if (rhythm !== null && rhythm !== 'uncertain') expect(card!.class).toBe(rhythm);
         if (rhythm === null && built.metrics.hr) expect(built.headlineKey).toBe('result.hrOnly');
         if (rhythm === 'uncertain') expect(built.headlineKey).toBe('result.uncertain');
         if (rhythm === 'sinus' && card!.flag === null) expect(built.headlineKey).toBe('result.regular');
-        expect(built.metrics.rmssd !== null).toBe(rhythm === 'sinus');
+        if (card?.class === null) {
+          if (built.metrics.rmssd) expect(built.metrics.rmssd.qualityReasons).toContain('rhythmUnjudged');
+        } else expect(built.metrics.rmssd !== null).toBe(rhythm === 'sinus');
       }
     }
   });

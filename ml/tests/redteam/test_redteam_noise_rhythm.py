@@ -65,8 +65,8 @@ def test_the_noise_rows_reach_the_rhythm_model():
 # OWNER DECISION. Found by red team on PR #299: the shipped rhythm-lgbm puts P(AF) ≥ 0.8 on 43 of the 72 noise
 # captures (19 of them with standard 32-interval windows) and rhythm-logistic on 53, so pure noise reads
 # "irregular" and, with one earlier positive, "Possible AFib". Owner 2026-10-09: "dont keep that, state the
-# result but state that its low quality": core shows the call, tagged sqiFlagged when SQI-Net flagged more
-# than dsp3.sqiFlaggedMaxShare of the windows. These rows carry no SQI scores, as on a phone without SQI-Net,
+# result but state that its low quality": core shows the call, tagged sqiFlagged when SQI-Net flagged at
+# least dsp3.sqiFlaggedTagShare of the windows. These rows carry no SQI scores, as on a phone without SQI-Net,
 # where the flag is tagged noSqi. Strict: passes while the models flag noise, turns red once neither does.
 @pytest.mark.xfail(
     strict=True, reason="the rhythm models call noise AF; core shows it only with a lower-quality tag"

@@ -97,13 +97,13 @@ function graded(
 }
 
 // Owner 2026-10-06 ("Advisory + tag"): every value is read from beats SQI-Net may have flagged. Owner 2026-10-09:
-// "make the standards for a good reading lower", so only a reading flagged over the share is tagged.
+// "make the standards for a good reading lower", so only a reading flagged in at least the share is tagged.
 function sqiReasons(analysis: ReadingAnalysis): QualityReason[] {
   const flagged = analysis.sqiFlagged;
   const mostlyFlagged =
     flagged !== null &&
     flagged.total > 0 &&
-    flagged.windows / flagged.total > DSP_CONFIG.dsp3.sqiFlaggedMaxShare;
+    flagged.windows / flagged.total >= DSP_CONFIG.dsp3.sqiFlaggedTagShare;
   return mostlyFlagged ? [{ kind: 'sqiFlagged', ...flagged }] : [];
 }
 

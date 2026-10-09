@@ -74,8 +74,8 @@ describe('red team: advisory SQI-Net never stops the clean count and tags a most
               profile,
               [],
             );
-            // Owner 2026-10-09 ("make the standards for a good reading lower"): tagged only above the share.
-            const tagged = low / sqi.windows.length > DSP_CONFIG.dsp3.sqiFlaggedMaxShare;
+            // Owner 2026-10-09 ("make the standards for a good reading lower"): tagged only at or above the share.
+            const tagged = low / sqi.windows.length >= DSP_CONFIG.dsp3.sqiFlaggedTagShare;
             const tag = built.quality.reasons.find((reason) => reason.kind === 'sqiFlagged');
             if (!tagged) expect(tag).toBeUndefined();
             else expect(tag).toEqual({ kind: 'sqiFlagged', windows: low, total: sqi.windows.length });

@@ -160,10 +160,14 @@ function sensorSpans(context: ReadingContext, startNs: number): RejectedSpan[] {
 // Owner 2026-10-06 ("Advisory + tag"): SQI-Net v1 accepted about 64% of clean development windows, and each
 // window it vetoed stopped the clean count. Its scores now reject nothing; the reading counts the windows under
 // the threshold, and buildReadingResult tags the reading with them.
+// Red team on #308: each window counts once, by its first score, so repeats cannot dilute the flagged share.
 function sqiFlaggedWindows(sqi: SqiScores | null): ReadingAnalysis['sqiFlagged'] {
   if (sqi === null) return null;
-  const windows = sqi.windows.filter((window) => window.pClean < sqi.threshold).length;
-  return { windows, total: sqi.windows.length };
+  const firstScore = new Map<number, number>();
+  for (const window of sqi.windows)
+    if (!firstScore.has(window.endNs)) firstScore.set(window.endNs, window.pClean);
+  const scores = [...firstScore.values()];
+  return { windows: scores.filter((pClean) => pClean < sqi.threshold).length, total: scores.length };
 }
 
 // Owner 2026-10-09: a rate SQI-Net never looked at is tagged, so the clean time outside every scored window

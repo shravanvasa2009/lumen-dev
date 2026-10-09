@@ -93,13 +93,13 @@ const build = (
 
 // Owner 2026-10-06 ("Advisory + tag"): SQI-Net's low scores tag the reading and cap confidence at moderate; they
 // never stop the count, never hide a flag the rules raise, and never drop a value to low confidence on their own.
-// Owner 2026-10-09: "make the standards for a good reading lower": the tag needs more than
-// dsp3.sqiFlaggedMaxShare of the scored windows flagged.
+// Owner 2026-10-09: "make the standards for a good reading lower": the tag needs at least
+// dsp3.sqiFlaggedTagShare of the scored windows flagged.
 describe('advisory SQI-Net (sqiFlagged)', () => {
   const flagged = analysisWith({ sqiFlagged: { windows: 46, total: 91 } });
 
   it('tags every value with the flagged windows, at moderate confidence', () => {
-    expect(46 / 91).toBeGreaterThan(DSP_CONFIG.dsp3.sqiFlaggedMaxShare);
+    expect(46 / 91).toBeGreaterThan(DSP_CONFIG.dsp3.sqiFlaggedTagShare);
     const outcome = build(flagged, AF);
     expect(outcome.quality).toEqual({
       level: 'low',
@@ -135,12 +135,19 @@ describe('advisory SQI-Net (sqiFlagged)', () => {
     expect(mostly.headlineKey).toBe('result.possibleAf');
   });
 
-  it('leaves a reading with at most the share of windows flagged standard', () => {
-    expect(45 / 90).toBe(DSP_CONFIG.dsp3.sqiFlaggedMaxShare);
+  it('tags a reading with exactly the share of windows flagged', () => {
+    expect(45 / 90).toBe(DSP_CONFIG.dsp3.sqiFlaggedTagShare);
+    const half = build(analysisWith({ sqiFlagged: { windows: 45, total: 90 } }), AF);
+    expect(half.quality.reasons).toEqual([{ kind: 'sqiFlagged', windows: 45, total: 90 }]);
+    expect(half.metrics.hr).toMatchObject({ quality: 'low', confidence: 'moderate' });
+  });
+
+  it('leaves a reading with under the share of windows flagged standard', () => {
+    expect(44 / 89).toBeLessThan(DSP_CONFIG.dsp3.sqiFlaggedTagShare);
     for (const sqiFlagged of [
       { windows: 0, total: 91 },
       { windows: 1, total: 91 },
-      { windows: 45, total: 90 },
+      { windows: 44, total: 89 },
     ]) {
       const outcome = build(analysisWith({ sqiFlagged }), AF);
       expect(outcome.quality.reasons.map((reason) => reason.kind)).not.toContain('sqiFlagged');

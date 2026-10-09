@@ -17,7 +17,7 @@ import { beatTimes, beatTrain, coveredNoise } from './attacks';
 import { BATTERY_CONTEXTS, BATTERY_HISTORY, PASSED_EVIDENCE } from './lower-quality-battery';
 
 // Red team (§16) for PR #308 at 73e1a7e: sqiFlagged now tags a reading only when the flagged share of its scored
-// windows exceeds dsp3.sqiFlaggedMaxShare (0.5, pending the owner's check of the number), and a mostly flagged
+// windows reaches dsp3.sqiFlaggedTagShare (0.5, pending the owner's check of the number), and a mostly flagged
 // reading keeps its rhythm class and flag (owner 2026-10-09, ADR 0104 answers a and b). SQI-Net is a stand-in
 // score, as the app's model is not in Jest. Python has no reading-result code, so the share has no Python twin.
 
@@ -92,10 +92,10 @@ describe('red team PR #308: a reading SQI-Net flagged in exactly half its window
   // share of exactly 0.5), rhythm-lgbm's own output on the noise row (P(AF) 0.869), one positive reading an hour
   // before. Observed: heart rate 98.4 bpm standard, high; rhythm "possibleAf", quality standard, confidence high;
   // reading quality standard, no reason anywhere. One more flagged window (46 of 91) gives the tagged, moderate
-  // card. Before this PR any flagged window capped confidence at moderate and tagged every metric. The share and
-  // its strict ">" are the main session's choice pending the owner (ADR 0104 answer b); an owner ruling that half
+  // card. Before this PR any flagged window capped confidence at moderate and tagged every metric. Fixed: the main
+  // session made the share inclusive (">=") pending the owner (ADR 0104 answer b); an owner ruling that half
   // flagged is acceptable retires this test.
-  it.failing('45 of 90 flagged noise never shows a standard, high-confidence Possible AFib', () => {
+  it('45 of 90 flagged noise never shows a standard, high-confidence Possible AFib', () => {
     const reading = built(half);
     expect(reading.metrics.rhythm!.flag).toBe('possibleAf');
     expect(reading.metrics.rhythm!.confidence).not.toBe('high');
@@ -120,8 +120,8 @@ describe('red team PR #308: half a reading on the pulse, half on noise', () => {
 
   // Found by red team on PR #308. Observed: 45 of 90 flagged, 94.97 of 94.97 s clean, heart rate 70.0 bpm,
   // quality standard, confidence high, reading quality standard with no reason, though 47.5 s of it is noise.
-  // Same pending-owner status as the 45 of 90 noise test above.
-  it.failing('a reading half noise by SQI-Net is not presented as standard quality', () => {
+  // Fixed with the inclusive share; same pending-owner status as the 45 of 90 noise test above.
+  it('a reading half noise by SQI-Net is not presented as standard quality', () => {
     expect(mixed.sqiFlagged).toEqual({ windows: 45, total: 90 });
     const reading = buildReadingResult(
       mixed,
@@ -139,29 +139,21 @@ describe('red team PR #308: the share counts each SQI-Net window once', () => {
   // Found by red team on PR #308. The share's denominator is the raw score count, and neither setSqi nor
   // analyzeReading refuses a second score for the same window. Observed: noise with all 91 windows flagged, each
   // window scored again at P(clean) 0.9, counts 91 of 182 (0.5), so the noise rate is standard and high and the
-  // Possible AFib card standard and high. Under the old any-window rule a duplicate changed nothing.
-  it.failing(
-    'a second score for a window SQI-Net already flagged does not dilute the share (analyzeReading)',
-    () => {
-      const startNs = analyzeReading(noiseCapture(), FULL_30).startNs;
-      const once = sqiScores(startNs, 91, () => true);
-      const twice: SqiScores = {
-        threshold: THRESHOLD,
-        windows: [...once.windows, ...once.windows.map((window) => ({ ...window, pClean: 0.9 }))],
-      };
-      const outcome = (() => {
-        try {
-          return built(analyzeReading(noiseCapture(), { ...FULL_30, sqi: twice }));
-        } catch (error) {
-          if (error instanceof RangeError) return 'RangeError';
-          throw error;
-        }
-      })();
-      if (outcome !== 'RangeError') expect(outcome.metrics.rhythm!.qualityReasons).toContain('sqiFlagged');
-    },
-  );
+  // Possible AFib card standard and high. Under the old any-window rule a duplicate changed nothing. Fixed: each
+  // window counts once, by its first score, in analyzeReading and in LiveSession.setSqi.
+  it('a second score for a window SQI-Net already flagged does not dilute the share (analyzeReading)', () => {
+    const startNs = analyzeReading(noiseCapture(), FULL_30).startNs;
+    const once = sqiScores(startNs, 91, () => true);
+    const twice: SqiScores = {
+      threshold: THRESHOLD,
+      windows: [...once.windows, ...once.windows.map((window) => ({ ...window, pClean: 0.9 }))],
+    };
+    const analysis = analyzeReading(noiseCapture(), { ...FULL_30, sqi: twice });
+    expect(analysis.sqiFlagged).toEqual({ windows: 91, total: 91 });
+    expect(built(analysis).metrics.rhythm!.qualityReasons).toContain('sqiFlagged');
+  });
 
-  it.failing('a second score for the same window is refused or ignored (LiveSession.setSqi)', () => {
+  it('a second score for the same window is ignored (LiveSession.setSqi)', () => {
     const session = createLiveSession({
       captureFps: 30,
       sqiThreshold: THRESHOLD,
@@ -170,14 +162,8 @@ describe('red team PR #308: the share counts each SQI-Net window once', () => {
     const capture = noiseCapture();
     session.pushSamples({ samples: capture.samples.slice(0, 300), stats: capture.stats.slice(0, 300) });
     session.setSqi(8, 0.1);
-    let refused = false;
-    try {
-      session.setSqi(8, 0.9);
-    } catch (error) {
-      if (!(error instanceof RangeError)) throw error;
-      refused = true;
-    }
+    session.setSqi(8, 0.9);
     const { sqi } = session.readingInput();
-    expect(refused || sqi!.windows.length === 1).toBe(true);
+    expect(sqi!.windows).toEqual([expect.objectContaining({ pClean: 0.1 })]);
   });
 });

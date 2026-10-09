@@ -21,9 +21,10 @@ export const DSP_CONFIG = {
     // partway (red team on #299: 85 of 95 s) leaves more.
     sqiUnscoredMaxS: 4,
     // Owner 2026-10-09: "make the standards for a good reading lower". A reading is tagged sqiFlagged only when
-    // more than this share of its scored windows is flagged; at or below it SQI-Net leaves it standard. 0.5 set
-    // by the main session, pending the owner's check of the number (ADR 0104).
-    sqiFlaggedMaxShare: 0.5,
+    // at least this share of its scored windows is flagged; below it SQI-Net leaves it standard. 0.5, at or above
+    // half, is the main session's safe default pending the owner's check of the number (ADR 0104; red team on
+    // #308: half noise read standard and high under a strict ">").
+    sqiFlaggedTagShare: 0.5,
   },
   // Spec initial values (§10 DSP-4): a frame is covered when all four hold. A frame failing only the clip
   // limit is a "clipping" span, any other failure a "coverage" span (ADR 0041).

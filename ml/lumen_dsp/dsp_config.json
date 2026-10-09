@@ -12,7 +12,7 @@
     "dcOrder": 2,
     "modelWindowS": 4,
     "sqiUnscoredMaxS": 4,
-    "sqiFlaggedMaxShare": 0.5
+    "sqiFlaggedTagShare": 0.5
   },
   "dsp4": {
     "minRedRatio": 2,

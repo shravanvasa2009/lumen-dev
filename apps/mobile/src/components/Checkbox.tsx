@@ -1,16 +1,17 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { useTheme } from '@/theme';
 
 import { AppText } from './AppText';
 import { Icon } from './Icon';
+import { PressableScale } from './PressableScale';
 
 type CheckboxProps = { label: string; checked: boolean; onChange: (checked: boolean) => void };
 
 export function Checkbox({ label, checked, onChange }: CheckboxProps) {
   const { colors, spacing, radius, control } = useTheme();
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="checkbox"
       accessibilityLabel={label}
       accessibilityState={{ checked }}
@@ -32,6 +33,6 @@ export function Checkbox({ label, checked, onChange }: CheckboxProps) {
         {checked ? <Icon name="check" size={control.chevronSize} color={colors.onAccentFill} /> : null}
       </View>
       <AppText style={{ flex: 1 }}>{label}</AppText>
-    </Pressable>
+    </PressableScale>
   );
 }

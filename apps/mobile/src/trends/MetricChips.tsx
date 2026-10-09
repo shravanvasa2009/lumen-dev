@@ -1,6 +1,7 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { useTheme } from '@/theme';
 
 type MetricChipsProps<Value extends string> = {
@@ -16,7 +17,7 @@ export function MetricChips<Value extends string>({ options, selected, onSelect 
       {options.map(({ value, label }) => {
         const isSelected = value === selected;
         return (
-          <Pressable
+          <PressableScale
             key={value}
             accessibilityRole="radio"
             accessibilityState={{ checked: isSelected }}
@@ -34,7 +35,7 @@ export function MetricChips<Value extends string>({ options, selected, onSelect 
             <AppText variant="headline" tone={isSelected ? 'accent' : 'text'}>
               {label}
             </AppText>
-          </Pressable>
+          </PressableScale>
         );
       })}
     </View>

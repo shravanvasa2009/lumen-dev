@@ -1,6 +1,7 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { useTheme } from '@/theme';
 
 type Option<Value extends string> = { value: Value; label: string; hint?: string };
@@ -36,7 +37,7 @@ export function Segmented<Value extends string>({
       {options.map(({ value, label, hint }) => {
         const isSelected = value === selected;
         return (
-          <Pressable
+          <PressableScale
             key={value}
             accessibilityRole="radio"
             accessibilityState={{ checked: isSelected }}
@@ -54,7 +55,7 @@ export function Segmented<Value extends string>({
             <AppText variant="headline" tone={isSelected ? 'text' : 'textDim'}>
               {label}
             </AppText>
-          </Pressable>
+          </PressableScale>
         );
       })}
     </View>

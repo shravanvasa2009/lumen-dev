@@ -23,7 +23,8 @@ export const CLOSE_SHIELD_MS = 400;
 
 // SAFE-1: shown when any flag fires (heart rate, rhythm, or the diabetes pattern card, §12.5).
 // Yes opens emergency guidance at once; No closes it, and so does a downward swipe on the sheet (owner,
-// 2026-10-09: "the swipe down doesnt work either. fix this."). A tap outside and Android Back still do nothing
+// 2026-10-09: "the swipe down doesnt work either. fix this."). When the question overflows and scrolls, the
+// swipe is off, so dragging the text back cannot answer it. A tap outside and Android Back still do nothing
 // (ADR 0093). Yes uses the amber flag tokens, because red belongs to the emergency screen alone.
 export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
   const { t } = useTranslation();
@@ -36,10 +37,13 @@ export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
   const [scrollContentHeight, setScrollContentHeight] = useState(0);
   const overflowing = scrollContentHeight > scrollBoxHeight + 1;
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set once Yes is pressed, so a flick that started on Yes cannot also answer No as a swipe.
+  const answeredYes = useRef(false);
   useEffect(() => {
     if (visible) {
       setAnsweredNo(false);
       closeTimer.current = null;
+      answeredYes.current = false;
     }
   }, [visible]);
   useEffect(
@@ -53,7 +57,11 @@ export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
     setAnsweredNo(true);
     closeTimer.current = setTimeout(onNo, CLOSE_SHIELD_MS);
   };
+  const swipeNo = () => {
+    if (!answeredYes.current) closeAfterShield();
+  };
   const openEmergency = () => {
+    answeredYes.current = true;
     if (onYes !== undefined) {
       onYes();
       return;
@@ -62,7 +70,7 @@ export function SafetySheet({ visible, onNo, onYes }: SafetySheetProps) {
     router.push('/emergency');
   };
   return (
-    <BottomSheet visible={visible} onSwipeDown={closeAfterShield}>
+    <BottomSheet visible={visible} onSwipeDown={overflowing ? undefined : swipeNo}>
       <View
         pointerEvents={answeredNo ? 'none' : 'auto'}
         style={{ gap: spacing.lg, flexShrink: 1, opacity: answeredNo ? 0.5 : 1 }}

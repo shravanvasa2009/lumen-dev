@@ -48,7 +48,8 @@ export function MetricCard({
   const { colors, radius, spacing } = useTheme();
   // Measured, not left to flex wrapping: on the Galaxy A17 a wrapping row still squeezed "AFib · Heart rhythm"
   // to a letter-wide column beside the Flag, Experimental and dots badges (owner, 2026-10-09). When the name's
-  // natural width and the badges don't fit on one line, the badges get their own line under the name, left-aligned with the tag below them.
+  // natural width and the badges don't fit on one line, the badges get their own line under the name,
+  // left-aligned with the tag below them.
   const [rowWidth, setRowWidth] = useState(0);
   const [nameWidth, setNameWidth] = useState(0);
   const [badgesWidth, setBadgesWidth] = useState(0);

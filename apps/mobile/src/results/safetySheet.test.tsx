@@ -71,3 +71,58 @@ describe('SafetySheet on a 360x640 phone at the largest font', () => {
     expect(onNo).toHaveBeenCalledTimes(1);
   });
 });
+
+// Owner, 2026-10-09: "the swipe down doesnt work either. fix this." A swipe down answers No, as a tap on No does.
+describe('SafetySheet swipe down', () => {
+  const swipe = (
+    fromY: number,
+    toY: number,
+    durationMs: number,
+    end: 'touchEnd' | 'touchCancel' = 'touchEnd',
+  ) => {
+    const drag = screen.getByTestId('sheet-drag');
+    fireEvent(drag, 'touchStart', { nativeEvent: { pageY: fromY, timestamp: 0 } });
+    fireEvent(drag, 'touchMove', { nativeEvent: { pageY: toY, timestamp: durationMs } });
+    fireEvent(drag, end, { nativeEvent: { pageY: toY, timestamp: durationMs } });
+  };
+
+  it('answers No after the shield when dragged well down', () => {
+    const onNo = jest.fn();
+    render(<SafetySheet visible onNo={onNo} />);
+    swipe(400, 600, 400);
+    act(() => jest.advanceTimersByTime(CLOSE_SHIELD_MS));
+    expect(onNo).toHaveBeenCalledTimes(1);
+  });
+
+  it('springs back without answering on a short drag or a cancelled touch', () => {
+    const onNo = jest.fn();
+    render(<SafetySheet visible onNo={onNo} />);
+    swipe(400, 440, 400);
+    swipe(400, 700, 400, 'touchCancel');
+    act(() => jest.advanceTimersByTime(CLOSE_SHIELD_MS));
+    expect(onNo).not.toHaveBeenCalled();
+  });
+
+  it('does not answer while the question overflows and scrolls', () => {
+    const onNo = jest.fn();
+    render(<SafetySheet visible onNo={onNo} />);
+    const scroll = screen.UNSAFE_getByType(ScrollView);
+    fireEvent(scroll, 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 300, height: 100 } } });
+    fireEvent(scroll, 'contentSizeChange', 300, 500);
+    expect(scroll.props.scrollEnabled).toBe(true);
+    swipe(400, 700, 400);
+    act(() => jest.advanceTimersByTime(CLOSE_SHIELD_MS));
+    expect(onNo).not.toHaveBeenCalled();
+  });
+
+  it('does not also answer No when the flick started on Yes', () => {
+    const onNo = jest.fn();
+    const onYes = jest.fn();
+    render(<SafetySheet visible onNo={onNo} onYes={onYes} />);
+    fireEvent.press(screen.getByRole('button', { name: en['safety.yes'] }));
+    swipe(400, 700, 100);
+    act(() => jest.advanceTimersByTime(CLOSE_SHIELD_MS));
+    expect(onYes).toHaveBeenCalledTimes(1);
+    expect(onNo).not.toHaveBeenCalled();
+  });
+});

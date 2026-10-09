@@ -66,6 +66,11 @@ export function BottomSheet({ visible, onDismiss, dismissLabel, onSwipeDown, chi
     }
     DragAnimated.spring(dragY, { toValue: 0, useNativeDriver: false }).start();
   };
+  // The OS took the touch away (a system gesture, a call): spring back, never answer.
+  const cancelSwipe = () => {
+    swipeStart.current = null;
+    DragAnimated.spring(dragY, { toValue: 0, useNativeDriver: false }).start();
+  };
   const fadeIn = onCaptureScreen
     ? undefined
     : FadeIn.duration(motion.durationMs).easing(easeOut).reduceMotion(reduceMotionMode(reduceMotion));
@@ -98,7 +103,7 @@ export function BottomSheet({ visible, onDismiss, dismissLabel, onSwipeDown, chi
           }}
           onTouchMove={followFinger}
           onTouchEnd={endSwipe}
-          onTouchCancel={endSwipe}
+          onTouchCancel={cancelSwipe}
           testID="sheet-drag"
           style={{ maxHeight: '90%', flexShrink: 1, transform: [{ translateY: dragY }] }}
         >

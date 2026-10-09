@@ -62,8 +62,8 @@ export default function RootLayout() {
             sheetAllowedDetents: 'fitToContents',
           }}
         />
-        {/* The urgent screen rises from below the way an alert does. */}
-        <Stack.Screen name="emergency" options={{ animation: reduceMotion ? 'none' : 'fade_from_bottom' }} />
+        {/* SAFE-1: the urgent screen appears with no transition, so nothing delays it. */}
+        <Stack.Screen name="emergency" options={{ animation: 'none' }} />
       </Stack>
     </DemoStrip>
   );

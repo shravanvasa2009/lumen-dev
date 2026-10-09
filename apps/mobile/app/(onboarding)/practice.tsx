@@ -136,7 +136,12 @@ function PracticeRun({ onPracticeAgain }: { onPracticeAgain: () => void }) {
       </Animated.View>
       <Animated.View layout={settle}>
         <Card>
-          <LiveWaveform pulse={live.recentPulse} red={live.recentRed} />
+          <LiveWaveform
+            pulse={live.recentPulse}
+            red={live.recentRed}
+            pulseTimesS={live.recentWaveform.tS}
+            redTimesS={live.recentRedTS}
+          />
         </Card>
       </Animated.View>
       {rating === 'rated' ? (

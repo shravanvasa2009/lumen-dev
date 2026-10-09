@@ -207,6 +207,8 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
               <LiveWaveform
                 pulse={live.recentPulse}
                 red={live.recentRed}
+                pulseTimesS={live.recentWaveform.tS}
+                redTimesS={live.recentRedTS}
                 height={sizes.waveformHeight}
                 withFact={!tight}
               />

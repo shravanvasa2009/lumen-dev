@@ -1,4 +1,4 @@
-import { easeRange, glideDurationMs, smoothPath } from './waveformPath';
+import { easeRange, smoothPath } from './waveformPath';
 
 describe('smoothPath', () => {
   it('is empty for no points', () => {
@@ -35,6 +35,23 @@ describe('smoothPath', () => {
   });
 });
 
+describe('smoothPath bridges', () => {
+  it('joins a bridge point by a straight line and does not lean the curve across it', () => {
+    const path = smoothPath(
+      [
+        { x: 0, y: 10 },
+        { x: 10, y: 20 },
+        { x: 30, y: 20, bridge: true },
+        { x: 30, y: 40, bridge: true },
+        { x: 40, y: 30 },
+      ],
+      50,
+    );
+    expect(path).toContain('L30.0,20.0L30.0,40.0C');
+    expect(path.match(/C/g)).toHaveLength(2);
+  });
+});
+
 describe('easeRange', () => {
   const current = { low: 0, high: 10 };
   const target = { low: 10, high: 30 };
@@ -53,22 +70,5 @@ describe('easeRange', () => {
 
   it('does not move when no time passed', () => {
     expect(easeRange(current, target, 0, 400)).toEqual(current);
-  });
-});
-
-describe('glideDurationMs', () => {
-  it('glides for the time since the last batch while the window is full', () => {
-    expect(glideDurationMs(180, 181, 100, 150, false)).toBe(100);
-  });
-
-  it('draws still while the window fills, after it empties, and on the first batch', () => {
-    expect(glideDurationMs(60, 63, 100, 150, false)).toBe(0);
-    expect(glideDurationMs(180, 2, 100, 150, false)).toBe(0);
-    expect(glideDurationMs(null, 5, 0, 150, false)).toBe(0);
-  });
-
-  it('draws still after a stall and with Reduce Motion', () => {
-    expect(glideDurationMs(180, 180, 400, 150, false)).toBe(0);
-    expect(glideDurationMs(180, 180, 100, 150, true)).toBe(0);
   });
 });

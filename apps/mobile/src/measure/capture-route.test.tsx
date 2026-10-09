@@ -18,6 +18,7 @@ const unavailable: LiveCapture = {
   failure: null,
   status: null,
   recentRed: [],
+  recentRedTS: [],
   recentPulse: [],
   elapsedS: 0,
   cleanSeconds: null,

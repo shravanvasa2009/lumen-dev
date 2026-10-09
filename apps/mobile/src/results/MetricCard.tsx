@@ -52,12 +52,21 @@ export function MetricCard({
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexWrap: 'wrap',
           gap: spacing.sm,
         }}
       >
         <CheckHeading icon={icon} name={checkName} label={title} />
         {reading ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.sm,
+              flexShrink: 0,
+              marginLeft: 'auto',
+            }}
+          >
             {reading.flagged ? (
               <View
                 style={{

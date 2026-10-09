@@ -88,9 +88,21 @@ export function MetricCard({
       </View>
       {reading && lowQualityReasons ? <LowerQualityTag small reasons={lowQualityReasons} /> : null}
       {reading ? (
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <AppText variant="title">{reading.value}</AppText>
-          <AppText tone="textDim" style={{ flexShrink: 1, textAlign: 'right' }}>
+        // Wraps so a long value ("Too short to judge the rhythm") pushes the note to its own line; without
+        // wrap the note was squeezed to a one-letter column the height of the screen.
+        <View
+          style={{
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            columnGap: spacing.sm,
+          }}
+        >
+          <AppText variant="title" style={{ flexShrink: 1 }}>
+            {reading.value}
+          </AppText>
+          <AppText tone="textDim" style={{ flexGrow: 1, textAlign: 'right' }}>
             {reading.note}
           </AppText>
         </View>

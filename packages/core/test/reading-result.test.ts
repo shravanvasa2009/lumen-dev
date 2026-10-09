@@ -120,6 +120,26 @@ describe('advisory SQI-Net (sqiFlagged)', () => {
     expect(build(slow).metrics.hr).toMatchObject({ flag: 'slowResting', quality: 'low' });
   });
 
+  // Red team on #299: pure noise SQI-Net flagged in every window read "Possible AFib". Pending owner confirmation.
+  it('judges no rhythm when SQI-Net flagged more than half its windows', () => {
+    const share = DSP_CONFIG.rules.rhythmMaxSqiFlaggedShare;
+    const past: PastReading = { atMs: NOW_MS - HOUR_MS, rhythmPositive: true, rmssdMs: null, diabetes: null };
+    const mostly = build(
+      analysisWith({ sqiFlagged: { windows: 46, total: 91 } }),
+      AF,
+      seedEvidence,
+      PROFILE,
+      [past],
+    );
+    expect(mostly.metrics.rhythm).toMatchObject({ class: null, pAF: null, flag: null, quality: 'low' });
+    expect(mostly.headlineKey).toBe('result.hrOnly');
+    expect(mostly.metrics.rmssd!.qualityReasons).toContain('rhythmUnjudged');
+    expect(46 / 91).toBeGreaterThan(share);
+    const half = build(analysisWith({ sqiFlagged: { windows: 45, total: 90 } }), AF);
+    expect(half.metrics.rhythm).toMatchObject({ class: 'af', flag: 'irregular' });
+    expect(45 / 90).toBe(share);
+  });
+
   it('adds nothing when no window was flagged or SQI-Net never ran', () => {
     expect(build(analysisWith({ sqiFlagged: { windows: 0, total: 91 } })).quality.level).toBe('standard');
     const noModel = build(analysisWith({ sqiFlagged: null, sqiAvailable: false }));

@@ -120,6 +120,7 @@
     "fastRegularMaxNormalizedRmssd": 0.03,
     "rhythmMinCleanS": 60,
     "uncertainBelowTopProb": 0.6,
+    "rhythmMaxSqiFlaggedShare": 0.5,
     "rhythmRowSumTolerance": 1e-5,
     "possibleAfPositives": 2,
     "possibleAfReadings": 3,

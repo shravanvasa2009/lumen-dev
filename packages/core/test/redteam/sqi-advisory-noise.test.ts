@@ -138,12 +138,12 @@ describe('red team PR #299: rhythm flags from noise SQI-Net flagged everywhere',
     expect(flagged.rhythmFeatures.length).toBe(1);
   });
 
-  // OWNER DECISION (ADR 0104 question 6 asked about noise's "flags"; the 2026-10-09 ruling covers the heart rate).
-  // Observed: with the shipped rhythm-lgbm and with the app's rule fallback (rhythm-logistic, P(AF) 0.980), pure
-  // noise flagged in all 91 windows reads "irregular", and with one positive an hour before "Possible AFib"
-  // (confidence moderate for the model, low for the rule, tagged sqiFlagged). Before PR #299 SQI-Net rejected
-  // these windows and the capture was inconclusive.
-  test.failing.each([
+  // Found by red team (ADR 0104 question 6 asked about noise's "flags"; the 2026-10-09 ruling covers the heart
+  // rate). Observed: with the shipped rhythm-lgbm and with the app's rule fallback (rhythm-logistic, P(AF) 0.980),
+  // pure noise flagged in all 91 windows read "irregular", and with one positive an hour before "Possible AFib".
+  // Before PR #299 SQI-Net rejected these windows and the capture was inconclusive. Now a reading SQI-Net flagged
+  // mostly (rules.rhythmMaxSqiFlaggedShare, pending owner confirmation) gets the "too short to judge" card.
+  it.each([
     ['rhythm-lgbm', (analysis: ReadingAnalysis) => lgbmOn(analysis)],
     [
       'rhythm-logistic rule',
@@ -160,7 +160,9 @@ describe('red team PR #299: rhythm flags from noise SQI-Net flagged everywhere',
       NO_FLAGS,
       BATTERY_HISTORY,
     );
-    expect(built.metrics.rhythm!.flag).toBeNull();
+    expect(built.metrics.rhythm).toMatchObject({ class: null, pAF: null, flag: null, quality: 'low' });
+    expect(built.metrics.rhythm!.qualityReasons).toContain('sqiFlagged');
+    expect(built.headlineKey).toBe('result.hrOnly');
   });
 });
 

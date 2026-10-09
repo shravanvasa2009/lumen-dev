@@ -288,7 +288,15 @@ function readingRhythmProbs(
   });
   // Owner 2026-10-06 (ADR 0104 answer 5): a reading-wide window under rhythmClassMinIntervals gives no class.
   const wide = analysis.lowQuality.rhythmWindow;
-  const judged = analysis.rhythmFeatures.length > 0 || wide === null || judgesRhythm(wide);
+  const flagged = analysis.sqiFlagged;
+  // Red team on #299: the rhythm models call pure noise AF, and advisory SQI-Net no longer removes it, so a
+  // reading SQI-Net flagged mostly gets no class either.
+  const mostlyFlagged =
+    flagged !== null &&
+    flagged.total > 0 &&
+    flagged.windows / flagged.total > DSP_CONFIG.rules.rhythmMaxSqiFlaggedShare;
+  const judged =
+    !mostlyFlagged && (analysis.rhythmFeatures.length > 0 || wide === null || judgesRhythm(wide));
   return { probs, judged, reasons };
 }
 

@@ -182,6 +182,10 @@ export const DSP_CONFIG = {
     fastRegularMaxNormalizedRmssd: 0.03, // strictly below
     rhythmMinCleanS: 60, // irregular rhythm; also needs dsp15.minUsableIntervals
     uncertainBelowTopProb: 0.6, // "Couldn't tell — retake"
+    // Pending owner confirmation. Red team on #299: rhythm-lgbm and rhythm-logistic put P(AF) ≥ 0.8 on 43 and 53
+    // of 72 captures of pure covered-lens noise, which advisory SQI-Net (owner 2026-10-06) no longer rejects. A
+    // reading with more than this share of its scored windows flagged gets no rhythm class or flag.
+    rhythmMaxSqiFlaggedShare: 0.5,
     // §11.1 Rhythm-Net output check (initial): each window's sinus, af, other must sum to 1 within this.
     // ONNX Runtime returns float32 softmax rows, whose sums are off by a few 1e-7.
     rhythmRowSumTolerance: 1e-5,

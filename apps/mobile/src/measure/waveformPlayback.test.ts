@@ -69,6 +69,11 @@ describe('advancePlayhead', () => {
     expect(speed).toBeLessThan(1.06);
   });
 
+  it('catches up after a short stall at no more than 1.25 times real time', () => {
+    const after = advancePlayhead(10, 16, 10.8, 20);
+    expect((after - 10) / 0.016).toBeLessThanOrEqual(1.25 + 1e-9);
+  });
+
   it('targets the newest-sample time minus the playback delay', () => {
     expect(playheadTargetS(5000, 2000)).toBeCloseTo(3 - PLAYBACK_DELAY_S);
   });
@@ -104,6 +109,30 @@ describe('tracePath', () => {
     const dense = series(0, 10, 0.004);
     const segments = tracePath(dense, 8, range, geometry)!.d.match(/C/g)!;
     expect(segments.length).toBeLessThanOrEqual(300 / 2 + 2);
+  });
+
+  it('reuses nearly all drawn samples from frame to frame across batches in steady state', () => {
+    const wide = { ...geometry, width: 1008, dotX: 1000 };
+    const dense = series(0, 30, 0.008);
+    let stored: { t: number[]; v: number[] } = { t: [], v: [] };
+    let previous: Set<string> | null = null;
+    for (let newest = 8; newest <= 12; newest += 0.1) {
+      const from = dense.t.findIndex((time) => time >= newest - 6);
+      const to = dense.t.findIndex((time) => time > newest);
+      stored = mergeSeries(stored, { t: dense.t.slice(from, to), v: dense.v.slice(from, to) }, 6.8);
+      const edge = newest - 0.3;
+      const { d } = tracePath(stored, edge, range, wide)!;
+      const drawn = new Set(
+        [...d.matchAll(/(-?\d+\.\d),(-?\d+\.\d)/g)].map(
+          (match) => ((Number(match[1]) / 1000) * 6 + edge - 6).toFixed(2) + ':' + match[2],
+        ),
+      );
+      if (previous) {
+        const kept = [...drawn].filter((key) => previous!.has(key)).length;
+        expect(kept / drawn.size).toBeGreaterThan(0.9);
+      }
+      previous = drawn;
+    }
   });
 
   it('puts the dot between samples at the playhead', () => {

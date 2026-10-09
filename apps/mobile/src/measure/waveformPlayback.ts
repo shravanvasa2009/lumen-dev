@@ -27,6 +27,8 @@ const MIN_STEP_PX = 2;
 const PLAYHEAD_SETTLE_MS = 1000;
 // A playhead further than this from where the clock says it should be (a long stall) is reset, not slewed.
 const RESYNC_S = 1;
+// After a short stall the playhead catches up no faster than this multiple of real time, so it does not visibly speed up.
+const MAX_CATCH_UP = 1.25;
 // Clock offsets drift upward slowly: a late batch says little about the true offset, an early one says a lot.
 const OFFSET_RISE_SHARE = 0.02;
 
@@ -36,8 +38,7 @@ export function mergeSeries(
   incoming: Series,
   keepS: number,
 ): Series {
-  'worklet';
-  const firstNew = incoming.t[0];
+    const firstNew = incoming.t[0];
   if (firstNew === undefined || incoming.t.length !== incoming.v.length) return { t: [], v: [] };
   let keepUntil = 0;
   while (keepUntil < stored.t.length && stored.t[keepUntil]! < firstNew) keepUntil += 1;
@@ -68,6 +69,7 @@ export function advancePlayhead(
   if (previous !== null && Math.abs(targetS - previous) <= RESYNC_S) {
     const advanced = previous + elapsedMs / 1000;
     next = advanced + (targetS - advanced) * (1 - Math.exp(-elapsedMs / PLAYHEAD_SETTLE_MS));
+    next = Math.min(next, previous + (MAX_CATCH_UP * elapsedMs) / 1000);
   }
   return Math.min(newestS, Math.max(previous ?? -Infinity, next));
 }
@@ -79,8 +81,8 @@ export function playheadTargetS(frameMs: number, offsetMs: number): number {
 }
 
 // The SVG path of the `windowS` seconds ending at `endS`, and the y of its newest point. Points are placed by their
-// own timestamps, so the trace moves by elapsed time only; every `stride`-th sample by absolute index is used, so
-// the chosen samples stay the same as the window slides.
+// own timestamps, so the trace moves by elapsed time only; a sample is kept when it starts a new
+// time cell of windowS * MIN_STEP_PX / dotX seconds, so the same samples stay drawn as old ones leave the window.
 export function tracePath(
   series: Series,
   endS: number,
@@ -101,11 +103,12 @@ export function tracePath(
     const unit = span > 0 ? Math.min(1, Math.max(0, (value - range.low) / span)) : 0.5;
     return padding + (upIsHigh ? 1 - unit : unit) * (height - 2 * padding);
   };
-  const stride = Math.max(1, Math.ceil((last - first + 1) / Math.max(2, Math.floor(dotX / MIN_STEP_PX))));
+  const stepS = (windowS * MIN_STEP_PX) / dotX;
   const points: { x: number; y: number; bridge?: boolean }[] = [];
   let previousTime = t[first]!;
   for (let index = first; index <= last; index += 1) {
-    if (index !== last && index % stride !== 0) continue;
+    const newCell = index === first || Math.floor(t[index]! / stepS) !== Math.floor(t[index - 1]! / stepS);
+    if (index !== last && !newCell) continue;
     const x = dotX - (endS - t[index]!) * pxPerS;
     const y = yOf(v[index]!);
     const previous = points[points.length - 1];

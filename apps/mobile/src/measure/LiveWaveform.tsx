@@ -87,6 +87,8 @@ function Trace({ values, timesS, width, height, scale, upIsHigh, stroke, strokeW
   const clockOffsetMs = useSharedValue<number | null>(null);
   const playhead = useSharedValue<number | null>(null);
   const easedRange = useSharedValue<Range | null>(null);
+  const drawnEdge = useSharedValue<number | null>(null);
+  const drawnVersion = useSharedValue(0);
   const geometry = useMemo<TraceGeometry>(
     () => ({ width, height, dotX: width - HALO_RADIUS, padding: PADDING, windowS: WINDOW_S, upIsHigh }),
     [width, height, upIsHigh],
@@ -118,20 +120,25 @@ function Trace({ values, timesS, width, height, scale, upIsHigh, stroke, strokeW
         elapsed,
         RANGE_SETTLE_MS,
       );
+      const rangeMoved = range?.low !== easedRange.value?.low || range?.high !== easedRange.value?.high;
       easedRange.value = range;
       if (!range) return;
+      if (edge === drawnEdge.value && batch.version === drawnVersion.value && !rangeMoved) return;
+      drawnEdge.value = edge;
+      drawnVersion.value = batch.version;
       const drawn = tracePath(batch, edge, range, geometryOnUi.value);
       if (!drawn) return;
       pathD.value = drawn.d;
       dotY.value = drawn.dotY;
     },
-    [playback, seenVersion, clockOffsetMs, playhead, easedRange, geometryOnUi, pathD, dotY],
+    [playback, seenVersion, clockOffsetMs, playhead, easedRange, drawnEdge, drawnVersion, geometryOnUi, pathD, dotY],
   );
   const frames = useFrameCallback(drawFrame, false);
 
   useEffect(() => {
     geometryOnUi.value = geometry;
-  }, [geometry, geometryOnUi]);
+    drawnEdge.value = null;
+  }, [geometry, geometryOnUi, drawnEdge]);
 
   useEffect(() => {
     frames.setActive(drawable && !reduceMotion);

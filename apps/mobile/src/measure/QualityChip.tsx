@@ -1,13 +1,35 @@
+import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, type LayoutChangeEvent } from 'react-native';
+import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 import { AppText } from '@/components/AppText';
+import { ValueSettle } from '@/components/Reveal';
 import { labelAt } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
+import { enterTransition, glideConfig, StillMotion, useReduceMotion } from '@/theme/motion';
 
 const BAR_WIDTH = 4;
 const BAR_HEIGHT = 11;
+const DIM_OPACITY = 0.3;
 const BARS = { weak: 1, ok: 2, strong: 3 } as const;
+
+// One of the three bars; it eases between lit and dim as the level moves, on the UI thread.
+function QualityBar({ lit }: { lit: boolean }) {
+  const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
+  const still = useContext(StillMotion);
+  const glide = glideConfig(reduceMotion || still);
+  const barStyle = useAnimatedStyle(() => ({ opacity: withTiming(lit ? 1 : DIM_OPACITY, glide) }));
+  return (
+    <Animated.View
+      style={[
+        { width: BAR_WIDTH, height: BAR_HEIGHT, borderRadius: 1, backgroundColor: colors.badgeCheckedFg },
+        barStyle,
+      ]}
+    />
+  );
+}
 
 // "Quality ▮▮▮ Good" from the same Weak/OK/Strong level the practice meter shows. With no level (`checking`: the
 // camera runs but the session has no pulse window yet) it reads "Checking" with no bar lit, instead of a level
@@ -27,6 +49,8 @@ export function QualityChip({
 }) {
   const { t } = useTranslation();
   const { colors, spacing, radius } = useTheme();
+  const reduceMotion = useReduceMotion();
+  const still = useContext(StillMotion);
   const band = labelAt(level);
   if (band === null && !checking) return null;
   const word =
@@ -34,7 +58,8 @@ export function QualityChip({
       ? t('capture.qualityChecking')
       : { weak: t('signal.weak'), ok: t('signal.ok'), strong: t('capture.qualityGood') }[band];
   return (
-    <View
+    <Animated.View
+      entering={still ? undefined : enterTransition(reduceMotion)}
       accessible
       accessibilityLabel={`${t('capture.quality')} ${word}`}
       onLayout={onLayout}
@@ -55,21 +80,14 @@ export function QualityChip({
       )}
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2 }} accessibilityElementsHidden>
         {[1, 2, 3].map((barNumber) => (
-          <View
-            key={barNumber}
-            style={{
-              width: BAR_WIDTH,
-              height: BAR_HEIGHT,
-              borderRadius: 1,
-              backgroundColor: colors.badgeCheckedFg,
-              opacity: band !== null && barNumber <= BARS[band] ? 1 : 0.3,
-            }}
-          />
+          <QualityBar key={barNumber} lit={band !== null && barNumber <= BARS[band]} />
         ))}
       </View>
-      <AppText variant="caption" style={{ fontWeight: '600', color: colors.badgeCheckedFg }}>
-        {word}
-      </AppText>
-    </View>
+      <ValueSettle value={word}>
+        <AppText variant="caption" style={{ fontWeight: '600', color: colors.badgeCheckedFg }}>
+          {word}
+        </AppText>
+      </ValueSettle>
+    </Animated.View>
   );
 }

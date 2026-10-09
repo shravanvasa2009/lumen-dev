@@ -139,7 +139,10 @@ describe.each([
   });
 
   it('follows the signal down when the finger slips and the pulse fades', async () => {
-    const fading = await levelAfter({ fps, seconds: 30, amplitudeAt: (tS) => (tS < 12 ? STRONG : WEAK), noise: NOISE }, 26);
+    const fading = await levelAfter(
+      { fps, seconds: 30, amplitudeAt: (tS) => (tS < 12 ? STRONG : WEAK), noise: NOISE },
+      26,
+    );
     expect(fading!).toBeLessThan(1 / 3);
   });
 

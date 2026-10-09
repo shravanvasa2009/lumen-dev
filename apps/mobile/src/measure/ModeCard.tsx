@@ -1,6 +1,7 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
@@ -42,7 +43,7 @@ export function ModeCard({
     </View>
   );
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityHint={unavailable}
@@ -71,6 +72,6 @@ export function ModeCard({
           <Icon name="finger" size={24} color={colors.pulse} />
         )}
       </Card>
-    </Pressable>
+    </PressableScale>
   );
 }

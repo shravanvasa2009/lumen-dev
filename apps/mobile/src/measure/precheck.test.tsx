@@ -63,7 +63,9 @@ describe('pre-check', () => {
   });
 
   it('says a Quick Check runs none of the four checks and names them all', () => {
-    expect(screen.getByText(en['checks.thisScanMode'].replace('{{mode}}', en['mode.quick']))).toBeOnTheScreen();
+    expect(
+      screen.getByText(en['checks.thisScanMode'].replace('{{mode}}', en['mode.quick'])),
+    ).toBeOnTheScreen();
     expect(screen.queryByTestId('evidence-badge')).toBeNull();
     expect(screen.getByText('Not in this scan: AFib, HRV, Diabetes, POTS')).toBeOnTheScreen();
   });

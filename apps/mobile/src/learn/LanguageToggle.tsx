@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { useTheme } from '@/theme';
 
 // Switches the app language for the session; the language row in Settings owns any saved choice.
@@ -28,7 +29,7 @@ export function LanguageToggle() {
       {choices.map(({ code, short, name }) => {
         const selected = i18n.language === code;
         return (
-          <Pressable
+          <PressableScale
             key={code}
             accessibilityRole="radio"
             accessibilityLabel={name}
@@ -45,7 +46,7 @@ export function LanguageToggle() {
             ]}
           >
             <AppText tone={selected ? 'text' : 'textDim'}>{short}</AppText>
-          </Pressable>
+          </PressableScale>
         );
       })}
     </View>

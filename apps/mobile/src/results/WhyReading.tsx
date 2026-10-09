@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { Card } from '@/components/Card';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon } from '@/components/Icon';
@@ -142,7 +143,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
         </Card>
 
         <Card flush>
-          <Pressable
+          <PressableScale
             accessibilityRole="button"
             accessibilityLabel={t('why.learnMore')}
             accessibilityState={{ expanded: poincareOpen }}
@@ -167,7 +168,7 @@ export function WhyReading({ reading }: { reading: FixtureReading }) {
                 <Icon name="chevron" size={control.chevronSize} color={colors.text} />
               </View>
             </View>
-          </Pressable>
+          </PressableScale>
           {poincareOpen ? (
             <View
               style={{ flexDirection: 'row', gap: spacing.md, padding: spacing.lg, paddingTop: spacing.xs }}

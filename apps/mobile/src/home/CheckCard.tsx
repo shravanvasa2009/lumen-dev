@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon, type IconName } from '@/components/Icon';
 import type { EvidenceMetric } from '@/evidence';
@@ -68,20 +69,20 @@ export function CheckCard({ icon, name, evidence, finding, onOpenFinding, onScan
       }}
     >
       {onOpenFinding ? (
-        <Pressable
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel={`${name}: ${finding}`}
           onPress={onOpenFinding}
           style={{ flex: 1 }}
         >
           {body}
-        </Pressable>
+        </PressableScale>
       ) : (
         <View accessible accessibilityLabel={`${name}: ${finding}`} style={{ flex: 1 }}>
           {body}
         </View>
       )}
-      <Pressable
+      <PressableScale
         accessibilityRole="button"
         accessibilityLabel={t('checks.scanFor', { name })}
         onPress={onScan}
@@ -100,7 +101,7 @@ export function CheckCard({ icon, name, evidence, finding, onOpenFinding, onScan
         <AppText variant="headline" tone="accent">
           {t('checks.scan')}
         </AppText>
-      </Pressable>
+      </PressableScale>
     </View>
   );
 }

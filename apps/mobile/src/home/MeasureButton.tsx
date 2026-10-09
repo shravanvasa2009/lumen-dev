@@ -1,7 +1,8 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 import { useTheme } from '@/theme';
 
 type MeasureButtonProps = { label: string; modeLabel: string; size: number; onPress: () => void };
@@ -44,7 +45,7 @@ export function MeasureButton({ label, modeLabel, size, onPress }: MeasureButton
   const center = size / 2;
   const { textWidth, text } = measureLayout(size, 1);
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={modeLabel}
@@ -89,6 +90,6 @@ export function MeasureButton({ label, modeLabel, size, onPress }: MeasureButton
           {modeLabel}
         </AppText>
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }

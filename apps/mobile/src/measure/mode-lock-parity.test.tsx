@@ -39,7 +39,12 @@ const PICKER_NAME: Record<PlanMode, string> = {
 const TIERS: readonly RatingTier[] = ['full', 'basic', 'limited', 'unsupported'];
 const profiles = TIERS.flatMap((tier) =>
   [false, true].flatMap((ambient) =>
-    [30, 60].map((fpsLevel) => ({ tier, ambient, fpsLevel, label: `${tier} ambient=${ambient} ${fpsLevel} fps` })),
+    [30, 60].map((fpsLevel) => ({
+      tier,
+      ambient,
+      fpsLevel,
+      label: `${tier} ambient=${ambient} ${fpsLevel} fps`,
+    })),
   ),
 );
 
@@ -59,7 +64,8 @@ describe('the mode picker and the checks table give the same lock reason', () =>
 
     for (const mode of ['quick', 'full', 'deep', 'standing'] as const) {
       const reason = lockReason(mockRating, mode);
-      const hint = screen.getByRole('button', { name: PICKER_NAME[mode] }).props.accessibilityHint as string | undefined;
+      const hint = screen.getByRole('button', { name: PICKER_NAME[mode] }).props.accessibilityHint as
+        string | undefined;
       if (reason === null) expect(lockTexts.has(hint ?? '')).toBe(false);
       else expect(hint).toBe(lockText(strings(en), reason));
     }

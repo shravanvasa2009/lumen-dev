@@ -7,6 +7,7 @@ import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
+import { Reveal, Settle, ValueSettle } from '@/components/Reveal';
 import { Screen } from '@/components/Screen';
 import { FingerPreview, ProgressRing } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
@@ -100,7 +101,8 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
 
           <View style={{ alignItems: 'center', justifyContent: 'center', minHeight: 26 }}>
             {live.status ? (
-              <View
+              <ValueSettle
+                value={fingerOn}
                 style={{
                   paddingHorizontal: spacing.lg,
                   paddingVertical: spacing.xs,
@@ -114,7 +116,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
                 >
                   {fingerOn ? t('capture.fingerDetected') : t('capture.fingerMissing')}
                 </AppText>
-              </View>
+              </ValueSettle>
             ) : null}
             <Pressable
               accessibilityRole="button"
@@ -153,61 +155,71 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
               paused={paused}
             />
             <View style={{ position: 'absolute', alignItems: 'center' }}>
-              <AppText variant="display">{done ?? NO_VALUE}</AppText>
+              <ValueSettle value={done ?? NO_VALUE}>
+                <AppText variant="display">{done ?? NO_VALUE}</AppText>
+              </ValueSettle>
               <AppText variant="caption" tone="textDim">
                 {paused ? t('capture.pausedOf', { total }) : t('capture.cleanOf', { total })}
               </AppText>
             </View>
           </View>
           {coaching ? (
-            <View
-              accessible
-              accessibilityRole="alert"
-              accessibilityLiveRegion="polite"
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: spacing.md,
-                padding: spacing.lg,
-                borderRadius: radius.card,
-                backgroundColor: colors.flagBg,
-              }}
-            >
-              <Icon name="warning" size={22} color={colors.flag} />
-              <AppText variant="headline" style={{ flex: 1, color: colors.flag }}>
-                {coachingText(t)[coaching]}
-              </AppText>
-            </View>
+            <Reveal settle>
+              <View
+                accessible
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.md,
+                  padding: spacing.lg,
+                  borderRadius: radius.card,
+                  backgroundColor: colors.flagBg,
+                }}
+              >
+                <Icon name="warning" size={22} color={colors.flag} />
+                <AppText variant="headline" style={{ flex: 1, color: colors.flag }}>
+                  {coachingText(t)[coaching]}
+                </AppText>
+              </View>
+            </Reveal>
           ) : null}
 
           {live.phase === 'denied' || (tight && counting) ? null : (
-            <AppText tone="textDim" style={{ textAlign: 'center' }}>
-              {caption}
-            </AppText>
+            <Settle>
+              <AppText tone="textDim" style={{ textAlign: 'center' }}>
+                {caption}
+              </AppText>
+            </Settle>
           )}
 
           {fingerOn ? null : (
-            <AppText tone="textDim" style={{ textAlign: 'center' }}>
-              {t('placement.flashOutsideBump')}
-            </AppText>
+            <Reveal settle>
+              <AppText tone="textDim" style={{ textAlign: 'center' }}>
+                {t('placement.flashOutsideBump')}
+              </AppText>
+            </Reveal>
           )}
 
-          <Card dense={tight}>
-            <LiveWaveform
-              pulse={live.recentPulse}
-              red={live.recentRed}
-              height={sizes.waveformHeight}
-              withFact={!tight}
-            />
-            {running ? null : (
-              <AppText variant="caption" tone="textDim">
-                {t('capture.noWaveform')}
-              </AppText>
-            )}
-          </Card>
+          <Settle>
+            <Card dense={tight}>
+              <LiveWaveform
+                pulse={live.recentPulse}
+                red={live.recentRed}
+                height={sizes.waveformHeight}
+                withFact={!tight}
+              />
+              {running ? null : (
+                <AppText variant="caption" tone="textDim">
+                  {t('capture.noWaveform')}
+                </AppText>
+              )}
+            </Card>
+          </Settle>
 
           {live.status && !tight ? (
-            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl }}>
+            <Settle style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl }}>
               <CheckLabel label={t('capture.finger')} passing={fingerOn} />
               {counting ? (
                 <>
@@ -215,10 +227,12 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
                   <CheckLabel label={t('capture.pressure')} passing={coaching !== 'coach.lighter'} />
                 </>
               ) : null}
-            </View>
+            </Settle>
           ) : null}
 
-          <CheckingRow mode={mode} items={checkingItems(mode, live.cleanSeconds, phone)} dimmed={paused} />
+          <Settle>
+            <CheckingRow mode={mode} items={checkingItems(mode, live.cleanSeconds, phone)} dimmed={paused} />
+          </Settle>
         </ScrollView>
       </Screen>
     </StillMotion.Provider>

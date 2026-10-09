@@ -8,7 +8,7 @@ import { useSavedLanguage } from '@/i18n/language';
 import { showNotificationsInForeground } from '@/notifications/foreground';
 import { useOpenTappedNotification } from '@/notifications/openTapped';
 import { useTheme } from '@/theme';
-import { useReduceMotion } from '@/theme/motion';
+import { stackAnimation, useReduceMotion } from '@/theme/motion';
 
 showNotificationsInForeground();
 
@@ -43,7 +43,7 @@ export default function RootLayout() {
           headerStyle: { backgroundColor: colors.bg },
           headerTintColor: colors.accent,
           contentStyle: { backgroundColor: colors.bg },
-          animation: reduceMotion ? 'none' : 'default',
+          animation: stackAnimation(reduceMotion),
         }}
       >
         <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
@@ -62,6 +62,8 @@ export default function RootLayout() {
             sheetAllowedDetents: 'fitToContents',
           }}
         />
+        {/* SAFE-1: the urgent screen appears with no transition, so nothing delays it. */}
+        <Stack.Screen name="emergency" options={{ animation: 'none' }} />
       </Stack>
     </DemoStrip>
   );

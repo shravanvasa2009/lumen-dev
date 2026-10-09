@@ -9,6 +9,7 @@ import type { ReadingResult } from '@lumen/core';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { EvidenceBadge } from '@/components/EvidenceBadge';
+import { Reveal } from '@/components/Reveal';
 import { Screen } from '@/components/Screen';
 import { evidenceFor } from '@/evidence';
 import { useTheme } from '@/theme';
@@ -149,125 +150,141 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
       />
       <ScrollView contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xxl }}>
         {reading.sample ? <DemoBanner synthetic={reading.synthetic} /> : null}
-        <HeadlineCard fill={headlineTone.fill} edge={headlineTone.edge}>
-          <AppText variant="title">{headlineText(t, reading)}</AppText>
-          {subline ? <AppText>{subline}</AppText> : null}
-          <AppText variant="caption" tone="textDim">
-            {metaParts.join(' · ')}
-          </AppText>
-          {quality.level === 'low' ? <LowerQualityTag reasons={quality.reasons} /> : null}
-        </HeadlineCard>
+        <Reveal>
+          <HeadlineCard fill={headlineTone.fill} edge={headlineTone.edge}>
+            <AppText variant="title">{headlineText(t, reading)}</AppText>
+            {subline ? <AppText>{subline}</AppText> : null}
+            <AppText variant="caption" tone="textDim">
+              {metaParts.join(' · ')}
+            </AppText>
+            {quality.level === 'low' ? <LowerQualityTag reasons={quality.reasons} /> : null}
+          </HeadlineCard>
+        </Reveal>
 
         {retake ? (
-          <View
-            accessibilityRole="alert"
-            style={{
-              backgroundColor: colors.flagBg,
-              borderColor: colors.flag,
-              borderWidth: 1,
-              borderRadius: radius.card,
-              padding: spacing.lg,
-              gap: spacing.sm,
-            }}
-          >
-            <AppText variant="headline">
-              {retake === 'shortSlow' ? t('results.retakeShortSlow') : t('results.retakeShortFast')}
-            </AppText>
-            <Button
-              label={t('results.retakeNow')}
-              onPress={() => router.replace(`/measure/capture?mode=${reading.mode}`)}
-            />
-          </View>
+          <Reveal index={1}>
+            <View
+              accessibilityRole="alert"
+              style={{
+                backgroundColor: colors.flagBg,
+                borderColor: colors.flag,
+                borderWidth: 1,
+                borderRadius: radius.card,
+                padding: spacing.lg,
+                gap: spacing.sm,
+              }}
+            >
+              <AppText variant="headline">
+                {retake === 'shortSlow' ? t('results.retakeShortSlow') : t('results.retakeShortFast')}
+              </AppText>
+              <Button
+                label={t('results.retakeNow')}
+                onPress={() => router.replace(`/measure/capture?mode=${reading.mode}`)}
+              />
+            </View>
+          </Reveal>
         ) : null}
 
-        {acuteFlag ? <Button label={t('results.findCare')} onPress={() => router.push('/care')} /> : null}
+        {acuteFlag ? (
+          <Reveal index={1}>
+            <Button label={t('results.findCare')} onPress={() => router.push('/care')} />
+          </Reveal>
+        ) : null}
 
         {diabetesCard ? (
-          <View
-            style={{
-              backgroundColor: colors.flagBg,
-              borderColor: colors.flag,
-              borderWidth: 1,
-              borderRadius: radius.card,
-              padding: spacing.lg,
-              gap: spacing.sm,
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <AppText variant="headline" style={{ color: colors.flag, flex: 1 }}>
-                {t('dm.flag.title')}
-              </AppText>
-              <EvidenceBadge metric="diabetes" />
-            </View>
-            {lowReasons(diabetes) ? <LowerQualityTag small reasons={lowReasons(diabetes) ?? []} /> : null}
-            <AppText>
-              {t('results.diabetesSeen', {
-                readings: diabetesCard.readingsUsed,
-                days: reading.diabetesDays.map((day) => formatDay(day, i18n.language)).join(', '),
-              })}
-            </AppText>
-            <AppText>{t('dm.flag.body')}</AppText>
-            <AppText
-              accessibilityRole="link"
-              tone="accent"
-              onPress={() => router.push('/learn/diabetes-and-your-pulse')}
+          <Reveal index={2}>
+            <View
+              style={{
+                backgroundColor: colors.flagBg,
+                borderColor: colors.flag,
+                borderWidth: 1,
+                borderRadius: radius.card,
+                padding: spacing.lg,
+                gap: spacing.sm,
+              }}
             >
-              {t('results.diabetesNext')} ›
-            </AppText>
-            <Button label={t('results.findCare')} onPress={() => router.push('/care')} />
-          </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <AppText variant="headline" style={{ color: colors.flag, flex: 1 }}>
+                  {t('dm.flag.title')}
+                </AppText>
+                <EvidenceBadge metric="diabetes" />
+              </View>
+              {lowReasons(diabetes) ? <LowerQualityTag small reasons={lowReasons(diabetes) ?? []} /> : null}
+              <AppText>
+                {t('results.diabetesSeen', {
+                  readings: diabetesCard.readingsUsed,
+                  days: reading.diabetesDays.map((day) => formatDay(day, i18n.language)).join(', '),
+                })}
+              </AppText>
+              <AppText>{t('dm.flag.body')}</AppText>
+              <AppText
+                accessibilityRole="link"
+                tone="accent"
+                onPress={() => router.push('/learn/diabetes-and-your-pulse')}
+              >
+                {t('results.diabetesNext')} ›
+              </AppText>
+              <Button label={t('results.findCare')} onPress={() => router.push('/care')} />
+            </View>
+          </Reveal>
         ) : null}
 
-        <MetricCard
-          title={t('results.heartRhythm')}
-          checkName={t('checks.afib.name')}
-          icon="pulse"
-          evidenceMetric="rhythm"
-          basicAnalysis={rhythm?.scorer === 'rule'}
-          missingText={knownMissing}
-          lowQualityReasons={lowReasons(rhythm)}
-          footnote={rhythm?.flag !== null && lowReasons(rhythm) ? t('quality.confirmAf') : undefined}
-          reading={
-            rhythm && {
-              ...rhythmWords(t, rhythm),
-              confidence: rhythm.confidence,
-              flagged: rhythm.flag !== null,
+        <Reveal index={3}>
+          <MetricCard
+            title={t('results.heartRhythm')}
+            checkName={t('checks.afib.name')}
+            icon="pulse"
+            evidenceMetric="rhythm"
+            basicAnalysis={rhythm?.scorer === 'rule'}
+            missingText={knownMissing}
+            lowQualityReasons={lowReasons(rhythm)}
+            footnote={rhythm?.flag !== null && lowReasons(rhythm) ? t('quality.confirmAf') : undefined}
+            reading={
+              rhythm && {
+                ...rhythmWords(t, rhythm),
+                confidence: rhythm.confidence,
+                flagged: rhythm.flag !== null,
+              }
             }
-          }
-        />
-        <MetricCard
-          title={t('results.hrv')}
-          icon="bars"
-          evidenceMetric="hrv"
-          missingText={hrvMissingText ?? knownMissing}
-          lowQualityReasons={lowReasons(rmssd)}
-          reading={
-            rmssd && {
-              value: t('results.ms', { value: Math.round(rmssd.value) }),
-              note: rmssd.band
-                ? t('results.yourBand', { low: Math.round(rmssd.band[0]), high: Math.round(rmssd.band[1]) })
-                : t('results.learningBand'),
-              confidence: rmssd.confidence,
-              flagged: false,
+          />
+        </Reveal>
+        <Reveal index={4}>
+          <MetricCard
+            title={t('results.hrv')}
+            icon="bars"
+            evidenceMetric="hrv"
+            missingText={hrvMissingText ?? knownMissing}
+            lowQualityReasons={lowReasons(rmssd)}
+            reading={
+              rmssd && {
+                value: t('results.ms', { value: Math.round(rmssd.value) }),
+                note: rmssd.band
+                  ? t('results.yourBand', { low: Math.round(rmssd.band[0]), high: Math.round(rmssd.band[1]) })
+                  : t('results.learningBand'),
+                confidence: rmssd.confidence,
+                flagged: false,
+              }
             }
-          }
-        />
+          />
+        </Reveal>
 
-        <MetricCard
-          title={t('results.breathing')}
-          icon="breath"
-          evidenceMetric="resp"
-          missingText={knownMissing}
-          lowQualityReasons={lowReasons(resp)}
-          reading={
-            resp && {
-              value: t('results.brpm', { value: Math.round(resp.value) }),
-              note: t('results.noteResting'),
-              confidence: resp.confidence,
-              flagged: false,
+        <Reveal index={5}>
+          <MetricCard
+            title={t('results.breathing')}
+            icon="breath"
+            evidenceMetric="resp"
+            missingText={knownMissing}
+            lowQualityReasons={lowReasons(resp)}
+            reading={
+              resp && {
+                value: t('results.brpm', { value: Math.round(resp.value) }),
+                note: t('results.noteResting'),
+                confidence: resp.confidence,
+                flagged: false,
+              }
             }
-          }
-        />
+          />
+        </Reveal>
         <DiabetesRiskRow readingId={reading.id} sample={reading.sample} />
         {showsPulseExtra(reading) && lowReasons(diabetes) ? (
           <LowerQualityTag small reasons={lowReasons(diabetes) ?? []} />
@@ -275,26 +292,30 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
         {showsPulseExtra(reading) ? <PulseExtraRow readingId={reading.id} /> : null}
         <PotsCard />
 
-        <MetricCard
-          title={t('results.heartRate')}
-          icon="heart"
-          evidenceMetric="hr"
-          missingText={knownMissing}
-          lowQualityReasons={lowReasons(hr)}
-          reading={
-            hr && {
-              value: t('results.bpm', { value: Math.round(hr.value) }),
-              note: t('results.noteResting'),
-              confidence: hr.confidence,
-              flagged: hr.flag !== null,
+        <Reveal index={6}>
+          <MetricCard
+            title={t('results.heartRate')}
+            icon="heart"
+            evidenceMetric="hr"
+            missingText={knownMissing}
+            lowQualityReasons={lowReasons(hr)}
+            reading={
+              hr && {
+                value: t('results.bpm', { value: Math.round(hr.value) }),
+                note: t('results.noteResting'),
+                confidence: hr.confidence,
+                flagged: hr.flag !== null,
+              }
             }
-          }
-        />
+          />
+        </Reveal>
 
-        <ExperimentalCard
-          experimental={scan.experimental}
-          lowQualityReasons={lowReasons(scan.experimental)}
-        />
+        <Reveal index={6}>
+          <ExperimentalCard
+            experimental={scan.experimental}
+            lowQualityReasons={lowReasons(scan.experimental)}
+          />
+        </Reveal>
 
         <AppText tone="textDim">
           {t('result.notChecked')}{' '}

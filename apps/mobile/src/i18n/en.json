@@ -825,6 +825,7 @@
   "why.plainWords": "In plain words",
   "dm.experimental": "Experimental: pulse pattern linked to diabetes in research. Not a diabetes test.",
   "demo.banner": "Demo data — a sample reading, not yours",
+  "results.lowQualityLead": "This was a lower-quality reading, so treat it as a rough guide.",
   "results.flag": "Flag",
   "result.regular": "Regular rhythm, {{hr}} bpm.",
   "fix.lead.pressure": "Your last reading lost signal from <cause>pressing too hard.</cause>",

@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import type { TFunction } from 'i18next';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
@@ -24,7 +24,7 @@ import { HeadlineCard } from './HeadlineCard';
 import { Icon } from '@/components/Icon';
 import { MetricCard } from './MetricCard';
 import { PotsCard } from './PotsCard';
-import { missingReasonText, metricReasons, readingQuality } from './quality';
+import { isLowQuality, missingReasonText, metricReasons, readingQuality } from './quality';
 import { LowerQualityTag } from './LowerQualityTag';
 import { rhythmWords } from './rhythmWords';
 import { SafetySheet } from './SafetySheet';
@@ -78,7 +78,14 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
   const lowReasons = (metric: object | null) => metricReasons(metric, quality);
   // Null when the cause is the signal itself, which keeps "Not enough clean signal".
   const knownMissing = missingReasonText(t, quality.reasons) ?? undefined;
-  const acuteFlag = Boolean(hr?.flag) || Boolean(rhythm?.flag);
+  const hrFlag = Boolean(hr?.flag);
+  const rhythmFlag = Boolean(rhythm?.flag);
+  const acuteFlag = hrFlag || rhythmFlag;
+  // Owner 2026-10-09 (ADR 0104 answer c): a flag on a lower-quality value is shown, not hidden, just quieter.
+  // The safety sheet and the emergency screen still follow acuteFlag.
+  const hrQuiet = hrFlag && isLowQuality(hr);
+  const rhythmQuiet = rhythmFlag && isLowQuality(rhythm);
+  const flagDeprioritized = acuteFlag && (!hrFlag || hrQuiet) && (!rhythmFlag || rhythmQuiet);
   // Owner 2026-10-06 (ADR 0104 answer 2): a short reading's rate under 40 or over 150 bpm. Not the Emergency
   // screen; readings saved before the field have none.
   const retake = (scan.retakePrompt as ReadingResult['retakePrompt'] | undefined) ?? null;
@@ -109,9 +116,120 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
     reading.repeat ? null : when,
   ].filter((part) => part !== null);
 
-  const headlineTone = acuteFlag
-    ? { fill: colors.flagBg, edge: colors.flag }
-    : { fill: colors.badgeCheckedBg, edge: colors.accent };
+  const headlineTone =
+    acuteFlag && !flagDeprioritized
+      ? { fill: colors.flagBg, edge: colors.flag }
+      : { fill: colors.badgeCheckedBg, edge: colors.accent };
+
+  const findCareButton = <Button label={t('results.findCare')} onPress={() => router.push('/care')} />;
+  const cards: { key: string; low: boolean; node: ReactNode }[] = [
+    {
+      key: 'rhythm',
+      low: isLowQuality(rhythm),
+      node: (
+        <MetricCard
+          title={t('results.heartRhythm')}
+          checkName={t('checks.afib.name')}
+          icon="pulse"
+          evidenceMetric="rhythm"
+          basicAnalysis={rhythm?.scorer === 'rule'}
+          missingText={knownMissing}
+          lowQualityReasons={lowReasons(rhythm)}
+          footnote={rhythm?.flag !== null && lowReasons(rhythm) ? t('quality.confirmAf') : undefined}
+          quietFlag={rhythmQuiet}
+          reading={
+            rhythm && {
+              ...rhythmWords(t, rhythm),
+              confidence: rhythm.confidence,
+              flagged: rhythm.flag !== null,
+            }
+          }
+        />
+      ),
+    },
+    {
+      key: 'hrv',
+      low: isLowQuality(rmssd),
+      node: (
+        <MetricCard
+          title={t('results.hrv')}
+          icon="bars"
+          evidenceMetric="hrv"
+          missingText={hrvMissingText ?? knownMissing}
+          lowQualityReasons={lowReasons(rmssd)}
+          reading={
+            rmssd && {
+              value: t('results.ms', { value: Math.round(rmssd.value) }),
+              note: rmssd.band
+                ? t('results.yourBand', { low: Math.round(rmssd.band[0]), high: Math.round(rmssd.band[1]) })
+                : t('results.learningBand'),
+              confidence: rmssd.confidence,
+              flagged: false,
+            }
+          }
+        />
+      ),
+    },
+    {
+      key: 'resp',
+      low: isLowQuality(resp),
+      node: (
+        <MetricCard
+          title={t('results.breathing')}
+          icon="breath"
+          evidenceMetric="resp"
+          missingText={knownMissing}
+          lowQualityReasons={lowReasons(resp)}
+          reading={
+            resp && {
+              value: t('results.brpm', { value: Math.round(resp.value) }),
+              note: t('results.noteResting'),
+              confidence: resp.confidence,
+              flagged: false,
+            }
+          }
+        />
+      ),
+    },
+    {
+      key: 'extras',
+      low: false,
+      node: (
+        <>
+          <DiabetesRiskRow readingId={reading.id} sample={reading.sample} />
+          {showsPulseExtra(reading) && lowReasons(diabetes) ? (
+            <LowerQualityTag small reasons={lowReasons(diabetes) ?? []} />
+          ) : null}
+          {showsPulseExtra(reading) ? <PulseExtraRow readingId={reading.id} /> : null}
+          <PotsCard />
+        </>
+      ),
+    },
+    {
+      key: 'hr',
+      low: isLowQuality(hr),
+      node: (
+        <MetricCard
+          title={t('results.heartRate')}
+          icon="heart"
+          evidenceMetric="hr"
+          missingText={knownMissing}
+          lowQualityReasons={lowReasons(hr)}
+          quietFlag={hrQuiet}
+          reading={
+            hr && {
+              value: t('results.bpm', { value: Math.round(hr.value) }),
+              note: t('results.noteResting'),
+              confidence: hr.confidence,
+              flagged: hr.flag !== null,
+            }
+          }
+        />
+      ),
+    },
+  ];
+  // Array.sort is stable, so the usual order holds inside each group. Only a quiet flag reorders the screen.
+  const orderedCards = flagDeprioritized ? [...cards].sort((a, b) => Number(a.low) - Number(b.low)) : cards;
 
   return (
     <Screen
@@ -152,7 +270,14 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
         {reading.sample ? <DemoBanner synthetic={reading.synthetic} /> : null}
         <Reveal>
           <HeadlineCard fill={headlineTone.fill} edge={headlineTone.edge}>
-            <AppText variant="title">{headlineText(t, reading)}</AppText>
+            {flagDeprioritized ? (
+              <>
+                <AppText variant="title">{t('results.lowQualityLead')}</AppText>
+                <AppText variant="headline">{headlineText(t, reading)}</AppText>
+              </>
+            ) : (
+              <AppText variant="title">{headlineText(t, reading)}</AppText>
+            )}
             {subline ? <AppText>{subline}</AppText> : null}
             <AppText variant="caption" tone="textDim">
               {metaParts.join(' · ')}
@@ -185,11 +310,7 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           </Reveal>
         ) : null}
 
-        {acuteFlag ? (
-          <Reveal index={1}>
-            <Button label={t('results.findCare')} onPress={() => router.push('/care')} />
-          </Reveal>
-        ) : null}
+        {acuteFlag && !flagDeprioritized ? <Reveal index={1}>{findCareButton}</Reveal> : null}
 
         {diabetesCard ? (
           <Reveal index={2}>
@@ -229,93 +350,26 @@ export function ReadingResults({ reading }: { reading: FixtureReading }) {
           </Reveal>
         ) : null}
 
-        <Reveal index={3}>
-          <MetricCard
-            title={t('results.heartRhythm')}
-            checkName={t('checks.afib.name')}
-            icon="pulse"
-            evidenceMetric="rhythm"
-            basicAnalysis={rhythm?.scorer === 'rule'}
-            missingText={knownMissing}
-            lowQualityReasons={lowReasons(rhythm)}
-            footnote={rhythm?.flag !== null && lowReasons(rhythm) ? t('quality.confirmAf') : undefined}
-            reading={
-              rhythm && {
-                ...rhythmWords(t, rhythm),
-                confidence: rhythm.confidence,
-                flagged: rhythm.flag !== null,
-              }
-            }
-          />
-        </Reveal>
-        <Reveal index={4}>
-          <MetricCard
-            title={t('results.hrv')}
-            icon="bars"
-            evidenceMetric="hrv"
-            missingText={hrvMissingText ?? knownMissing}
-            lowQualityReasons={lowReasons(rmssd)}
-            reading={
-              rmssd && {
-                value: t('results.ms', { value: Math.round(rmssd.value) }),
-                note: rmssd.band
-                  ? t('results.yourBand', { low: Math.round(rmssd.band[0]), high: Math.round(rmssd.band[1]) })
-                  : t('results.learningBand'),
-                confidence: rmssd.confidence,
-                flagged: false,
-              }
-            }
-          />
-        </Reveal>
+        {orderedCards.map((card, position) =>
+          card.key === 'extras' ? (
+            <View key={card.key} style={{ gap: spacing.md }}>
+              {card.node}
+            </View>
+          ) : (
+            <Reveal key={card.key} index={3 + position}>
+              {card.node}
+            </Reveal>
+          ),
+        )}
 
-        <Reveal index={5}>
-          <MetricCard
-            title={t('results.breathing')}
-            icon="breath"
-            evidenceMetric="resp"
-            missingText={knownMissing}
-            lowQualityReasons={lowReasons(resp)}
-            reading={
-              resp && {
-                value: t('results.brpm', { value: Math.round(resp.value) }),
-                note: t('results.noteResting'),
-                confidence: resp.confidence,
-                flagged: false,
-              }
-            }
-          />
-        </Reveal>
-        <DiabetesRiskRow readingId={reading.id} sample={reading.sample} />
-        {showsPulseExtra(reading) && lowReasons(diabetes) ? (
-          <LowerQualityTag small reasons={lowReasons(diabetes) ?? []} />
-        ) : null}
-        {showsPulseExtra(reading) ? <PulseExtraRow readingId={reading.id} /> : null}
-        <PotsCard />
-
-        <Reveal index={6}>
-          <MetricCard
-            title={t('results.heartRate')}
-            icon="heart"
-            evidenceMetric="hr"
-            missingText={knownMissing}
-            lowQualityReasons={lowReasons(hr)}
-            reading={
-              hr && {
-                value: t('results.bpm', { value: Math.round(hr.value) }),
-                note: t('results.noteResting'),
-                confidence: hr.confidence,
-                flagged: hr.flag !== null,
-              }
-            }
-          />
-        </Reveal>
-
-        <Reveal index={6}>
+        <Reveal index={8}>
           <ExperimentalCard
             experimental={scan.experimental}
             lowQualityReasons={lowReasons(scan.experimental)}
           />
         </Reveal>
+
+        {flagDeprioritized ? <Reveal index={9}>{findCareButton}</Reveal> : null}
 
         <AppText tone="textDim">
           {t('result.notChecked')}{' '}

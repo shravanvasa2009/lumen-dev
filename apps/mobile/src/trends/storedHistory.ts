@@ -1,11 +1,11 @@
 import type { StoredReading } from '@/home/readings';
-import { isLowQuality } from '@/results/quality';
+import { isLowQuality, readingQuality } from '@/results/quality';
 
 import type { HistoryReading } from './series';
 
-// ADR 0104: only standard values feed the trend median and the personal band, since a lower-quality one would
-// move them with no tag beside it. A lower-quality value is not dropped, though: it is carried apart in
-// `lowerQuality`, to be drawn marked, so every saved reading shows in Trends.
+// ADR 0104 addendum (owner, 2026-10-10): every saved reading shows in Trends. Only standard values feed the
+// median, personal band, and baseline count; a lower-quality value is carried apart in `lowerQuality`, to be
+// drawn hollow and tagged.
 const standard = <T extends object>(metric: T | null): T | null =>
   metric && !isLowQuality(metric) ? metric : null;
 const lower = <T extends object>(metric: T | null): T | null =>
@@ -26,6 +26,7 @@ export function historyFromStored(readings: readonly StoredReading[]): HistoryRe
       rmssd: lower(outcome.metrics.rmssd)?.value ?? null,
       resp: lower(outcome.metrics.resp)?.value ?? null,
     },
+    lowerReasons: readingQuality(outcome).reasons,
     rhythm: standard(outcome.metrics.rhythm)?.class ?? null,
     flaggedLowRhythm:
       outcome.metrics.rhythm && isLowQuality(outcome.metrics.rhythm) && outcome.metrics.rhythm.flag !== null

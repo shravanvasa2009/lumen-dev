@@ -13,6 +13,7 @@ import { Reveal, ValueSettle } from '@/components/Reveal';
 import { DemoBanner } from '@/results/DemoBanner';
 import { readingById } from '@/results/fixtures';
 import { formatClock, formatDay } from '@/results/format';
+import { LowerQualityTag } from '@/results/LowerQualityTag';
 import { rhythmClassWords } from '@/results/rhythmWords';
 import { Segmented } from '@/settings/Segmented';
 import { useTheme } from '@/theme';
@@ -66,8 +67,8 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
   const isToday = (moment: Date) => !demo && moment.toDateString() === now.toDateString();
   const dayLabel = (moment: Date) => (isToday(moment) ? t('trends.today') : formatDay(moment, i18n.language));
   const flaggedById = new Map(series.flaggedLowRhythms.map((flagged) => [flagged.id, flagged.rhythm]));
-  // A flagged lower-quality rhythm has no plotted value when the reading's own value is lower quality, but its
-  // row stays so Trends agrees with Results and Home.
+  // A flagged lower-quality rhythm on a reading with no value for this metric has nothing to plot, but its row
+  // stays so Trends agrees with Results and Home.
   const shownIds = new Set([...points, ...lowerPoints].map((point) => point.id));
   const rows = [
     ...points.map((point) => ({
@@ -89,6 +90,7 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
         lowerValue: false,
         caffeine: false,
         rhythm: null,
+        reasons: [],
         flaggedLow: rhythm,
       })),
   ].sort((earlier, later) => earlier.createdAt.getTime() - later.createdAt.getTime());
@@ -254,7 +256,7 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                         trailing={
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
                             {fixture?.synthetic ? <SyntheticTag /> : null}
-                            {point.lowerValue ? <LowerQualityTag /> : null}
+                            {point.lowerValue ? <LowerQualityTag small reasons={point.reasons} /> : null}
                             {point.caffeine ? <CupIcon size={16} color={colors.flag} /> : null}
                             {point.value === null ? null : (
                               <AppText variant="headline">
@@ -299,25 +301,6 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
         </>
       )}
     </>
-  );
-}
-
-function LowerQualityTag() {
-  const { t } = useTranslation();
-  const { colors, radius, spacing } = useTheme();
-  return (
-    <View
-      style={{
-        backgroundColor: colors.badgeExperimentalBg,
-        borderRadius: radius.pill,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs / 2,
-      }}
-    >
-      <AppText variant="caption" style={{ color: colors.badgeExperimentalFg }}>
-        {t('trends.lowerTag')}
-      </AppText>
-    </View>
   );
 }
 

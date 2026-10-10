@@ -55,6 +55,7 @@ const sampleHistory: readonly HistoryReading[] = rows.map(
     rhythm: 'sinus',
     flaggedLowRhythm: null,
     lowerQuality: { hr: null, rmssd: null, resp: null },
+    lowerReasons: [],
     caffeine,
     intervalsMs: index === demoReadingRow ? (readingById('demo')?.intervalsMs ?? []) : [],
   }),
@@ -72,6 +73,7 @@ function fromFixture({ id, createdAt, mode, scan, intervalsMs }: FixtureReading)
     rhythm: rhythm?.class ?? null,
     flaggedLowRhythm: null,
     lowerQuality: { hr: null, rmssd: null, resp: null },
+    lowerReasons: [],
     caffeine: false,
     intervalsMs,
   };

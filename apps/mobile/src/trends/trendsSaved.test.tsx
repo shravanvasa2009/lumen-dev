@@ -57,7 +57,7 @@ describe('Trends from readings saved on this phone', () => {
     expect(await screen.findByLabelText('Median: 62 bpm')).toBeOnTheScreen();
     expect(screen.getByLabelText('Heart rate chart, 2 readings')).toBeOnTheScreen();
     expect(screen.getAllByRole('button', { name: /^(Today |[A-Z][a-z]{2} \d+, )/ })).toHaveLength(2);
-    expect(screen.getByText(en['trends.lowerTag'])).toBeOnTheScreen();
+    expect(screen.getByHintText(en['quality.chipHint'])).toBeOnTheScreen();
     expect(screen.getByText(en['trends.lowerLegend'])).toBeOnTheScreen();
   });
 

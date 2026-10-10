@@ -1,4 +1,4 @@
-import type { RhythmClass } from '@lumen/core';
+import type { QualityReason, RhythmClass } from '@lumen/core';
 
 import type { MeasureMode } from '@/measure/mode';
 
@@ -14,8 +14,11 @@ export type HistoryReading = {
   rmssd: number | null;
   resp: number | null;
   rhythm: RhythmClass | null;
-  // Values tagged lower quality (ADR 0104): shown marked, never part of a median or band.
+  // Values tagged lower quality (ADR 0104 addendum, 2026-10-10): every saved reading shows, so these are drawn
+  // hollow and tagged, and stay out of the median, band, and baseline count.
   lowerQuality: { hr: number | null; rmssd: number | null; resp: number | null };
+  // Why the reading is lower quality, for the tag's sheet; [] when it is not.
+  lowerReasons: readonly QualityReason[];
   // A flagged rhythm from a lower-quality reading (ADR 0104): kept apart from `rhythm` so it is always drawn
   // with its marker, and never feeds a median or band.
   flaggedLowRhythm: RhythmClass | null;
@@ -37,13 +40,15 @@ export type TrendPoint = {
   value: number;
   caffeine: boolean;
   rhythm: RhythmClass | null;
+  reasons: readonly QualityReason[];
 };
 
 type FlaggedLowRhythm = { id: string; createdAt: Date; rhythm: RhythmClass };
 
 export type TrendSeries = {
   points: readonly TrendPoint[];
-  // Lower-quality values in the range: drawn hollow and listed with a tag, outside the median and band.
+  // Lower-quality values in the range: drawn hollow and listed with a tag, outside the median, band, and
+  // baseline count (ADR 0104 addendum).
   lowerPoints: readonly TrendPoint[];
   // Lower-quality flagged rhythms in the range, whether or not the reading has a value for this metric: Trends
   // must not hide a flag the other surfaces show.
@@ -87,8 +92,8 @@ export function trendSeries(
         const value = valueFor(reading, metric);
         const when = reading.createdAt.getTime();
         if (value === null || when < since || when > now.getTime()) return [];
-        const { id, createdAt, caffeine, rhythm } = reading;
-        return [{ id, createdAt, value, caffeine, rhythm }];
+        const { id, createdAt, caffeine, rhythm, lowerReasons } = reading;
+        return [{ id, createdAt, value, caffeine, rhythm, reasons: lowerReasons }];
       })
       .sort((first, second) => first.createdAt.getTime() - second.createdAt.getTime());
   const points = inRange(valueOf);

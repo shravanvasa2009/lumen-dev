@@ -182,6 +182,7 @@ describe('a flagged lower-quality rhythm in the readings list', () => {
     rhythm: null,
     flaggedLowRhythm: 'af',
     lowerQuality: { hr: null, rmssd: null, resp: null },
+    lowerReasons: [],
     caffeine: false,
     intervalsMs: [],
   });

@@ -1,5 +1,6 @@
 import type { ReadingContext } from '@lumen/core';
 
+import type { MeasureMode } from '@/measure/mode';
 import { makeReading } from '@/testing/reading';
 import { saveReading } from '@/store/readings';
 
@@ -20,16 +21,33 @@ const CONTEXT: ReadingContext = {
 export async function saveTestReading(
   takenAt: number,
   hr: number,
-  { flagged = false, intervalsMs = [] }: { flagged?: boolean; intervalsMs?: readonly number[] } = {},
+  {
+    flagged = false,
+    lowerQuality = false,
+    mode = 'full',
+    intervalsMs = [],
+  }: { flagged?: boolean; lowerQuality?: boolean; mode?: MeasureMode; intervalsMs?: readonly number[] } = {},
 ): Promise<string> {
   const { id, outcome } = makeReading(takenAt, hr, 48);
-  const results = flagged && outcome.metrics.hr
-    ? { ...outcome, metrics: { ...outcome.metrics, hr: { ...outcome.metrics.hr, flag: 'fastResting' as const } } }
-    : outcome;
+  const heartRate = outcome.metrics.hr;
+  const results =
+    heartRate && (flagged || lowerQuality)
+      ? {
+          ...outcome,
+          metrics: {
+            ...outcome.metrics,
+            hr: {
+              ...heartRate,
+              flag: flagged ? ('fastResting' as const) : heartRate.flag,
+              quality: lowerQuality ? ('low' as const) : heartRate.quality,
+            },
+          },
+        }
+      : outcome;
   await saveReading({
     id,
     createdAt: takenAt,
-    mode: 'full',
+    mode,
     context: CONTEXT,
     results,
     models: { rhythm: null, diabetes: null },

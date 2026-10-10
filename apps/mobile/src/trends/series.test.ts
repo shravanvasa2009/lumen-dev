@@ -12,6 +12,7 @@ function reading(day: number, hr: number | null, rmssd: number | null = null): H
     resp: null,
     rhythm: 'sinus',
     flaggedLowRhythm: null,
+    lowerQuality: { hr: null, rmssd: null, resp: null },
     caffeine: false,
     intervalsMs: [],
   };
@@ -80,8 +81,21 @@ describe('trendSeries', () => {
     expect(trendSeries(old, 'hr', '7d', now)).toMatchObject({ points: [], baselineCount: 6, band: null });
   });
 
+  it('lists a lower-quality value apart, out of the median and band', () => {
+    const lower: HistoryReading = {
+      ...reading(20, null),
+      id: 'lower',
+      lowerQuality: { hr: 99, rmssd: null, resp: null },
+    };
+    const series = trendSeries([reading(18, 60), lower], 'hr', '30d', new Date(2026, 8, 30, 9, 0));
+    expect(series.lowerPoints.map((point) => [point.id, point.value])).toEqual([['lower', 99]]);
+    expect(series.median).toBe(60);
+    expect(series.baselineCount).toBe(1);
+  });
+
   it('gives an empty series for no readings', () => {
     expect(trendSeries([], 'hr', '30d', now)).toEqual({
+      lowerPoints: [],
       flaggedLowRhythms: [],
       points: [],
       median: null,
@@ -139,6 +153,7 @@ describe('flagged lower-quality rhythms', () => {
     rmssd: null,
     resp: null,
     rhythm: null,
+    lowerQuality: { hr: null, rmssd: null, resp: null },
     caffeine: false,
     intervalsMs: [],
   };

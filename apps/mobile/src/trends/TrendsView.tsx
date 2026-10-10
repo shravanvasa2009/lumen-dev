@@ -62,27 +62,41 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
   const [range, setRange] = useState<TrendRange>('30d');
   const [metric, setMetric] = useState<TrendMetric>('hr');
   const series = trendSeries(readings, metric, range, now);
-  const { points } = series;
+  const { points, lowerPoints } = series;
   const isToday = (moment: Date) => !demo && moment.toDateString() === now.toDateString();
   const dayLabel = (moment: Date) => (isToday(moment) ? t('trends.today') : formatDay(moment, i18n.language));
   const flaggedById = new Map(series.flaggedLowRhythms.map((flagged) => [flagged.id, flagged.rhythm]));
   // A flagged lower-quality rhythm has no plotted value when the reading's own value is lower quality, but its
   // row stays so Trends agrees with Results and Home.
+  const shownIds = new Set([...points, ...lowerPoints].map((point) => point.id));
   const rows = [
-    ...points.map((point) => ({ ...point, flaggedLow: flaggedById.get(point.id) ?? null })),
+    ...points.map((point) => ({
+      ...point,
+      lowerValue: false,
+      flaggedLow: flaggedById.get(point.id) ?? null,
+    })),
+    ...lowerPoints.map((point) => ({
+      ...point,
+      lowerValue: true,
+      flaggedLow: flaggedById.get(point.id) ?? null,
+    })),
     ...series.flaggedLowRhythms
-      .filter((flagged) => !points.some((point) => point.id === flagged.id))
+      .filter((flagged) => !shownIds.has(flagged.id))
       .map(({ id, createdAt, rhythm }) => ({
         id,
         createdAt,
         value: null,
+        lowerValue: false,
         caffeine: false,
         rhythm: null,
         flaggedLow: rhythm,
       })),
   ].sort((earlier, later) => earlier.createdAt.getTime() - later.createdAt.getTime());
-  const first = points[0];
-  const last = points[points.length - 1];
+  const plotted = [...points, ...lowerPoints].sort(
+    (earlier, later) => earlier.createdAt.getTime() - later.createdAt.getTime(),
+  );
+  const first = plotted[0];
+  const last = plotted[plotted.length - 1];
   const intervalsById = new Map(readings.map((reading) => [reading.id, reading.intervalsMs]));
   const rhythmDays: RhythmDay[] = rows
     .filter((row) => row.rhythm !== null || row.flaggedLow !== null)
@@ -175,10 +189,11 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                   </AppText>
                   <TrendChart
                     points={points}
+                    lowerPoints={lowerPoints}
                     band={series.band}
-                    label={t('trends.chartLabel', { metric: metricName(t, metric), count: points.length })}
+                    label={t('trends.chartLabel', { metric: metricName(t, metric), count: plotted.length })}
                     firstLabel={dayLabel(first.createdAt)}
-                    middleLabel={middle && points.length > 2 ? dayLabel(middle) : null}
+                    middleLabel={middle && plotted.length > 2 ? dayLabel(middle) : null}
                     lastLabel={dayLabel(last.createdAt)}
                   />
                 </>
@@ -197,6 +212,11 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
               ) : series.baselineCount > 0 ? (
                 <AppText variant="caption" tone="textDim">
                   {t('trends.learning', { count: series.baselineCount, total: learningReadings })}
+                </AppText>
+              ) : null}
+              {lowerPoints.length > 0 ? (
+                <AppText variant="caption" tone="textDim">
+                  {t('trends.lowerLegend')}
                 </AppText>
               ) : null}
             </Card>
@@ -234,6 +254,7 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                         trailing={
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
                             {fixture?.synthetic ? <SyntheticTag /> : null}
+                            {point.lowerValue ? <LowerQualityTag /> : null}
                             {point.caffeine ? <CupIcon size={16} color={colors.flag} /> : null}
                             {point.value === null ? null : (
                               <AppText variant="headline">
@@ -278,6 +299,25 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
         </>
       )}
     </>
+  );
+}
+
+function LowerQualityTag() {
+  const { t } = useTranslation();
+  const { colors, radius, spacing } = useTheme();
+  return (
+    <View
+      style={{
+        backgroundColor: colors.badgeExperimentalBg,
+        borderRadius: radius.pill,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs / 2,
+      }}
+    >
+      <AppText variant="caption" style={{ color: colors.badgeExperimentalFg }}>
+        {t('trends.lowerTag')}
+      </AppText>
+    </View>
   );
 }
 

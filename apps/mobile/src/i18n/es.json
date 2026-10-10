@@ -1182,6 +1182,8 @@
   "trends.unitBreaths": "resp./min",
   "trends.dateSpan": "{{from}} a {{to}}",
   "trends.bandLine": "Tu banda {{low}} a {{high}} {{unit}} · {{count}} lecturas",
+  "trends.lowerTag": "Menor calidad",
+  "trends.lowerLegend": "Los puntos huecos son lecturas de menor calidad. No cuentan para la mediana ni tu banda.",
   "trends.recent": "Recientes",
   "trends.rhythmTitle": "Ritmo a lo largo del tiempo",
   "trends.rhythmHint": "Cada punto es un latido comparado con el siguiente. Toca un mapa para ver por qué.",

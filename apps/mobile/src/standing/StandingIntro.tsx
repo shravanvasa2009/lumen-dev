@@ -45,8 +45,8 @@ function Timeline() {
   );
 }
 
-// What the result will look like, without numbers: flat while lying, then a rise toward the +30 line.
-function RisePreview() {
+// What the result will look like, without numbers: flat while lying, then a rise toward the line.
+function RisePreview({ thresholdBpm }: { thresholdBpm: number | null }) {
   const { t } = useTranslation();
   const { colors, spacing } = useTheme();
   const { width, height, flatY, raisedY, thresholdY, standAt } = PREVIEW;
@@ -100,7 +100,9 @@ function RisePreview() {
           {t('standing.chartLying')}
         </AppText>
         <AppText variant="caption" style={{ color: colors.alertText }}>
-          {t('standing.threshold')}
+          {thresholdBpm === null
+            ? t('standing.thresholdUnknown')
+            : t('standing.threshold', { bpm: thresholdBpm })}
         </AppText>
       </View>
       <AppText variant="caption" tone="textDim">
@@ -120,13 +122,13 @@ function Need({ icon, text }: { icon: IconName; text: string }) {
   );
 }
 
-export function StandingIntro() {
+export function StandingIntro({ thresholdBpm }: { thresholdBpm: number | null }) {
   const { t } = useTranslation();
   const { spacing } = useTheme();
   return (
     <View style={{ gap: spacing.md }}>
       <Timeline />
-      <RisePreview />
+      <RisePreview thresholdBpm={thresholdBpm} />
       <Card>
         <AppText variant="headline">{t('standing.needTitle')}</AppText>
         <Need icon="elbow" text={t('standing.needLie')} />

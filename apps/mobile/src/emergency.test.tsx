@@ -62,6 +62,8 @@ describe('emergency screen', () => {
     for (const word of ['Balance', 'Eyes', 'Face', 'Arm', 'Speech', 'Time']) {
       expect(screen.getByText(word)).toBeOnTheScreen();
     }
+    const letters = screen.getAllByText(/^[A-Z]$/, { includeHiddenElements: true });
+    expect(letters.map((letter) => letter.props.children).join('')).toBe('BEFAST');
     expect(screen.getByText(en['emergency.strokeCall'])).toBeOnTheScreen();
     expect(screen.getAllByRole('button')).toHaveLength(2);
   });
@@ -129,6 +131,8 @@ describe('emergency screen', () => {
       expect(screen.getByRole('button', { name: es['emergency.call'] })).toBeOnTheScreen();
       expect(screen.getByRole('button', { name: es['emergency.okay'] })).toBeOnTheScreen();
       expect(screen.getByText(es['emergency.signBalance'])).toBeOnTheScreen();
+      const letters = screen.getAllByText(/^[A-Z]$/, { includeHiddenElements: true });
+      expect(letters.map((letter) => letter.props.children).join('')).toBe('BEFAST');
       expect(screen.getByText(es['emergency.strokeCall'])).toBeOnTheScreen();
     } finally {
       await act(() => i18next.changeLanguage('en'));

@@ -43,4 +43,17 @@ describe('saved preferences (WID-1)', () => {
     expect(memoryFiles.has('preferences.json')).toBe(false);
     expect(launch().currentPreferences().hideWidgetValues).toBe(false);
   });
+
+  it('reports a failed save and keeps the choice for this session', () => {
+    const first = launch();
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const set = jest.spyOn(memoryFiles, 'set').mockImplementation(() => {
+      throw new Error('disk full');
+    });
+    expect(() => first.setPreference('appearance', 'dark')).not.toThrow();
+    set.mockRestore();
+    expect(first.currentPreferences().appearance).toBe('dark');
+    expect(warn).toHaveBeenCalledWith('Preferences could not be saved: disk full');
+    warn.mockRestore();
+  });
 });

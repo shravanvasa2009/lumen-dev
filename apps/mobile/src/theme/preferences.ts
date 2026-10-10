@@ -59,9 +59,15 @@ export function currentPreferences(): Preferences {
 export function setPreference<Key extends keyof Preferences>(key: Key, value: Preferences[Key]) {
   current = { ...current, [key]: value };
   listeners.forEach((listener) => listener());
-  const file = prefsFile();
-  if (!file.exists) file.create();
-  file.write(JSON.stringify(current));
+  try {
+    const file = prefsFile();
+    if (!file.exists) file.create();
+    file.write(JSON.stringify(current));
+  } catch (error) {
+    // The choice still applies for this session; a toggle handler must not crash the app over a full disk.
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`Preferences could not be saved: ${reason}`);
+  }
   // The widget snapshot carries both (Appendix B). A failed publish is reported, since release builds drop
   // unhandled rejections; the widget keeps its previous snapshot.
   publishWidgets(current).catch((error: unknown) => {

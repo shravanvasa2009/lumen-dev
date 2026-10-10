@@ -1,11 +1,16 @@
 import type { TFunction } from 'i18next';
+import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
+
+import { LumenCapture } from '../../modules/lumen-capture/src';
 
 export type Lens = { cx: number; cy: number; r: number };
 type Label = { x: number; anchor: 'start' | 'middle' | 'end' };
 
+export type PhoneModel = 'galaxyA17' | 'iphone17Pro' | 'generic';
+
 export type PhoneBackLayout = {
-  model: 'galaxyA17' | 'iphone17Pro';
+  model: PhoneModel;
   cameraIsland: { x: number; y: number; width: number; height: number; rx: number };
   // The first lens is the one the fingertip must cover; the rest are drawn for recognition.
   lenses: readonly Lens[];
@@ -16,8 +21,8 @@ export type PhoneBackLayout = {
   flashLabel: Label;
 };
 
-// Positions are read from the manufacturers' product photos, not measured on a phone: the device database holds
-// only a placeholder iPhone 16, so the owner should check both against the real phones. Units are viewBox px.
+// Positions are read from the manufacturers' product photos, not measured on a phone, so the owner should check
+// the two named drawings against the real phones. Units are viewBox px.
 const galaxyA17: PhoneBackLayout = {
   model: 'galaxyA17',
   cameraIsland: { x: 82, y: 52, width: 46, height: 112, rx: 23 },
@@ -51,12 +56,69 @@ const iphone17Pro: PhoneBackLayout = {
   flashLabel: { x: 206, anchor: 'middle' },
 };
 
-export function phoneBackLayout(): PhoneBackLayout {
-  return Platform.OS === 'ios' ? iphone17Pro : galaxyA17;
+// Any other phone gets this plain drawing (�4.3): one main lens and the flash beside it.
+const generic: PhoneBackLayout = {
+  model: 'generic',
+  cameraIsland: { x: 80, y: 52, width: 90, height: 56, rx: 28 },
+  lenses: [{ cx: 106, cy: 80, r: 15 }],
+  flash: { cx: 148, cy: 80, r: 6 },
+  extras: [],
+  fingerPad: { x: 84, y: 58, width: 88, height: 44 },
+  lensLabel: { x: 100, anchor: 'end' },
+  flashLabel: { x: 154, anchor: 'start' },
+};
+
+const LAYOUTS: Record<PhoneModel, PhoneBackLayout> = { galaxyA17, iphone17Pro, generic };
+
+// Samsung Galaxy A17: Build.MODEL is SM-A176x for the 5G model and SM-S176x for carrier-branded units such as
+// the SM-S176V, and the capture module prefixes the maker ("samsung SM-S176V").
+// iPhone 17 Pro: the hardware identifier is iPhone18,1 (the Pro Max is iPhone18,2, a larger body with its own
+// drawing that Lumen does not have). Identifier list: https://theapplewiki.com/wiki/Models
+const GALAXY_A17_MODEL = /(^|\s)SM-[AS]176/;
+const IPHONE_17_PRO_ID = 'iPhone18,1';
+
+export function phoneModelOf(modelId: string): PhoneModel {
+  if (modelId === IPHONE_17_PRO_ID) return 'iphone17Pro';
+  return GALAXY_A17_MODEL.test(modelId) ? 'galaxyA17' : 'generic';
 }
 
-export function placementCopy(t: TFunction): { instruction: string; figureLabel: string } {
-  return phoneBackLayout().model === 'iphone17Pro'
-    ? { instruction: t('placement.instructionIos'), figureLabel: t('placement.figureLabelIos') }
-    : { instruction: t('placement.instructionAndroid'), figureLabel: t('placement.figureLabelAndroid') };
+// Android names its model synchronously. iOS names it through the capture module, so the generic drawing shows
+// until that answers; it stays when the module is not linked or cannot say.
+export function usePhoneBackLayout(): PhoneBackLayout {
+  const [model, setModel] = useState<PhoneModel>(() =>
+    Platform.OS === 'android' ? phoneModelOf(Platform.constants.Model) : 'generic',
+  );
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || !LumenCapture) return;
+    let current = true;
+    LumenCapture.getCapabilities().then(
+      ({ modelId }) => current && setModel(phoneModelOf(modelId)),
+      (error: unknown) => {
+        console.warn(
+          `Phone model unknown, showing the generic placement guide: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, []);
+  return LAYOUTS[model];
+}
+
+export function placementCopy(t: TFunction, model: PhoneModel): { instruction: string; figureLabel: string } {
+  switch (model) {
+    case 'iphone17Pro':
+      return { instruction: t('placement.instructionIos'), figureLabel: t('placement.figureLabelIos') };
+    case 'galaxyA17':
+      return {
+        instruction: t('placement.instructionAndroid'),
+        figureLabel: t('placement.figureLabelAndroid'),
+      };
+    case 'generic':
+      return {
+        instruction: t('placement.instructionGeneric'),
+        figureLabel: t('placement.figureLabelGeneric'),
+      };
+  }
 }

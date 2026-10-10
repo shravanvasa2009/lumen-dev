@@ -546,7 +546,8 @@
   "standing.bar.done": "Summary",
   "standing.minuteMark": "{{count}} min",
   "standing.measuresBody": "How much your heart rate rises when you stand up",
-  "standing.threshold": "+30 bpm line",
+  "standing.threshold": "+{{bpm}} bpm line",
+  "standing.thresholdUnknown": "Rise line",
   "standing.needTitle": "What you need",
   "standing.needLie": "Somewhere to lie down",
   "standing.needSteady": "A wall or chair nearby",
@@ -1421,5 +1422,7 @@
   "placement.instructionAndroid": "Lay the pad of your finger flat across the flash and the top lens, the main camera of your Galaxy A17.",
   "placement.instructionIos": "Lay the pad of your finger flat across the flash and the main lens, the big one at the top left of your iPhone 17 Pro.",
   "placement.figureLabelAndroid": "Back of a Samsung Galaxy A17: the fingertip lies flat across the top main lens and the flash beside it.",
-  "placement.figureLabelIos": "Back of an iPhone 17 Pro: the fingertip lies flat across the main lens at the top left and the flash."
+  "placement.figureLabelIos": "Back of an iPhone 17 Pro: the fingertip lies flat across the main lens at the top left and the flash.",
+  "placement.instructionGeneric": "Lay the pad of your finger flat across the main camera lens and the flash.",
+  "placement.figureLabelGeneric": "Back of a phone: the fingertip lies flat across the main camera lens and the flash beside it."
 }

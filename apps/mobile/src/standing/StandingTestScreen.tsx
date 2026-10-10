@@ -15,6 +15,7 @@ import { StandingIntro } from '@/standing/StandingIntro';
 import { StepBar } from '@/standing/StepBar';
 import { useStandingLiveTimer } from '@/standing/useStandingLiveTimer';
 import { type StandingTestSource, useStandingTest } from '@/standing/useStandingTest';
+import { useStandingThreshold } from '@/standing/useStandingThreshold';
 import { useTheme } from '@/theme';
 
 const NO_VALUE = '—';
@@ -47,6 +48,7 @@ export function StandingTestScreen({ source }: { source: StandingTestSource }) {
   const { t } = useTranslation();
   const { colors, radius, spacing } = useTheme();
   const { view, canRead, reading, readFailed, start, takeReading, stopForFaint } = useStandingTest(source);
+  const thresholdBpm = useStandingThreshold();
   useStandingLiveTimer(view);
 
   const stageNames = {
@@ -183,7 +185,7 @@ export function StandingTestScreen({ source }: { source: StandingTestSource }) {
         </View>
 
         {view.stage === 'intro' ? (
-          <StandingIntro />
+          <StandingIntro thresholdBpm={thresholdBpm} />
         ) : (
           <>
             {dial}
@@ -202,10 +204,11 @@ export function StandingTestScreen({ source }: { source: StandingTestSource }) {
                 <HeartRateChart
                   points={view.points}
                   baseline={view.baseline}
+                  thresholdBpm={thresholdBpm}
                   label={t('standing.chartLabel')}
                   lyingLabel={t('standing.chartLying')}
                   nowLabel={t('standing.chartNow')}
-                  thresholdLabel={t('standing.threshold')}
+                  thresholdLabel={t('standing.threshold', { bpm: thresholdBpm })}
                 />
               </Card>
             ) : null}

@@ -31,7 +31,7 @@
     "placement": {
       "recommendedLens": "top",
       "fingerAngleDeg": 28,
-      "tipKey": "placement.instructionIos"
+      "tipKey": "placement.flashOutsideBump"
     },
     "measured": {
       "maxRearFps": null,

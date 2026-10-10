@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
+import { strokeLetters, type StrokeSign } from '@/learn/StrokeFigures';
 import { callNumber } from '@/profile/dial';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { useTheme } from '@/theme';
@@ -21,7 +22,7 @@ export default function EmergencyScreen() {
   // Simulators, tablets, and phones without a SIM can't open the dialer; the person must still be told
   // how to get help, so a failed call becomes visible instructions instead of an unhandled rejection.
   const callEmergency = () => Linking.openURL('tel:911').catch(() => setCallFailed(true));
-  const strokeSigns = [
+  const strokeSigns: { key: StrokeSign; word: string }[] = [
     { key: 'balance', word: t('emergency.signBalance') },
     { key: 'eyes', word: t('emergency.signEyes') },
     { key: 'face', word: t('emergency.signFace') },
@@ -46,7 +47,7 @@ export default function EmergencyScreen() {
         {strokeSigns.map(({ key, word }) => (
           <View key={key} style={{ flex: 1, alignItems: 'center' }}>
             <AppText importantForAccessibility="no" variant="title" tone="criticalText">
-              {word.charAt(0).toUpperCase()}
+              {strokeLetters[key]}
             </AppText>
             <AppText variant="caption" tone="textDim" numberOfLines={1} adjustsFontSizeToFit>
               {word}

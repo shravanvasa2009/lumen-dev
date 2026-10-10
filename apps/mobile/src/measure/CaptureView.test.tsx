@@ -135,7 +135,7 @@ describe('CaptureView', () => {
   it('asks for the finger to cover the flash when none is detected', () => {
     show({ status: { ...base.status!, fingerCovered: false } });
     expect(screen.getByText(en['capture.fingerMissing'])).toBeOnTheScreen();
-    expect(screen.getByText(en['placement.instructionIos'])).toBeOnTheScreen();
+    expect(screen.getByText(en['placement.instructionGeneric'])).toBeOnTheScreen();
   });
 
   it('draws the pulse from the module samples', () => {

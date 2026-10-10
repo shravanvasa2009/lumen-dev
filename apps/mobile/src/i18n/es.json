@@ -546,7 +546,8 @@
   "standing.bar.done": "Resumen",
   "standing.minuteMark": "{{count}} min",
   "standing.measuresBody": "Cuánto sube tu frecuencia cardíaca al ponerte de pie",
-  "standing.threshold": "Línea de +30 lpm",
+  "standing.threshold": "Línea de +{{bpm}} lpm",
+  "standing.thresholdUnknown": "Línea de aumento",
   "standing.needTitle": "Lo que necesitas",
   "standing.needLie": "Un lugar donde recostarte",
   "standing.needSteady": "Una pared o una silla cerca",
@@ -1421,5 +1422,7 @@
   "placement.instructionAndroid": "Coloca la yema del dedo plana sobre el flash y el lente de arriba, la cámara principal de tu Galaxy A17.",
   "placement.instructionIos": "Coloca la yema del dedo plana sobre el flash y el lente principal, el grande arriba a la izquierda de tu iPhone 17 Pro.",
   "placement.figureLabelAndroid": "Parte trasera de un Samsung Galaxy A17: la yema del dedo queda plana sobre el lente principal de arriba y el flash junto a él.",
-  "placement.figureLabelIos": "Parte trasera de un iPhone 17 Pro: la yema del dedo queda plana sobre el lente principal de arriba a la izquierda y el flash."
+  "placement.figureLabelIos": "Parte trasera de un iPhone 17 Pro: la yema del dedo queda plana sobre el lente principal de arriba a la izquierda y el flash.",
+  "placement.instructionGeneric": "Coloca la yema del dedo plana sobre el lente de la cámara principal y el flash.",
+  "placement.figureLabelGeneric": "Parte trasera de un teléfono: la yema del dedo queda plana sobre el lente de la cámara principal y el flash junto a él."
 }

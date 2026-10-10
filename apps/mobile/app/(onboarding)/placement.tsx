@@ -7,13 +7,14 @@ import { Icon, type IconName } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
 import { OnboardingFrame } from '@/onboarding/OnboardingFrame';
-import { placementCopy } from '@/onboarding/phoneBackLayouts';
+import { placementCopy, usePhoneBackLayout } from '@/onboarding/phoneBackLayouts';
 import { PlacementFigure } from '@/onboarding/PlacementFigure';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
 
 export default function PlacementScreen() {
   const { t } = useTranslation();
+  const phoneBackLayout = usePhoneBackLayout();
   const { colors, spacing, radius, control } = useTheme();
   const tips: { icon: IconName; label: string }[] = [
     { icon: 'hint', label: t('placement.tipCover') },
@@ -42,7 +43,7 @@ export default function PlacementScreen() {
       >
         <Icon name="finger" size={control.chevronSize} color={colors.accent} />
         <AppText variant="headline" style={{ flex: 1 }}>
-          {placementCopy(t).instruction}
+          {placementCopy(t, phoneBackLayout.model).instruction}
         </AppText>
       </View>
       <View style={{ gap: spacing.sm }}>

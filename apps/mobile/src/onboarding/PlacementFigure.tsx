@@ -4,7 +4,7 @@ import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
 
 import { useTheme } from '@/theme';
 
-import { phoneBackLayout, placementCopy, type Lens } from './phoneBackLayouts';
+import { placementCopy, usePhoneBackLayout, type Lens } from './phoneBackLayouts';
 
 const WIDTH = 338;
 const HEIGHT = 184;
@@ -13,12 +13,12 @@ const LABEL_Y = 16;
 const LEADER_TOP = 22;
 const RING_GAP = 7;
 
-// The back of the phone this build runs on, cut off at the bottom, with the fingertip over the lens and flash
+// The back of this phone when it is a named model, otherwise a generic phone, cut off at the bottom, with the fingertip over the lens and flash
 // that must be covered.
 export function PlacementFigure() {
   const { t } = useTranslation();
   const { colors, spacing, radius } = useTheme();
-  const layout = phoneBackLayout();
+  const layout = usePhoneBackLayout();
   const { cameraIsland: island, lenses, flash, fingerPad } = layout;
   const lensDisc = ({ cx, cy, r }: Lens, key: string) => (
     <G key={key}>
@@ -38,8 +38,22 @@ export function PlacementFigure() {
           stroke={colors.accent}
           strokeWidth={1.5}
         />
-        <Circle cx={spot.cx} cy={spot.cy} r={ringRadius} fill="none" stroke={colors.accent} strokeWidth={2.5} />
-        <SvgText x={label.x} y={LABEL_Y} textAnchor={label.anchor} fontSize={12} fontWeight="600" fill={colors.accent}>
+        <Circle
+          cx={spot.cx}
+          cy={spot.cy}
+          r={ringRadius}
+          fill="none"
+          stroke={colors.accent}
+          strokeWidth={2.5}
+        />
+        <SvgText
+          x={label.x}
+          y={LABEL_Y}
+          textAnchor={label.anchor}
+          fontSize={12}
+          fontWeight="600"
+          fill={colors.accent}
+        >
           {text}
         </SvgText>
       </>
@@ -49,7 +63,7 @@ export function PlacementFigure() {
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel={placementCopy(t).figureLabel}
+      accessibilityLabel={placementCopy(t, layout.model).figureLabel}
       style={{
         backgroundColor: colors.surface,
         borderRadius: radius.sheet,

@@ -9,7 +9,7 @@ import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { Reveal, Settle, ValueSettle } from '@/components/Reveal';
 import { Screen } from '@/components/Screen';
-import { placementCopy } from '@/onboarding/phoneBackLayouts';
+import { placementCopy, usePhoneBackLayout } from '@/onboarding/phoneBackLayouts';
 import { FingerPreview, ProgressRing } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
 import { StillMotion } from '@/theme/motion';
@@ -44,6 +44,7 @@ type CaptureViewProps = {
 export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureViewProps) {
   const { t } = useTranslation();
   const { colors, spacing, radius, control } = useTheme();
+  const phoneBackLayout = usePhoneBackLayout();
   const [tipsOpen, setTipsOpen] = useState(false);
   const [viewport, setViewport] = useState(0);
   const [chipWidth, setChipWidth] = useState(0);
@@ -211,7 +212,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
           {fingerOn ? null : (
             <Reveal settle>
               <AppText tone="textDim" style={{ textAlign: 'center' }}>
-                {placementCopy(t).instruction}
+                {placementCopy(t, phoneBackLayout.model).instruction}
               </AppText>
             </Reveal>
           )}

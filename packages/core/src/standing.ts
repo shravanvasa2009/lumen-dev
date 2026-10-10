@@ -20,7 +20,8 @@ export interface StandingRise {
 
 const isPositiveRate = (bpm: number) => Number.isFinite(bpm) && bpm > 0;
 
-function riseThresholdBpm(ageYears: number): number {
+/** DSP-16: the bpm rise over the lying rate that counts as large for this age. */
+export function riseThresholdBpm(ageYears: number): number {
   const { minAgeYears, adolescentMaxAgeYears, adolescentRiseBpm, adultRiseBpm } = DSP_CONFIG.dsp16;
   if (!Number.isInteger(ageYears)) throw new RangeError(`age ${ageYears} is not a whole number of years`);
   // The profile blocks these ages (§6.6), so reaching here is a caller bug, not a reading to judge.

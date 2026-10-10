@@ -114,6 +114,7 @@ describe('Settings > Profile', () => {
     await saveRiskDraft({ ...saved, gestationalDiabetes: true });
     renderRouter('./app', { initialUrl: '/settings/profile' });
     fireEvent.press(await screen.findByRole('button', { name: en['dr.edit'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['profile.sex'] }));
     fireEvent.press(screen.getByRole('radio', { name: en['profile.male'] }));
     fireEvent.press(screen.getByRole('button', { name: en['common.done'] }));
     await screen.findByText('52 years');
@@ -162,6 +163,7 @@ describe('Settings > Profile', () => {
     await saveRiskDraft({ ...saved, gestationalDiabetes: true });
     renderRouter('./app', { initialUrl: '/settings/profile' });
     fireEvent.press(await screen.findByRole('button', { name: en['dr.edit'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['profile.sex'] }));
     fireEvent.press(screen.getByRole('radio', { name: en['profile.male'] }));
     const family = screen.getByLabelText(en['dr.family']);
     fireEvent.press(within(family).getByRole('radio', { name: en['common.no'] }));

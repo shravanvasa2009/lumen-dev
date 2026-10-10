@@ -1,5 +1,7 @@
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import { StyleSheet } from 'react-native';
+import { Rect } from 'react-native-svg';
+import type { ReactTestInstance } from 'react-test-renderer';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
@@ -42,15 +44,14 @@ describe.each([
     expect(StyleSheet.flatten(heading.props.style)).toMatchObject({ color: colors.text });
     expect(screen.getByText(en['demo.banner'])).toBeOnTheScreen();
     expect(screen.getByRole('radio', { name: en['trends.range30'] })).toBeChecked();
-    expect(screen.getByRole('radio', { name: en['trends.restingHr'] })).toBeChecked();
+    expect(screen.getByRole('header', { name: en['trends.heartRate'] })).toBeOnTheScreen();
   });
 
-  it('shades the personal band in the theme colour and shows the three tiles', () => {
+  it('shades the personal band in the theme colour and shows the median and band', () => {
     openView(demoHistory);
-    expect(JSON.stringify(screen.toJSON()).includes(colors.badgeCheckedBg)).toBe(true);
+    expect(screen.UNSAFE_getAllByType(Rect).some((rect) => rect.props.fill === colors.accentTint)).toBe(true);
     expect(screen.getByLabelText('Median: 64 bpm')).toBeOnTheScreen();
-    expect(screen.getByLabelText(/^Your band: \d+–\d+$/)).toBeOnTheScreen();
-    expect(screen.getByLabelText('Readings: 25')).toBeOnTheScreen();
+    expect(screen.getByText(/^Your band \d+ to \d+ bpm · 25 readings$/)).toBeOnTheScreen();
   });
 
   it('marks caffeine readings on the chart and in the rows', () => {
@@ -99,42 +100,49 @@ describe('Trends content', () => {
 
   it('offers only heart rate, HRV and breathing; experimental measurements are not trended', () => {
     openView(demoHistory);
-    // Three range buttons and three metric chips.
-    expect(screen.getAllByRole('radio')).toHaveLength(6);
-    for (const key of ['trends.restingHr', 'trends.hrv', 'trends.breathing'] as const) {
-      expect(screen.getByRole('radio', { name: en[key] })).toBeOnTheScreen();
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+    expect(screen.getByRole('header', { name: en['trends.heartRate'] })).toBeOnTheScreen();
+    for (const key of ['trends.hrv', 'trends.breathing'] as const) {
+      expect(screen.getByRole('button', { name: new RegExp(`^${en[key]}:`) })).toBeOnTheScreen();
     }
     expect(screen.queryByText(/extra|pulse shape|diabetes/i)).toBeNull();
   });
 
-  it('labels the chart metric with the evidence file badge, Experimental without a passed file (EVID-1)', () => {
+  it('draws no evidence badge on Trends (owner decision 2026-10-09)', () => {
     openView(demoHistory);
-    expect(screen.getAllByTestId('evidence-badge')).toHaveLength(1);
-    expect(screen.getByText(en['evidence.experimental'])).toBeOnTheScreen();
-    expect(screen.queryByText(en['evidence.checked'])).toBeNull();
+    expect(screen.queryByTestId('evidence-badge')).toBeNull();
+    expect(screen.queryByText(en['evidence.experimental'])).toBeNull();
+  });
+
+  it('lists the recent days under Rhythm over time and opens one', () => {
+    openView(demoHistory);
+    expect(screen.getByRole('header', { name: en['trends.rhythmTitle'] })).toBeOnTheScreen();
+    expect(screen.getAllByText(en['trends.rhythmSteady']).length).toBeGreaterThan(0);
   });
 
   it('switches to HRV and keeps the band from the whole history on 7D (§7)', () => {
     openView(demoHistory);
-    fireEvent.press(screen.getByRole('radio', { name: en['trends.hrv'] }));
-    const band30 = screen.getByLabelText(/^Your band: \d/).props.accessibilityLabel;
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${en['trends.hrv']}:`) }));
+    const bandRange = (line: ReactTestInstance) =>
+      /^Your band (\d+ to \d+) ms/.exec(String(line.props.children))![1];
+    const band30 = bandRange(screen.getByText(/^Your band \d+ to \d+ ms/));
     fireEvent.press(screen.getByRole('radio', { name: en['trends.range7'] }));
-    expect(screen.getByLabelText('Readings: 3')).toBeOnTheScreen();
-    expect(screen.getByLabelText(band30)).toBeOnTheScreen();
+    const band7 = screen.getByText(/^Your band \d+ to \d+ ms · 3 readings$/);
+    expect(bandRange(band7)).toBe(band30);
     expect(screen.queryByText(/Learning your baseline/)).toBeNull();
   });
 
   it('counts the learning readings across the whole history, whatever the range', () => {
     openView(demoHistory.filter(({ rmssd }) => rmssd !== null).slice(0, 5));
-    fireEvent.press(screen.getByRole('radio', { name: en['trends.hrv'] }));
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${en['trends.hrv']}:`) }));
     fireEvent.press(screen.getByRole('radio', { name: en['trends.range7'] }));
     expect(screen.getByText('Learning your baseline: 5 of 7')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Your band: —')).toBeOnTheScreen();
+    expect(screen.queryByText(/^Your band/)).toBeNull();
   });
 
   it('says so when a range has no readings of the chosen kind', () => {
     openView([demoHistory[0]!]);
-    fireEvent.press(screen.getByRole('radio', { name: en['trends.breathing'] }));
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${en['trends.breathing']}:`) }));
     expect(screen.getByText(en['trends.noneInRange'])).toBeOnTheScreen();
   });
 
@@ -174,6 +182,7 @@ describe('a flagged lower-quality rhythm in the readings list', () => {
     rhythm: null,
     flaggedLowRhythm: 'af',
     caffeine: false,
+    intervalsMs: [],
   });
   const word = en['results.rhythmIrregular'];
 
@@ -189,6 +198,7 @@ describe('a flagged lower-quality rhythm in the readings list', () => {
     mockScheme = 'light';
     openView([flagged(72)], false, now);
     const marked = en['quality.marked'].replace('{{value}}', word);
-    expect(screen.getByText(`72 bpm · ${marked}`)).toBeOnTheScreen();
+    expect(screen.getByText(marked)).toBeOnTheScreen();
+    expect(screen.getByText('72 bpm')).toBeOnTheScreen();
   });
 });

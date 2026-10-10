@@ -59,7 +59,12 @@ describe('emergency screen', () => {
 
   it('shows the stroke signs and no made-up doctor number', () => {
     renderRouter('./app', { initialUrl: '/emergency' });
-    expect(screen.getByText(en['emergency.strokeLetters'])).toBeOnTheScreen();
+    for (const word of ['Balance', 'Eyes', 'Face', 'Arm', 'Speech', 'Time']) {
+      expect(screen.getByText(word)).toBeOnTheScreen();
+    }
+    const letters = screen.getAllByText(/^[A-Z]$/, { includeHiddenElements: true });
+    expect(letters.map((letter) => letter.props.children).join('')).toBe('BEFAST');
+    expect(screen.getByText(en['emergency.strokeCall'])).toBeOnTheScreen();
     expect(screen.getAllByRole('button')).toHaveLength(2);
   });
 
@@ -104,33 +109,18 @@ describe('emergency screen', () => {
     expect(scrolling.queryByText(en['emergency.callFailed'])).toBeNull();
   });
 
-  it('moves the stroke card into the scrolling block at large text, so every action stays in view', () => {
-    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 2 } }));
-    savePhone('(713) 555-0100');
-    renderRouter('./app', { initialUrl: '/emergency' });
-    const scrolling = within(screen.UNSAFE_getByType(ScrollView));
-    expect(scrolling.getByText(en['emergency.strokeLetters'])).toBeOnTheScreen();
-    expect(scrolling.queryByRole('button')).toBeNull();
-    expect(screen.getAllByRole('button')).toHaveLength(3);
-  });
-
-  it.each([
-    [1.3, false],
-    [1.31, true],
-  ])('switches the stroke card into the scroll only above 1.3x (%s)', (fontScale, inScroll) => {
-    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale } }));
-    renderRouter('./app', { initialUrl: '/emergency' });
-    const scrolling = within(screen.UNSAFE_getByType(ScrollView));
-    expect(scrolling.queryByText(en['emergency.strokeLetters']) !== null).toBe(inScroll);
-  });
-
-  it('keeps the stroke card with the actions at normal text', () => {
-    act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
-    renderRouter('./app', { initialUrl: '/emergency' });
-    const scrolling = within(screen.UNSAFE_getByType(ScrollView));
-    expect(scrolling.queryByText(en['emergency.strokeLetters'])).toBeNull();
-    expect(screen.getByText(en['emergency.strokeLetters'])).toBeOnTheScreen();
-  });
+  it.each([1, 2])(
+    'keeps the stroke card in the scrolling block and every action in view at %sx text',
+    (fontScale) => {
+      act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale } }));
+      savePhone('(713) 555-0100');
+      renderRouter('./app', { initialUrl: '/emergency' });
+      const scrolling = within(screen.UNSAFE_getByType(ScrollView));
+      expect(scrolling.getByText(en['emergency.strokeCall'])).toBeOnTheScreen();
+      expect(scrolling.queryByRole('button')).toBeNull();
+      expect(screen.getAllByRole('button')).toHaveLength(3);
+    },
+  );
 
   it('reads in Spanish with Call, okay and the stroke signs all present on 360x640', async () => {
     act(() => Dimensions.set({ window: { width: 360, height: 640, scale: 2, fontScale: 1 } }));
@@ -140,7 +130,10 @@ describe('emergency screen', () => {
       expect(screen.getByRole('header', { name: es['emergency.title'] })).toBeOnTheScreen();
       expect(screen.getByRole('button', { name: es['emergency.call'] })).toBeOnTheScreen();
       expect(screen.getByRole('button', { name: es['emergency.okay'] })).toBeOnTheScreen();
-      expect(screen.getByText(es['emergency.strokeLetters'])).toBeOnTheScreen();
+      expect(screen.getByText(es['emergency.signBalance'])).toBeOnTheScreen();
+      const letters = screen.getAllByText(/^[A-Z]$/, { includeHiddenElements: true });
+      expect(letters.map((letter) => letter.props.children).join('')).toBe('BEFAST');
+      expect(screen.getByText(es['emergency.strokeCall'])).toBeOnTheScreen();
     } finally {
       await act(() => i18next.changeLanguage('en'));
     }

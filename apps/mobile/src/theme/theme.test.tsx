@@ -32,7 +32,7 @@ describe('useTheme', () => {
   it('defaults to dark when the system gives no preference', () => {
     mockScheme = null;
     const { result: theme } = renderHook(() => useTheme());
-    expect(theme.current.colors.bg).toBe('#0B0E14');
+    expect(theme.current.colors.bg).toBe('#000000');
   });
 
   it.each([
@@ -57,9 +57,9 @@ describe('useTheme', () => {
   it('carries the section 12.1 scale in both themes', () => {
     mockScheme = 'light';
     const { result: theme } = renderHook(() => useTheme());
-    expect(theme.current.type.display).toEqual({ size: 34, lineHeight: 40, weight: '700' });
-    expect(theme.current.spacing.screen).toBe(20);
-    expect(theme.current.radius.card).toBe(16);
+    expect(theme.current.type.display).toEqual({ size: 34, lineHeight: 41, weight: '700' });
+    expect(theme.current.spacing.screen).toBe(16);
+    expect(theme.current.radius.card).toBe(20);
     expect(theme.current.control.primaryButtonHeight).toBe(52);
   });
 

@@ -52,7 +52,7 @@ async function rowCounts(): Promise<Record<string, number>> {
 }
 
 async function fillEveryTable(): Promise<void> {
-  await saveTestReading(Date.UTC(2026, 9, 1), 70);
+  await saveTestReading(Date.UTC(2026, 9, 1), 70, { intervalsMs: [930, 945, 962] });
   await finishOnboarding();
   await saveHealthNote('athlete', true);
   const database = await lumenDatabase();
@@ -90,6 +90,7 @@ describe('deleteAllData', () => {
   it('empties readings, profile, baselines and device rating', async () => {
     await fillEveryTable();
     expect(Object.values(await rowCounts()).every((count) => count > 0)).toBe(true);
+    expect((await listReadings())[0]?.intervalsMs).toEqual([930, 945, 962]);
     await deleteAllData('en');
     expect(await rowCounts()).toEqual(EMPTY);
     expect(await listReadings()).toEqual([]);
@@ -169,6 +170,7 @@ describe('deleteAllData', () => {
         },
         models: { rhythm: null, diabetes: null },
         reading: makeReading(5, 60, null).outcome,
+        intervalsMs: [],
         progress: pendingProgress,
       },
       'quick',

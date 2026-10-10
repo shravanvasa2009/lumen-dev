@@ -3,6 +3,7 @@ import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
 import { PressableScale } from '@/components/PressableScale';
+import { TickMarks } from '@/measure/TickMarks';
 import { useTheme } from '@/theme';
 
 type MeasureButtonProps = { label: string; modeLabel: string; size: number; onPress: () => void };
@@ -22,6 +23,10 @@ const FADE = {
   outer: { offset: 0.91, opacity: 0.16 },
   gone: { offset: 1, opacity: 0 },
 };
+// One tick per second of a Full Scan, drawn over the fading halo at the ball's outer edge.
+const TICK_COUNT = 90;
+const TICK_EDGE_INSET = 2;
+const TICK_LENGTH = 6;
 const TEXT_WIDTH_SHARE = 0.64;
 // Past this share of the radius the fill is under 0.92 opaque and reads as halo, so the text stays inside it
 // to sit on the solid-looking disc.
@@ -68,6 +73,15 @@ export function MeasureButton({ label, modeLabel, size, onPress }: MeasureButton
           </RadialGradient>
         </Defs>
         <Circle cx={center} cy={center} r={center} fill="url(#measureFill)" />
+        <TickMarks
+          center={center}
+          outerRadius={center - TICK_EDGE_INSET}
+          length={TICK_LENGTH}
+          count={TICK_COUNT}
+          majorEvery={TICK_COUNT}
+          color={colors.line2}
+          majorColor={colors.accent}
+        />
       </Svg>
       <View style={{ alignItems: 'center', width: textWidth }}>
         <AppText

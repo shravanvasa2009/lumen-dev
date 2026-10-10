@@ -4,30 +4,32 @@ import { View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { Icon, type IconName } from '@/components/Icon';
+import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
-import { OnboardingStep } from '@/components/OnboardingStep';
-import { PhoneBackIllustration } from '@/components/PhoneBackIllustration';
+import { OnboardingFrame } from '@/onboarding/OnboardingFrame';
+import { placementCopy, usePhoneBackLayout } from '@/onboarding/phoneBackLayouts';
+import { PlacementFigure } from '@/onboarding/PlacementFigure';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
 
-const CHIP_SIZE = 40;
-
 export default function PlacementScreen() {
   const { t } = useTranslation();
+  const phoneBackLayout = usePhoneBackLayout();
   const { colors, spacing, radius, control } = useTheme();
   const tips: { icon: IconName; label: string }[] = [
     { icon: 'hint', label: t('placement.tipCover') },
     { icon: 'phone', label: t('placement.tipCase') },
     { icon: 'lens', label: t('placement.tipWipe') },
+    { icon: 'elbow', label: t('placement.tipPosture') },
   ];
   return (
-    <OnboardingStep
-      step={4}
+    <OnboardingFrame
+      step={3}
       title={t('placement.title')}
       subtitle={t('placement.subtitle')}
       footer={<NavButton label={t('placement.start')} href="/practice" />}
     >
-      <PhoneBackIllustration lensLabel={t('placement.lens')} flashLabel={t('placement.flash')} />
+      <PlacementFigure />
       <View
         testID="placement-instruction"
         style={{
@@ -41,33 +43,25 @@ export default function PlacementScreen() {
       >
         <Icon name="finger" size={control.chevronSize} color={colors.accent} />
         <AppText variant="headline" style={{ flex: 1 }}>
-          {t('placement.flashOutsideBump')}
+          {placementCopy(t, phoneBackLayout.model).instruction}
         </AppText>
       </View>
-      <SectionLabel>{t('placement.tipsHeading')}</SectionLabel>
-      <Card>
-        {tips.map(({ icon, label }) => (
-          <View
-            key={label}
-            testID="placement-tip"
-            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
-          >
-            <View
-              style={{
-                width: CHIP_SIZE,
-                height: CHIP_SIZE,
-                borderRadius: radius.card,
-                backgroundColor: colors.badgeCheckedBg,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Icon name={icon} size={control.chevronSize} color={colors.accent} />
-            </View>
-            <AppText style={{ flex: 1 }}>{label}</AppText>
-          </View>
-        ))}
-      </Card>
-    </OnboardingStep>
+      <View style={{ gap: spacing.sm }}>
+        <SectionLabel>{t('placement.tipsHeading')}</SectionLabel>
+        <Card flush>
+          {tips.map(({ icon, label }, index) => (
+            <ListRow
+              key={label}
+              title={label}
+              last={index === tips.length - 1}
+              leading={<Icon name={icon} size={control.chevronSize} color={colors.accent} />}
+            />
+          ))}
+        </Card>
+        <AppText variant="caption" tone="textDim">
+          {t('placement.tipWarm')}
+        </AppText>
+      </View>
+    </OnboardingFrame>
   );
 }

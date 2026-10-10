@@ -122,6 +122,19 @@ describe('analysis reads the saved profile', () => {
   });
 });
 
+describe('the beat intervals kept with the reading', () => {
+  it('are the accepted beat-to-beat intervals in whole milliseconds, in beat order', async () => {
+    const { intervalsMs } = await analyse();
+    const beatMs = 60_000 / BEATS_PER_MIN;
+    // 100 s at 45 beats/min is 75 beats; the first and last can fall outside a full pulse.
+    expect(intervalsMs.length).toBeGreaterThan(65);
+    for (const ms of intervalsMs) {
+      expect(Number.isInteger(ms)).toBe(true);
+      expect(Math.abs(ms - beatMs)).toBeLessThan(20);
+    }
+  });
+});
+
 describe('the history rules', () => {
   it('get the saved readings, so 2 of 3 and the personal bands can work', async () => {
     const earlier = makeReading(Date.now() - 3_600_000, 64, 48);
@@ -142,6 +155,7 @@ describe('the history rules', () => {
       },
       results: earlier.outcome,
       models: { rhythm: null, diabetes: null },
+      intervalsMs: [],
     });
     await analyse();
     expect(jest.mocked(buildReadingResult).mock.lastCall![4]).toEqual([

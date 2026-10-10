@@ -18,7 +18,7 @@ const reasonOf = (error: unknown) => (error instanceof Error ? error.message : S
 // Onboarding step 8 (mockup 08): rates the phone from the probe and the practice capture just kept in
 // memory, stores it, and falls back to the rating already stored when this run cannot settle one.
 export function useRatingReveal(): RatingReveal {
-  const probe = usePhoneProbe();
+  const { probe } = usePhoneProbe();
   const [reveal, setReveal] = useState<RatingReveal>({ kind: 'measuring' });
   useEffect(() => {
     if (probe.kind === 'checking') return;

@@ -1,14 +1,20 @@
 import type { TFunction } from 'i18next';
 
 import { evidenceFor } from '@/evidence';
+import type { InconclusiveOutcome } from '@lumen/core';
+
 import type { FixtureReading } from '@/results/fixtures';
+import { formatClock } from '@/results/format';
 
 import {
   columnHeadings,
   diabetesFor,
   diabetesSentence,
   formatFullDate,
+  inconclusiveLines,
+  measurementLines,
   pdfPageReadings,
+  qualityNote,
   reportEvidence,
   qualityLines,
   stripsFor,
@@ -38,6 +44,8 @@ const stylesheet = `
   .banner { color: ${paper.flag}; font-weight: 700; margin: 8px 0; }
   .demo { display: inline-block; background: ${paper.badgeExperimentalBg}; color: ${paper.badgeExperimentalFg}; font-weight: 700; font-size: 11px; padding: 2px 10px; border-radius: 999px; }
   .dim { color: ${paper.textDim}; }
+  .note { border: 1px solid ${paper.flag}; background: ${paper.flagBg}; border-radius: 8px; padding: 8px 10px; font-weight: 700; }
+  .line { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid ${paper.line}; }
   table { width: 100%; border-collapse: collapse; margin: 12px 0; }
   th { background: ${paper.surface2}; text-align: left; font-size: 11px; padding: 6px; }
   td { font-size: 11px; padding: 6px; border-bottom: 1px solid ${paper.line}; }
@@ -104,6 +112,12 @@ function pageHtml(
     demo ? `<span class="demo">${escapeHtml(t('report.demoMark'))}</span>` : '',
     `<p class="banner">${escapeHtml(t('prototype.banner'))}</p>`,
     ...flagLines,
+    `<p class="dim">${escapeHtml([page.mode === 'full' ? t('mode.full') : t('mode.quick'), t('results.cleanSeconds', { seconds: Math.floor(page.scan.cleanSeconds) }), formatClock(page.createdAt, language)].join(' · '))}</p>`,
+    qualityNote(t, page) ? `<p class="note">${escapeHtml(qualityNote(t, page) ?? '')}</p>` : '',
+    ...measurementLines(t, page).map(
+      ({ title, value, note }) =>
+        `<div class="line"><span><b>${escapeHtml(title)}</b><br><span class="dim">${escapeHtml(note)}</span></span><b>${escapeHtml(value)}</b></div>`,
+    ),
     `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`,
     ...qualityLines(t, language, [page]).map((line) => `<p class="dim">${escapeHtml(line)}</p>`),
     diabetes
@@ -133,5 +147,35 @@ export function buildReportHtml({ t, language, reading, dayReadings, demo }: Rep
     `<!DOCTYPE html><html lang="${escapeHtml(language)}"><head><meta charset="utf-8"><title>${escapeHtml(t('report.heading'))}</title><style>${stylesheet}</style></head><body>`,
     ...pages,
     '</body></html>',
+  ].join('');
+}
+
+type InconclusivePdf = {
+  t: TFunction;
+  language: string;
+  outcome: InconclusiveOutcome;
+  context: readonly string[];
+  madeAt: Date;
+};
+
+// The report for a refused capture: what was measured and why it fell short, and no health values.
+export function buildInconclusiveReportHtml({
+  t,
+  language,
+  outcome,
+  context,
+  madeAt,
+}: InconclusivePdf): string {
+  const { facts, lost } = inconclusiveLines(t, outcome, context);
+  return [
+    `<!DOCTYPE html><html lang="${escapeHtml(language)}"><head><meta charset="utf-8"><title>${escapeHtml(t('report.heading'))}</title><style>${stylesheet}</style></head><body><section class="page">`,
+    `<header><h1>${escapeHtml(t('report.heading'))}</h1><span class="dim">${escapeHtml(formatFullDate(madeAt, language))}</span></header>`,
+    `<p class="banner">${escapeHtml(t('prototype.banner'))}</p>`,
+    `<p><b>${escapeHtml(t('result.inconclusive'))}</b></p>`,
+    ...facts.map((fact) => `<p>${escapeHtml(fact)}</p>`),
+    ...lost.map((line) => `<p class="dim">${escapeHtml(line)}</p>`),
+    `<p class="dim"><b>${escapeHtml(t('report.methodLabel'))}</b> ${escapeHtml(t('report.method'))}</p>`,
+    `<footer>${escapeHtml(t('report.pdfFooter'))}</footer>`,
+    '</section></body></html>',
   ].join('');
 }

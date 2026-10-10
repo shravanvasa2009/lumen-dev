@@ -11,7 +11,7 @@ import { markSymptomsAsked } from '@/results/symptomsAsked';
 
 export default function ProcessingScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string; restDone?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; restDone?: string; context?: string }>();
   const mode = parseMode(params.mode);
   const analysis = useReadingAnalysis({
     mode,
@@ -56,13 +56,16 @@ export default function ProcessingScreen() {
     router.replace(`/results/${readingId}`);
   }, [readingId, mayContinue, askedHere, router]);
 
+  const { context } = params;
   const refused = analysis.phase === 'inconclusive';
   const outcome = analysis.phase === 'inconclusive' ? analysis.outcome : null;
   useEffect(() => {
     if (!refused || !mayContinue) return;
     handOverInconclusive(outcome);
-    router.replace(`/measure/inconclusive?mode=${mode}`);
-  }, [refused, mayContinue, outcome, mode, router]);
+    const forwarded = new URLSearchParams({ mode });
+    if (context !== undefined) forwarded.set('context', context);
+    router.replace(`/measure/inconclusive?${forwarded.toString()}`);
+  }, [refused, mayContinue, outcome, mode, context, router]);
 
   return (
     <>

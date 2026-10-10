@@ -72,6 +72,7 @@ async function store(reading: StoredReading) {
     context: CONTEXT,
     results: reading.outcome,
     models: { rhythm: null, diabetes: null },
+    intervalsMs: [],
   });
 }
 

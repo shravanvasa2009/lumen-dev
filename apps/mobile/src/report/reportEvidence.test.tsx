@@ -51,7 +51,7 @@ describe('Doctor report with a passed evidence file (EVID-1)', () => {
     renderRouter('./app', { initialUrl: '/report/demo' });
     const line = screen.getByText(/Seen on 2 readings \(Sep 25, Sep 27\)\. Not a diagnostic test\./);
     expect(line).toBeOnTheScreen();
-    expect(screen.getByText(en['report.diabetesLabel'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['report.diabetesLabel']).length).toBeGreaterThan(0);
     expect(screen.getByText(/Diabetes pattern: Tested on public data\./)).toBeOnTheScreen();
     expect(screen.queryByText(/diabetes-net|\d+\.\d+\.\d+/)).toBeNull();
   });

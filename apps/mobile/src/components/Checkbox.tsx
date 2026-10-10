@@ -22,15 +22,15 @@ export function Checkbox({ label, checked, onChange }: CheckboxProps) {
         style={{
           width: 28,
           height: 28,
-          borderRadius: radius.card / 2,
+          borderRadius: radius.chip,
           borderWidth: 2,
           alignItems: 'center',
           justifyContent: 'center',
-          borderColor: checked ? colors.accentFill : colors.line2,
-          backgroundColor: checked ? colors.accentFill : 'transparent',
+          borderColor: checked ? colors.buttonFill : colors.line2,
+          backgroundColor: checked ? colors.buttonFill : 'transparent',
         }}
       >
-        {checked ? <Icon name="check" size={control.chevronSize} color={colors.onAccentFill} /> : null}
+        {checked ? <Icon name="check" size={control.chevronSize} color={colors.onButtonFill} /> : null}
       </View>
       <AppText style={{ flex: 1 }}>{label}</AppText>
     </PressableScale>

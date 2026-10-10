@@ -201,7 +201,7 @@ describe('Notifications settings', () => {
       fireEvent.press(screen.getByRole('button', { name: en['notifications.dailyTime'] }));
       await pickTime(9, 15);
       expect(loadNotificationPrefs().dailyTime).toEqual({ hour: 9, minute: 15 });
-      expect(screen.getByText('9:15 AM')).toBeOnTheScreen();
+      expect(screen.getAllByText('9:15 AM').length).toBeGreaterThan(0);
     });
 
     // NOTIF-1: quiet hours that now cover 8:00 move the 8:00 daily reminder to their end.
@@ -216,7 +216,12 @@ describe('Notifications settings', () => {
       expect(prefs.quietHours.end).toEqual({ hour: 9, minute: 0 });
       const [first] = planNotifications({
         prefs,
-        triggers: { confirmationFor: null, doctorFollowupFor: null, standingStartedAt: null, lastPhoneCheckAt: null },
+        triggers: {
+          confirmationFor: null,
+          doctorFollowupFor: null,
+          standingStartedAt: null,
+          lastPhoneCheckAt: null,
+        },
         now: Date.parse('2026-10-05T05:00:00-05:00'),
         timeZone: 'America/Chicago',
         previousSchedule: [],

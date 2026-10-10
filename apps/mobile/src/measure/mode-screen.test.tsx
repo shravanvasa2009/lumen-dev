@@ -20,24 +20,33 @@ describe('choose a mode', () => {
 
   it('lists the four modes with their durations and marks Full Scan recommended', () => {
     for (const key of ['mode.full', 'mode.quick', 'mode.deep', 'mode.standing'] as const)
-      expect(screen.getByRole('button', { name: en[key] })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: en[key] })).toBeOnTheScreen();
     for (const duration of ['90 s', '30 s', '5 min', '~12 min'])
       expect(screen.getByText(duration)).toBeOnTheScreen();
     expect(screen.getAllByText(en['mode.recommended'])).toHaveLength(1);
   });
 
-  it('opens the pre-check for Full Scan', () => {
-    fireEvent.press(screen.getByRole('button', { name: en['mode.full'] }));
+  it('preselects Full Scan and opens its pre-check from Continue', () => {
+    expect(screen.getByRole('radio', { name: en['mode.full'] })).toBeChecked();
+    fireEvent.press(screen.getByRole('button', { name: `Continue with ${en['mode.full']}` }));
     expectNavTitle(en['precheck.title']);
   });
 
-  it('opens the standing test', () => {
-    fireEvent.press(screen.getByRole('button', { name: en['mode.standing'] }));
+  it('opens the pre-check for Quick Check once chosen', () => {
+    fireEvent.press(screen.getByRole('radio', { name: en['mode.quick'] }));
+    expect(screen.getByRole('radio', { name: en['mode.quick'] })).toBeChecked();
+    fireEvent.press(screen.getByRole('button', { name: `Continue with ${en['mode.quick']}` }));
+    expectNavTitle(en['precheck.title']);
+  });
+
+  it('opens the standing test once chosen', () => {
+    fireEvent.press(screen.getByRole('radio', { name: en['mode.standing'] }));
+    fireEvent.press(screen.getByRole('button', { name: `Continue with ${en['mode.standing']}` }));
     expect(screen.getByRole('header', { name: en['standing.title'] })).toBeOnTheScreen();
   });
 
   it('says Deep HRV is not available yet and does not open it', () => {
     expect(screen.getByText(en['mode.deepSoon'])).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: en['mode.deep'] })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: en['mode.deep'] })).toBeDisabled();
   });
 });

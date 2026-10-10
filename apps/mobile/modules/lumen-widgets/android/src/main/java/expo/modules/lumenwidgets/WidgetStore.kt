@@ -38,7 +38,7 @@ object WidgetStore {
         check(saved) { "Could not save the widget copy." }
     }
 
-    // The published copy, palette and checks: what the picker's generated preview draws with a sample reading.
+    // The published copy and palette: what the picker's generated preview draws with a sample reading.
     fun display(context: Context): String? =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(DISPLAY_KEY, null)
 

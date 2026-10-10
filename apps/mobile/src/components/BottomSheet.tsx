@@ -13,6 +13,9 @@ type BottomSheetProps = {
   visible: boolean;
   children: ReactNode;
   onSwipeDown?: () => void;
+  // floating: a rounded card inset from the screen edges (the safety check); grouped: the grouped-background panel
+  // the explainer sheets use. Left out, the panel is the plain white sheet.
+  appearance?: 'floating' | 'grouped';
 } & ({ onDismiss: () => void; dismissLabel: string } | { onDismiss?: undefined; dismissLabel?: undefined });
 
 // Android needs an onRequestClose handler on a Modal; this one keeps the sheet open.
@@ -23,6 +26,11 @@ const SWIPE_CLOSE_DP = 80;
 const SWIPE_CLOSE_VELOCITY = 0.8;
 // A vertical move must pass this (dp) before the panel follows the finger, so a tap on a button stays a tap.
 const SWIPE_START_DP = 10;
+// The grabber is the iOS sheet handle (dp); it tells a swipe-down sheet apart from a fixed panel.
+const GRABBER_WIDTH = 36;
+const GRABBER_HEIGHT = 5;
+// The grouped sheet's corners are rounder than the plain one's, as the explainer boards draw them.
+const GROUPED_RADIUS = 32;
 
 // The in-app modal sheet. The Modal itself does not animate (the OS would pick its own duration); the dimmed
 // area and the panel fade in on the UI thread at the 200 ms token. The panel does not slide in: on Android a
@@ -31,8 +39,15 @@ const SWIPE_START_DP = 10;
 // "didnt work" until a perfectly still tap). Under Reduce Motion they just appear; on the capture screen
 // nothing animates (ADR 0075). The content unmounts the moment `visible` is false and no button waits for an
 // animation, so SafetySheet's route to the emergency screen is never delayed.
-export function BottomSheet({ visible, onDismiss, dismissLabel, onSwipeDown, children }: BottomSheetProps) {
-  const { colors, radius, spacing } = useTheme();
+export function BottomSheet({
+  visible,
+  onDismiss,
+  dismissLabel,
+  onSwipeDown,
+  appearance,
+  children,
+}: BottomSheetProps) {
+  const { colors, radius, spacing, shadow } = useTheme();
   const reduceMotion = useReduceMotion();
   const onCaptureScreen = useContext(StillMotion);
   // The Modal is drawn edge to edge on Android 15+, so the panel's last line would sit under the navigation bar.
@@ -111,19 +126,36 @@ export function BottomSheet({ visible, onDismiss, dismissLabel, onSwipeDown, chi
             testID="sheet-panel"
             entering={fadeIn}
             style={{
-              backgroundColor: colors.surface,
-              borderColor: colors.line,
-              borderWidth: 1,
-              borderTopLeftRadius: radius.sheet,
-              borderTopRightRadius: radius.sheet,
+              backgroundColor: appearance === 'grouped' ? colors.bg : colors.surface,
+              ...(appearance === 'floating'
+                ? {
+                    borderRadius: radius.hero,
+                    marginHorizontal: spacing.sm,
+                    marginBottom: spacing.sm + bottomInset,
+                    ...shadow.floating,
+                  }
+                : {
+                    borderTopLeftRadius: appearance === 'grouped' ? GROUPED_RADIUS : radius.sheet,
+                    borderTopRightRadius: appearance === 'grouped' ? GROUPED_RADIUS : radius.sheet,
+                  }),
               // Leaves the status bar visible; a body taller than this scrolls instead of running off the top.
               maxHeight: '100%',
               flexShrink: 1,
-              padding: spacing.xxl,
-              paddingBottom: spacing.xxxl + bottomInset,
+              padding: appearance === 'grouped' ? spacing.lg : spacing.xxl,
+              paddingBottom: appearance === 'floating' ? spacing.xxl : spacing.xxxl + bottomInset,
               gap: spacing.lg,
             }}
           >
+            <View
+              style={{
+                alignSelf: 'center',
+                width: GRABBER_WIDTH,
+                height: GRABBER_HEIGHT,
+                borderRadius: GRABBER_HEIGHT / 2,
+                backgroundColor: colors.line2,
+                marginTop: -spacing.sm,
+              }}
+            />
             {children}
           </Animated.View>
         </DragAnimated.View>

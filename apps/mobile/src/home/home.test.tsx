@@ -4,17 +4,20 @@ import { Dimensions } from 'react-native';
 
 import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
-import { evidenceFor } from '@/evidence';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
 import { expectNavTitle } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
+import { saveTestReading } from '@/testing/savedReading';
 import { startOnboarded } from '@/testing/onboarded';
-
-import { MetricTile } from './MetricTile';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'light',
+}));
+
+let mockName: string | null = null;
+jest.mock('@/profile/profileName', () => ({
+  useProfileName: () => ({ name: mockName, problem: null, setName: () => undefined }),
 }));
 
 fixClockAtMorning();
@@ -43,43 +46,24 @@ describe('Home', () => {
   it('shows empty states, not numbers, while no readings are stored', () => {
     expect(screen.getAllByText(en['home.noReadings'])).toHaveLength(3);
     expect(screen.getByText(en['checks.status.potsNone'])).toBeOnTheScreen();
-    expect(screen.getAllByText(en['home.noValue'])).toHaveLength(3);
-    for (const key of ['home.restingHr', 'home.hrv', 'home.breathing'] as const)
-      expect(screen.getAllByText(en[key]).length).toBeGreaterThan(0);
+    expect(screen.queryByText(en['home.latestTitle'])).toBeNull();
+    expect(screen.getByText(en['home.checksTitle'])).toBeOnTheScreen();
   });
 
-  it.each([
-    ['follow-up', () => screen.getByRole('button', { name: en['home.followUp'] }), 'followUp.title'],
-    [
-      'a metric tile',
-      () => screen.getByRole('button', { name: new RegExp(`^${en['home.hrv']}:`) }),
-      'trends.title',
-    ],
-  ] as const)('reaches %s from Home', (_name, control, title) => {
-    fireEvent.press(control());
-    expect(screen.getByRole('header', { name: en[title] })).toBeOnTheScreen();
+  it('reaches follow-up from Home', () => {
+    fireEvent.press(screen.getByRole('button', { name: en['home.followUp'] }));
+    expect(screen.getByRole('header', { name: en['followUp.title'] })).toBeOnTheScreen();
   });
 
-  it('shows the four checks, each with a Scan button labelled by its name', () => {
-    for (const name of ['afib', 'hrv', 'diabetes', 'pots'] as const) {
-      const label = en[`checks.${name}.name`];
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-      expect(screen.getByRole('button', { name: `Scan for ${label}` })).toBeOnTheScreen();
-    }
+  it('shows the four checks as rows', () => {
+    for (const name of ['afib', 'hrv', 'diabetes', 'pots'] as const)
+      expect(
+        screen.getByRole('button', { name: new RegExp(`^${en[`checks.${name}.name`]}`) }),
+      ).toBeOnTheScreen();
   });
 
-  it('takes the evidence badge of AFib, HRV and Diabetes from the evidence file, and none for POTS', () => {
-    const words = {
-      checked: en['evidence.checked'],
-      'public-data': en['evidence.publicData'],
-      experimental: en['evidence.experimental'],
-    };
-    const expected = (['rhythm', 'hrv', 'diabetes'] as const).map(
-      (metric) => words[evidenceFor(metric).label],
-    );
-    expect(screen.getAllByTestId('evidence-badge').map((badge) => badge.props.accessibilityLabel)).toEqual(
-      expected,
-    );
+  it('shows no evidence badge on any check row', () => {
+    expect(screen.queryAllByTestId('evidence-badge')).toHaveLength(0);
   });
 
   it.each([
@@ -87,14 +71,14 @@ describe('Home', () => {
     ['HRV', '/measure/precheck'],
     ['Diabetes', '/measure/precheck'],
     ['POTS', '/measure/standing-test'],
-  ])('starts the right check from the %s Scan button', (name, path) => {
-    fireEvent.press(screen.getByRole('button', { name: `Scan for ${name}` }));
+  ])('starts the right check from the %s row while it has no reading', (name, path) => {
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${name}`) }));
     expect(route.getPathname()).toBe(path);
     if (path === '/measure/precheck') expect(route.getSearchParams()).toEqual({ mode: 'full' });
   });
 
-  it('reaches the mode list from Change mode', () => {
-    fireEvent.press(screen.getByRole('button', { name: en['home.changeMode'] }));
+  it('reaches the mode list from the mode pill', () => {
+    fireEvent.press(screen.getByRole('button', { name: `Mode: ${en['mode.full']}. Change mode` }));
     expectNavTitle(en['mode.title']);
   });
 
@@ -119,12 +103,11 @@ describe('Home on a 360 x 640 phone', () => {
   });
   afterEach(() => Dimensions.set({ window: regular }));
 
-  it('drops the date line and keeps Measure, Change mode, four Scan buttons and the tiles', () => {
+  it('drops the date line and keeps Measure, the mode pill and the four check rows', () => {
     expect(screen.queryByText('Thursday, Oct 1')).toBeNull();
     expect(screen.getByRole('button', { name: en['home.measure'] })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: en['home.changeMode'] })).toBeOnTheScreen();
-    expect(screen.getAllByRole('button', { name: /^Scan for / })).toHaveLength(4);
-    expect(screen.getByRole('button', { name: new RegExp(`^${en['home.restingHr']}:`) })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: /Change mode$/ })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: new RegExp(`^${en['checks.pots.name']}`) })).toBeOnTheScreen();
   });
 });
 
@@ -141,9 +124,24 @@ describe('Home in Spanish', () => {
 });
 
 describe('Home with stored readings', () => {
-  it('draws the latest value and a trend line on a tile', () => {
-    renderRouter({ index: () => <MetricTile label="Resting HR" unit="bpm" points={[70, 66, 64.4]} /> });
+  it('shows the latest reading with its vitals and opens it', async () => {
+    await startOnboarded();
+    const id = await saveTestReading(new Date(2026, 9, 1, 8, 14).getTime(), 64);
+    const route = renderRouter('./app', { initialUrl: '/' });
+    await screen.findByText(en['home.latestTitle']);
     expect(screen.getByText('64')).toBeOnTheScreen();
-    expect(JSON.stringify(screen.toJSON())).toContain('RNSVGPath');
+    fireEvent.press(screen.getByLabelText(/8:14/));
+    expect(route.getPathname()).toBe(`/results/${id}`);
+  });
+
+  afterEach(() => {
+    mockName = null;
+  });
+
+  it('greets by the name in the profile', async () => {
+    await startOnboarded();
+    mockName = 'Ana';
+    renderRouter('./app', { initialUrl: '/' });
+    expect(await screen.findByRole('header', { name: 'Good morning, Ana' })).toBeOnTheScreen();
   });
 });

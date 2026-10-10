@@ -91,8 +91,9 @@ describe.each([
     openResults('demo');
     expect(screen.getByText('Regular rhythm, 64 bpm.')).toBeOnTheScreen();
     expect(screen.getByText(en['results.heartRhythm'])).toBeOnTheScreen();
-    expect(screen.getByText('64 bpm')).toBeOnTheScreen();
-    expect(screen.getByText('48 ms')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Heart rate 64 bpm')).toBeOnTheScreen();
+    expect(screen.getAllByText('64')).toHaveLength(2);
+    expect(screen.getByText('48')).toBeOnTheScreen();
     expect(screen.getByText(en['result.notChecked'], { exact: false })).toBeOnTheScreen();
     expect(focusedNavHeader()).toMatchObject({ title: en['results.title'], titleColor: colors.text });
     expect(screen.queryByRole('header', { name: en['results.title'] })).toBeNull();
@@ -112,11 +113,10 @@ describe.each([
     expect(screen.queryByText(en['dm.flag.body'])).toBeNull();
     expect(screen.getByText(en['dr.rowTitle'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.demoRow'])).toBeOnTheScreen();
-    expect(screen.getByText(en['dr.pulseExtra'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.pulsePattern'])).toBeOnTheScreen();
     expect(screen.getByText(en['results.notDiabetesTest'])).toBeOnTheScreen();
-    expect(screen.queryByText(en['results.pulsePattern'])).toBeNull();
     expect(screen.queryByText(/%|AUC/)).toBeNull();
-    expect(screen.getByText('Experimental measurements (2)')).toBeOnTheScreen();
+    expect(screen.getByText(en['results.experimentalHeading'])).toBeOnTheScreen();
     expect(screen.getByText(en['results.sublineUsual'])).toBeOnTheScreen();
     expect(screen.queryByText(en['safety.title'])).toBeNull();
   });
@@ -128,33 +128,24 @@ describe.each([
     expect(screen.queryByText(/%|AUC/)).toBeNull();
   });
 
-  it('draws the headline card with a gradient fill', () => {
-    openResults('demo');
-    fireEvent(screen.getByTestId('headline-card'), 'layout', {
-      nativeEvent: { layout: { width: 320, height: 120 } },
-    });
-    const drawn = JSON.stringify(screen.toJSON());
-    expect(drawn.includes('RNSVGLinearGradient')).toBe(true);
-    expect(drawn.includes('"width":320')).toBe(true);
-  });
-
-  it('orders the Full Scan as in v2 16: banner, headline, AFib, HRV, Diabetes, POTS, Heart rate, Experimental, Not checked', () => {
+  it('orders the Full Scan as in the mockup: ring and headline, Measurements, Understand, More, Experimental, Standing test', () => {
     openResults('demo');
     const drawn = JSON.stringify(screen.toJSON());
     const order = [
       en['demo.banner'],
       'Regular rhythm, 64 bpm.',
+      en['results.measurements'],
+      en['results.tileHrv'],
       en['results.heartRhythm'],
-      en['results.hrv'],
-      en['dr.rowTitle'],
-      en['checks.pots.name'],
-      en['results.heartRate'],
-      'Experimental measurements',
       en['result.notChecked'],
+      en['results.understand'],
+      en['results.moreFromReading'],
+      en['dr.rowTitle'],
+      en['results.experimentalHeading'],
+      en['results.takeStanding'],
     ].map((text) => drawn.indexOf(text));
     expect(order.every((position) => position > -1)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(drawn.indexOf(en['result.notChecked'])).toBeLessThan(drawn.indexOf(en['results.showWhy']));
   });
 
   it('draws the Results title in the nav bar only, not again in the body', () => {
@@ -163,10 +154,8 @@ describe.each([
     expect(focusedNavHeader()).toMatchObject({ title: en['results.title'] });
   });
 
-  it('says POTS is not part of a Full Scan and links to the Standing test (ADR 0082)', () => {
+  it('links to the Standing test, where POTS is measured (ADR 0082)', () => {
     openResults('demo');
-    expect(screen.getByText(en['checks.pots.name'])).toBeOnTheScreen();
-    expect(screen.getByText(en['results.notThisScan'])).toBeOnTheScreen();
     fireEvent.press(screen.getByText(en['results.takeStanding']));
     expect(screen.getByRole('header', { name: en['standing.title'] })).toBeOnTheScreen();
   });
@@ -174,40 +163,10 @@ describe.each([
   it('shows every card on a Quick Check, with the Standing test button (owner decision over ADR 0089)', () => {
     openResults('demo-flag');
     expect(screen.getByText(en['results.heartRhythm'])).toBeOnTheScreen();
-    expect(screen.getByText(en['results.hrv'])).toBeOnTheScreen();
-    expect(screen.getByText(en['results.breathing'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.tileHrv'])).toBeOnTheScreen();
+    expect(screen.getByText(en['results.tileBreathing'])).toBeOnTheScreen();
     expect(screen.getByText(en['dr.rowTitle'])).toBeOnTheScreen();
-    expect(screen.getByText(en['checks.pots.name'])).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: en['results.takeStanding'] })).toBeOnTheScreen();
-  });
-
-  it('lets card headers shrink', () => {
-    openResults('demo');
-    const heading = screen.getByText(en['results.heartRhythm']);
-    expect(StyleSheet.flatten(heading.props.style).flexShrink).toBe(1);
-  });
-
-  it('stacks the footer buttons on a narrow phone or at large text, and keeps one row otherwise', () => {
-    const footerDirection = () =>
-      StyleSheet.flatten(screen.getByTestId('results-footer').props.style).flexDirection;
-    mockWindow.width = 360;
-    mockWindow.fontScale = 1;
-    openResults('demo');
-    expect(footerDirection()).toBe('column');
-    expect(screen.getByRole('button', { name: en['results.showWhy'] })).toBeOnTheScreen();
-    screen.unmount();
-    mockWindow.width = 412;
-    openResults('demo');
-    expect(footerDirection()).toBe('row');
-    screen.unmount();
-    mockWindow.fontScale = 1.6;
-    openResults('demo');
-    expect(footerDirection()).toBe('column');
-  });
-
-  it('names the AFib check on the rhythm card', () => {
-    openResults('demo');
-    expect(screen.getByText(en['checks.afib.name'])).toBeOnTheScreen();
   });
 
   it('shows the amber diabetes card once the evidence file passes the diabetes metric', () => {
@@ -218,7 +177,7 @@ describe.each([
     expect(screen.getByText(/Seen on 2 readings \(Sep 25, Sep 27\)/)).toBeOnTheScreen();
     expect(screen.queryByText(en['dm.experimental'])).toBeNull();
     expect(screen.getByText(en['results.sublineFollowUp'])).toBeOnTheScreen();
-    expect(screen.getByText('Experimental measurements (2)')).toBeOnTheScreen();
+    expect(screen.getByText(en['results.experimentalHeading'])).toBeOnTheScreen();
     expect(screen.queryByText(en['results.pulsePattern'])).toBeNull();
     expect(JSON.stringify(screen.toJSON()).includes(colors.flagBg)).toBe(true);
   });
@@ -237,7 +196,7 @@ describe.each([
     openResults('demo');
     expect(screen.queryByText(en['dm.flag.title'])).toBeNull();
     expect(screen.queryByText(en['dm.experimental'])).toBeNull();
-    expect(screen.getByText('Experimental measurements (2)')).toBeOnTheScreen();
+    expect(screen.getByText(en['results.experimentalHeading'])).toBeOnTheScreen();
     expect(screen.queryByText(en['safety.title'])).toBeNull();
     expect(screen.getByText(en['results.sublineUsual'])).toBeOnTheScreen();
   });
@@ -293,30 +252,30 @@ describe.each([
     expect(screen.getByText(en['safety.title'])).toBeOnTheScreen();
   });
 
-  it('never draws a badge stronger than the evidence file (EVID-1)', () => {
+  it('never draws a badge stronger than the evidence file, and hides Experimental (EVID-1)', () => {
     openResults('demo');
-    const badges = screen.getAllByTestId('evidence-badge').map((badge) => badge.props.accessibilityLabel);
-    expect(badges.length).toBeGreaterThan(0);
-    expect(new Set(badges)).toEqual(new Set([en['evidence.experimental']]));
+    const badges = screen.queryAllByTestId('evidence-badge').map((badge) => badge.props.accessibilityLabel);
+    expect(badges).toEqual([]);
   });
 
   it('says "Basic analysis" and caps the rhythm badge at Experimental for a rule-scored reading', () => {
     mockEvidence.rhythmPublic = true;
     mockDemo.ruleScored = true;
     openResults('demo');
-    expect(screen.getByText(en['results.basicAnalysis'])).toBeOnTheScreen();
+    expect(screen.getByText(new RegExp(en['results.basicAnalysis']))).toBeOnTheScreen();
     expect(screen.queryAllByLabelText(en['evidence.publicData'])).toHaveLength(0);
   });
 
-  it('shows no "Basic analysis" caption for a model-scored reading, and its badge keeps the file label', () => {
+  it('shows no "Basic analysis" note for a model-scored reading, and draws no badge on Results', () => {
     mockEvidence.rhythmPublic = true;
     openResults('demo');
-    expect(screen.queryByText(en['results.basicAnalysis'])).toBeNull();
-    expect(screen.getAllByLabelText(en['evidence.publicData'])).toHaveLength(1);
+    expect(screen.queryByText(new RegExp(en['results.basicAnalysis']))).toBeNull();
+    expect(screen.queryAllByLabelText(en['evidence.publicData'])).toHaveLength(0);
   });
 
-  it('draws no red on a flagged result (SAFE-1)', () => {
+  it('draws no red on a flagged result once the safety question is answered (SAFE-1)', () => {
     openResults('demo-flag');
+    pressNo();
     const drawn = JSON.stringify(screen.toJSON());
     expect(drawn.includes(colors.criticalFill)).toBe(false);
     expect(drawn.includes(colors.criticalText)).toBe(false);
@@ -345,7 +304,7 @@ describe.each([
     expect(route.getPathname()).toBe('/results/demo-flag');
   });
 
-  it('lays the safety question out large, in amber, and Yes still opens emergency at once (SAFE-1)', () => {
+  it('lays the safety question out large, in red, and Yes still opens emergency at once (SAFE-1)', () => {
     openResults('demo-flag');
     const yes = screen.getByRole('button', { name: en['safety.yes'] });
     const no = screen.getByRole('button', { name: en['safety.no'] });
@@ -353,8 +312,7 @@ describe.each([
       expect(StyleSheet.flatten(answer.props.style).minHeight).toBeGreaterThanOrEqual(72);
     }
     expect(StyleSheet.flatten(yes.props.style)).toMatchObject({
-      backgroundColor: colors.flagBg,
-      borderColor: colors.flag,
+      backgroundColor: colors.alertFill,
     });
     expect(screen.getByRole('header', { name: en['safety.title'] })).toBeOnTheScreen();
     fireEvent.press(yes);
@@ -374,7 +332,7 @@ describe.each([
     expect(screen.getByText(en['result.hrOnly'])).toBeOnTheScreen();
     expect(screen.queryByText(en['result.uncertain'])).toBeNull();
     expect(screen.getByText(en['quality.missingNoRhythm'])).toBeOnTheScreen();
-    expect(screen.getByText('88 bpm')).toBeOnTheScreen();
+    expect(screen.getAllByText('88')).toHaveLength(2);
   });
 
   it('keeps "Not enough clean signal" on the AFib and breathing cards when nothing names a cause', () => {
@@ -394,26 +352,28 @@ describe.each([
     openResults('missing');
     await waitFor(() => expect(screen.getByText(en['result.inconclusive'])).toBeOnTheScreen());
     expect(screen.queryByText(/bpm|\bms\b/)).toBeNull();
-    expect(screen.queryByRole('button', { name: en['results.share'] })).toBeNull();
+    expect(screen.queryByRole('button', { name: en['results.shareResult'] })).toBeNull();
   });
 
-  it('opens the experimental detail from its row', () => {
+  it('lists the experimental measures in their own group, and the extra-beats row opens its page', () => {
     openResults('demo');
-    expect(screen.queryByText(en['results.notHealthMeasurement'])).toBeNull();
-    fireEvent.press(screen.getByText(en['results.extraAndShape']));
-    expect(screen.getByText(en['results.notHealthMeasurement'])).toBeOnTheScreen();
-    expect(screen.getByText('Extra or skipped beats: 0.7 per minute')).toBeOnTheScreen();
+    expect(screen.getByText(`${en['results.notHealthMeasurement']}.`)).toBeOnTheScreen();
+    expect(screen.getByText('0.7 per minute')).toBeOnTheScreen();
+    expect(screen.getByText(en['results.shapeRecorded'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByText(en['why.extraBeats']));
+    expect(screen.getByText(en['why.extraBeatsNote'].replace('{{rate}}', '0.7'))).toBeOnTheScreen();
   });
 
-  it('labels confidence in words, not only dots', () => {
+  it('opens the doctor report from the Understand list', () => {
     openResults('demo');
-    const labels = screen.getAllByTestId('confidence-dots').map((dots) => dots.props.accessibilityLabel);
-    expect(labels).toEqual([
-      en['confidence.high'],
-      en['confidence.moderate'],
-      en['confidence.moderate'],
-      en['confidence.high'],
-    ]);
+    fireEvent.press(screen.getByText(en['results.doctorReport']));
+    expect(screen.getByText(en['report.heading'])).toBeOnTheScreen();
+  });
+
+  it('states confidence in words under each measurement', () => {
+    openResults('demo');
+    expect(screen.getAllByText(new RegExp(en['confidence.high']))).toHaveLength(2);
+    expect(screen.getAllByText(new RegExp(en['confidence.moderate']))).toHaveLength(2);
   });
 });
 

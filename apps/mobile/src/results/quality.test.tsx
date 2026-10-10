@@ -105,8 +105,8 @@ describe('lower-quality tag', () => {
 
   it('renders a reading stored without quality in full', () => {
     openResults('demo-flag');
-    expect(screen.getByText('88 bpm')).toBeOnTheScreen();
-    expect(screen.getByText(en['results.breathing'])).toBeOnTheScreen();
+    expect(screen.getAllByText('88')).toHaveLength(2);
+    expect(screen.getByText(en['results.tileBreathing'])).toBeOnTheScreen();
   });
 
   it('shows the header chip for a low reading and lists every reason with its numbers', () => {
@@ -239,7 +239,8 @@ describe('rhythm too short to judge', () => {
     mockInjected.quality = { level: 'low', reasons: [{ kind: 'fewBeats', beats: 12, wantBeats: 40 }] };
     mockInjected.rhythmTooShort = true;
     openResults('demo');
-    expect(screen.getByText(en['results.rhythmTooShort'])).toBeOnTheScreen();
+    // The measurement row and the Why card both say it.
+    expect(screen.getAllByText(en['results.rhythmTooShort']).length).toBeGreaterThan(0);
     expect(screen.queryByText(en['results.rhythmRegular'])).toBeNull();
     expect(screen.queryByText(en['results.rhythmIrregular'])).toBeNull();
     expect(screen.queryByText(en['quality.confirmAf'])).toBeNull();

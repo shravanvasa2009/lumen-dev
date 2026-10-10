@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The picker's preview of the small widget: the same sample reading as the in-app gallery and mockup 32 (mark, the
-     four check icons and the status dot, "Up to date", "Last check 2 h ago", Check now; LumenWidgets.kt
-     SmallBody). Static views only, as the picker requires. -->
+<!-- The picker's preview of the small widget: the same sample reading as the in-app gallery and the Widgets mockup
+     (the full up-to-date ring and the mark, "Up to date", "Last check 2 h ago", Check now; LumenWidgets.kt SmallBody).
+     Static views only, as the picker requires. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -12,49 +12,30 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
-        <include layout="@layout/lumen_widget_preview_mark" />
+        <FrameLayout
+        android:layout_width="36dp"
+        android:layout_height="36dp">
         <ImageView
-            android:layout_width="11dp"
-            android:layout_height="11dp"
-            android:layout_marginStart="8dp"
-            android:layout_marginTop="7dp"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:importantForAccessibility="no"
-            android:src="@drawable/lumen_check_afib"
-            android:tint="@color/lumen_widget_preview_text_dim" />
+            android:src="@drawable/lumen_widget_ring"
+            android:tint="@color/lumen_widget_preview_ring_track" />
         <ImageView
-            android:layout_width="11dp"
-            android:layout_height="11dp"
-            android:layout_marginStart="3dp"
-            android:layout_marginTop="7dp"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:importantForAccessibility="no"
-            android:src="@drawable/lumen_check_pots"
-            android:tint="@color/lumen_widget_preview_text_dim" />
-        <ImageView
-            android:layout_width="11dp"
-            android:layout_height="11dp"
-            android:layout_marginStart="3dp"
-            android:layout_marginTop="7dp"
-            android:importantForAccessibility="no"
-            android:src="@drawable/lumen_check_hrv"
-            android:tint="@color/lumen_widget_preview_text_dim" />
-        <ImageView
-            android:layout_width="11dp"
-            android:layout_height="11dp"
-            android:layout_marginStart="3dp"
-            android:layout_marginTop="7dp"
-            android:importantForAccessibility="no"
-            android:src="@drawable/lumen_check_diabetes"
-            android:tint="@color/lumen_widget_preview_text_dim" />
+            android:src="@drawable/lumen_widget_ring"
+            android:tint="@color/lumen_widget_preview_accent" />
+        </FrameLayout>
         <FrameLayout
             android:layout_width="0dp"
             android:layout_height="1dp"
             android:layout_weight="1" />
-        <ImageView
+        <include
+            layout="@layout/lumen_widget_preview_mark"
             android:layout_width="10dp"
-            android:layout_height="10dp"
-            android:layout_marginTop="4dp"
-            android:importantForAccessibility="no"
-            android:src="@drawable/lumen_widget_preview_dot" />
+            android:layout_height="20dp" />
     </LinearLayout>
     <FrameLayout
         android:layout_width="match_parent"
@@ -66,7 +47,7 @@
         android:maxLines="2"
         android:text="@string/lumen_widget_sample_status"
         android:textColor="@color/lumen_widget_preview_text"
-        android:textSize="18sp"
+        android:textSize="17sp"
         android:textStyle="bold" />
     <TextView
         android:layout_width="wrap_content"
@@ -74,15 +55,15 @@
         android:maxLines="1"
         android:text="@string/lumen_widget_sample_last_check"
         android:textColor="@color/lumen_widget_preview_text_dim"
-        android:textSize="13sp" />
+        android:textSize="12sp" />
     <TextView
         android:layout_width="match_parent"
-        android:layout_height="36dp"
-        android:layout_marginTop="10dp"
+        android:layout_height="32dp"
+        android:layout_marginTop="8dp"
         android:background="@drawable/lumen_widget_preview_pill_filled"
         android:gravity="center"
         android:maxLines="1"
         android:text="@string/lumen_widget_check_now"
-        android:textColor="@color/lumen_widget_preview_on_accent_fill"
+        android:textColor="@color/lumen_widget_preview_on_button_fill"
         android:textSize="15sp" />
 </LinearLayout>

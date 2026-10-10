@@ -114,7 +114,7 @@ describe('processing screen', () => {
     expect(screen.getAllByText(en['checks.state.waiting'])).toHaveLength(1);
     expect(screen.queryByText(en['checks.state.ready'])).toBeNull();
     expect(screen.getByText(en['checks.from.standing'])).toBeOnTheScreen();
-    expect(screen.getAllByTestId('evidence-badge')).toHaveLength(1);
+    expect(screen.queryByTestId('evidence-badge')).toBeNull();
   });
 
   it('shows Ready only for checks with a real result and Not run for Diabetes with none', () => {
@@ -188,7 +188,7 @@ describe('processing screen', () => {
     expect(screen.getByRole('header', { name: en['result.inconclusive'] })).toBeOnTheScreen();
     expect(screen.getByText('We got 0 clean seconds. Most of the lost time was light.')).toBeOnTheScreen();
     expect(screen.getByText('This check needs at least 90 clean seconds.')).toBeOnTheScreen();
-    expect(screen.getByText('Light 100%')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Light 100%')).toBeOnTheScreen();
     expect(screen.getByText(en['inconclusive.tipCover'])).toBeOnTheScreen();
     expect(screen.getByText(en['inconclusive.tipElbows'])).toBeOnTheScreen();
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
@@ -200,6 +200,15 @@ describe('processing screen', () => {
     const route = renderRouter('./app', { initialUrl: '/measure/processing?mode=full' });
     expect(route.getPathname()).toBe('/measure/inconclusive');
     expect(route.getSearchParams()).toEqual({ mode: 'full' });
+  });
+
+  it('forwards the context answers to the Inconclusive screen', () => {
+    mockAnalysis = { phase: 'inconclusive', progress: pendingProgress, outcome: null };
+    const route = renderRouter('./app', {
+      initialUrl: '/measure/processing?mode=full&context=caffeine%2Cexercise',
+    });
+    expect(route.getPathname()).toBe('/measure/inconclusive');
+    expect(route.getSearchParams()).toEqual({ mode: 'full', context: 'caffeine,exercise' });
   });
 });
 

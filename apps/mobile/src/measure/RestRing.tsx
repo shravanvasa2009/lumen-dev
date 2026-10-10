@@ -4,7 +4,10 @@ import { AppText } from '@/components/AppText';
 import { ValueSettle } from '@/components/Reveal';
 import { ProgressRing } from '@/onboarding/practiceParts';
 
-const SIZE = 200;
+import { TickRing } from './TickRing';
+
+const SIZE = 216;
+const TICK_COUNT = 60;
 const STROKE = 10;
 
 type RestRingProps = {
@@ -23,7 +26,14 @@ export function RestRing({ elapsed, clock, caption }: RestRingProps) {
       style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}
     >
       <View style={{ position: 'absolute' }}>
-        <ProgressRing fraction={elapsed} size={SIZE} strokeWidth={STROKE} />
+        <TickRing
+          size={SIZE}
+          count={TICK_COUNT}
+          lit={Math.round(elapsed * TICK_COUNT)}
+          majorEvery={TICK_COUNT / 4}
+        >
+          {(innerSize) => <ProgressRing fraction={elapsed} size={innerSize} strokeWidth={STROKE} />}
+        </TickRing>
       </View>
       <ValueSettle value={clock}>
         <AppText variant="display">{clock}</AppText>

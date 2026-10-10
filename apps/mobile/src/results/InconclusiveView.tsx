@@ -1,23 +1,27 @@
 import { Stack, useRouter } from 'expo-router';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { Pressable, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import type { InconclusiveOutcome, LostCause } from '@lumen/core';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
+import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
 
 import { dominantCause, type FixCause } from '@/fix/causes';
-import type { MeasureMode } from '@/measure/mode';
+import { INCONCLUSIVE_REPORT_ID } from '@/report/inconclusiveReport';
+import { cleanSecondsNeeded, type MeasureMode } from '@/measure/mode';
+import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
 
 import type { FixtureReading } from './fixtures';
 import { DemoBanner } from './DemoBanner';
 import { Icon, type IconName } from '@/components/Icon';
 import { LostTime } from './LostTime';
+import { ResultRing } from './ResultRing';
 
 const causeWord = (t: TFunction, cause: LostCause) =>
   ({
@@ -58,9 +62,11 @@ type InconclusiveViewProps = {
   reading: FixtureReading | undefined;
   outcome: InconclusiveOutcome | null;
   mode: MeasureMode;
+  // The pre-check answers, as the route carries them, so the report can list them.
+  context?: string;
 };
 
-export function InconclusiveView({ reading, outcome, mode }: InconclusiveViewProps) {
+export function InconclusiveView({ reading, outcome, mode, context }: InconclusiveViewProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors, spacing, control } = useTheme();
@@ -70,7 +76,13 @@ export function InconclusiveView({ reading, outcome, mode }: InconclusiveViewPro
   // Whole seconds, as the capture screen counts them; core's count is fractional.
   const measured = outcome?.cleanSeconds ?? reading?.scan.cleanSeconds ?? null;
   const seconds = measured === null ? null : Math.floor(measured);
+  // The mode's target when no refused capture is in hand (a sample reading).
+  const needed = outcome?.neededCleanSeconds ?? cleanSecondsNeeded(mode);
   const biggest = outcome ? (outcome.causes[0] ?? null) : cause;
+  const reportHref: string =
+    outcome || !reading
+      ? `/report/${INCONCLUSIVE_REPORT_ID}${context ? `?context=${context}` : ''}`
+      : `/report/${reading.id}`;
   const fixHref = `/measure/fix-technique?mode=${mode}${cause ? `&cause=${cause}` : ''}` as const;
   return (
     <>
@@ -80,7 +92,7 @@ export function InconclusiveView({ reading, outcome, mode }: InconclusiveViewPro
         footer={
           <>
             <NavButton label={t('inconclusive.retake')} href={`/measure/capture?mode=${mode}`} replace />
-            <NavButton label={t('inconclusive.fix')} href={fixHref} variant="secondary" />
+            <NavButton label={t('inconclusive.fix')} href={fixHref} variant="tint" />
             <Pressable
               accessibilityRole="button"
               onPress={() => router.replace('/measure/capture?mode=quick')}
@@ -102,42 +114,55 @@ export function InconclusiveView({ reading, outcome, mode }: InconclusiveViewPro
         >
           <Icon name="close" size={control.chevronSize + 4} color={colors.textDim} />
         </Pressable>
-        <View style={{ flex: 1, justifyContent: 'center', gap: spacing.lg }}>
+        <ScrollView contentContainerStyle={{ gap: spacing.xl, paddingBottom: spacing.lg }}>
           {reading && !outcome ? <DemoBanner synthetic={reading.synthetic} /> : null}
-          <View style={{ alignItems: 'center', gap: spacing.sm }}>
+          {seconds !== null ? (
+            <ResultRing
+              value={String(seconds)}
+              unit={t('inconclusive.ringUnit', { needed })}
+              label={t('inconclusive.ringLabel', { seconds, needed })}
+              progress={seconds / needed}
+              large
+            />
+          ) : (
             <Icon name="noSignal" size={56} color={colors.flag} />
+          )}
+          <View style={{ alignItems: 'center', gap: spacing.sm }}>
             <AppText variant="title" accessibilityRole="header" style={{ textAlign: 'center' }}>
               {t('result.inconclusive')}
             </AppText>
             <AppText tone="textDim" style={{ textAlign: 'center' }}>
               {seconds === null ? t('inconclusive.generic') : summary(t, seconds, biggest)}
             </AppText>
-            {outcome ? (
-              <AppText tone="textDim" style={{ textAlign: 'center' }}>
-                {t('inconclusive.needed', { seconds: outcome.neededCleanSeconds })}
-              </AppText>
-            ) : null}
+            <AppText tone="textDim" style={{ textAlign: 'center' }}>
+              {t('inconclusive.needed', { seconds: needed })}
+            </AppText>
           </View>
           <LostTime lost={lost} />
+          <View style={{ gap: spacing.sm }}>
+            <SectionLabel>{t('inconclusive.tryNext')}</SectionLabel>
+            <Card flush>
+              {tips.map((tip, index) => (
+                <ListRow
+                  key={tip.text}
+                  leading={<Icon name={tip.icon} size={20} color={colors.accent} />}
+                  title={tip.text}
+                  last={index === tips.length - 1}
+                />
+              ))}
+            </Card>
+          </View>
           <Card flush>
-            {tips.map((tip, index) => (
-              <View
-                key={tip.text}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: spacing.md,
-                  padding: spacing.lg,
-                  borderTopWidth: index === 0 ? 0 : 1,
-                  borderTopColor: colors.line,
-                }}
-              >
-                <Icon name={tip.icon} size={20} color={colors.accent} />
-                <AppText style={{ flex: 1 }}>{tip.text}</AppText>
-              </View>
-            ))}
+            <ListRow
+              leading={<Icon name="share" size={20} color={colors.accent} />}
+              title={t('results.doctorReport')}
+              subtitle={t('inconclusive.reportNote')}
+              chevron
+              last
+              onPress={() => router.push(reportHref)}
+            />
           </Card>
-        </View>
+        </ScrollView>
       </Screen>
     </>
   );

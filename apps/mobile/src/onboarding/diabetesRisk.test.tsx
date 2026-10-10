@@ -62,12 +62,12 @@ describe('diabetes risk questions (set 2)', () => {
   it('keeps the answers after Back and when the screen is opened again', async () => {
     renderRouter('./app', { initialUrl: '/profile' });
     fireEvent.changeText(await screen.findByLabelText(en['profile.age']), '40');
-    fireEvent.press(screen.getByRole('button', { name: en['common.next'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['common.continue'] }));
     const family = await screen.findByLabelText(en['dr.family']);
     fireEvent.press(within(family).getByRole('radio', { name: en['common.yes'] }));
     fireEvent.press(screen.getByRole('button', { name: en['common.back'] }));
     expect(await screen.findByLabelText(en['profile.age'])).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['common.next'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['common.continue'] }));
     const again = await screen.findByLabelText(en['dr.family']);
     await waitFor(() => expect(within(again).getByRole('radio', { name: en['common.yes'] })).toBeChecked());
   });

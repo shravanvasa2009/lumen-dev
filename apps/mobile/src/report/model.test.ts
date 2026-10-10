@@ -7,10 +7,13 @@ import en from '@/i18n/en.json';
 
 import {
   diabetesFor,
-  evidenceSentence,
+  evidenceBody,
   flagCounts,
   formatFullDate,
+  inconclusiveLines,
+  measurementLines,
   pdfPageReadings,
+  qualityNote,
   qualityLines,
   tableRows,
 } from './model';
@@ -67,6 +70,63 @@ describe('lower-quality readings in the report (ADR 0104)', () => {
   });
 });
 
+describe('quality note and measurement lines', () => {
+  const t = i18next.getFixedT('en');
+  const low: FixtureReading = {
+    ...demo,
+    scan: {
+      ...demo.scan,
+      quality: { level: 'low', reasons: [{ kind: 'shortClean', haveS: 40, wantS: 60 }] },
+    },
+  };
+
+  it('writes a plain quality note with the reasons for a lower-quality reading, and none for a standard one', () => {
+    expect(qualityNote(t, low)).toBe(`${en['report.qualityNote']} Only 40 of 60 clean seconds.`);
+    expect(qualityNote(t, demo)).toBeNull();
+  });
+
+  it('lists only the values the scan produced', () => {
+    expect(measurementLines(t, demo).map(({ key }) => key)).toEqual(['hr', 'rhythm', 'hrv', 'resp']);
+    expect(measurementLines(t, demo)[0]).toMatchObject({ title: 'Heart rate', value: '64 bpm' });
+    expect(measurementLines(t, inconclusive)).toEqual([]);
+  });
+});
+
+describe('inconclusiveLines', () => {
+  const t = i18next.getFixedT('en');
+  const outcome = {
+    kind: 'inconclusive' as const,
+    reasons: ['tooFewCleanSeconds' as const],
+    cleanSeconds: 22.9,
+    neededCleanSeconds: 90,
+    lostSeconds: { motion: 40, pressure: 16, coverage: 10, coldHands: 0 },
+    otherLostSeconds: 0,
+    causes: ['motion' as const],
+    urgent: null,
+  };
+
+  it('reports only what was measured, why it fell short, and the pre-check answers', () => {
+    const { facts, lost } = inconclusiveLines(t, outcome, ['caffeine', 'bogus']);
+    expect(facts).toEqual([
+      '22 clean seconds collected of the 90 needed.',
+      'Most of the lost time was movement.',
+      'Before this reading: Caffeine.',
+      en['report.noValues'],
+    ]);
+    expect(lost).toEqual(['Movement 61%', 'Pressure 24%', 'Light 15%']);
+  });
+
+  it('leaves out the breakdown and the context lines when there are none', () => {
+    const { facts, lost } = inconclusiveLines(
+      t,
+      { ...outcome, causes: [], lostSeconds: { motion: 0, pressure: 0, coverage: 0, coldHands: 0 } },
+      [],
+    );
+    expect(facts).toHaveLength(2);
+    expect(lost).toEqual([]);
+  });
+});
+
 describe('pdfPageReadings', () => {
   it('is the flagged readings of the day, in the day order', () => {
     const second = { ...flagged, id: 'second-flag' };
@@ -95,14 +155,14 @@ describe('diabetesFor', () => {
   });
 });
 
-describe('evidenceSentence', () => {
+describe('evidenceBody', () => {
   it('joins the label, the figure and the details into sentences', () => {
     expect(
-      evidenceSentence('Heart rate', 'Experimental', {
+      evidenceBody('Experimental', {
         headline: 'Not yet tested',
         details: ['Reference: Polar H10'],
       }),
-    ).toBe('Heart rate: Experimental. Not yet tested. Reference: Polar H10.');
+    ).toBe('Experimental. Not yet tested. Reference: Polar H10.');
   });
 });
 

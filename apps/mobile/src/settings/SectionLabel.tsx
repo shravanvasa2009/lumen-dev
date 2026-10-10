@@ -1,12 +1,15 @@
 import { AppText } from '@/components/AppText';
+import { useTheme } from '@/theme';
 
+// The small heading above a grouped card. It sits one gutter further in than the card, as in the mockups.
 export function SectionLabel({ children }: { children: string }) {
+  const { spacing } = useTheme();
   return (
     <AppText
       variant="caption"
-      tone="textFaint"
+      tone="textDim"
       accessibilityRole="header"
-      style={{ textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: '600' }}
+      style={{ paddingHorizontal: spacing.lg }}
     >
       {children}
     </AppText>

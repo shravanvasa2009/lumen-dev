@@ -33,21 +33,21 @@ class EmptyWidgetTest {
         assertEquals("Check now", view.checkNow)
         assertEquals("Full Scan", view.fullScan)
         assertEquals(0xFFFFFFFFL, view.light.surface)
-        assertEquals(0xFF141925L, view.dark.surface)
-        assertEquals(0xFF1D7A71L, view.light.accent)
+        assertEquals(0xFF1C1C1EL, view.dark.surface)
+        assertEquals(0xFF096F67L, view.light.accent)
+        assertEquals(0xFF3A3A3CL, view.dark.ringTrack)
     }
 
-    // The launch publish sends the copy alone: the widget then draws "no reading yet" with the four checks and
-    // the evidence tag, never a reading.
+    // The launch publish sends the copy alone: the widget then draws "no reading yet" in the app's copy, never a
+    // reading.
     @Test
-    fun theCopyAloneDrawsTheEmptyStateWithTheFourChecks() {
-        WidgetStore.writeDisplay(context, testDisplayWithChecks())
+    fun theCopyAloneDrawsTheEmptyState() {
+        WidgetStore.writeDisplay(context, TEST_DISPLAY)
         val view = WidgetStore.read(context, TEST_READING_MS)!!
         assertNull(view.status)
         assertNull(view.bpm)
         assertNull(view.lastCheck)
-        assertEquals(listOf("AFib", "POTS", "HRV", "Diabetes"), view.checks)
-        assertEquals("Experimental", view.diabetesTag)
+        assertEquals("No checks yet", view.emptyTitle)
     }
 
     // A widget placed before the app's first publish still draws the mark, the empty state, and its buttons.

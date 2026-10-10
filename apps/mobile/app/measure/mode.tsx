@@ -1,10 +1,13 @@
 import { Stack, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable } from 'react-native';
 
 import { lockText } from '@/checks/lockText';
 import { AppText } from '@/components/AppText';
-import { Icon } from '@/components/Icon';
+import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
+import { Icon, type IconName } from '@/components/Icon';
 import { RouteShell } from '@/components/RouteShell';
 import { durationLabel } from '@/measure/durationLabel';
 import { MODES } from '@/measure/mode';
@@ -14,10 +17,20 @@ import { lockReason } from '@/rating/modeLock';
 import { useStoredRating } from '@/store/useStoredRating';
 import { useTheme } from '@/theme';
 
+type ListedMode = {
+  mode: keyof typeof MODES;
+  icon: IconName;
+  name: string;
+  body: string;
+  unavailable?: string;
+  locked?: boolean;
+};
+
 export default function ModeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const rating = useStoredRating();
+  const [picked, setPicked] = useState<keyof typeof MODES>('full');
   const { colors, spacing, control } = useTheme();
   // The rating's reason (spec §5.3) when this phone's tier leaves the mode locked; otherwise nothing.
   const lock = (mode: keyof typeof MODES) => {
@@ -28,8 +41,46 @@ export default function ModeScreen() {
   const anyLocked = (Object.keys(MODES) as (keyof typeof MODES)[]).some(
     (mode) => lockReason(rating, mode) !== null,
   );
+  const listed: readonly ListedMode[] = [
+    { mode: 'full', icon: 'pulse', name: t('mode.full'), body: t('mode.fullBody'), ...lock('full') },
+    { mode: 'quick', icon: 'heart', name: t('mode.quick'), body: t('mode.quickBody'), ...lock('quick') },
+    {
+      mode: 'standing',
+      icon: 'standing',
+      name: t('mode.standing'),
+      body: t('mode.standingBody'),
+      ...lock('standing'),
+    },
+    {
+      mode: 'deep',
+      icon: 'trends',
+      name: t('mode.deep'),
+      body: t('mode.deepBody'),
+      unavailable: t('mode.deepSoon'),
+      ...lock('deep'),
+    },
+  ];
+  // Full Scan is preselected unless this phone's rating locks it; then the first mode that can start is.
+  const chosen =
+    listed.find((entry) => entry.mode === picked && !entry.unavailable) ??
+    listed.find((entry) => !entry.unavailable);
+  const startChosen = () => {
+    if (!chosen) return;
+    router.push(
+      chosen.mode === 'standing' ? '/measure/standing-test' : `/measure/precheck?mode=${chosen.mode}`,
+    );
+  };
   return (
-    <RouteShell title={t('mode.title')}>
+    <RouteShell
+      title={t('mode.title')}
+      footer={
+        <Button
+          label={t('mode.continueWith', { mode: chosen?.name ?? t('mode.title') })}
+          disabled={!chosen}
+          onPress={startChosen}
+        />
+      }
+    >
       {/* Opened from a notification or link there is no screen behind this one, so the native back button is
           missing; the chevron then goes Home. */}
       {router.canGoBack() ? null : (
@@ -53,35 +104,23 @@ export default function ModeScreen() {
           }}
         />
       )}
-      <ModeCard
-        title={t('mode.full')}
-        body={t('mode.fullBody')}
-        duration={durationLabel(t, MODES.full.duration)}
-        recommended={t('mode.recommended')}
-        onPress={() => router.push('/measure/precheck?mode=full')}
-        {...lock('full')}
-      />
-      <ModeCard
-        title={t('mode.quick')}
-        body={t('mode.quickBody')}
-        duration={durationLabel(t, MODES.quick.duration)}
-        onPress={() => router.push('/measure/precheck?mode=quick')}
-        {...lock('quick')}
-      />
-      <ModeCard
-        title={t('mode.deep')}
-        body={t('mode.deepBody')}
-        duration={durationLabel(t, MODES.deep.duration)}
-        unavailable={t('mode.deepSoon')}
-        {...lock('deep')}
-      />
-      <ModeCard
-        title={t('mode.standing')}
-        body={t('mode.standingBody')}
-        duration={durationLabel(t, MODES.standing.duration)}
-        onPress={() => router.push('/measure/standing-test')}
-        {...lock('standing')}
-      />
+      <Card flush>
+        {listed.map(({ mode, icon, name, body, unavailable, locked }, index) => (
+          <ModeCard
+            key={mode}
+            icon={icon}
+            title={name}
+            body={body}
+            duration={durationLabel(t, MODES[mode].duration)}
+            recommended={mode === 'full' ? t('mode.recommended') : undefined}
+            selected={chosen?.mode === mode}
+            unavailable={unavailable}
+            locked={locked}
+            last={index === listed.length - 1}
+            onSelect={() => setPicked(mode)}
+          />
+        ))}
+      </Card>
       {rating ? (
         <AppText variant="caption" tone="textDim" style={{ textAlign: 'center' }}>
           {anyLocked

@@ -1,29 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fallback palette for a widget placed before the app first publishes, copied from src/theme/tokens.json.
-     modules/lumen-widgets/fallback-res.test.ts fails if the two differ. -->
+<!-- Fallback palette for a widget placed before the app first publishes: each color role in src/widgets/publish.ts
+     PALETTE_TOKENS, copied from src/theme/tokens.json. modules/lumen-widgets/fallback-res.test.ts fails if they differ. -->
 <resources>
     <color name="lumen_widget_light_surface">#FFFFFF</color>
-    <color name="lumen_widget_light_line">#DDE2E8</color>
-    <color name="lumen_widget_light_line2">#C5CCD6</color>
-    <color name="lumen_widget_light_text">#0B0E14</color>
-    <color name="lumen_widget_light_text_dim">#4A5263</color>
-    <color name="lumen_widget_light_accent">#1D7A71</color>
-    <color name="lumen_widget_light_accent_fill">#2EC4B6</color>
-    <color name="lumen_widget_light_on_accent_fill">#0B0E14</color>
-    <color name="lumen_widget_light_flag">#8A5A12</color>
-    <color name="lumen_widget_light_critical_text">#C62828</color>
-    <color name="lumen_widget_light_badge_experimental_fg">#4A5263</color>
-    <color name="lumen_widget_light_badge_experimental_bg">#EBEBEB</color>
-    <color name="lumen_widget_dark_surface">#141925</color>
-    <color name="lumen_widget_dark_line">#262E40</color>
-    <color name="lumen_widget_dark_line2">#3A4458</color>
-    <color name="lumen_widget_dark_text">#F3F5F9</color>
-    <color name="lumen_widget_dark_text_dim">#A7AFBF</color>
+    <color name="lumen_widget_light_text">#000000</color>
+    <color name="lumen_widget_light_text_dim">#636366</color>
+    <color name="lumen_widget_light_accent">#096F67</color>
+    <color name="lumen_widget_light_ring_track">#E5E5EA</color>
+    <color name="lumen_widget_light_button_fill">#0B7A70</color>
+    <color name="lumen_widget_light_on_button_fill">#FFFFFF</color>
+    <color name="lumen_widget_light_tonal_fill">#E8F5F3</color>
+    <color name="lumen_widget_light_on_tonal_fill">#096F67</color>
+    <color name="lumen_widget_light_flag">#985200</color>
+    <color name="lumen_widget_light_critical_text">#D70015</color>
+    <color name="lumen_widget_dark_surface">#1C1C1E</color>
+    <color name="lumen_widget_dark_text">#F5F5F7</color>
+    <color name="lumen_widget_dark_text_dim">#AEAEB2</color>
     <color name="lumen_widget_dark_accent">#2EC4B6</color>
-    <color name="lumen_widget_dark_accent_fill">#2EC4B6</color>
-    <color name="lumen_widget_dark_on_accent_fill">#0B0E14</color>
-    <color name="lumen_widget_dark_flag">#F5A524</color>
-    <color name="lumen_widget_dark_critical_text">#F87171</color>
-    <color name="lumen_widget_dark_badge_experimental_fg">#A7AFBF</color>
-    <color name="lumen_widget_dark_badge_experimental_bg">#272B36</color>
+    <color name="lumen_widget_dark_ring_track">#3A3A3C</color>
+    <color name="lumen_widget_dark_button_fill">#0B7A70</color>
+    <color name="lumen_widget_dark_on_button_fill">#FFFFFF</color>
+    <color name="lumen_widget_dark_tonal_fill">#0E2E2B</color>
+    <color name="lumen_widget_dark_on_tonal_fill">#2EC4B6</color>
+    <color name="lumen_widget_dark_flag">#FFB340</color>
+    <color name="lumen_widget_dark_critical_text">#FF6961</color>
 </resources>

@@ -3,7 +3,9 @@
      shows lock-screen widgets (the Android 16 QPR2+ lock-screen hub, and older keyguard hosts) and not in the
      home-screen picker. It never shows a value or a condition name (WID-2), so its picker preview is the static
      previewLayout alone. https://developer.android.com/reference/android/appwidget/AppWidgetProviderInfo#widgetCategory
-     https://android-developers.googleblog.com/2025/03/widgets-on-lock-screen-faq.html -->
+     https://android-developers.googleblog.com/2025/03/widgets-on-lock-screen-faq.html
+     One UI 8 (Galaxy A17, Android 16, checked 2026-10-10) has no AOSP hub; its own lock-screen widget list offers only
+     Samsung apps, even with Samsung's private category bit 0x2000 set (ADR 0103 addendum). -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="110dp"

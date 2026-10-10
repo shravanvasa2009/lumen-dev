@@ -13,15 +13,14 @@ export function Card({
   flush?: boolean;
   dense?: boolean;
 }) {
-  const { colors, radius, spacing } = useTheme();
+  const { colors, radius, spacing, shadow } = useTheme();
   return (
     <View
       style={{
         backgroundColor: colors.surface,
-        borderColor: colors.line,
-        borderWidth: 1,
-        borderRadius: radius.card,
-        overflow: 'hidden',
+        borderRadius: radius.sheet,
+        // A shadow is clipped by overflow, so only flush cards (whose rows must stay inside the corners) clip.
+        ...(flush ? { overflow: 'hidden' as const } : shadow.raised),
         padding: flush ? 0 : dense ? spacing.sm : spacing.lg,
         gap: dense ? 0 : spacing.sm,
       }}

@@ -6,6 +6,13 @@ import { readingById } from '@/results/fixtures';
 import { InconclusiveView } from '@/results/InconclusiveView';
 
 export default function InconclusiveScreen() {
-  const { mode, id } = useLocalSearchParams<{ mode?: string; id?: string }>();
-  return <InconclusiveView reading={readingById(id)} outcome={handedInconclusive()} mode={parseMode(mode)} />;
+  const { mode, id, context } = useLocalSearchParams<{ mode?: string; id?: string; context?: string }>();
+  return (
+    <InconclusiveView
+      reading={readingById(id)}
+      outcome={handedInconclusive()}
+      mode={parseMode(mode)}
+      context={context}
+    />
+  );
 }

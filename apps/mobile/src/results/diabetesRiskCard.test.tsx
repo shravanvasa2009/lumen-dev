@@ -1,5 +1,6 @@
 import * as core from '@lumen/core';
 import i18next from 'i18next';
+import { Children } from 'react';
 import { act, fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 import { Dimensions, ScrollView, StyleSheet } from 'react-native';
 import type { ReactTestInstance } from 'react-test-renderer';
@@ -63,7 +64,7 @@ const openDetail = (draft: RiskDraft) => openOwnReading(draft, '/diabetes');
 const pointsOnScreen = (word = 'points?') =>
   screen
     .getAllByText(new RegExp(`^-?[0-9]+ ${word}$`))
-    .map((row) => Number(String(row.props.children).split(' ')[0]));
+    .map((row) => Number(Children.toArray(row.props.children)[0]));
 
 beforeEach(() => {
   mockScheme = 'light';
@@ -125,7 +126,7 @@ describe('Diabetes risk row on Results', () => {
     await openRow(higher);
     fireEvent.press(await screen.findByRole('button', { name: new RegExp(en['dr.rowTitle']) }));
     await screen.findByRole('header', { name: en['dr.result.higher'] });
-    expectNavTitle(en['dr.rowTitle']);
+    expect(screen.getByRole('header', { name: en['dr.rowTitle'] })).toBeOnTheScreen();
   });
 
   it('does not show the saved answers on a demo reading', async () => {
@@ -272,12 +273,10 @@ describe('diabetes result detail screen', () => {
     await screen.findByText(en['dr.family']);
   });
 
-  it('tags the questionnaire Experimental from the evidence reader, with no accuracy number', async () => {
+  it('shows no Experimental badge on the questionnaire result, and no accuracy number', async () => {
     await openDetail(higher);
     await screen.findByRole('header', { name: en['dr.result.higher'] });
-    const badges = screen.getAllByTestId('evidence-badge');
-    expect(badges.length).toBeGreaterThanOrEqual(1);
-    for (const badge of badges) expect(badge.props.accessibilityLabel).toBe(en['evidence.experimental']);
+    expect(screen.queryAllByTestId('evidence-badge')).toEqual([]);
     expect(screen.queryByText(/%|AUC|accuracy \d/i)).not.toBeOnTheScreen();
   });
 
@@ -343,31 +342,9 @@ describe('pulse pattern extra on the detail screen', () => {
     expect(core.adaRisk).not.toHaveBeenCalled();
   });
 
-  it('keeps the pill from the evidence reader and explains Experimental on tap', async () => {
-    const pill = await screen.findByRole('button', { name: en['results.whatExperimentalMeans'] });
-    expect(within(pill).getByTestId('evidence-badge').props.accessibilityLabel).toBe(
-      en['evidence.experimental'],
-    );
-    fireEvent.press(pill);
-    expect(screen.getByText(en['evidence.experimental.explain'])).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['common.gotIt'] }));
-    expect(screen.queryByText(en['evidence.experimental.explain'])).not.toBeOnTheScreen();
-  });
-
-  it('scrolls the explainer body and keeps Got it outside the scroll', async () => {
-    fireEvent.press(await screen.findByRole('button', { name: en['results.whatExperimentalMeans'] }));
-    const sheetScroll = screen.UNSAFE_getAllByType(ScrollView).at(-1) as ReactTestInstance;
-    expect(within(sheetScroll).getByText(en['evidence.experimental.explain'])).toBeOnTheScreen();
-    expect(within(sheetScroll).queryByRole('button', { name: en['common.gotIt'] })).toBeNull();
-    expect(screen.getByRole('button', { name: en['common.gotIt'] })).toBeOnTheScreen();
-  });
-
-  it('lists the research line in the sheet too, and its accuracy link opens the accuracy screen', async () => {
-    fireEvent.press(await screen.findByRole('button', { name: en['results.whatExperimentalMeans'] }));
-    expect(screen.getAllByText(en['dm.experimental'], { exact: false })).toHaveLength(2);
-    fireEvent.press(screen.getAllByText(`${en['results.accuracy']} ›`).at(-1) as ReactTestInstance);
-    expect(screen.queryByText(en['evidence.experimental.explain'])).not.toBeOnTheScreen();
-    expectNavTitle(en['accuracy.title']);
+  it('shows no Experimental pill', async () => {
+    await screen.findByTestId('pulse-extra');
+    expect(screen.queryByTestId('evidence-badge')).toBeNull();
   });
 
   it('is never flagged and shows no accuracy number', async () => {

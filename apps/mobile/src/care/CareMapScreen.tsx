@@ -3,15 +3,18 @@ import { useTranslation } from 'react-i18next';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
+import { ListRow } from '@/components/ListRow';
+import { PressableScale } from '@/components/PressableScale';
 import { Screen } from '@/components/Screen';
 import { callNumber, opensOk } from '@/profile/dial';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { useTheme } from '@/theme';
 
 import { CareMapView } from './CareMapView';
-import { ClinicCard } from './ClinicCard';
+import { ClinicRow } from './ClinicRow';
 import { type Coordinates, findPlace, type NearbyClinic, nearestClinics } from './clinics';
+import { ContactIcon } from './ContactIcons';
 import { directionsUrl, doctorSearchUrl } from './contact';
 import {
   canSearchNearbyDoctors,
@@ -32,7 +35,7 @@ const COMPLETE_ZIP = /^\d{5}$/;
 
 export function CareMapScreen() {
   const { t } = useTranslation();
-  const { colors, radius, spacing, type } = useTheme();
+  const { colors, control, radius, shadow, spacing, type } = useTheme();
   const location = useCareLocation();
   const { phone: doctorPhone } = useDoctorPhone();
   const [query, setQuery] = useState('');
@@ -62,6 +65,7 @@ export function CareMapScreen() {
     ...clinics.filter((clinic) => clinic.id === selectedId),
     ...clinics.filter((clinic) => clinic.id !== selectedId),
   ];
+  const searchEmpty = query.trim() === '';
 
   const searchPlace = (text: string) => {
     Keyboard.dismiss();
@@ -78,6 +82,14 @@ export function CareMapScreen() {
   const changeQuery = (text: string) => {
     setQuery(text);
     if (COMPLETE_ZIP.test(text.trim())) searchPlace(text);
+  };
+
+  const showMyLocation = () => {
+    setSearchedPlace(null);
+    setPlaceNotFound(false);
+    setQuery('');
+    setSelectedId(null);
+    setDoctors([]);
   };
 
   const call = async (phone: string) => {
@@ -121,19 +133,55 @@ export function CareMapScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ gap: spacing.md, flex: 1 }}
       >
-        <AppText variant="title" accessibilityRole="header">
+        <AppText variant="display" accessibilityRole="header">
           {t('careMap.title')}
         </AppText>
-        {doctorPhone ? (
-          <View style={{ gap: spacing.xs }}>
-            <Button label={t('careMap.callMyDoctor')} onPress={() => void call(doctorPhone)} />
-            {failedCallPhone === doctorPhone ? (
-              <AppText accessibilityRole="alert" tone="textDim">
-                {t('careMap.callFailed')} <AppText selectable>{doctorPhone}</AppText>
-              </AppText>
-            ) : null}
-          </View>
-        ) : null}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            paddingLeft: spacing.md,
+            borderRadius: radius.pill,
+            backgroundColor: colors.surface2,
+          }}
+        >
+          <ContactIcon name="search" size={18} color={colors.textDim} />
+          <TextInput
+            accessibilityLabel={t('careMap.zipLabel')}
+            placeholder={t('careMap.zipLabel')}
+            placeholderTextColor={colors.textFaint}
+            value={query}
+            onChangeText={changeQuery}
+            onSubmitEditing={() => searchPlace(query)}
+            returnKeyType="search"
+            autoCorrect={false}
+            style={{
+              flex: 1,
+              minHeight: control.minTarget,
+              color: colors.text,
+              fontSize: type.body.size,
+            }}
+          />
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={t('careMap.search')}
+            accessibilityState={{ disabled: searchEmpty }}
+            disabled={searchEmpty}
+            onPress={() => searchPlace(query)}
+            style={{
+              minHeight: control.minTarget,
+              paddingHorizontal: spacing.lg,
+              justifyContent: 'center',
+              backgroundColor: 'transparent',
+              opacity: searchEmpty ? 0.4 : 1,
+            }}
+          >
+            <AppText variant="headline" tone="accent">
+              {t('careMap.search')}
+            </AppText>
+          </PressableScale>
+        </View>
 
         {centre ? (
           <CareMapView
@@ -147,6 +195,7 @@ export function CareMapScreen() {
             compact={keyboardUp}
             onSelectClinic={setSelectedId}
             onClearSelection={() => setSelectedId(null)}
+            onShowMyLocation={searchedPlace && you ? showMyLocation : undefined}
           />
         ) : null}
 
@@ -154,35 +203,6 @@ export function CareMapScreen() {
           contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xxxl }}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
-            <TextInput
-              accessibilityLabel={t('careMap.zipLabel')}
-              placeholder={t('careMap.zipLabel')}
-              placeholderTextColor={colors.textFaint}
-              value={query}
-              onChangeText={changeQuery}
-              onSubmitEditing={() => searchPlace(query)}
-              returnKeyType="search"
-              autoCorrect={false}
-              style={{
-                flex: 1,
-                minHeight: 48,
-                borderRadius: radius.pill,
-                borderWidth: 1,
-                borderColor: colors.line2,
-                backgroundColor: colors.surface,
-                color: colors.text,
-                paddingHorizontal: spacing.lg,
-                fontSize: type.body.size,
-              }}
-            />
-            <Button
-              label={t('careMap.search')}
-              variant="secondary"
-              onPress={() => searchPlace(query)}
-              disabled={query.trim() === ''}
-            />
-          </View>
           {placeNotFound ? (
             <AppText accessibilityRole="alert" tone="textDim">
               {t('careMap.notFound')}
@@ -194,49 +214,97 @@ export function CareMapScreen() {
             </AppText>
           ) : null}
           {locationNotice && !searchedPlace ? <AppText tone="textDim">{locationNotice}</AppText> : null}
-          <AppText variant="caption" tone="textDim">
-            {t('careMap.privacy')}
-          </AppText>
+          {doctorPhone ? (
+            <View style={{ gap: spacing.xs }}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={t('careMap.callMyDoctor')}
+                accessibilityHint={doctorPhone}
+                onPress={() => void call(doctorPhone)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.md,
+                  minHeight: control.minTarget,
+                  paddingHorizontal: spacing.lg,
+                  borderRadius: radius.sheet,
+                  backgroundColor: colors.surface,
+                  ...shadow.raised,
+                }}
+              >
+                <ContactIcon name="call" size={20} color={colors.accent} />
+                <AppText tone="accent" style={{ flex: 1 }}>
+                  {t('careMap.callMyDoctor')}
+                </AppText>
+                <AppText tone="textDim">{doctorPhone}</AppText>
+              </PressableScale>
+              {failedCallPhone === doctorPhone ? (
+                <AppText accessibilityRole="alert" tone="textDim">
+                  {t('careMap.callFailed')} <AppText selectable>{doctorPhone}</AppText>
+                </AppText>
+              ) : null}
+            </View>
+          ) : null}
 
           {centre ? (
             <>
-              <Button
-                label={canSearchNearbyDoctors() ? t('careMap.showDoctors') : t('careMap.searchDoctors')}
-                variant="secondary"
-                onPress={() => void findDoctors()}
-              />
+              <Card flush>
+                <ListRow
+                  last
+                  chevron
+                  title={canSearchNearbyDoctors() ? t('careMap.showDoctors') : t('careMap.searchDoctors')}
+                  onPress={() => void findDoctors()}
+                />
+              </Card>
               {doctorNotice ? (
                 <AppText accessibilityRole="alert" tone="textDim">
                   {doctorNoticeText[doctorNotice]}
                 </AppText>
               ) : null}
-              <AppText variant="headline" accessibilityRole="header">
-                {t('careMap.nearby')}
-              </AppText>
-              {listed.map((clinic) => (
-                <ClinicCard
-                  key={clinic.id}
-                  clinic={clinic}
-                  selected={clinic.id === selectedId}
-                  callFailed={clinic.phone !== '' && failedCallPhone === clinic.phone}
-                  directionsFailed={directionsFailedId === clinic.id}
-                  onCall={() => void call(clinic.phone)}
-                  onDirections={() => void openDirections(clinic)}
-                />
-              ))}
-              <AppText variant="caption" tone="textDim">
-                {t('careMap.source')}
-              </AppText>
               <AppText
                 variant="caption"
                 tone="textDim"
-                accessibilityRole="link"
-                onPress={() => void opensOk(OSM_COPYRIGHT_URL)}
+                accessibilityRole="header"
+                style={{ paddingHorizontal: spacing.lg, marginBottom: -spacing.xs }}
               >
-                {t('careMap.sourceOsm')}
+                {t('careMap.nearby')}
               </AppText>
+              <Card flush>
+                {listed.map((clinic, index) => (
+                  <ClinicRow
+                    key={clinic.id}
+                    clinic={clinic}
+                    selected={clinic.id === selectedId}
+                    callFailed={clinic.phone !== '' && failedCallPhone === clinic.phone}
+                    directionsFailed={directionsFailedId === clinic.id}
+                    last={index === listed.length - 1}
+                    onCall={() => void call(clinic.phone)}
+                    onDirections={() => void openDirections(clinic)}
+                  />
+                ))}
+              </Card>
+              <View style={{ gap: spacing.sm, paddingHorizontal: spacing.lg }}>
+                <AppText variant="caption" tone="textDim">
+                  {t('careMap.source')}
+                </AppText>
+                <AppText
+                  variant="caption"
+                  tone="textDim"
+                  accessibilityRole="link"
+                  onPress={() => void opensOk(OSM_COPYRIGHT_URL)}
+                >
+                  {t('careMap.sourceOsm')}
+                </AppText>
+                <AppText variant="caption" tone="textDim">
+                  {t('careMap.privacy')}
+                </AppText>
+              </View>
             </>
-          ) : null}
+          ) : (
+            <AppText variant="caption" tone="textDim" style={{ paddingHorizontal: spacing.lg }}>
+              {t('careMap.privacy')}
+            </AppText>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>

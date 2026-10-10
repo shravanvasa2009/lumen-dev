@@ -7,6 +7,7 @@ import { Pressable } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import type { IconName } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
 import { useDemoActive } from '@/demo/demoSession';
@@ -14,6 +15,8 @@ import { useStartDemo } from '@/demo/useStartDemo';
 import { shareReadingsCsv } from '@/export/shareReadings';
 import { tierLabel } from '@/rating/labels';
 import { AboutCard } from '@/settings/AboutCard';
+import { GroupLabel } from '@/settings/GroupLabel';
+import { IconTile } from '@/settings/IconTile';
 import { LanguagePicker } from '@/settings/LanguagePicker';
 import { deleteAllData } from '@/store/deleteAllData';
 import { useStoredRating } from '@/store/useStoredRating';
@@ -25,6 +28,8 @@ const LAB_TAP_WINDOW_MS = 2000;
 
 type SettingsRow = {
   title: string;
+  icon: IconName;
+  neutralIcon?: boolean;
   value?: string;
   href?: Href;
   onPress?: () => void;
@@ -57,29 +62,35 @@ export default function SettingsScreen() {
     light: t('appearance.light'),
     dark: t('appearance.dark'),
   };
-  const accountRows: readonly SettingsRow[] = [
-    { title: t('settings.profile'), href: '/profile' },
-    { title: t('profile.diabetesRisk'), href: '/settings/profile' },
+  const personalRows: readonly SettingsRow[] = [
+    { title: t('settings.profile'), icon: 'standing', href: '/profile' },
+    { title: t('profile.diabetesRisk'), icon: 'drop', href: '/settings/profile' },
+  ];
+  const displayRows: readonly SettingsRow[] = [
     {
       title: t('notifications.title'),
+      icon: 'clock',
       value: t('settings.notActiveYet'),
       href: '/settings/notifications',
     },
-    { title: t('appearance.title'), value: appearanceNames[appearance], href: '/settings/appearance' },
+    { title: t('appearance.title'), icon: 'settings', value: appearanceNames[appearance], href: '/settings/appearance' },
     {
       title: t('settings.language'),
+      icon: 'lens',
       value: i18n.language === 'es' ? t('language.es') : t('language.en'),
       expanded: panel === 'language',
       onPress: () => setPanel(panel === 'language' ? null : 'language'),
     },
+    { title: t('settings.widgets'), icon: 'bars', href: '/settings/widgets' },
   ];
   const accuracyRows: readonly SettingsRow[] = [
-    { title: t('settings.accuracy'), href: '/settings/accuracy' },
+    { title: t('settings.accuracy'), icon: 'check', href: '/settings/accuracy' },
   ];
   const demo = useDemoActive();
   const phoneRows: readonly SettingsRow[] = [
     {
       title: t('settings.phone'),
+      icon: 'phone',
       value:
         rating === undefined
           ? undefined
@@ -88,26 +99,29 @@ export default function SettingsScreen() {
             : t('settings.phoneRated', { tier: tierLabel(t, rating.tier), score: rating.score }),
       href: '/settings/phone',
     },
-    { title: t('settings.widgets'), href: '/settings/widgets' },
     // Onboarding cannot finish in demo, so Replay tutorial would be a dead end there.
-    ...(demo ? [] : [{ title: t('settings.replayTutorial'), href: '/welcome' }]),
+    ...(demo ? [] : [{ title: t('settings.replayTutorial'), icon: 'refresh' as const, href: '/welcome' as const }]),
     // Already in a demo, so the row would only restart it.
-    ...(demo ? [] : [{ title: t('settings.demoMode'), onPress: startDemo }]),
+    ...(demo ? [] : [{ title: t('settings.demoMode'), icon: 'pulse' as const, onPress: startDemo }]),
   ];
   const dataRows: readonly SettingsRow[] = [
     {
       title: t('settings.export'),
+      icon: 'share',
       busy: exportStep === 'busy',
       onPress: () => void exportReadings(),
     },
     {
       title: t('settings.delete'),
+      icon: 'close',
+      neutralIcon: true,
       expanded: deleteStep !== 'idle',
       busy: deleteStep === 'deleting',
       onPress: () => setDeleteStep(deleteStep === 'idle' ? 'confirming' : 'idle'),
     },
     {
       title: t('settings.about'),
+      icon: 'hint',
       expanded: panel === 'about',
       onPress: () => setPanel(panel === 'about' ? null : 'about'),
     },
@@ -146,11 +160,12 @@ export default function SettingsScreen() {
   }
 
   function renderRows(rows: readonly SettingsRow[]) {
-    return rows.map(({ title, value, href, onPress, expanded, busy }, index) => {
+    return rows.map(({ title, icon, neutralIcon, value, href, onPress, expanded, busy }, index) => {
       return (
         <ListRow
           key={title}
           title={title}
+          leading={<IconTile name={icon} neutral={neutralIcon} />}
           last={index === rows.length - 1}
           chevron={href !== undefined}
           disabled={busy}
@@ -164,10 +179,14 @@ export default function SettingsScreen() {
 
   return (
     <RouteShell tabRoot title={t('settings.title')}>
-      <Card flush>{renderRows(accountRows)}</Card>
+      <Card flush>{renderRows(personalRows)}</Card>
+      <GroupLabel>{t('settings.groupDisplay')}</GroupLabel>
+      <Card flush>{renderRows(displayRows)}</Card>
       {panel === 'language' ? <LanguagePicker /> : null}
-      <Card flush>{renderRows(accuracyRows)}</Card>
+      <GroupLabel>{t('settings.groupPhone')}</GroupLabel>
       <Card flush>{renderRows(phoneRows)}</Card>
+      <Card flush>{renderRows(accuracyRows)}</Card>
+      <GroupLabel>{t('settings.groupData')}</GroupLabel>
       <Card flush>{renderRows(dataRows)}</Card>
       {exportStep === 'idle' || exportStep === 'busy' ? null : (
         <AppText accessibilityRole="alert" tone="textDim">

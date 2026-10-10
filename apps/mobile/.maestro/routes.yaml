@@ -30,7 +30,7 @@ name: Every route opens
 - openLink: lumen://welcome
 - assertVisible: 'Lumen'
 - openLink: lumen://consent
-- assertVisible: "What Lumen is — and isn't"
+- assertVisible: "What Lumen is and isn't"
 - openLink: lumen://profile
 - assertVisible: 'About you'
 - openLink: lumen://phone-check

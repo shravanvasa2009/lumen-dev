@@ -43,8 +43,8 @@ describe('Trends from readings saved on this phone', () => {
     await saveTestReading(lastMonth(28), 64);
     await saveTestReading(today, 70);
     renderRouter('./app', { initialUrl: '/trends' });
-    expect(await screen.findByLabelText('Readings: 3')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Median: 64 bpm')).toBeOnTheScreen();
+    expect(await screen.findByLabelText('Median: 64 bpm')).toBeOnTheScreen();
+    expect(screen.getAllByRole('button', { name: /^(Today |[A-Z][a-z]{2} \d+, )/ })).toHaveLength(3);
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
     expect(screen.queryByText(en['trends.emptyTitle'])).toBeNull();
     expect(screen.queryByText(en['trends.synthetic'])).toBeNull();
@@ -65,10 +65,10 @@ describe('Trends from readings saved on this phone', () => {
     enterDemo();
     renderRouter('./app', { initialUrl: '/trends' });
     expect(await screen.findByText(en['demo.banner'])).toBeOnTheScreen();
-    expect(screen.getByLabelText('Readings: 25')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Median: 99 bpm')).toBeNull();
     act(() => exitDemo());
     await waitFor(() => expect(screen.queryByText(en['demo.banner'])).toBeNull());
-    expect(screen.getByLabelText('Readings: 1')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Median: 99 bpm')).toBeOnTheScreen();
   });
 });
 
@@ -111,5 +111,13 @@ describe('historyFromStored', () => {
     const [kept, left] = historyFromStored([flagged, unflagged]);
     expect(kept).toMatchObject({ rhythm: null, flaggedLowRhythm: 'af' });
     expect(left).toMatchObject({ rhythm: null, flaggedLowRhythm: null });
+  });
+
+  it('carries the kept beat intervals for the rhythm map tiles, and [] for a reading without them', () => {
+    const kept = { ...makeReading(lastMonth(25), 61, 40), intervalsMs: [810, 790, 805] };
+    const older = makeReading(lastMonth(26), 62, 40);
+    const [withIntervals, without] = historyFromStored([kept, older]);
+    expect(withIntervals?.intervalsMs).toEqual([810, 790, 805]);
+    expect(without?.intervalsMs).toEqual([]);
   });
 });

@@ -13,7 +13,7 @@ const reasonOf = (error: unknown) => (error instanceof Error ? error.message : S
 // Rates the phone the moment practice finishes, so the rating is stored before the screen moves on. 'unrated'
 // means the practice could not settle one (or the camera module is not linked), and the screen stays put.
 export function usePracticeRating(finished: boolean): PracticeRating {
-  const probe = usePhoneProbe();
+  const { probe } = usePhoneProbe();
   const [outcome, setOutcome] = useState<PracticeRating>('waiting');
   useEffect(() => {
     if (!finished || probe.kind === 'checking') return;

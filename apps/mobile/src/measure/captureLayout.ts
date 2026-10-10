@@ -11,7 +11,8 @@ const PANEL_ROW_DP = 100;
 const PANEL_STACKED_DP = 150;
 
 const FULL_PREVIEW = 176;
-const FULL_RING = 150;
+// The ring sizes include the tick band, so the full ring inside keeps its old 150 dp.
+const FULL_RING = 168;
 // Ring stroke and gap around the view, twice, plus the caption row and its gap under it.
 const CAPTION_GAP = 8;
 const LIVE_FRAME = 2 * (LIVE_RING_WIDTH + LIVE_RING_GAP) + CAPTION_GAP + CAPTION_ROW;

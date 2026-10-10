@@ -7,9 +7,12 @@ import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
 import { RouteShell } from '@/components/RouteShell';
+import { BeFastCard } from '@/learn/BeFastCard';
+import { ChapterList } from '@/learn/ChapterList';
+import { GuideCard } from '@/learn/GuideCard';
 import { LanguageToggle } from '@/learn/LanguageToggle';
 import { LessonTile } from '@/learn/LessonTile';
-import { lessons } from '@/learn/lessons';
+import { useReadProgress } from '@/learn/useReadProgress';
 import { useTheme } from '@/theme';
 
 // Spec 8.4: HRSA's finder, kept as the web option beside the Care map and opened only when tapped.
@@ -19,20 +22,17 @@ export default function LearnScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { spacing } = useTheme();
+  const progress = useReadProgress();
   const [careFinderFailed, setCareFinderFailed] = useState(false);
   return (
     <RouteShell tabRoot title={t('learn.title')} trailing={<LanguageToggle />}>
+      <GuideCard progress={progress} />
+      <BeFastCard />
+      <AppText variant="title3" accessibilityRole="header" style={{ marginBottom: -spacing.sm }}>
+        {t('learn.chaptersHeading')}
+      </AppText>
+      <ChapterList progress={progress} />
       <Card flush>
-        {lessons.map((lesson) => (
-          <ListRow
-            key={lesson.slug}
-            leading={<LessonTile tone={lesson.tone} />}
-            title={lesson.title(t)}
-            subtitle={lesson.length(t)}
-            chevron
-            onPress={() => router.push({ pathname: '/learn/[slug]', params: { slug: lesson.slug } })}
-          />
-        ))}
         <ListRow
           last
           chevron

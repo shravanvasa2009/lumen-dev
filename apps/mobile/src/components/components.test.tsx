@@ -12,6 +12,7 @@ import { Button } from './Button';
 import { Card } from './Card';
 import { Icon, type IconName } from './Icon';
 import { ListRow } from './ListRow';
+import { LumenLockup } from './LumenLockup';
 import { RouteShell } from './RouteShell';
 import { Screen } from './Screen';
 
@@ -42,7 +43,7 @@ describe.each([
     mockScheme = scheme;
   });
 
-  it('Screen pads by 20 and paints the themed background', () => {
+  it('Screen pads by 16 and paints the themed background', () => {
     render(
       <SafeAreaProvider initialMetrics={metrics}>
         <Screen>
@@ -54,7 +55,7 @@ describe.each([
     while (node && StyleSheet.flatten(node.props.style)?.padding === undefined) node = node.parent;
     const style = StyleSheet.flatten(node?.props.style);
     expect(style).toMatchObject({ backgroundColor: colors.bg });
-    expect(style.padding).toBe(20);
+    expect(style.padding).toBe(16);
   });
 
   it('Screen counts the top inset only when headerless', () => {
@@ -88,7 +89,7 @@ describe.each([
     let node = screen.getByText('tab root').parent;
     while (node && node.props.edges === undefined) node = node.parent;
     expect(node?.props.edges).toMatchObject({ top: 'additive', bottom: 'off' });
-    expect(StyleSheet.flatten(node?.props.style)).toMatchObject({ padding: 20, paddingBottom: 0 });
+    expect(StyleSheet.flatten(node?.props.style)).toMatchObject({ padding: 16, paddingBottom: 0 });
   });
 
   it('Screen renders the footer after the body', () => {
@@ -102,7 +103,7 @@ describe.each([
     expect(screen.getByRole('button', { name: 'Go' })).toBeOnTheScreen();
   });
 
-  it('Card paints the surface with a line border and the card radius', () => {
+  it('Card paints the surface with the card radius and no outline', () => {
     render(
       <Card>
         <AppText>boxed</AppText>
@@ -110,9 +111,9 @@ describe.each([
     );
     expect(styleAround('boxed')).toMatchObject({
       backgroundColor: colors.surface,
-      borderColor: colors.line,
-      borderRadius: tokens.radius.card,
+      borderRadius: tokens.radius.sheet,
     });
+    expect(styleAround('boxed').borderWidth).toBeUndefined();
   });
 
   it('ListRow draws a divider unless it is the last row of a group', () => {
@@ -122,8 +123,12 @@ describe.each([
         <ListRow title="Final" last onPress={jest.fn()} />
       </>,
     );
-    const dividerOf = (name: string) =>
-      StyleSheet.flatten(screen.getByRole('button', { name }).props.style).borderBottomWidth;
+    // The divider sits on the row's text block, so it starts under the text and not under the icon.
+    const dividerOf = (name: string) => {
+      let node = screen.getByText(name).parent;
+      while (node && StyleSheet.flatten(node.props.style)?.borderBottomWidth === undefined) node = node.parent;
+      return StyleSheet.flatten(node?.props.style).borderBottomWidth;
+    };
     expect(dividerOf('First')).toBeGreaterThan(0);
     expect(dividerOf('Final')).toBe(0);
   });
@@ -193,7 +198,7 @@ describe.each([
     expect(StyleSheet.flatten(screen.getByText('big').props.style)).toMatchObject({
       color: colors.text,
       fontSize: 34,
-      lineHeight: 40,
+      lineHeight: 41,
       fontWeight: '700',
     });
     expect(StyleSheet.flatten(screen.getByText('small').props.style)).toMatchObject({
@@ -203,23 +208,69 @@ describe.each([
     });
   });
 
-  it('primary Button is 52 tall with the accent fill and calls onPress', () => {
+  it('primary Button is 52 tall with the button fill and calls onPress', () => {
     const onPress = jest.fn();
     render(<Button label="Start" onPress={onPress} />);
     const button = screen.getByRole('button', { name: 'Start' });
     expect(StyleSheet.flatten(button.props.style)).toMatchObject({
       minHeight: 52,
-      backgroundColor: colors.accentFill,
+      backgroundColor: colors.buttonFill,
     });
     fireEvent.press(button);
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
-  it('secondary Button keeps a 44 point target and an outline', () => {
-    render(<Button label="Later" variant="secondary" onPress={jest.fn()} />);
+  it('secondary Button is a 52 tall gray capsule and tint Button a soft accent one', () => {
+    render(
+      <>
+        <Button label="Later" variant="secondary" onPress={jest.fn()} />
+        <Button label="Care" variant="tint" onPress={jest.fn()} />
+      </>,
+    );
     expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Later' }).props.style)).toMatchObject({
-      minHeight: 44,
-      borderColor: colors.line2,
+      minHeight: 52,
+      backgroundColor: colors.surface2,
+    });
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Care' }).props.style)).toMatchObject({
+      backgroundColor: colors.accentTint,
+    });
+    expect(StyleSheet.flatten(screen.getByText('Care').props.style)).toMatchObject({ color: colors.accent });
+  });
+
+  it('a disabled primary Button turns gray, as the foundations board draws it', () => {
+    render(<Button label="Next" onPress={jest.fn()} disabled />);
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Next' }).props.style)).toMatchObject({
+      backgroundColor: colors.surface2,
+    });
+    expect(StyleSheet.flatten(screen.getByText('Next').props.style)).toMatchObject({ color: colors.textDim });
+  });
+
+  it('alert Button uses the safety-check red, not the emergency one', () => {
+    render(<Button label="Yes" variant="alert" onPress={jest.fn()} />);
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Yes' }).props.style)).toMatchObject({
+      backgroundColor: colors.alertFill,
+    });
+  });
+
+  it('LumenLockup draws the tile in the button colour on light and bright teal on dark, in both layouts', () => {
+    const { toJSON } = render(
+      <>
+        <LumenLockup width={200} />
+        <LumenLockup width={150} stacked />
+      </>,
+    );
+    const drawn = JSON.stringify(toJSON());
+    const tile = scheme === 'light' ? colors.buttonFill : colors.accentFill;
+    const argb = Number.parseInt(tile.slice(1), 16) + 0xff000000;
+    expect(drawn.split(`"fill":{"type":0,"payload":${argb}}`)).toHaveLength(3);
+  });
+
+  it('vital text keeps tabular digits', () => {
+    render(<AppText variant="vitalXL">64</AppText>);
+    expect(StyleSheet.flatten(screen.getByText('64').props.style)).toMatchObject({
+      fontSize: 64,
+      lineHeight: 68,
+      fontVariant: ['tabular-nums'],
     });
   });
 
@@ -228,7 +279,6 @@ describe.each([
     expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Not now' }).props.style)).toMatchObject({
       minHeight: 44,
       backgroundColor: 'transparent',
-      borderColor: 'transparent',
     });
     expect(StyleSheet.flatten(screen.getByText('Not now').props.style)).toMatchObject({
       color: colors.accent,
@@ -243,7 +293,7 @@ describe.each([
       </>,
     );
     expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Call' }).props.style)).toMatchObject({
-      minHeight: 52,
+      minHeight: 56,
       backgroundColor: colors.criticalFill,
     });
     expect(StyleSheet.flatten(screen.getByText('Alert').props.style)).toMatchObject({

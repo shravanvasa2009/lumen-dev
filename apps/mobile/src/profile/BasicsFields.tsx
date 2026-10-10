@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { Card } from '@/components/Card';
+import { Icon } from '@/components/Icon';
+import { ListRow } from '@/components/ListRow';
+import { PressableScale } from '@/components/PressableScale';
 import { formatNumber } from '@/i18n/formatNumber';
-import { Segmented } from '@/settings/Segmented';
 import { useTheme } from '@/theme';
 
 import {
@@ -52,9 +55,9 @@ type FieldRowProps = {
   text: string;
   onChangeText: (text: string) => void;
   maxLength: number;
-  hint?: string;
   placeholder?: string;
   wholeNumber?: boolean;
+  last?: boolean;
 };
 
 function FieldRow({
@@ -63,43 +66,98 @@ function FieldRow({
   text,
   onChangeText,
   maxLength,
-  hint,
   placeholder,
   wholeNumber,
+  last,
 }: FieldRowProps) {
-  const { colors, spacing, radius, control } = useTheme();
+  const { colors, spacing } = useTheme();
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-        minHeight: control.primaryButtonHeight,
-        paddingHorizontal: spacing.lg,
-        borderRadius: radius.card,
-        borderWidth: 1,
-        borderColor: colors.line,
-        backgroundColor: colors.surface2,
-      }}
-    >
-      <AppText tone="textDim">{label}</AppText>
-      {hint ? (
-        <AppText variant="caption" tone="textFaint">
-          {hint}
-        </AppText>
-      ) : null}
-      <TextInput
-        accessibilityLabel={label}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textFaint}
-        keyboardType={wholeNumber ? 'number-pad' : 'decimal-pad'}
-        maxLength={maxLength}
-        value={text}
-        onChangeText={onChangeText}
-        style={{ flex: 1, textAlign: 'right', fontSize: 16, color: colors.text }}
+    <ListRow
+      title={label}
+      last={last}
+      trailing={
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+          <TextInput
+            accessibilityLabel={label}
+            placeholder={placeholder}
+            placeholderTextColor={colors.textFaint}
+            keyboardType={wholeNumber ? 'number-pad' : 'decimal-pad'}
+            maxLength={maxLength}
+            value={text}
+            onChangeText={onChangeText}
+            style={{ minWidth: 72, padding: 0, textAlign: 'right', fontSize: 17, color: colors.text }}
+          />
+          <AppText tone="textDim">{suffix}</AppText>
+        </View>
+      }
+    />
+  );
+}
+
+type PickerRowProps<Value extends string> = {
+  label: string;
+  shown: string;
+  options: readonly { value: Value; label: string }[];
+  selected: Value | null;
+  onSelect: (value: Value) => void;
+  last?: boolean;
+};
+
+// A row that shows the choice made and opens the options beneath it, one tap to choose.
+function PickerRow<Value extends string>({
+  label,
+  shown,
+  options,
+  selected,
+  onSelect,
+  last,
+}: PickerRowProps<Value>) {
+  const { colors, spacing, control } = useTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <ListRow
+        title={label}
+        last={last && !open}
+        expanded={open}
+        onPress={() => setOpen((was) => !was)}
+        trailing={
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+            <AppText tone="textDim">{shown}</AppText>
+            <View style={{ transform: [{ rotate: open ? '-90deg' : '90deg' }] }}>
+              <Icon name="chevron" size={14} color={colors.textDim} />
+            </View>
+          </View>
+        }
       />
-      <AppText tone="textDim">{suffix}</AppText>
-    </View>
+      {open
+        ? options.map((option, index) => (
+            <PressableScale
+              key={option.value}
+              accessibilityRole="radio"
+              accessibilityLabel={option.label}
+              accessibilityState={{ checked: option.value === selected }}
+              onPress={() => {
+                onSelect(option.value);
+                setOpen(false);
+              }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                minHeight: control.minTarget,
+                paddingLeft: spacing.xxxl,
+                paddingRight: spacing.lg,
+                borderBottomColor: colors.line,
+                borderBottomWidth: last && index === options.length - 1 ? 0 : StyleSheet.hairlineWidth,
+              }}
+            >
+              <AppText>{option.label}</AppText>
+              {option.value === selected ? <Icon name="check" size={18} color={colors.accent} /> : null}
+            </PressableScale>
+          ))
+        : null}
+    </>
   );
 }
 
@@ -172,78 +230,82 @@ export function BasicsFields({ draft, change }: BasicsFieldsProps) {
     heightCm !== null && weightKg !== null && !invalid.includes('height') && !invalid.includes('weight');
   const bmiText = bodyUsable ? bmiShown(bmiOf(heightCm, weightKg), i18n.language) : '—';
 
+  const sexNames: Record<Sex, string> = {
+    female: t('profile.female'),
+    male: t('profile.male'),
+    preferNot: t('profile.preferNot'),
+  };
+  const problems = [
+    ageYears !== null && ageYears < MIN_APP_AGE ? t('profile.ageTooYoung') : null,
+    invalid.includes('age') ? t('profile.ageInvalid') : null,
+    invalid.includes('height') || unreadable.height
+      ? t('profile.heightInvalid', { ...heightRange, unit: heightUnit })
+      : null,
+    invalid.includes('weight') || unreadable.weight
+      ? t('profile.weightInvalid', { ...weightRange, unit: weightUnit })
+      : null,
+    invalid.includes('bmi') ? t('profile.bmiInvalid') : null,
+  ];
+
   return (
     <View style={{ gap: spacing.sm }}>
-      <FieldRow
-        label={t('profile.age')}
-        hint={t('profile.ageMin')}
-        suffix={t('profile.years')}
-        placeholder={t('profile.agePlaceholder')}
-        text={ageText}
-        onChangeText={typeAge}
-        maxLength={3}
-        wholeNumber
-      />
-      {ageYears !== null && ageYears < MIN_APP_AGE ? <Problem message={t('profile.ageTooYoung')} /> : null}
-      {invalid.includes('age') ? <Problem message={t('profile.ageInvalid')} /> : null}
-      <Segmented
-        label={t('profile.sex')}
-        selected={draft.sex}
-        onSelect={(sex: Sex) => change('sex', sex)}
-        options={[
-          { value: 'female', label: t('profile.female') },
-          { value: 'male', label: t('profile.male') },
-          { value: 'preferNot', label: t('profile.preferNot') },
-        ]}
-      />
-      <Segmented
-        label={t('profile.units')}
-        selected={units}
-        onSelect={showUnits}
-        options={[
-          { value: 'metric', label: t('profile.unitsMetric') },
-          { value: 'imperial', label: t('profile.unitsImperial') },
-        ]}
-      />
-      <FieldRow
-        label={t('profile.height')}
-        suffix={heightUnit}
-        text={heightText}
-        onChangeText={typeHeight}
-        maxLength={5}
-      />
-      {invalid.includes('height') || unreadable.height ? (
-        <Problem message={t('profile.heightInvalid', { ...heightRange, unit: heightUnit })} />
-      ) : null}
-      <FieldRow
-        label={t('profile.weight')}
-        suffix={weightUnit}
-        text={weightText}
-        onChangeText={typeWeight}
-        maxLength={5}
-      />
-      {invalid.includes('weight') || unreadable.weight ? (
-        <Problem message={t('profile.weightInvalid', { ...weightRange, unit: weightUnit })} />
-      ) : null}
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: spacing.sm,
-        }}
-      >
-        <View style={{ flex: 1 }}>
-          <AppText tone="textDim">{t('profile.bmi')}</AppText>
-          <AppText variant="caption" tone="textFaint">
-            {t('profile.bmiNote')}
-          </AppText>
-        </View>
-        <AppText variant="headline" accessibilityLabel={`${t('profile.bmi')} ${bmiText}`}>
-          {bmiText}
-        </AppText>
-      </View>
-      {invalid.includes('bmi') ? <Problem message={t('profile.bmiInvalid')} /> : null}
+      <Card flush>
+        <FieldRow
+          label={t('profile.age')}
+          suffix={t('profile.years')}
+          placeholder={t('profile.agePlaceholder')}
+          text={ageText}
+          onChangeText={typeAge}
+          maxLength={3}
+          wholeNumber
+        />
+        <PickerRow
+          label={t('profile.sex')}
+          shown={draft.sex === null ? t('profile.notAnswered') : sexNames[draft.sex]}
+          selected={draft.sex}
+          onSelect={(sex: Sex) => change('sex', sex)}
+          options={[
+            { value: 'female', label: sexNames.female },
+            { value: 'male', label: sexNames.male },
+            { value: 'preferNot', label: sexNames.preferNot },
+          ]}
+        />
+        <PickerRow
+          label={t('profile.units')}
+          shown={imperial ? t('profile.unitsImperial') : t('profile.unitsMetric')}
+          selected={units}
+          onSelect={showUnits}
+          options={[
+            { value: 'metric', label: t('profile.unitsMetric') },
+            { value: 'imperial', label: t('profile.unitsImperial') },
+          ]}
+        />
+        <FieldRow
+          label={t('profile.height')}
+          suffix={heightUnit}
+          text={heightText}
+          onChangeText={typeHeight}
+          maxLength={5}
+        />
+        <FieldRow
+          label={t('profile.weight')}
+          suffix={weightUnit}
+          text={weightText}
+          onChangeText={typeWeight}
+          maxLength={5}
+        />
+        <ListRow
+          last
+          title={t('profile.bmi')}
+          subtitle={t('profile.bmiNote')}
+          trailing={
+            <AppText tone="textDim" accessibilityLabel={`${t('profile.bmi')} ${bmiText}`}>
+              {bmiText}
+            </AppText>
+          }
+        />
+      </Card>
+      {problems.map((message) => (message === null ? null : <Problem key={message} message={message} />))}
     </View>
   );
 }

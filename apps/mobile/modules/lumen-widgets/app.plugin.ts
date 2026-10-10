@@ -2,6 +2,7 @@ import {
   AndroidConfig,
   createRunOncePlugin,
   withAndroidManifest,
+  withInfoPlist,
   withStringsXml,
   type ConfigPlugin,
 } from 'expo/config-plugins';
@@ -34,11 +35,29 @@ function addWidgetReceivers(manifest: AndroidManifest): AndroidManifest {
   return manifest;
 }
 
+const APP_GROUPS = 'com.apple.security.application-groups';
+
+// The app and its widget extension share the snapshot through the App Group set in ios.entitlements
+// (app.config.ts, ADR 0005). Its ID goes into the app's Info.plist so no Swift file hard-codes it; the
+// extension reads the same key from the app bundle it sits in. NSSupportsLiveActivities lets the app start
+// the standing-test Live Activity.
+// https://developer.apple.com/documentation/bundleresources/information-property-list/nssupportsliveactivities
+const withWidgetInfoPlist: ConfigPlugin = (config) =>
+  withInfoPlist(config, (plistConfig) => {
+    const appGroup = plistConfig.ios?.entitlements?.[APP_GROUPS]?.[0];
+    if (typeof appGroup !== 'string') {
+      throw new Error(`lumen-widgets: set ios.entitlements["${APP_GROUPS}"] in app.config.ts.`);
+    }
+    plistConfig.modResults.LumenAppGroup = appGroup;
+    plistConfig.modResults.NSSupportsLiveActivities = true;
+    return plistConfig;
+  });
+
 // The picker's medium preview names the app beside the mark. A library layout can't reach the app's label, so the
 // module ships an empty lumen_widget_preview_name and the app's strings.xml overrides it with the app's name, which
 // keeps a rename in one place (spec §2).
 const withLumenWidgetsOnce: ConfigPlugin = (config) => {
-  const withReceivers = withAndroidManifest(config, (manifestConfig) => {
+  const withReceivers = withAndroidManifest(withWidgetInfoPlist(config), (manifestConfig) => {
     manifestConfig.modResults = addWidgetReceivers(manifestConfig.modResults);
     return manifestConfig;
   });

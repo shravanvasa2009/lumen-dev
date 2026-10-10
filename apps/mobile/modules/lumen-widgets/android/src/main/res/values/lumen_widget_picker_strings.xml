@@ -1,18 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The widget picker's line under each preview (android:description, Android 12+), and the sample reading the
-     preview draws, the same as the in-app gallery (app/settings/widgets/index.tsx: 2 h ago, 64 bpm, 5 days).
+     preview draws, the same as the in-app gallery (app/settings/widgets/index.tsx: 2 h ago, 64 bpm).
      fallback-res.test.ts keeps them equal to the app's copy. No brand name, so a rename needs no change here
      (spec §2). -->
 <resources>
     <string name="lumen_widget_small_description">Your last check and a one-tap Check now</string>
-    <string name="lumen_widget_medium_description">Heart rate, streak, Check now and Full Scan</string>
+    <string name="lumen_widget_medium_description">Heart rate, Check now and Full Scan</string>
     <string name="lumen_widget_sample_status">Up to date</string>
     <string name="lumen_widget_sample_last_check">Last check 2 h ago</string>
     <string name="lumen_widget_sample_bpm">64</string>
     <string name="lumen_widget_sample_bpm_unit">bpm</string>
-    <string name="lumen_widget_sample_status_streak">Up to date · streak 5 days</string>
-    <string name="lumen_widget_check_afib">AFib</string>
-    <string name="lumen_widget_check_pots">POTS</string>
-    <string name="lumen_widget_check_hrv">HRV</string>
-    <string name="lumen_widget_check_diabetes">Diabetes</string>
 </resources>

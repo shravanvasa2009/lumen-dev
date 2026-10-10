@@ -5,7 +5,7 @@ import { Linking, Platform, Pressable, ScrollView, useWindowDimensions, View } f
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
-import { Card } from '@/components/Card';
+import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { useWindowInsets } from '@/demo/DemoStrip';
 import { type FollowUpAnswer, saveFollowUpAnswer } from '@/profile/followUp';
@@ -21,11 +21,13 @@ const CARE_MAP_ROUTE = '/care';
 const GRABBER_WIDTH = 40;
 const GRABBER_HEIGHT = 4;
 const GRABBER_RADIUS = GRABBER_HEIGHT / 2;
+const CLOSE_TARGET = 44;
+const CLOSE_DISC = 30;
 
 export default function FollowUpScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { colors, spacing } = useTheme();
+  const { colors, radius, spacing, control } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
   const insets = useWindowInsets();
   // Screen pads the sheet by spacing.screen top and bottom and adds the bottom inset, so the scroll area
@@ -49,6 +51,8 @@ export default function FollowUpScreen() {
       },
       () => setAnswerFailed(true),
     );
+  // Closing saves nothing: the question stays unanswered.
+  const closeSheet = () => (router.canDismiss() ? router.dismiss() : router.replace('/'));
   // The sheet closes first so the Care map opens as a normal screen instead of stacking on the sheet.
   const openCareMap = () => {
     if (router.canDismiss()) router.dismiss();
@@ -58,7 +62,7 @@ export default function FollowUpScreen() {
     <Screen>
       {/* fitToContents sizes the sheet to this block; the cap keeps taller content (Spanish, large text,
           the care-finder fallback line) scrollable instead of clipped below the screen edge. */}
-      <ScrollView style={{ maxHeight: scrollMaxHeight }} contentContainerStyle={{ gap: spacing.md }}>
+      <ScrollView style={{ maxHeight: scrollMaxHeight }} contentContainerStyle={{ gap: spacing.sm }}>
         {Platform.OS === 'android' ? (
           // sheetGrabberVisible is iOS-only; Android's Material sheet shows no handle of its own here.
           <View
@@ -72,33 +76,102 @@ export default function FollowUpScreen() {
             }}
           />
         ) : null}
-        <AppText variant="title" accessibilityRole="header">
-          {t('followUp.title')}
-        </AppText>
-        <AppText tone="textDim">{t('followUp.subtitle')}</AppText>
+        <View style={{ paddingRight: CLOSE_TARGET }}>
+          <AppText variant="title" accessibilityRole="header">
+            {t('followUp.title')}
+          </AppText>
+          <AppText variant="subheadline" tone="textDim" style={{ marginTop: spacing.xs }}>
+            {t('followUp.subtitle')}
+          </AppText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            onPress={closeSheet}
+            style={{
+              position: 'absolute',
+              right: -spacing.sm,
+              top: -spacing.sm,
+              width: CLOSE_TARGET,
+              height: CLOSE_TARGET,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <View
+              style={{
+                width: CLOSE_DISC,
+                height: CLOSE_DISC,
+                borderRadius: CLOSE_DISC / 2,
+                backgroundColor: colors.surface3,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon name="close" size={14} color={colors.textDim} />
+            </View>
+          </Pressable>
+        </View>
         <Button label={t('followUp.saw')} onPress={() => void answer('saw')} />
-        <Button label={t('followUp.booked')} variant="secondary" onPress={() => void answer('booked')} />
-        <Button label={t('followUp.notYet')} variant="secondary" onPress={() => void answer('notYet')} />
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <Button
+              label={t('followUp.booked')}
+              variant="tint"
+              compact
+              onPress={() => void answer('booked')}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button
+              label={t('followUp.notYet')}
+              variant="tint"
+              compact
+              onPress={() => void answer('notYet')}
+            />
+          </View>
+        </View>
         {answerFailed ? (
           <AppText variant="caption" tone="textDim" accessibilityRole="alert">
             {t('profile.saveFailed')}
           </AppText>
         ) : null}
-        <Button label={t('careMap.enter')} variant="secondary" onPress={openCareMap} />
-        <Card>
-          <AppText variant="headline">{t('followUp.whatToAsk')}</AppText>
-          <AppText tone="textDim">{t('followUp.whatToAskBody')}</AppText>
-          <Pressable accessibilityRole="link" onPress={openCareFinder}>
-            <AppText variant="headline" tone="accent">
-              {t('followUp.careFinder')}
+        <Button label={t('careMap.enter')} variant="tint" compact icon="care" onPress={openCareMap} />
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: spacing.md,
+            backgroundColor: colors.surface,
+            borderRadius: radius.card,
+            paddingTop: spacing.md,
+            paddingHorizontal: spacing.lg,
+            paddingBottom: spacing.xs,
+          }}
+        >
+          <Icon name="hint" size={22} color={colors.accent} />
+          <View style={{ flex: 1 }}>
+            <AppText variant="subheadline" style={{ fontWeight: '600' }}>
+              {t('followUp.whatToAsk')}
             </AppText>
-          </Pressable>
-          {careFinderFailed ? (
-            <AppText variant="caption" tone="textDim" accessibilityRole="alert">
-              {t('followUp.careFinderFailed')}
+            <AppText variant="subheadline" tone="textDim" style={{ marginTop: 2 }}>
+              {t('followUp.whatToAskBody')}
             </AppText>
-          ) : null}
-        </Card>
+            <Pressable
+              accessibilityRole="link"
+              onPress={openCareFinder}
+              style={{ minHeight: control.minTarget, justifyContent: 'center' }}
+            >
+              <AppText variant="subheadline" tone="accent" style={{ fontWeight: '600' }}>
+                {t('followUp.careFinder')}
+              </AppText>
+            </Pressable>
+            {careFinderFailed ? (
+              <AppText variant="caption" tone="textDim" accessibilityRole="alert">
+                {t('followUp.careFinderFailed')}
+              </AppText>
+            ) : null}
+          </View>
+        </View>
       </ScrollView>
     </Screen>
   );

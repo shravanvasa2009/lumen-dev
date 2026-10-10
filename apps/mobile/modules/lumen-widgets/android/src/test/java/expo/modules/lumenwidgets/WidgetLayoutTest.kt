@@ -6,6 +6,7 @@ import androidx.glance.appwidget.testing.unit.GlanceAppWidgetUnitTest
 import androidx.glance.appwidget.testing.unit.hasStartActivityClickAction
 import androidx.glance.appwidget.testing.unit.runGlanceAppWidgetUnitTest
 import androidx.glance.testing.unit.hasContentDescriptionEqualTo
+import androidx.glance.testing.unit.hasText
 import androidx.glance.testing.unit.hasTextEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -13,7 +14,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-// Mockup 32's structure for published readings, at the smallest and a large cell for each widget.
+// The Widgets mockup's structure for published readings, at the smallest and a large cell for each widget.
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class WidgetLayoutTest {
@@ -26,13 +27,12 @@ class WidgetLayoutTest {
         snapshot: String,
         medium: Boolean,
         size: DpSize,
-        display: String = TEST_DISPLAY,
         checks: GlanceAppWidgetUnitTest.() -> Unit,
     ) =
         runGlanceAppWidgetUnitTest {
             setContext(context)
             setAppWidgetSize(size)
-            val view = widgetView(snapshot, display, nowMs)
+            val view = widgetView(snapshot, TEST_DISPLAY, nowMs)
             provideComposable { WidgetBody(view, medium) }
             checks()
         }
@@ -52,39 +52,15 @@ class WidgetLayoutTest {
         }
     }
 
-    // Four-checks proposal A (owner, 2026-10-03).
+    // The redesigned widgets list no checks, so no condition name appears on either size.
     @Test
-    fun mediumListsTheFourChecksWithTheDiabetesEvidenceTag() {
-        for (size in listOf(DpSize(250.dp, 130.dp), DpSize(420.dp, 220.dp))) {
-            render(testSnapshot(), medium = true, size = size, display = testDisplayWithChecks()) {
-                listOf("AFib", "POTS", "HRV", "Diabetes", "Experimental").forEach {
-                    onNode(hasTextEqualTo(it)).assertExists()
+    fun neitherWidgetNamesACheck() {
+        for (medium in listOf(false, true)) {
+            render(testSnapshot(), medium = medium, size = DpSize(330.dp, 150.dp)) {
+                for (name in listOf("AFib", "POTS", "HRV", "Diabetes", "Experimental")) {
+                    onAllNodes(hasText(name, ignoreCase = true)).assertCountEquals(0)
                 }
-                onNode(hasTextEqualTo("64")).assertExists()
             }
-        }
-    }
-
-    @Test
-    fun mediumDropsTheTagWhenDiabetesIsNoLongerExperimental() {
-        render(testSnapshot(), medium = true, size = DpSize(330.dp, 168.dp), display = testDisplayWithChecks(null)) {
-            onNode(hasTextEqualTo("Diabetes")).assertExists()
-            onNode(hasTextEqualTo("Experimental")).assertDoesNotExist()
-        }
-    }
-
-    @Test
-    fun smallNamesNoCheck() {
-        render(testSnapshot(), medium = false, size = DpSize(140.dp, 140.dp), display = testDisplayWithChecks()) {
-            onNode(hasTextEqualTo("AFib")).assertDoesNotExist()
-            onNode(hasTextEqualTo("Up to date")).assertExists()
-        }
-    }
-
-    @Test
-    fun noRowFromAnAppThatPublishesNoChecks() {
-        render(testSnapshot(), medium = true, size = DpSize(330.dp, 140.dp)) {
-            onNode(hasTextEqualTo("AFib")).assertDoesNotExist()
         }
     }
 
@@ -100,13 +76,14 @@ class WidgetLayoutTest {
     }
 
     @Test
-    fun mediumShowsTheHeartRateStatusStreakAndBothButtons() {
+    fun mediumShowsTheHeartRateStatusLastCheckAndBothButtons() {
         for (size in listOf(DpSize(250.dp, 110.dp), DpSize(420.dp, 200.dp))) {
             render(testSnapshot(), medium = true, size = size) {
                 onNode(hasTextEqualTo("Lumen")).assertExists()
                 onNode(hasTextEqualTo("64")).assertExists()
                 onNode(hasTextEqualTo("bpm")).assertExists()
-                onNode(hasTextEqualTo("Up to date · streak 5 days")).assertExists()
+                onNode(hasTextEqualTo("Up to date")).assertExists()
+                onNode(hasTextEqualTo("Last check 2 h ago")).assertExists()
                 onNode(hasStartActivityClickAction(linkIntent(context, CHECK_LINK))).assertExists()
                 onNode(hasStartActivityClickAction(linkIntent(context, FULL_SCAN_LINK))).assertExists()
             }
@@ -114,12 +91,12 @@ class WidgetLayoutTest {
     }
 
     @Test
-    fun mediumPutsTheStatusInTheNumbersPlaceWhenValuesAreHidden() {
-        render(testSnapshot(hideValues = true), medium = true, size = DpSize(330.dp, 140.dp)) {
+    fun mediumLeavesTheNumberOutWhenValuesAreHidden() {
+        render(testSnapshot(hideValues = true), medium = true, size = DpSize(330.dp, 150.dp)) {
             onNode(hasTextEqualTo("64")).assertDoesNotExist()
             onNode(hasTextEqualTo("bpm")).assertDoesNotExist()
             onNode(hasTextEqualTo("Up to date")).assertExists()
-            onNode(hasTextEqualTo("Last check 2 h ago · streak 5 days")).assertExists()
+            onNode(hasTextEqualTo("Last check 2 h ago")).assertExists()
             onNode(hasTextEqualTo("Check now")).assertExists()
             onNode(hasTextEqualTo("Full Scan")).assertExists()
         }

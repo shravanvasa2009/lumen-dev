@@ -1,8 +1,10 @@
 import i18next from 'i18next';
+import { act } from 'react';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
-import { expectNavTitle } from '@/testing/navHeader';
+import { expectChapterTitle, expectNavTitle } from '@/testing/navHeader';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 import { lessons } from './lessons';
@@ -40,7 +42,7 @@ const convertedLessons: readonly {
       'learn.stroke.h4',
       'learn.stroke.h5',
       'learn.stroke.h6',
-      'learn.stroke.h7',
+      'learn.beFastTime',
     ],
     paragraphs: [
       'learn.stroke.intro',
@@ -99,15 +101,15 @@ describe('lesson detail', () => {
   it('renders every lesson under its own title', () => {
     for (const lesson of lessons) {
       const { unmount } = renderRouter(appDirectory, { initialUrl: `/learn/${lesson.slug}` });
-      expectNavTitle(lesson.title(i18next.t));
+      expectChapterTitle(en['learn.guideTitle'], lesson.title(i18next.t));
       unmount();
     }
   });
 
-  it('shows the animation placeholder only on the first lesson', () => {
+  it('draws the pulse lesson as pictures instead of an animation placeholder', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/how-lumen-reads-your-pulse' });
-    expect(screen.getByText(en['learn.pulseAnimation'])).toBeOnTheScreen();
     expect(screen.getByText(en['learn.pulse.p1'])).toBeOnTheScreen();
+    expect(screen.getByRole('image', { name: en['learn.ch1.heroLabel'] })).toBeOnTheScreen();
   });
 
   it('says the lesson was not found for an unknown slug instead of crashing', () => {
@@ -118,19 +120,19 @@ describe('lesson detail', () => {
   it('keeps the diabetes lesson to "not a diabetes test" and an A1c blood test', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/diabetes-and-your-pulse' });
     expect(screen.getByText(en['learn.diabetes.p3'])).toBeOnTheScreen();
-    expect(screen.getByText(new RegExp('not a diabetes test', 'i'))).toBeOnTheScreen();
+    expect(screen.getAllByText(new RegExp('not a diabetes test', 'i')).length).toBeGreaterThan(0);
   });
 
   it('shows "Not yet tested" for both rhythm figures while evidence.json has neither', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/how-the-rhythm-check-works' });
-    expect(screen.getByText(en['learn.rhythmExtraBeatsNote'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['learn.rhythmExtraBeatsNote']).length).toBeGreaterThan(0);
     expect(screen.getByText(en['learn.rhythmAbstainLabel'])).toBeOnTheScreen();
     expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(2);
     expect(screen.queryByText(new RegExp('In development testing on recordings'))).toBeNull();
     expect(screen.queryByText(new RegExp('^Source:'))).toBeNull();
   });
 
-  it('lays the pulse lesson out as numbered cards with a takeaway', () => {
+  it('lays the pulse lesson out with a takeaway', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/how-lumen-reads-your-pulse' });
     expect(screen.getByText(progressText(1))).toBeOnTheScreen();
     for (const key of ['learn.pulse.h1', 'learn.pulse.h2', 'learn.pulse.h3'] as const) {
@@ -158,44 +160,43 @@ describe('lesson detail', () => {
 
   it('opens the next lesson from the button', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/how-lumen-reads-your-pulse' });
-    const label = en['learn.nextLesson'].replace('{{title}}', en['learn.lessonAfib']);
+    const label = en['learn.nextLesson'].replace('{{title}}', en['learn.lessonRhythm']);
     fireEvent.press(screen.getByRole('button', { name: label }));
-    expectNavTitle(en['learn.lessonAfib']);
-    expect(screen.getByText(en['learn.afib.p1'])).toBeOnTheScreen();
+    expectChapterTitle(en['learn.guideTitle'], en['learn.lessonRhythm']);
+    expect(screen.getByText(en['learn.rhythm.p1'])).toBeOnTheScreen();
   });
 
-  it('gives the rhythm lesson its cards, Experimental badge and takeaway around the unchanged figures', () => {
+  it('gives the rhythm lesson its cards and takeaway, with no evidence badge, around the unchanged figures', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/how-the-rhythm-check-works' });
-    expect(screen.getByText(progressText(3))).toBeOnTheScreen();
+    expect(screen.getByText(progressText(2))).toBeOnTheScreen();
     for (const key of ['learn.rhythm.p1', 'learn.rhythm.p2', 'learn.rhythm.p3'] as const) {
       expect(screen.getByText(en[key])).toBeOnTheScreen();
     }
-    expect(screen.getByText(en['learn.rhythm.chipExtra'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['learn.rhythm.chipExtra']).length).toBeGreaterThan(0);
     expect(screen.getByText(en['learn.rhythmTestingHeading'])).toBeOnTheScreen();
-    expect(screen.getByText(en['evidence.experimental'])).toBeOnTheScreen();
+    expect(screen.queryByText(en['evidence.experimental'])).toBeNull();
     expect(screen.getByText(en['learn.rhythm.takeaway'])).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('radio', { name: en['learn.rhythm.answerDoctor'] }));
     expect(screen.getByText(en['learn.quizCorrect'])).toBeOnTheScreen();
   });
 
-  it('exposes every diagram as one labelled image', () => {
+  it('exposes each pulse-lesson picture as one labelled image', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/how-lumen-reads-your-pulse' });
-    expect(screen.getAllByRole('image')).toHaveLength(2);
-    const steps = [en['learn.pulse.step1'], en['learn.pulse.step2'], en['learn.pulse.step3']];
-    expect(screen.getByRole('image', { name: steps.join('. ') })).toBeOnTheScreen();
-    const wave = [
-      en['learn.pulse.beatMark'],
-      en['learn.pulse.gapMark'],
-      en['learn.pulse.darker'],
-      en['learn.pulse.lighter'],
-    ];
-    expect(screen.getByRole('image', { name: wave.join('. ') })).toBeOnTheScreen();
+    for (const key of [
+      'learn.ch1.heroLabel',
+      'learn.ch1.pairLabel',
+      'learn.ch1.traceLabel',
+      'learn.ch1.compareLabel',
+    ] as const) {
+      expect(screen.getByRole('image', { name: en[key] })).toBeOnTheScreen();
+    }
   });
 
-  it('labels the rhythm diagram with both row names', () => {
+  it('labels each rhythm picture as one image', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/how-the-rhythm-check-works' });
-    const label = `${en['learn.rhythm.steady']}. ${en['learn.rhythm.irregular']}`;
-    expect(screen.getByRole('image', { name: label })).toBeOnTheScreen();
+    for (const key of ['heroLabel', 'gapsLabel', 'mapsLabel', 'extraLabel'] as const) {
+      expect(screen.getByRole('image', { name: en[`learn.rhythm.${key}`] })).toBeOnTheScreen();
+    }
   });
 
   it('marks only the picked quick-check answer as checked', () => {
@@ -212,7 +213,7 @@ describe('lesson detail', () => {
   });
 
   it.each(convertedLessons)(
-    'gives $slug numbered cards with verbatim paragraphs, a takeaway and a quick check',
+    'gives $slug its sections with verbatim paragraphs, a takeaway and a quick check',
     ({ slug, headings, paragraphs, takeaway, correct, wrong }) => {
       renderRouter(appDirectory, { initialUrl: `/learn/${slug}` });
       for (const heading of headings) {
@@ -233,10 +234,45 @@ describe('lesson detail', () => {
   it('lists the stroke signs in BE FAST order, then the 911 line, then a takeaway that says call 911', () => {
     renderRouter(appDirectory, { initialUrl: '/learn/stroke-warning-signs' });
     const signs = ['balance', 'eyes', 'face', 'arm', 'speech', 'time'] as const;
-    const shown = screen.getAllByText(new RegExp('^[BEFAST], ')).map((node) => node.props.children);
-    expect(shown).toEqual(signs.map((sign) => en[`learn.stroke.${sign}`]));
+    const shown = signs.map((sign) => screen.getByText(en[`learn.stroke.${sign}`]));
+    expect(shown).toHaveLength(6);
+    expect(screen.getAllByText(new RegExp('^[BEFAST]$')).map((node) => node.props.children)).toEqual([
+      ...'BEFAST',
+      ...'BEFAST',
+    ]);
     expect(en['learn.stroke.takeaway']).toContain('call 911 right away');
     expect(screen.getByText(en['learn.stroke.takeaway'])).toBeOnTheScreen();
+  });
+
+  it('dials 911 from both Call 911 buttons, and says so when the phone cannot call', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('no dialer'));
+    renderRouter(appDirectory, { initialUrl: '/learn/stroke-warning-signs' });
+    const buttons = screen.getAllByRole('button', { name: en['emergency.call'] });
+    expect(buttons).toHaveLength(2);
+    await act(async () => fireEvent.press(buttons[0]!));
+    expect(openURL).toHaveBeenCalledWith('tel:911');
+    expect(screen.getByText(en['emergency.callFailed'])).toBeOnTheScreen();
+    await act(async () => fireEvent.press(buttons[1]!));
+    expect(openURL).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['how-lumen-reads-your-pulse', 'learn.ch1.heroLabel', 'learn.ch1.compareLabel'],
+    ['what-is-afib', 'learn.ch3.heroLabel', 'learn.ch3.dayLabel'],
+    ['stroke-warning-signs', 'learn.ch4.artBalance', 'learn.ch4.artTime'],
+    ['diabetes-and-your-pulse', 'learn.diabetes.heroLabel', 'learn.diabetes.compareLabel'],
+  ] as const)('draws the %s figures, the chapter count and the next chapter link', (slug, first, last) => {
+    renderRouter(appDirectory, { initialUrl: `/learn/${slug}` });
+    expect(screen.getByRole('image', { name: en[first] })).toBeOnTheScreen();
+    expect(screen.getByRole('image', { name: en[last] })).toBeOnTheScreen();
+    const position = lessons.findIndex((lesson) => lesson.slug === slug) + 1;
+    expect(screen.getByText(progressText(position))).toBeOnTheScreen();
+    expect(screen.getByRole('progressbar', { name: en['learn.bookProgress'] })).toBeOnTheScreen();
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+    const next = lessons[position]!;
+    const label = en['learn.nextLesson'].replace('{{title}}', next.title(i18next.t.bind(i18next)));
+    fireEvent.press(screen.getByRole('button', { name: label }));
+    expectChapterTitle(en['learn.guideTitle'], next.title(i18next.t.bind(i18next)));
   });
 
   it('offers no stroke quiz answer that suggests waiting', () => {

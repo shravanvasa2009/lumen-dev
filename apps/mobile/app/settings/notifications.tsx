@@ -1,13 +1,14 @@
-import { DateTimePicker } from '@expo/ui/community/datetime-picker';
 import { useFocusEffect } from 'expo-router';
 import { Fragment, useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Linking, Platform } from 'react-native';
+import { Linking, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { Icon } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
+import type { IconName } from '@/components/Icon';
 import { RouteShell } from '@/components/RouteShell';
 import type { ClockTime } from '@/notifications/localTime';
 import type { NotificationPrefs, NotificationType } from '@/notifications/plan';
@@ -18,60 +19,35 @@ import {
   type Permission,
   saveAndSyncNotifications,
 } from '@/settings/applyPrefs';
+import { DayDial } from '@/settings/DayDial';
 import { formatClock } from '@/settings/formatClock';
-import { SectionLabel } from '@/settings/SectionLabel';
+import { GroupLabel } from '@/settings/GroupLabel';
+import { IconTile } from '@/settings/IconTile';
+import { TimeRow } from '@/settings/TimeRow';
 import { Toggle } from '@/settings/Toggle';
+import { useTheme } from '@/theme';
 import { setPreference, usePreferences } from '@/theme/preferences';
 
-type TimeRowProps = {
-  title: string;
-  time: ClockTime;
-  languageTag: string;
-  last?: boolean;
-  onChange: (time: ClockTime) => void;
-};
-
-// The dial follows the clock the rows are written in: en shows "7:00 AM", es "7:00". Android takes is24Hour;
-// iOS follows the locale, so both are passed.
-const usesDayPeriod = (languageTag: string) =>
-  new Intl.DateTimeFormat(languageTag, { hour: 'numeric' })
-    .formatToParts(new Date(2000, 0, 1, 7))
-    .some((part) => part.type === 'dayPeriod');
-
-// Android shows the picker as a dialog while it is mounted; iOS shows it inline under the row until the row is
-// tapped again. The date part is arbitrary: only the hour and minute are kept.
-function TimeRow({ title, time, languageTag, last = false, onChange }: TimeRowProps) {
-  const [open, setOpen] = useState(false);
-  const pick = (picked: Date) => {
-    if (Platform.OS === 'android') setOpen(false);
-    onChange({ hour: picked.getHours(), minute: picked.getMinutes() });
-  };
+function DialLegend({ dot, title, detail }: { dot: string; title: string; detail: string }) {
   return (
-    <>
-      <ListRow
-        title={title}
-        last={last && !open}
-        expanded={open}
-        onPress={() => setOpen((shown) => !shown)}
-        trailing={<AppText tone="textDim">{formatClock(time, languageTag)}</AppText>}
-      />
-      {open ? (
-        <DateTimePicker
-          mode="time"
-          value={new Date(2000, 0, 1, time.hour, time.minute)}
-          onValueChange={(_event, picked) => pick(picked)}
-          onDismiss={() => setOpen(false)}
-          is24Hour={!usesDayPeriod(languageTag)}
-          locale={languageTag}
-        />
-      ) : null}
-    </>
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+      <View style={{ width: 10, height: 10, borderRadius: 5, marginTop: 5, backgroundColor: dot }} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <AppText variant="subheadline" style={{ fontWeight: '600' }}>
+          {title}
+        </AppText>
+        <AppText variant="caption" tone="textDim">
+          {detail}
+        </AppText>
+      </View>
+    </View>
   );
 }
 
 export default function NotificationsScreen() {
   const { t, i18n } = useTranslation();
   const { hideWidgetValues } = usePreferences();
+  const { colors, spacing } = useTheme();
   const [prefs, setPrefs] = useState(loadNotificationPrefs);
   const [permission, setPermission] = useState<Permission | null>(null);
   const [failed, setFailed] = useState(false);
@@ -126,14 +102,32 @@ export default function NotificationsScreen() {
   const setQuietHours = (edge: 'start' | 'end', time: ClockTime) =>
     savePrefs((previous) => ({ ...previous, quietHours: { ...previous.quietHours, [edge]: time } }), false);
 
-  const reminders: readonly { type: NotificationType; title: string; subtitle?: string }[] = [
-    { type: 'daily', title: t('notifications.daily') },
-    { type: 'confirmation', title: t('notifications.followUp'), subtitle: t('notifications.followUpHint') },
-    { type: 'doctor-followup', title: t('notifications.doctor'), subtitle: t('notifications.doctorHint') },
-    { type: 'standing', title: t('notifications.standing') },
-    { type: 'retest', title: t('notifications.retest') },
+  const reminders: readonly { type: NotificationType; icon: IconName; title: string; subtitle?: string }[] = [
+    { type: 'daily', icon: 'clock', title: t('notifications.daily') },
+    {
+      type: 'confirmation',
+      icon: 'check',
+      title: t('notifications.followUp'),
+      subtitle: t('notifications.followUpHint'),
+    },
+    {
+      type: 'doctor-followup',
+      icon: 'care',
+      title: t('notifications.doctor'),
+      subtitle: t('notifications.doctorHint'),
+    },
+    { type: 'standing', icon: 'standing', title: t('notifications.standing') },
+    { type: 'retest', icon: 'phone', title: t('notifications.retest') },
   ];
   const denied = permission === 'denied';
+  const dailyOn = prefs.enabled.daily && !denied;
+  const clock = (time: ClockTime) => formatClock(time, i18n.language);
+  const quietRange = t('notifications.quietRange', {
+    from: clock(prefs.quietHours.start),
+    until: clock(prefs.quietHours.end),
+  });
+  const dailyClock = clock(prefs.dailyTime);
+  const dailyWithoutPeriod = formatClock(prefs.dailyTime, i18n.language, false);
   return (
     <RouteShell title={t('notifications.title')}>
       {denied ? (
@@ -147,11 +141,44 @@ export default function NotificationsScreen() {
         </Card>
       ) : null}
       {failed ? <AppText tone="textDim">{t('notifications.updateFailed')}</AppText> : null}
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
+          <DayDial
+            quietStart={prefs.quietHours.start}
+            quietEnd={prefs.quietHours.end}
+            dailyTime={dailyOn ? prefs.dailyTime : null}
+            centerMain={dailyOn ? dailyWithoutPeriod : t('notifications.dialOff')}
+            centerSub={
+              dailyOn ? dailyClock.replace(dailyWithoutPeriod, '').trim() : t('notifications.dialOffSub')
+            }
+            accessibilityLabel={
+              dailyOn
+                ? t('notifications.dialLabelOn', { time: dailyClock, range: quietRange })
+                : t('notifications.dialLabelOff', { range: quietRange })
+            }
+          />
+          <View style={{ flex: 1, minWidth: 0, gap: 10 }}>
+            <DialLegend
+              dot={colors.buttonFill}
+              title={t('notifications.daily')}
+              detail={dailyOn ? dailyClock : t('notifications.dialOff')}
+            />
+            <DialLegend dot={colors.textDim} title={t('notifications.quietHours')} detail={quietRange} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Icon name="clock" size={14} color={colors.textDim} />
+              <AppText variant="caption" tone="textDim" style={{ flex: 1 }}>
+                {t('notifications.limitShort')}
+              </AppText>
+            </View>
+          </View>
+        </View>
+      </Card>
       <Card flush>
-        {reminders.map(({ type, title, subtitle }, index) => (
+        {reminders.map(({ type, icon, title, subtitle }, index) => (
           <Fragment key={type}>
             <ListRow
               title={title}
+              leading={<IconTile name={icon} />}
               subtitle={subtitle}
               last={index === reminders.length - 1}
               trailing={
@@ -163,8 +190,9 @@ export default function NotificationsScreen() {
                 />
               }
             />
-            {type === 'daily' && prefs.enabled.daily && !denied ? (
+            {type === 'daily' && dailyOn ? (
               <TimeRow
+                leading={<IconTile name="clock" />}
                 title={t('notifications.dailyTime')}
                 time={prefs.dailyTime}
                 languageTag={i18n.language}
@@ -174,15 +202,17 @@ export default function NotificationsScreen() {
           </Fragment>
         ))}
       </Card>
-      <SectionLabel>{t('notifications.quietHours')}</SectionLabel>
+      <GroupLabel>{t('notifications.quietHours')}</GroupLabel>
       <Card flush>
         <TimeRow
+          leading={<IconTile name="clock" neutral />}
           title={t('notifications.from')}
           time={prefs.quietHours.start}
           languageTag={i18n.language}
           onChange={(time) => void setQuietHours('start', time)}
         />
         <TimeRow
+          leading={<IconTile name="clock" neutral />}
           title={t('notifications.until')}
           time={prefs.quietHours.end}
           languageTag={i18n.language}
@@ -193,6 +223,7 @@ export default function NotificationsScreen() {
       <Card flush>
         <ListRow
           title={t('notifications.hideValues')}
+          leading={<IconTile name="lock" />}
           last
           trailing={
             <Toggle

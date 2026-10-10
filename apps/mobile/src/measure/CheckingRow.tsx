@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 import { useWindowDimensions, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/theme';
 
@@ -71,22 +70,11 @@ export function CheckingRow({
             const quiet = state === 'off' || state === 'unavailable';
             const tone = lit ? colors.accent : colors.textDim;
             const label = id === 'pots' ? t('checks.pots.standingNote') : `${names[id]}, ${words[state]}`;
-            const stateWord = (
+            const word = (
               <AppText variant="caption" tone="textDim">
                 {words[state]}
               </AppText>
             );
-            const word =
-              id !== 'diabetes' || quiet ? (
-                stateWord
-              ) : state === 'checking' ? (
-                <EvidenceBadge metric="diabetes" />
-              ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-                  {stateWord}
-                  <EvidenceBadge metric="diabetes" />
-                </View>
-              );
             return (
               <View
                 key={id}

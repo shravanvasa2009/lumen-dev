@@ -1,10 +1,20 @@
+import { render } from '@testing-library/react-native';
 import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import EmergencyScreen from '../../app/emergency';
 import '@/i18n';
 import en from '@/i18n/en.json';
+import { HeartRateChart } from '@/standing/HeartRateChart';
 import { StandingTestScreen } from '@/standing/StandingTestScreen';
 import type { StandingTestSource } from '@/standing/useStandingTest';
+import { thresholdForAge } from '@/standing/useStandingThreshold';
+import * as profileStore from '@/store/profile';
+import { EMPTY_RISK_DRAFT } from '@/profile/diabetesRisk';
+
+jest.mock('@/store/profile', () => {
+  const actual = jest.requireActual<typeof import('@/store/profile')>('@/store/profile');
+  return { ...actual, loadRiskDraft: jest.fn(actual.loadRiskDraft) };
+});
 
 let mockScheme: 'light' | 'dark';
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -54,6 +64,23 @@ describe.each(['dark', 'light'] as const)('standing test in the %s theme', (sche
     expect(screen.getByText(en['standing.warning'])).toBeOnTheScreen();
     expect(screen.getByText(en['standing.scope'])).toBeOnTheScreen();
     expect(screen.queryByText(/^Step \d/)).toBeNull();
+  });
+
+  it('fills the intro with the timeline, the result preview, what you need and one safety card', () => {
+    open(injectedSource);
+    expect(screen.getByText(en['standing.about'])).toBeOnTheScreen();
+    expect(screen.getByText(en['standing.thresholdUnknown'])).toBeOnTheScreen();
+    expect(screen.getByText(en['standing.needTitle'])).toBeOnTheScreen();
+    expect(screen.getByText(en['standing.needLie'])).toBeOnTheScreen();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('draws the lying timer as a ticked dial with the time left', () => {
+    open(injectedSource);
+    pressButton(en['standing.start']);
+    expect(screen.getByRole('timer')).toBeOnTheScreen();
+    expect(screen.getByText('05:00')).toBeOnTheScreen();
+    expect(JSON.stringify(screen.toJSON()).match(/RNSVGLine/g)?.length).toBeGreaterThanOrEqual(60);
   });
 
   it('numbers the steps like mockup 21 and shows chart and values from an injected source', async () => {
@@ -138,5 +165,64 @@ describe('standing test with an injected source', () => {
     pressButton(en['standing.faint']);
     pressButton(en['emergency.title']);
     expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
+  });
+});
+
+describe('the rise line follows the core rule for the profile age', () => {
+  beforeEach(() => {
+    mockScheme = 'dark';
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  async function openWithAge(ageYears: number) {
+    jest.spyOn(profileStore, 'loadRiskDraft').mockResolvedValue({ ...EMPTY_RISK_DRAFT, ageYears });
+    open(injectedSource);
+    await act(async () => undefined);
+  }
+
+  it('draws +40 for a teenager on the intro and the chart', async () => {
+    await openWithAge(16);
+    expect(screen.getByText('+40 bpm line')).toBeOnTheScreen();
+    pressButton(en['standing.start']);
+    advanceSeconds(250);
+    await act(async () => pressButton(en['standing.take']));
+    advanceSeconds(120);
+    await act(async () => pressButton(en['standing.take']));
+    expect(JSON.stringify(screen.toJSON())).toContain('+40 bpm line');
+  });
+
+  it('draws +30 for an adult', async () => {
+    await openWithAge(35);
+    expect(screen.getByText('+30 bpm line')).toBeOnTheScreen();
+  });
+
+  it('puts the chart line at the baseline plus the threshold it is given', () => {
+    const lineY = (thresholdBpm: number) => {
+      const view = render(
+        <HeartRateChart
+          points={[
+            { minute: 1, bpm: 70 },
+            { minute: 3, bpm: 90 },
+          ]}
+          baseline={68}
+          thresholdBpm={thresholdBpm}
+          label="chart"
+          lyingLabel="lying"
+          nowLabel="now"
+          thresholdLabel="line"
+        />,
+      );
+      const dashed = JSON.stringify(view.toJSON()).match(/"strokeDasharray":[^}]*?"y1":([\d.]+)/);
+      view.unmount();
+      return Number(dashed?.[1]);
+    };
+    expect(lineY(40)).toBeLessThan(lineY(30));
+  });
+
+  it('gives no line for an age the core rule rejects', () => {
+    expect(thresholdForAge(null)).toBeNull();
+    expect(thresholdForAge(12)).toBeNull();
+    expect(thresholdForAge(19)).toBe(40);
+    expect(thresholdForAge(20)).toBe(30);
   });
 });

@@ -1,7 +1,6 @@
 import { DSP_CONFIG, type RatingMode, type RatingTier, tierUnlocks } from '@lumen/core';
 
 import type { IconName } from '@/components/Icon';
-import type { EvidenceMetric } from '@/evidence';
 import type { StoredRating } from '@/store/deviceRating';
 import type { MODES } from '@/measure/mode';
 
@@ -32,19 +31,11 @@ export type CheckCell =
 
 export const CHECK_IDS: readonly CheckId[] = ['afib', 'hrv', 'diabetes', 'pots'];
 
-// The evidence metric whose runtime label a check's chip shows as a pill (mockups 01, 08, 12, 15: Diabetes only).
-export const CHECK_PILL: Record<CheckId, EvidenceMetric | null> = {
-  afib: null,
-  hrv: null,
-  diabetes: 'diabetes',
-  pots: null,
-};
-
 export const CHECK_ICON: Record<CheckId, IconName> = {
   afib: 'pulse',
   hrv: 'trends',
   diabetes: 'lens',
-  pots: 'finger',
+  pots: 'standing',
 };
 
 // Spec 05 §5.2 table: the rating row each check needs. A Limited phone has no rhythmFlags row, and Quick (30 s)

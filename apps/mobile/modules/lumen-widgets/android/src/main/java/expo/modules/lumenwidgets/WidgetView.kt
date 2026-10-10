@@ -7,20 +7,20 @@ import java.util.TimeZone
 
 private const val HOUR_MS = 3_600_000L
 
-// ARGB colors from the app's design tokens (src/theme/tokens.json), sent by JS so they live in one place.
+// ARGB colors for each widget color role (PALETTE_TOKENS in src/widgets/publish.ts), sent by JS so the design
+// tokens stay in one place.
 data class Palette(
     val surface: Long,
-    val line: Long,
-    val line2: Long,
     val text: Long,
     val textDim: Long,
     val accent: Long,
-    val accentFill: Long,
-    val onAccentFill: Long,
+    val ringTrack: Long,
+    val buttonFill: Long,
+    val onButtonFill: Long,
+    val tonalFill: Long,
+    val onTonalFill: Long,
     val flag: Long,
     val criticalText: Long,
-    val badgeExperimentalFg: Long,
-    val badgeExperimentalBg: Long,
 )
 
 // What a widget draws. Every string comes from the JS display payload; null parts are left out.
@@ -33,13 +33,8 @@ data class WidgetView(
     val lastCheck: String?,
     val bpm: String?,
     val bpmUnit: String,
-    val streak: String?,
     val checkNow: String,
     val fullScan: String,
-    // The four checks the medium widget lists, in the app's language; empty before the app first publishes.
-    val checks: List<String>,
-    // The Diabetes evidence label's word while it is Experimental (EVID-1); null otherwise.
-    val diabetesTag: String?,
     val emptyTitle: String,
     val emptyBody: String,
     val theme: String,
@@ -67,17 +62,16 @@ internal fun parseColor(hex: String): Long {
 internal fun paletteOf(json: JSONObject) =
     Palette(
         surface = parseColor(json.getString("surface")),
-        line = parseColor(json.getString("line")),
-        line2 = parseColor(json.getString("line2")),
         text = parseColor(json.getString("text")),
         textDim = parseColor(json.getString("textDim")),
         accent = parseColor(json.getString("accent")),
-        accentFill = parseColor(json.getString("accentFill")),
-        onAccentFill = parseColor(json.getString("onAccentFill")),
+        ringTrack = parseColor(json.getString("ringTrack")),
+        buttonFill = parseColor(json.getString("buttonFill")),
+        onButtonFill = parseColor(json.getString("onButtonFill")),
+        tonalFill = parseColor(json.getString("tonalFill")),
+        onTonalFill = parseColor(json.getString("onTonalFill")),
         flag = parseColor(json.getString("flag")),
         criticalText = parseColor(json.getString("criticalText")),
-        badgeExperimentalFg = parseColor(json.getString("badgeExperimentalFg")),
-        badgeExperimentalBg = parseColor(json.getString("badgeExperimentalBg")),
     )
 
 // org.json's optString turns a JSON null into the text "null", so nulls are checked first.
@@ -104,7 +98,6 @@ fun widgetView(snapshotJson: String, displayJson: String, nowMs: Long): WidgetVi
     // The snapshot already drops hrBpm when values are hidden; checking hideValues too keeps a stale or
     // hand-edited snapshot from ever showing a number the user asked to hide.
     val hrBpm = if (snapshot.isNull("hrBpm") || snapshot.getBoolean("hideValues")) null else snapshot.getInt("hrBpm")
-    val streakDays = snapshot.getInt("streakDays")
     val palettes = display.getJSONObject("palette")
     return WidgetView(
         name = display.getString("name"),
@@ -114,11 +107,8 @@ fun widgetView(snapshotJson: String, displayJson: String, nowMs: Long): WidgetVi
             lastReadingAt?.let { display.getString("lastCheck").replace("{{hours}}", hoursSince(it, nowMs).toString()) },
         bpm = hrBpm?.toString(),
         bpmUnit = display.getString("bpm"),
-        streak = if (streakDays > 0) display.getString("streak").replace("{{days}}", streakDays.toString()) else null,
         checkNow = display.getString("checkNow"),
         fullScan = display.getString("fullScan"),
-        checks = display.optJSONArray("checks")?.let { names -> List(names.length()) { names.getString(it) } } ?: emptyList(),
-        diabetesTag = display.stringOrNull("diabetesTag"),
         emptyTitle = empty.getString("title"),
         emptyBody = empty.getString("body"),
         theme = snapshot.getString("theme"),

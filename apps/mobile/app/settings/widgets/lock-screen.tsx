@@ -15,11 +15,11 @@ const SAMPLE_STEP = 3;
 const SAMPLE_STEPS = 5;
 const SAMPLE_COUNTDOWN = '1:42';
 const SAMPLE_PROGRESS = 0.6;
+const BAR_HEIGHT = 4;
 
-// A lock screen looks the same in either app theme, so these cards use fixed token sets.
+// A lock screen looks the same in either app theme (Widgets mockup, "Lock Screen"): a dark wallpaper, the dark
+// see-through Live Activity card, and a light notification card.
 const wallpaper = tokens.dark;
-// The lock widgets sit on surface2, so the panel behind them is one step darker to keep them visible.
-const widgetPanel = tokens.dark.surface;
 const notificationCard = tokens.light;
 
 export default function LockScreenPreviewScreen() {
@@ -27,6 +27,7 @@ export default function LockScreenPreviewScreen() {
   const { spacing, radius } = useTheme();
   const lockText = lockscreenStrings(i18n.language);
   const upToDate = lockTextLines(lockText['widget.lock.upToDate']);
+  const inline = lockText['widget.lock.nextCheck'].replace('{{time}}', t('widgets.sampleTime'));
   // The big timer on the right is the countdown, so only the words before it are shown here.
   const nextReading = lockText['live.standing.next'].replace('{{countdown}}', '').trim();
   return (
@@ -36,40 +37,46 @@ export default function LockScreenPreviewScreen() {
       </AppText>
       <View
         style={{
-          backgroundColor: widgetPanel,
+          backgroundColor: wallpaper.surface3,
           borderRadius: radius.sheet,
           padding: spacing.lg,
-          gap: spacing.lg,
+          gap: spacing.xl,
         }}
       >
-        <View style={[styles.widgets, { gap: spacing.md }]}>
-          <LockCirclePreview scheme="dark" />
-          <LockRectanglePreview name={upToDate.name} status={upToDate.status} scheme="dark" />
+        <View style={[styles.centered, styles.center, { gap: spacing.xs }]}>
+          <LumenMark size={14} color={wallpaper.text} />
+          <AppText variant="subheadline" style={[styles.strong, { color: wallpaper.text }]}>
+            {inline}
+          </AppText>
+        </View>
+        <View style={[styles.centered, { gap: spacing.lg }]}>
+          <LockCirclePreview />
+          <LockRectanglePreview name={upToDate.name} status={upToDate.status} />
         </View>
         <View
           accessible
           accessibilityLabel={t('lockScreen.timer')}
           style={{
-            backgroundColor: wallpaper.bg,
-            borderRadius: radius.sheet,
+            backgroundColor: wallpaper.surface,
+            borderRadius: radius.sheet - 2,
             padding: spacing.lg,
-            gap: spacing.sm,
+            gap: spacing.md,
           }}
         >
-          <View style={styles.spread}>
-            <View style={[styles.centered, { gap: spacing.sm }]}>
-              <LumenMark size={30} color={wallpaper.accentFill} />
-              <AppText variant="headline" style={{ color: wallpaper.text }}>
-                {lockText['live.standing.title']}
-              </AppText>
-            </View>
-            <AppText variant="caption" style={{ color: wallpaper.textDim }}>
+          <View style={[styles.centered, { gap: spacing.xs }]}>
+            <LumenMark size={20} color={wallpaper.accent} />
+            <AppText variant="headline" style={[styles.grow, { color: wallpaper.text }]}>
+              {lockText['live.standing.title']}
+            </AppText>
+            <AppText variant="subheadline" style={{ color: wallpaper.textDim }}>
               {t('lockScreen.step', { step: SAMPLE_STEP, total: SAMPLE_STEPS })}
             </AppText>
           </View>
           <View style={styles.spread}>
-            <AppText style={{ color: wallpaper.text }}>{nextReading}</AppText>
-            <AppText variant="display" style={{ color: wallpaper.accent }}>
+            <AppText variant="subheadline" style={{ color: wallpaper.text }}>
+              {nextReading}
+            </AppText>
+            <AppText variant="vitalM" style={{ color: wallpaper.accent }}>
               {SAMPLE_COUNTDOWN}
             </AppText>
           </View>
@@ -79,7 +86,7 @@ export default function LockScreenPreviewScreen() {
                 width: `${SAMPLE_PROGRESS * 100}%`,
                 height: '100%',
                 borderRadius: radius.pill,
-                backgroundColor: wallpaper.accentFill,
+                backgroundColor: wallpaper.accent,
               }}
             />
           </View>
@@ -90,25 +97,32 @@ export default function LockScreenPreviewScreen() {
         <View
           accessible
           accessibilityLabel={t('lockScreen.reminder')}
-          style={{
-            backgroundColor: notificationCard.surface3,
-            borderRadius: radius.card,
-            padding: spacing.lg,
-            gap: spacing.xs,
-          }}
+          style={[
+            styles.centered,
+            {
+              backgroundColor: notificationCard.surface,
+              borderRadius: radius.sheet - 2,
+              padding: spacing.md,
+              gap: spacing.md,
+            },
+          ]}
         >
-          <View style={styles.spread}>
-            <View style={[styles.centered, { gap: spacing.sm }]}>
-              <LumenMark size={26} color={notificationCard.accent} />
-              <AppText variant="caption" style={{ color: notificationCard.text, fontWeight: '700' }}>
-                {t('app.name').toUpperCase()}
+          <View style={[styles.appIcon, { backgroundColor: notificationCard.accentTint }]}>
+            <LumenMark size={28} color={notificationCard.accent} />
+          </View>
+          <View style={styles.grow}>
+            <View style={styles.spread}>
+              <AppText variant="subheadline" style={[styles.strong, { color: notificationCard.text }]}>
+                {t('app.name')}
+              </AppText>
+              <AppText variant="caption" style={{ color: notificationCard.textDim }}>
+                {t('lockScreen.now')}
               </AppText>
             </View>
-            <AppText variant="caption" style={{ color: notificationCard.textDim }}>
-              {t('lockScreen.now')}
+            <AppText variant="subheadline" style={{ color: notificationCard.text }}>
+              {lockText['notif.confirm']}
             </AppText>
           </View>
-          <AppText style={{ color: notificationCard.text }}>{lockText['notif.confirm']}</AppText>
         </View>
       </View>
     </RouteShell>
@@ -116,8 +130,11 @@ export default function LockScreenPreviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  widgets: { flexDirection: 'row', justifyContent: 'center' },
-  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   centered: { flexDirection: 'row', alignItems: 'center' },
-  track: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  center: { justifyContent: 'center' },
+  grow: { flex: 1 },
+  strong: { fontWeight: '600' },
+  track: { height: BAR_HEIGHT, borderRadius: BAR_HEIGHT / 2, overflow: 'hidden' },
+  appIcon: { width: 38, height: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
 });

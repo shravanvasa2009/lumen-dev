@@ -21,8 +21,11 @@ export default function DiabetesResultScreen() {
   // An id with no saved reading shows no score, as the Results and Why screens do.
   if (reading === null) return <RouteShell title={t('results.title')} subtitle={t('result.inconclusive')} />;
   return (
-    <RouteShell title={t('dr.rowTitle')}>
+    <RouteShell title="">
       <View style={{ gap: spacing.xl }}>
+        <AppText variant="display" accessibilityRole="header">
+          {t('dr.rowTitle')}
+        </AppText>
         {reading.sample ? <AppText tone="textDim">{t('dr.demoRow')}</AppText> : <DiabetesRiskCard />}
         {showsPulseExtra(reading) ? <DiabetesCheckCard /> : null}
         {reading.mode !== 'full' ? (

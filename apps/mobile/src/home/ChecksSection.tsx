@@ -1,13 +1,14 @@
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
 
+import { Card } from '@/components/Card';
+import { Icon, type IconName } from '@/components/Icon';
+import { ListRow } from '@/components/ListRow';
 import { evidenceFor } from '@/evidence';
 import { isLowQuality } from '@/results/quality';
 import { rhythmClassWords } from '@/results/rhythmWords';
 import { useTheme } from '@/theme';
 
-import { CheckCard } from './CheckCard';
 import { DIABETES_DAYS_NEEDED, diabetesProgress, latestRhythm, latestRmssd } from './findings';
 import { readingMoment } from './moment';
 import type { StoredReading } from './readings';
@@ -15,13 +16,12 @@ import type { StoredReading } from './readings';
 const FULL_SCAN = '/measure/precheck?mode=full';
 const STANDING_TEST = '/measure/standing-test';
 
-type ChecksSectionProps = { readings: readonly StoredReading[]; now: Date; compact: boolean };
+type ChecksSectionProps = { readings: readonly StoredReading[]; now: Date };
 
 // Every line comes from a saved reading. A check with no saved result says so instead of guessing.
-export function ChecksSection({ readings, now, compact }: ChecksSectionProps) {
+export function ChecksSection({ readings, now }: ChecksSectionProps) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
-  const { spacing } = useTheme();
   const noReadings = t('home.noReadings');
   const whenOf = (reading: StoredReading) => {
     const moment = readingMoment(reading.takenAt, now, i18n.language);
@@ -47,12 +47,10 @@ export function ChecksSection({ readings, now, compact }: ChecksSectionProps) {
           : t('checks.status.dmProgress', { count: days, total: DIABETES_DAYS_NEEDED });
 
   return (
-    <View style={{ gap: compact ? 2 : spacing.xs }}>
-      <CheckCard
-        compact={compact}
+    <Card flush>
+      <CheckRow
         icon="pulse"
         name={t('checks.afib.name')}
-        evidence="rhythm"
         finding={
           rhythm
             ? t('checks.status.withWhen', {
@@ -61,14 +59,11 @@ export function ChecksSection({ readings, now, compact }: ChecksSectionProps) {
               })
             : noReadings
         }
-        onOpenFinding={rhythm ? openReading(rhythm.reading) : undefined}
-        onScan={() => router.push(FULL_SCAN)}
+        onPress={rhythm ? openReading(rhythm.reading) : () => router.push(FULL_SCAN)}
       />
-      <CheckCard
-        compact={compact}
+      <CheckRow
         icon="bars"
         name={t('checks.hrv.name')}
-        evidence="hrv"
         finding={
           rmssd
             ? band
@@ -80,25 +75,37 @@ export function ChecksSection({ readings, now, compact }: ChecksSectionProps) {
               : t('checks.status.hrv', { value: hrvValue })
             : noReadings
         }
-        onOpenFinding={rmssd ? openReading(rmssd.reading) : undefined}
-        onScan={() => router.push(FULL_SCAN)}
+        onPress={rmssd ? () => router.push('/trends') : () => router.push(FULL_SCAN)}
       />
-      <CheckCard
-        compact={compact}
+      <CheckRow
         icon="drop"
         name={t('checks.diabetes.name')}
-        evidence="diabetes"
         finding={diabetesFinding}
-        onOpenFinding={diabetes ? openReading(diabetes.reading) : undefined}
-        onScan={() => router.push(FULL_SCAN)}
+        onPress={diabetes ? openReading(diabetes.reading) : () => router.push(FULL_SCAN)}
       />
-      <CheckCard
-        compact={compact}
+      <CheckRow
         icon="standing"
         name={t('checks.pots.name')}
         finding={t('checks.status.potsNone')}
-        onScan={() => router.push(STANDING_TEST)}
+        onPress={() => router.push(STANDING_TEST)}
+        last
       />
-    </View>
+    </Card>
+  );
+}
+
+type CheckRowProps = { icon: IconName; name: string; finding: string; onPress: () => void; last?: boolean };
+
+function CheckRow({ icon, name, finding, onPress, last }: CheckRowProps) {
+  const { colors } = useTheme();
+  return (
+    <ListRow
+      title={name}
+      subtitle={finding}
+      leading={<Icon name={icon} size={22} color={colors.accent} />}
+      chevron
+      last={last}
+      onPress={onPress}
+    />
   );
 }

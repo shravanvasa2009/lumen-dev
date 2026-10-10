@@ -15,13 +15,15 @@ const BAND_HALF_HEIGHT_BPM = 3;
 type HeartRateChartProps = {
   points: readonly ChartPoint[];
   baseline: number | null;
+  thresholdBpm: number | null;
   label: string;
   lyingLabel: string;
   nowLabel: string;
+  thresholdLabel: string;
 };
 
-function yAxis(points: readonly ChartPoint[]) {
-  const bpms = points.map(({ bpm }) => bpm);
+function yAxis(points: readonly ChartPoint[], lineBpm: number | null) {
+  const bpms = [...points.map(({ bpm }) => bpm), ...(lineBpm === null ? [] : [lineBpm])];
   const low = Math.floor((Math.min(...bpms) - 5) / 10) * 10;
   const high = Math.ceil((Math.max(...bpms) + 5) / 10) * 10;
   const ticks = Array.from({ length: TICK_COUNT }, (_, i) =>
@@ -30,10 +32,20 @@ function yAxis(points: readonly ChartPoint[]) {
   return { low, high, ticks };
 }
 
-export function HeartRateChart({ points, baseline, label, lyingLabel, nowLabel }: HeartRateChartProps) {
+export function HeartRateChart({
+  points,
+  baseline,
+  thresholdBpm,
+  label,
+  lyingLabel,
+  nowLabel,
+  thresholdLabel,
+}: HeartRateChartProps) {
   const { colors } = useTheme();
   const hasData = points.length > 0;
-  const { low, high, ticks } = hasData ? yAxis(points) : { low: 0, high: 1, ticks: [] };
+  // The line sits at the core's rise threshold for this person's age, so it is where the flag fires.
+  const lineBpm = baseline === null || thresholdBpm === null ? null : baseline + thresholdBpm;
+  const { low, high, ticks } = hasData ? yAxis(points, lineBpm) : { low: 0, high: 1, ticks: [] };
   const firstMinute = points[0]?.minute ?? 0;
   const lastMinute = Math.max(points.at(-1)?.minute ?? 0, firstMinute + 1);
 
@@ -75,6 +87,28 @@ export function HeartRateChart({ points, baseline, label, lyingLabel, nowLabel }
           {tick}
         </SvgText>
       ))}
+      {lineBpm === null ? null : (
+        <>
+          <Line
+            x1={PLOT.left}
+            x2={PLOT.right}
+            y1={yAt(lineBpm)}
+            y2={yAt(lineBpm)}
+            stroke={colors.alertFill}
+            strokeWidth={1.5}
+            strokeDasharray="5 4"
+          />
+          <SvgText
+            x={PLOT.right}
+            y={yAt(lineBpm) - 5}
+            fill={colors.alertText}
+            fontSize={LABEL_SIZE}
+            textAnchor="end"
+          >
+            {thresholdLabel}
+          </SvgText>
+        </>
+      )}
       {points.length > 1 ? (
         <Polyline
           points={points.map(({ minute, bpm }) => `${xAt(minute)},${yAt(bpm)}`).join(' ')}

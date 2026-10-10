@@ -1,4 +1,4 @@
-import { renderRouter, screen } from 'expo-router/testing-library';
+import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
@@ -53,8 +53,24 @@ describe('phone check', () => {
     expect(screen.getByText('2')).toBeOnTheScreen();
     expect(screen.getByText(en['phoneCheck.timingLater'])).toBeOnTheScreen();
     expect(screen.queryByText(en['phoneCheck.probeUnavailable'])).not.toBeOnTheScreen();
-    // One tick each for frame rate, flashlight and lenses; exposure lock is 2 of 3 and timing is pending.
-    expect(screen.root.findAll((node) => String(node.type) === 'RNSVGSvgView')).toHaveLength(3);
+    // 60 fps earns 24 of 30; exposure and white balance lock earn 6 + 5 of the 15 lock points.
+    expect(screen.getByText('24/30')).toBeOnTheScreen();
+    expect(screen.getByText('11/15')).toBeOnTheScreen();
+    expect(screen.getByText('-/20')).toBeOnTheScreen();
+    expect(screen.getByText('35')).toBeOnTheScreen();
+    expect(
+      screen.getByText(en['phoneCheck.progressSettled'].replace('{{done}}', '4').replace('{{total}}', '5')),
+    ).toBeOnTheScreen();
+    expect(screen.getAllByRole('image', { name: en['phoneCheck.passed'] })).toHaveLength(3);
+  });
+
+  it('checks again from the link under Next', async () => {
+    mockGetCapabilities.mockResolvedValue(probedPhone);
+    renderRouter('./app', { initialUrl: '/phone-check' });
+    await screen.findByText('60 fps');
+    fireEvent.press(screen.getByRole('button', { name: en['phoneCheck.recheck'] }));
+    expect(await screen.findByText('60 fps')).toBeOnTheScreen();
+    expect(mockGetCapabilities).toHaveBeenCalledTimes(2);
   });
 
   it('shows Checking while the probe is still running', () => {

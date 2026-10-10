@@ -109,7 +109,7 @@ describe('Doctor report content', () => {
 
   it('shows Experimental and "Not yet tested" with no evidence file, and no accuracy figures (EVID-1)', () => {
     openReport('demo');
-    expect(screen.getByText(/^Evidence: Heart rate: Experimental\. Not yet tested\./)).toBeOnTheScreen();
+    expect(screen.getByText(/^Heart rate: Experimental\. Not yet tested\./)).toBeOnTheScreen();
     expect(screen.getByText(/Rhythm check: Experimental\. Not yet tested\./)).toBeOnTheScreen();
     expect(readableText()).not.toMatch(/\d+(\.\d+)?%|Average error|Sensitivity|AUROC/);
   });

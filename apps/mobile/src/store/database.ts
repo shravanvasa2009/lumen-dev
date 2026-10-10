@@ -3,7 +3,7 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 const DATABASE_NAME = 'lumen.db';
 
 // Bump when a table changes, and add the step that gets a version-N database to N+1 to `migrate`.
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 // Appendix B, "SQLite tables (on the phone)".
 const SCHEMA_V1 = `
@@ -19,15 +19,20 @@ CREATE TABLE device_rating (id INTEGER PRIMARY KEY, tested_at INTEGER, os_versio
   app_version TEXT, score INTEGER, tier TEXT, components_json TEXT, lens_id TEXT);
 `;
 
+// Version 2 (ADR 0106): each reading keeps its accepted beat-to-beat intervals (§9.4 saves beat annotations)
+// for the rhythm charts. Readings saved before it have NULL there and show no chart.
+const SCHEMA_V2_STEP = 'ALTER TABLE readings ADD COLUMN intervals_json TEXT';
+
 async function migrate(database: SQLiteDatabase): Promise<void> {
   const found = (await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version'))?.user_version;
   if (found === undefined) throw new Error('SQLite did not report a schema version');
   // A newer build wrote this file; opening it with older table definitions could lose its data.
   if (found > SCHEMA_VERSION)
     throw new Error(`the stored data is schema version ${found}, newer than this app's ${SCHEMA_VERSION}`);
-  if (found < 1)
+  if (found < SCHEMA_VERSION)
     await database.withTransactionAsync(async () => {
-      await database.execAsync(SCHEMA_V1);
+      if (found < 1) await database.execAsync(SCHEMA_V1);
+      if (found < 2) await database.execAsync(SCHEMA_V2_STEP);
       await database.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
     });
 }

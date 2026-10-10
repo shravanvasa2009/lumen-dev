@@ -64,11 +64,19 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
   ).then(async (analysed): Promise<Finished> => {
     // Only a refusal has a kind; an analysed reading is told apart by lacking one.
     if ('kind' in analysed) return { kind: 'inconclusive', outcome: analysed };
-    const { readingId, recordedMs, context, models, reading, progress, urgent } = analysed;
+    const { readingId, recordedMs, context, models, reading, intervalsMs, progress, urgent } = analysed;
     // §8.5: a Demo reading is shown from memory and never reaches the readings table.
     if (capture.demo)
       return { kind: 'reading', readingId: keepDemoReading(analysed, mode), progress, urgent };
-    await saveReading({ id: readingId, createdAt: recordedMs, mode, context, results: reading, models });
+    await saveReading({
+      id: readingId,
+      createdAt: recordedMs,
+      mode,
+      context,
+      results: reading,
+      models,
+      intervalsMs,
+    });
     // Spec §9.6: the widgets show the new reading. They publish after the reminders are re-planned, so the
     // widget's next check time is current. The reading is already saved, so a failed widget write is reported
     // and the result screen still opens; the widget keeps its previous snapshot.

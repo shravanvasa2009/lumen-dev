@@ -60,13 +60,20 @@ const routes: readonly Route[] = [
   { file: 'measure/capture', url: '/measure/capture?mode=quick', title: 'mode.quick', place: 'body' },
   { file: 'measure/processing', url: '/measure/processing', title: 'processing.title', place: 'body' },
   { file: 'results/[id]/index', url: '/results/demo', title: 'results.title', place: 'nav' },
-  { file: 'results/[id]/diabetes', url: '/results/demo/diabetes', title: 'dr.rowTitle', place: 'nav' },
+  { file: 'results/[id]/diabetes', url: '/results/demo/diabetes', title: 'dr.rowTitle', place: 'body' },
   { file: 'results/[id]/why', url: '/results/demo/why', title: 'why.titleRegular', place: 'body' },
+  { file: 'results/[id]/beats', url: '/results/demo/beats', title: 'why.beatByBeat', place: 'nav' },
+  {
+    file: 'results/[id]/extra-beats',
+    url: '/results/demo/extra-beats',
+    title: 'why.extraBeats',
+    place: 'nav',
+  },
   { file: 'measure/inconclusive', url: '/measure/inconclusive', title: 'result.inconclusive', place: 'body' },
   { file: 'emergency', url: '/emergency', title: 'emergency.title', place: 'body' },
   { file: 'measure/standing-test', url: '/measure/standing-test', title: 'standing.title', place: 'body' },
   { file: 'report/[id]', url: '/report/demo', title: 'report.title', place: 'nav' },
-  { file: 'learn/[slug]', url: '/learn/what-is-afib', title: 'learn.lessonAfib', place: 'nav' },
+  { file: 'learn/[slug]', url: '/learn/what-is-afib', title: 'learn.guideTitle', place: 'nav' },
   { file: 'settings/phone', url: '/settings/phone', title: 'phoneRating.title', place: 'nav' },
   { file: 'settings/profile', url: '/settings/profile', title: 'profile.settingsTitle', place: 'nav' },
   { file: 'settings/lab', url: '/settings/lab', title: 'lab.title', place: 'nav' },
@@ -139,8 +146,8 @@ describe('route list', () => {
     );
   });
 
-  it('lists the 34 screens of the inventory, the Care tab, the two question screens and the diabetes result (ADRs 0054, 0065, 0090)', () => {
-    expect(routes).toHaveLength(38);
+  it('lists the 34 screens of the inventory, the Care tab, the two question screens and the diabetes result and the two Why pages (ADRs 0054, 0065, 0090)', () => {
+    expect(routes).toHaveLength(40);
   });
 });
 
@@ -303,13 +310,13 @@ describe('navigation', () => {
     pressThrough([['common.continue', 'profile.title']]);
     fireEvent.changeText(await screen.findByLabelText(en['profile.age']), '42');
     // Next stores the basics before it opens the second question set.
-    fireEvent.press(screen.getByRole('button', { name: en['common.next'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['common.continue'] }));
     expect(await screen.findByRole('header', { name: en['dr.title'] })).toBeOnTheScreen();
     pressThrough([
       ['common.continue', 'phoneCheck.title'],
       ['phoneCheck.next', 'placement.title'],
       ['placement.start', 'practice.title'],
-      ['common.continue', 'howToSit.title'],
+      ['practice.skip', 'howToSit.title'],
       ['common.continue', 'rating.title'],
       ['common.continue', 'reminders.title'],
     ]);
@@ -323,6 +330,7 @@ describe('navigation', () => {
     await screen.findByRole('button', { name: en['home.measure'] });
     pressThrough([['home.measure', 'mode.title']]);
     fireEvent.press(screen.getByText(en['mode.quick']));
+    fireEvent.press(screen.getByRole('button', { name: `Continue with ${en['mode.quick']}` }));
     expectTitleOnScreen('precheck.title');
     fireEvent.press(screen.getByRole('button', { name: en['precheck.start'] }));
     expectTitleOnScreen('mode.quick');
@@ -338,7 +346,7 @@ describe('navigation', () => {
   });
 
   it('opens the report from results', () => {
-    followButtons('/results/demo', [['results.share', 'report.title']]);
+    followButtons('/results/demo', [['results.doctorReport', 'report.title']]);
   });
 
   it('opens the explanation from results', () => {

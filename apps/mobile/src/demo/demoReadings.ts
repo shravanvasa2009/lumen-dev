@@ -15,7 +15,7 @@ export function keepDemoReading(analysed: AnalysedReading, mode: MeasureMode): s
     sample: true,
     synthetic: true,
     scan: analysed.reading,
-    intervalsMs: [],
+    intervalsMs: analysed.intervalsMs,
     repeat: null,
     diabetesDays: [],
   });

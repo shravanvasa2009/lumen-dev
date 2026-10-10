@@ -28,6 +28,12 @@ export function expectNavTitle(title: string) {
   expect(screen.queryByRole('header', { name: title })).toBeNull();
 }
 
+// A Learn chapter shows the guide's name in the bar and the chapter's own name as the page heading.
+export function expectChapterTitle(guideTitle: string, chapterTitle: string) {
+  expect(focusedNavHeader()).toMatchObject({ title: guideTitle });
+  expect(screen.getByRole('header', { name: chapterTitle })).toBeOnTheScreen();
+}
+
 // Form sheets mount as RNSModalScreen, not RNSScreen, so the sheet's own presentation props are read here.
 export function sheetScreenProps(): HostProps | null {
   return hostsOfType('RNSModalScreen', screen.toJSON()).at(-1)?.props ?? null;

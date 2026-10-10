@@ -1,13 +1,15 @@
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
-import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
+import { ListRow } from '@/components/ListRow';
+import { AppText } from '@/components/AppText';
 import { RouteShell } from '@/components/RouteShell';
 import { HomePreview } from '@/settings/HomePreview';
-import { setPreference, usePreferences } from '@/theme/preferences';
+import { IconTile } from '@/settings/IconTile';
 import { Segmented } from '@/settings/Segmented';
 import { useTheme } from '@/theme';
+import { setPreference, usePreferences } from '@/theme/preferences';
 
 export default function AppearanceScreen() {
   const { t } = useTranslation();
@@ -20,6 +22,7 @@ export default function AppearanceScreen() {
   return (
     <RouteShell title={t('appearance.title')}>
       <Segmented
+        label={t('appearance.title')}
         selected={appearance}
         onSelect={(choice) => setPreference('appearance', choice)}
         options={[
@@ -28,22 +31,35 @@ export default function AppearanceScreen() {
           { value: 'dark', label: t('appearance.dark') },
         ]}
       />
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xxl }}>
-        {previews
-          .filter(({ scheme }) => appearance === 'system' || appearance === scheme)
-          .map(({ scheme, caption }) => (
-            <HomePreview key={scheme} scheme={scheme} measureLabel={t('home.measure')} caption={caption} />
-          ))}
-      </View>
-      {appearance === 'system' ? (
-        <Card>
-          <AppText variant="headline">{t('appearance.following')}</AppText>
-          <AppText tone="textDim">{t('appearance.followingBody')}</AppText>
-        </Card>
-      ) : null}
-      <AppText variant="caption" tone="textDim">
-        {t('appearance.note')}
-      </AppText>
+      <Card>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xxxl - 4 }}>
+          {previews
+            .filter(({ scheme }) => appearance === 'system' || appearance === scheme)
+            .map(({ scheme, caption }) => (
+              <HomePreview key={scheme} scheme={scheme} measureLabel={t('home.measure')} caption={caption} />
+            ))}
+        </View>
+      </Card>
+      <Card flush>
+        {appearance === 'system' ? (
+          <ListRow
+            title={t('appearance.following')}
+            subtitle={t('appearance.followingBody')}
+            leading={<IconTile name="settings" />}
+          />
+        ) : null}
+        <ListRow
+          title={t('appearance.pdf')}
+          leading={<IconTile name="share" />}
+          trailing={<AppText tone="textDim">{t('appearance.pdfValue')}</AppText>}
+        />
+        <ListRow
+          title={t('appearance.emergency')}
+          subtitle={t('appearance.emergencyBody')}
+          leading={<IconTile name="warning" neutral />}
+          last
+        />
+      </Card>
     </RouteShell>
   );
 }

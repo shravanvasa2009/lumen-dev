@@ -130,7 +130,7 @@ beforeEach(() => {
 });
 
 describe('the rating from the probe and practice', () => {
-  it('shows the score and unlocked modes on the rating screen, and stores them', async () => {
+  it('shows the score and the checks it allows on the rating screen, and stores them', async () => {
     mockGetCapabilities.mockResolvedValue(sixtyFpsPhone);
     keepCapture(steadyPulse('main'));
     renderRouter('./app', { initialUrl: '/rating' });
@@ -140,12 +140,9 @@ describe('the rating from the probe and practice', () => {
     // 60 fps level 24 + coupling 35 (PI and SNR past their full-credit marks) + locks 15 + timing 20.
     expect(await screen.findByText('94')).toBeOnTheScreen();
     expect(screen.getByText(en['tier.full'])).toBeOnTheScreen();
-    expect(screen.getByText(en['ratingMode.deepHrv'])).toBeOnTheScreen();
-    expect(screen.getByText(en['ratingMode.fullScan'])).toBeOnTheScreen();
+    expect(screen.getByText(en['rating.phoneCheck'])).toBeOnTheScreen();
     expect(screen.getByText(en['rating.checksHere'])).toBeOnTheScreen();
-    expect(
-      screen.getByLabelText(`${en['checks.diabetes.name']}: ${en['checks.diabetes.what']}`),
-    ).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.diabetes.what'])).toBeOnTheScreen();
     expect(screen.queryByText(en['mode.locked60fps'])).toBeNull();
 
     const stored = await loadDeviceRating();
@@ -177,6 +174,21 @@ describe('the rating from the probe and practice', () => {
     expect(screen.getByLabelText('94, Full')).toBeOnTheScreen();
     expect(screen.getAllByTestId('rating-bar')).toHaveLength(4);
     expect(screen.queryByTestId('not-tested-tile')).toBeNull();
+  });
+
+  it('shows what the rating unlocks and what it keeps locked on Your phone', async () => {
+    await storeRating(sixtyFpsPhone, practiceOf(60));
+    renderRouter('./app', { initialUrl: '/settings/phone' });
+    expect(await screen.findByLabelText(en['ratingMode.deepHrv'])).toBeOnTheScreen();
+    expect(screen.queryByLabelText(`${en['ratingMode.deepHrv']}, ${en['phoneRating.locked']}`)).toBeNull();
+  });
+
+  it('marks a mode locked on Your phone when the rating does not open it', async () => {
+    await storeRating(thirtyFpsPhone, practiceOf(30));
+    renderRouter('./app', { initialUrl: '/settings/phone' });
+    expect(
+      await screen.findByLabelText(`${en['ratingMode.deepHrv']}, ${en['phoneRating.locked']}`),
+    ).toBeOnTheScreen();
   });
 
   it('writes the perfusion index and the jitter with a decimal comma in Spanish', async () => {
@@ -307,7 +319,6 @@ describe('the rating from the probe and practice', () => {
     expect(await screen.findByText(en['rating.failScore'])).toBeOnTheScreen();
     expect(screen.getByText(en['rating.demoOffer'])).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: en['welcome.tryDemo'] })).toBeOnTheScreen();
-    expect(screen.queryByText(en['rating.unlocked'])).toBeNull();
   });
 
   it('leaves the rating open and stores nothing when the practice found no pulse', async () => {
@@ -352,21 +363,21 @@ describe('reading context tier', () => {
 describe('mode picker gating', () => {
   it('leaves every mode open for an unrated phone', async () => {
     renderRouter('./app', { initialUrl: '/measure/mode' });
-    expect(await screen.findByRole('button', { name: en['mode.full'] })).toBeEnabled();
+    expect(await screen.findByRole('radio', { name: en['mode.full'] })).toBeEnabled();
     expect(screen.queryByText(en['mode.lockedBasic'])).toBeNull();
-    expect(screen.queryByText(/rating —/)).toBeNull();
+    expect(screen.queryByText(/rating, /)).toBeNull();
   });
 
   it('keeps Basic phones off Deep HRV with the 60 fps reason, and shows the tier', async () => {
     await storeRating(thirtyFpsPhone, practiceOf(30));
     renderRouter('./app', { initialUrl: '/measure/mode' });
     expect(await screen.findByText(en['mode.locked60fps'])).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: en['mode.deep'] })).toBeDisabled();
-    expect(screen.getByRole('button', { name: en['mode.full'] })).toBeEnabled();
-    expect(screen.getByRole('button', { name: en['mode.standing'] })).toBeEnabled();
-    expect(screen.getByText('This phone · Basic rating — some modes are locked')).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: en['mode.deep'] })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: en['mode.full'] })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: en['mode.standing'] })).toBeEnabled();
+    expect(screen.getByText('This phone · Basic rating, some modes are locked')).toBeOnTheScreen();
     // Screen readers hear why the card is locked.
-    expect(screen.getByRole('button', { name: en['mode.deep'] }).props.accessibilityHint).toBe(
+    expect(screen.getByRole('radio', { name: en['mode.deep'] }).props.accessibilityHint).toBe(
       en['mode.locked60fps'],
     );
   });
@@ -385,25 +396,18 @@ describe('mode picker gating', () => {
   it('gives every locked check on a flash-less Limited phone the flash reason', async () => {
     await storeRating(noFlashPhone, { ...practiceOf(60), coupling: { perfusionIndexPct: 0.2, snrDb: 7 } });
     expect((await loadDeviceRating())?.tier).toBe('limited');
+    mockGetCapabilities.mockResolvedValue(noFlashPhone);
     renderRouter('./app', { initialUrl: '/rating' });
-    for (const name of [
-      'checks.hrv.name',
-      'checks.diabetes.name',
-      'checks.pots.name',
-      'checks.afib.name',
-    ] as const) {
-      expect(await screen.findByLabelText(`${en[name]}: ${en['mode.lockedFlash']}`)).toBeOnTheScreen();
-    }
+    expect(await screen.findAllByText(en['mode.lockedFlash'])).toHaveLength(4);
   });
 
   it('opens POTS on a Basic phone and gives HRV and Diabetes the 60 fps reason', async () => {
     await storeRating(thirtyFpsPhone, practiceOf(30));
+    mockGetCapabilities.mockResolvedValue(thirtyFpsPhone);
     renderRouter('./app', { initialUrl: '/rating' });
-    expect(
-      await screen.findByLabelText(`${en['checks.pots.name']}: ${en['checks.pots.whatShort']}`),
-    ).toBeOnTheScreen();
-    expect(screen.getByLabelText(`${en['checks.afib.name']}: ${en['checks.afib.what']}`)).toBeOnTheScreen();
-    expect(screen.getByLabelText(`${en['checks.hrv.name']}: ${en['mode.locked60fps']}`)).toBeOnTheScreen();
+    expect(await screen.findByText(en['checks.pots.whatShort'])).toBeOnTheScreen();
+    expect(screen.getByText(en['checks.afib.what'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['mode.locked60fps'])).toHaveLength(2);
   });
 
   it('gives a flash-less Limited phone the flash reason on every locked mode', async () => {
@@ -436,8 +440,8 @@ describe('mode picker gating', () => {
     renderRouter('./app', { initialUrl: '/measure/mode' });
     expect(await screen.findAllByText(en['mode.lockedFlash'])).toHaveLength(3);
     for (const key of ['mode.full', 'mode.deep', 'mode.standing'] as const)
-      expect(screen.getByRole('button', { name: en[key] })).toBeDisabled();
-    expect(screen.getByRole('button', { name: en['mode.quick'] })).toBeEnabled();
+      expect(screen.getByRole('radio', { name: en[key] })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: en['mode.quick'] })).toBeEnabled();
   });
 
   it('locks every mode on an unsupported phone', async () => {

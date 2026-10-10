@@ -135,7 +135,7 @@ describe('CaptureView', () => {
   it('asks for the finger to cover the flash when none is detected', () => {
     show({ status: { ...base.status!, fingerCovered: false } });
     expect(screen.getByText(en['capture.fingerMissing'])).toBeOnTheScreen();
-    expect(screen.getByText(en['placement.flashOutsideBump'])).toBeOnTheScreen();
+    expect(screen.getByText(en['placement.instructionGeneric'])).toBeOnTheScreen();
   });
 
   it('draws the pulse from the module samples', () => {
@@ -359,17 +359,17 @@ describe('CaptureView', () => {
       );
     });
 
-    it('tags a pending Diabetes Experimental from the evidence reader', () => {
+    it('shows a pending Diabetes without an Experimental tag', () => {
       show({ cleanSeconds: 20 }, 'full');
       const diabetes = within(item(en['checks.diabetes.name']));
-      expect(diabetes.getByText(en['evidence.experimental'])).toBeOnTheScreen();
+      expect(diabetes.queryByText(en['evidence.experimental'])).toBeNull();
     });
 
-    it('marks Diabetes ready at 90 clean seconds, still tagged Experimental', () => {
+    it('marks Diabetes ready at 90 clean seconds, without an Experimental tag', () => {
       show({ cleanSeconds: 90 }, 'full');
       const diabetes = within(item(en['checks.diabetes.name']));
       expect(diabetes.getByText(en['checks.state.ready'])).toBeOnTheScreen();
-      expect(diabetes.getByText(en['evidence.experimental'])).toBeOnTheScreen();
+      expect(diabetes.queryByText(en['evidence.experimental'])).toBeNull();
     });
 
     it('shows Diabetes as unavailable on a phone that cannot run it', () => {

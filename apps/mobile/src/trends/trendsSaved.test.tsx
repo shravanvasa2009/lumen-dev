@@ -50,6 +50,17 @@ describe('Trends from readings saved on this phone', () => {
     expect(screen.queryByText(en['trends.synthetic'])).toBeNull();
   });
 
+  it('shows a second Quick Check that is lower quality, marked, outside the median', async () => {
+    await saveTestReading(lastMonth(25), 62, { mode: 'quick' });
+    await saveTestReading(today, 95, { mode: 'quick', lowerQuality: true });
+    renderRouter('./app', { initialUrl: '/trends' });
+    expect(await screen.findByLabelText('Median: 62 bpm')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Heart rate chart, 2 readings')).toBeOnTheScreen();
+    expect(screen.getAllByRole('button', { name: /^(Today |[A-Z][a-z]{2} \d+, )/ })).toHaveLength(2);
+    expect(screen.getByHintText(en['quality.chipHint'])).toBeOnTheScreen();
+    expect(screen.getByText(en['trends.lowerLegend'])).toBeOnTheScreen();
+  });
+
   it('calls a reading from today "Today", counts the baseline from saved readings, and opens it', async () => {
     await saveTestReading(today, 70);
     renderRouter('./app', { initialUrl: '/trends' });
@@ -100,7 +111,20 @@ describe('historyFromStored', () => {
   it('leaves a lower-quality value out of the trend, its median and band (ADR 0104)', () => {
     const low = makeReading(lastMonth(25), 61, 40);
     low.outcome.metrics.hr!.quality = 'low';
-    expect(historyFromStored([low])[0]).toMatchObject({ hr: null, rmssd: 40 });
+    expect(historyFromStored([low])[0]).toMatchObject({
+      hr: null,
+      rmssd: 40,
+      lowerQuality: { hr: 61, rmssd: null, resp: null },
+    });
+  });
+
+  it("gives each lower-quality value its own metric's reasons, as Results does", () => {
+    const low = makeReading(lastMonth(25), 61, 40);
+    const short = { kind: 'shortClean', haveS: 20, wantS: 30 } as const;
+    low.outcome.metrics.hr!.quality = 'low';
+    low.outcome.metrics.hr!.qualityDetails = [short];
+    low.outcome.quality = { level: 'low', reasons: [short, { kind: 'quickMode' }] };
+    expect(historyFromStored([low])[0]?.lowerReasons).toEqual({ hr: [short], rmssd: [], resp: [] });
   });
 
   it('keeps a flagged lower-quality rhythm, marked, and leaves a lower-quality one without a flag out', () => {

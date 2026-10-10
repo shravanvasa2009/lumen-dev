@@ -1182,6 +1182,7 @@
   "trends.unitBreaths": "breaths/min",
   "trends.dateSpan": "{{from}} to {{to}}",
   "trends.bandLine": "Your band {{low}} to {{high}} {{unit}} · {{count}} readings",
+  "trends.lowerLegend": "Hollow points are lower-quality readings. They stay out of the median and your band.",
   "trends.recent": "Recent",
   "trends.rhythmTitle": "Rhythm over time",
   "trends.rhythmHint": "Each dot is one beat compared with the next. Tap a map to see why.",

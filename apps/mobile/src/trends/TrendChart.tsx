@@ -19,6 +19,8 @@ const cupSize = 12;
 
 type TrendChartProps = {
   points: readonly TrendPoint[];
+  // Lower-quality readings: hollow, off the line, and outside the band.
+  lowerPoints: readonly TrendPoint[];
   band: Band | null;
   label: string;
   firstLabel: string;
@@ -26,19 +28,29 @@ type TrendChartProps = {
   lastLabel: string;
 };
 
-export function TrendChart({ points, band, label, firstLabel, middleLabel, lastLabel }: TrendChartProps) {
+export function TrendChart({
+  points,
+  lowerPoints,
+  band,
+  label,
+  firstLabel,
+  middleLabel,
+  lastLabel,
+}: TrendChartProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const usualRangeLabel = t('trends.usualRange');
-  const values = points.map((point) => point.value);
+  const every = [...points, ...lowerPoints];
+  const values = every.map((point) => point.value);
   const { low, high, step } = chartAxis(band ? [...values, band.low, band.high] : values);
   const gridValues = Array.from(
     { length: Math.round((high - low) / step) + 1 },
     (_, index) => low + index * step,
   );
   const yFor = (value: number) => top + ((high - value) / (high - low)) * (height - top - bottom);
-  const startMs = points[0]?.createdAt.getTime() ?? 0;
-  const spanMs = (points[points.length - 1]?.createdAt.getTime() ?? 0) - startMs;
+  const times = every.map((point) => point.createdAt.getTime());
+  const startMs = Math.min(...times);
+  const spanMs = Math.max(...times) - startMs;
   // One reading, or several in the same instant, sit in the middle rather than against the axis.
   const xFor = (point: TrendPoint) =>
     spanMs === 0
@@ -108,6 +120,17 @@ export function TrendChart({ points, band, label, firstLabel, middleLabel, lastL
           r={3}
           fill={colors.accent}
           stroke={colors.surface}
+          strokeWidth={1.5}
+        />
+      ))}
+      {lowerPoints.map((point) => (
+        <Circle
+          key={point.id}
+          cx={xFor(point)}
+          cy={yFor(point.value)}
+          r={3.5}
+          fill={colors.surface}
+          stroke={colors.textDim}
           strokeWidth={1.5}
         />
       ))}

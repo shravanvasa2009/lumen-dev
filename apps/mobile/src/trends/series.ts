@@ -1,4 +1,4 @@
-import type { RhythmClass } from '@lumen/core';
+import type { QualityReason, RhythmClass } from '@lumen/core';
 
 import type { MeasureMode } from '@/measure/mode';
 
@@ -14,6 +14,15 @@ export type HistoryReading = {
   rmssd: number | null;
   resp: number | null;
   rhythm: RhythmClass | null;
+  // Values tagged lower quality (ADR 0104 addendum, 2026-10-10): every saved reading shows, so these are drawn
+  // hollow and tagged, and stay out of the median, band, and baseline count.
+  lowerQuality: { hr: number | null; rmssd: number | null; resp: number | null };
+  // Why each metric is lower quality, for the tag's sheet (that metric's own reasons, as on Results); [] when not.
+  lowerReasons: {
+    hr: readonly QualityReason[];
+    rmssd: readonly QualityReason[];
+    resp: readonly QualityReason[];
+  };
   // A flagged rhythm from a lower-quality reading (ADR 0104): kept apart from `rhythm` so it is always drawn
   // with its marker, and never feeds a median or band.
   flaggedLowRhythm: RhythmClass | null;
@@ -35,12 +44,16 @@ export type TrendPoint = {
   value: number;
   caffeine: boolean;
   rhythm: RhythmClass | null;
+  reasons: readonly QualityReason[];
 };
 
 type FlaggedLowRhythm = { id: string; createdAt: Date; rhythm: RhythmClass };
 
 export type TrendSeries = {
   points: readonly TrendPoint[];
+  // Lower-quality values in the range: drawn hollow and listed with a tag, outside the median, band, and
+  // baseline count (ADR 0104 addendum).
+  lowerPoints: readonly TrendPoint[];
   // Lower-quality flagged rhythms in the range, whether or not the reading has a value for this metric: Trends
   // must not hide a flag the other surfaces show.
   flaggedLowRhythms: readonly FlaggedLowRhythm[];
@@ -58,6 +71,11 @@ function valueOf(reading: HistoryReading, metric: TrendMetric): number | null {
   return { hr: reading.hr, hrv: reading.rmssd, resp: reading.resp }[metric];
 }
 
+function lowerValueOf(reading: HistoryReading, metric: TrendMetric): number | null {
+  const { hr, rmssd, resp } = reading.lowerQuality;
+  return { hr, hrv: rmssd, resp }[metric];
+}
+
 // The chart and median use the readings inside the range. The personal band and the learning count use
 // the user's whole history of the metric, because §7 ties the baseline to the first 7 readings, not to
 // the range button.
@@ -72,15 +90,18 @@ export function trendSeries(
     const value = valueOf(reading, metric);
     return value === null ? [] : [value];
   });
-  const points = readings
-    .flatMap((reading) => {
-      const value = valueOf(reading, metric);
-      const when = reading.createdAt.getTime();
-      if (value === null || when < since || when > now.getTime()) return [];
-      const { id, createdAt, caffeine, rhythm } = reading;
-      return [{ id, createdAt, value, caffeine, rhythm }];
-    })
-    .sort((first, second) => first.createdAt.getTime() - second.createdAt.getTime());
+  const inRange = (valueFor: (reading: HistoryReading, metric: TrendMetric) => number | null) =>
+    readings
+      .flatMap((reading) => {
+        const value = valueFor(reading, metric);
+        const when = reading.createdAt.getTime();
+        if (value === null || when < since || when > now.getTime()) return [];
+        const { id, createdAt, caffeine, rhythm, lowerReasons } = reading;
+        const reasons = { hr: lowerReasons.hr, hrv: lowerReasons.rmssd, resp: lowerReasons.resp }[metric];
+        return [{ id, createdAt, value, caffeine, rhythm, reasons }];
+      })
+      .sort((first, second) => first.createdAt.getTime() - second.createdAt.getTime());
+  const points = inRange(valueOf);
   const flaggedLowRhythms = readings.flatMap(({ id, createdAt, flaggedLowRhythm }) =>
     flaggedLowRhythm !== null && createdAt.getTime() >= since && createdAt.getTime() <= now.getTime()
       ? [{ id, createdAt, rhythm: flaggedLowRhythm }]
@@ -88,6 +109,7 @@ export function trendSeries(
   );
   return {
     points,
+    lowerPoints: inRange(lowerValueOf),
     flaggedLowRhythms,
     median: median(points.map((point) => point.value)),
     band: personalBand(everyValue),

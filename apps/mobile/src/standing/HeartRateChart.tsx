@@ -22,7 +22,7 @@ type HeartRateChartProps = {
 };
 
 // The line sits this far above the lying rate: the heart-rate part of the POTS criteria.
-export const RISE_THRESHOLD_BPM = 30;
+const RISE_THRESHOLD_BPM = 30;
 
 function yAxis(points: readonly ChartPoint[], baseline: number | null) {
   const bpms = [

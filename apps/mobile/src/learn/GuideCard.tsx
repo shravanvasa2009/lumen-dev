@@ -18,7 +18,7 @@ const BAR_HEIGHT = 4;
 const PAGE_OFFSET = 5;
 
 // The chapter to carry on with: the first one not read to the end, or the first one when all are done.
-export function continueIndex(progress: ReadProgress): number {
+function continueIndex(progress: ReadProgress): number {
   const unfinished = lessons.findIndex((lesson) => (progress[lesson.slug] ?? 0) < 100);
   return unfinished === -1 ? 0 : unfinished;
 }

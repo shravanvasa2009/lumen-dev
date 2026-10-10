@@ -51,7 +51,7 @@ const SHAPES = {
   },
 } satisfies Record<string, Shape>;
 
-export type DialSize = keyof typeof SHAPES;
+type DialSize = keyof typeof SHAPES;
 
 type TickedDialProps = {
   size: DialSize;

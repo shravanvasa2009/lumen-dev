@@ -2,7 +2,7 @@ import type { TFunction } from 'i18next';
 
 type LessonTone = 'accent' | 'flag' | 'public';
 
-export type LessonSection = {
+type LessonSection = {
   heading: (t: TFunction) => string;
   body: (t: TFunction) => string;
   // Short causes shown as chips under the body, with a small label above them when one is given.
@@ -16,7 +16,7 @@ export type LessonQuestion = {
 };
 
 // A chapter's words: its sections, a takeaway and one quick-check question. Its chapter view lays them out.
-export type LessonTemplate = {
+type LessonTemplate = {
   sections: readonly LessonSection[];
   takeaway: (t: TFunction) => string;
   question: LessonQuestion;

@@ -13,7 +13,7 @@ function reading(day: number, hr: number | null, rmssd: number | null = null): H
     rhythm: 'sinus',
     flaggedLowRhythm: null,
     lowerQuality: { hr: null, rmssd: null, resp: null },
-    lowerReasons: [],
+    lowerReasons: { hr: [], rmssd: [], resp: [] },
     caffeine: false,
     intervalsMs: [],
   };
@@ -155,7 +155,7 @@ describe('flagged lower-quality rhythms', () => {
     resp: null,
     rhythm: null,
     lowerQuality: { hr: null, rmssd: null, resp: null },
-    lowerReasons: [],
+    lowerReasons: { hr: [], rmssd: [], resp: [] },
     caffeine: false,
     intervalsMs: [],
   };

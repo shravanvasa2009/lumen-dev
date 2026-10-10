@@ -118,6 +118,15 @@ describe('historyFromStored', () => {
     });
   });
 
+  it("gives each lower-quality value its own metric's reasons, as Results does", () => {
+    const low = makeReading(lastMonth(25), 61, 40);
+    const short = { kind: 'shortClean', haveS: 20, wantS: 30 } as const;
+    low.outcome.metrics.hr!.quality = 'low';
+    low.outcome.metrics.hr!.qualityDetails = [short];
+    low.outcome.quality = { level: 'low', reasons: [short, { kind: 'quickMode' }] };
+    expect(historyFromStored([low])[0]?.lowerReasons).toEqual({ hr: [short], rmssd: [], resp: [] });
+  });
+
   it('keeps a flagged lower-quality rhythm, marked, and leaves a lower-quality one without a flag out', () => {
     const flagged = makeReading(lastMonth(25), 61, 40);
     flagged.outcome.metrics.rhythm = lowRhythm('af', 'irregular');

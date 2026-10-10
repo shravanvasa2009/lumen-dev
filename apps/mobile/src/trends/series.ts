@@ -17,8 +17,12 @@ export type HistoryReading = {
   // Values tagged lower quality (ADR 0104 addendum, 2026-10-10): every saved reading shows, so these are drawn
   // hollow and tagged, and stay out of the median, band, and baseline count.
   lowerQuality: { hr: number | null; rmssd: number | null; resp: number | null };
-  // Why the reading is lower quality, for the tag's sheet; [] when it is not.
-  lowerReasons: readonly QualityReason[];
+  // Why each metric is lower quality, for the tag's sheet (that metric's own reasons, as on Results); [] when not.
+  lowerReasons: {
+    hr: readonly QualityReason[];
+    rmssd: readonly QualityReason[];
+    resp: readonly QualityReason[];
+  };
   // A flagged rhythm from a lower-quality reading (ADR 0104): kept apart from `rhythm` so it is always drawn
   // with its marker, and never feeds a median or band.
   flaggedLowRhythm: RhythmClass | null;
@@ -93,7 +97,8 @@ export function trendSeries(
         const when = reading.createdAt.getTime();
         if (value === null || when < since || when > now.getTime()) return [];
         const { id, createdAt, caffeine, rhythm, lowerReasons } = reading;
-        return [{ id, createdAt, value, caffeine, rhythm, reasons: lowerReasons }];
+        const reasons = { hr: lowerReasons.hr, hrv: lowerReasons.rmssd, resp: lowerReasons.resp }[metric];
+        return [{ id, createdAt, value, caffeine, rhythm, reasons }];
       })
       .sort((first, second) => first.createdAt.getTime() - second.createdAt.getTime());
   const points = inRange(valueOf);

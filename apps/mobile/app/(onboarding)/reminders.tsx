@@ -1,54 +1,40 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { OnboardingStep } from '@/components/OnboardingStep';
+import { Icon, type IconName } from '@/components/Icon';
+import { LumenAppIcon } from '@/components/LumenLockup';
 import { ListRow } from '@/components/ListRow';
+import { lockscreenStrings } from '@/i18n/lockscreen';
+import { OnboardingFrame } from '@/onboarding/OnboardingFrame';
+import type { ClockTime } from '@/notifications/localTime';
 import { loadNotificationPrefs } from '@/notifications/prefs';
 import { finishOnboarding } from '@/profile/onboarding';
 import { askPermission, saveAndSyncNotifications } from '@/settings/applyPrefs';
-import { formatClock } from '@/settings/formatClock';
+import { TimeRow } from '@/settings/TimeRow';
 import { Toggle } from '@/settings/Toggle';
 import { useTheme } from '@/theme';
 
 // Spec §8.2 step 9: the daily time starts at 8:00 am and the daily check starts off.
-const DEFAULT_HOUR = 8;
-const HOURS_PER_DAY = 24;
-
-// Mockup 09 sets the chosen time well above the 34 pt display size.
-const styles = StyleSheet.create({ selectedTime: { fontSize: 48, lineHeight: 56 } });
+const DEFAULT_TIME: ClockTime = { hour: 8, minute: 0 };
 
 type Reminder = 'daily' | 'followUp' | 'doctor';
 
 export default function RemindersScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
-  const { spacing } = useTheme();
+  const { colors, spacing, radius, control } = useTheme();
   const [finishFailed, setFinishFailed] = useState(false);
-  const [hour, setHour] = useState(DEFAULT_HOUR);
+  const [dailyTime, setDailyTime] = useState(DEFAULT_TIME);
   const [enabled, setEnabled] = useState<Record<Reminder, boolean>>({
     daily: false,
     followUp: true,
     doctor: true,
   });
-  const timeOf = (hourOfDay: number, withPeriod = true) =>
-    formatClock({ hour: (hourOfDay + HOURS_PER_DAY) % HOURS_PER_DAY, minute: 0 }, i18n.language, withPeriod);
-  // Each time is formatted once: the screen shows neighbours without AM/PM, screen readers get it in full.
-  const selected = timeOf(hour);
-  const spokenBefore = timeOf(hour - 1);
-  const spokenAfter = timeOf(hour + 1);
-  const shownBefore = timeOf(hour - 1, false);
-  const shownAfter = timeOf(hour + 1, false);
-  const reminderRows: readonly { reminder: Reminder; title: string }[] = [
-    { reminder: 'daily', title: t('notifications.daily') },
-    { reminder: 'followUp', title: t('notifications.followUp') },
-    { reminder: 'doctor', title: t('notifications.doctor') },
-  ];
-
   // Home is the first screen on every later launch only once this is saved, so a failed save keeps the
   // person here with a message instead of showing Welcome again next time without a word.
   async function openHome() {
@@ -75,7 +61,7 @@ export default function RemindersScreen() {
             confirmation: enabled.followUp,
             'doctor-followup': enabled.doctor,
           },
-          dailyTime: { hour, minute: 0 },
+          dailyTime,
         },
         i18n.language,
         permission,
@@ -88,9 +74,14 @@ export default function RemindersScreen() {
     await openHome();
   }
 
+  const rows: readonly { reminder: Reminder; title: string; icon: IconName }[] = [
+    { reminder: 'daily', title: t('notifications.daily'), icon: 'bell' },
+    { reminder: 'followUp', title: t('notifications.followUp'), icon: 'refresh' },
+    { reminder: 'doctor', title: t('notifications.doctor'), icon: 'stethoscope' },
+  ];
   return (
-    <OnboardingStep
-      step={9}
+    <OnboardingFrame
+      step={6}
       title={t('reminders.title')}
       subtitle={t('reminders.subtitle')}
       footer={
@@ -100,59 +91,91 @@ export default function RemindersScreen() {
         </>
       }
     >
-      <Card>
-        <View style={{ alignItems: 'center', gap: spacing.xs }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('reminders.earlier', { time: spokenBefore })}
-            onPress={() => setHour((current) => (current + HOURS_PER_DAY - 1) % HOURS_PER_DAY)}
+      <View style={{ gap: spacing.sm }}>
+        <View
+          accessible
+          accessibilityLabel={t('reminders.previewLabel')}
+          style={{
+            height: 164,
+            borderRadius: radius.sheet,
+            backgroundColor: colors.plotPanel,
+            overflow: 'hidden',
+            padding: spacing.lg,
+            gap: spacing.md,
+          }}
+        >
+          <View style={{ alignItems: 'center' }}>
+            <Icon name="lock" size={18} color={colors.onPlot} />
+          </View>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.md,
+              padding: spacing.md,
+              borderRadius: radius.sheet - 2,
+              backgroundColor: colors.surface,
+            }}
           >
-            <AppText variant="title" tone="textDim">
-              {shownBefore}
-            </AppText>
-          </Pressable>
-          <AppText
-            variant="display"
-            style={styles.selectedTime}
-            accessibilityLabel={t('reminders.timeSelected', { time: selected })}
-          >
-            {selected}
-          </AppText>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('reminders.later', { time: spokenAfter })}
-            onPress={() => setHour((current) => (current + 1) % HOURS_PER_DAY)}
-          >
-            <AppText variant="title" tone="textDim">
-              {shownAfter}
-            </AppText>
-          </Pressable>
+            <View style={{ width: 38, height: 38 }}>
+              <LumenAppIcon size={38} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <AppText variant="headline" style={{ fontSize: 15 }}>
+                  {t('app.name')}
+                </AppText>
+                <AppText variant="caption" tone="textDim">
+                  {t('reminders.previewNow')}
+                </AppText>
+              </View>
+              <AppText style={{ fontSize: 15, lineHeight: 20 }}>
+                {lockscreenStrings(i18n.language)['notif.daily']}
+              </AppText>
+            </View>
+          </View>
         </View>
-      </Card>
-      <Card flush>
-        {reminderRows.map(({ reminder, title }, index) => (
-          <ListRow
-            key={reminder}
-            title={title}
-            last={index === reminderRows.length - 1}
-            trailing={
-              <Toggle
-                label={title}
-                value={enabled[reminder]}
-                onValueChange={(value) => setEnabled({ ...enabled, [reminder]: value })}
-              />
-            }
-          />
-        ))}
-      </Card>
-      <AppText variant="caption" tone="textDim">
-        {t('reminders.localOnly')}
-      </AppText>
-      {finishFailed ? (
-        <AppText variant="caption" tone="textDim" accessibilityRole="alert">
-          {t('reminders.finishFailed')}
+        <AppText variant="caption" tone="textDim" style={{ textAlign: 'center' }}>
+          {t('reminders.previewNote')}
         </AppText>
-      ) : null}
-    </OnboardingStep>
+      </View>
+      <View style={{ gap: spacing.sm }}>
+        <Card flush>
+          {rows.map(({ reminder, title, icon }, index) => (
+            <Fragment key={reminder}>
+              <ListRow
+                title={title}
+                last={index === rows.length - 1}
+                leading={<Icon name={icon} size={control.chevronSize} color={colors.accent} />}
+                trailing={
+                  <Toggle
+                    label={title}
+                    value={enabled[reminder]}
+                    onValueChange={(value) => setEnabled({ ...enabled, [reminder]: value })}
+                  />
+                }
+              />
+              {reminder === 'daily' ? (
+                <TimeRow
+                  title={t('notifications.dailyTime')}
+                  time={dailyTime}
+                  languageTag={i18n.language}
+                  leading={<Icon name="alarm" size={control.chevronSize} color={colors.accent} />}
+                  onChange={setDailyTime}
+                />
+              ) : null}
+            </Fragment>
+          ))}
+        </Card>
+        <AppText variant="caption" tone="textDim">
+          {t('reminders.localOnly')}
+        </AppText>
+        {finishFailed ? (
+          <AppText variant="caption" tone="textDim" accessibilityRole="alert">
+            {t('reminders.finishFailed')}
+          </AppText>
+        ) : null}
+      </View>
+    </OnboardingFrame>
   );
 }

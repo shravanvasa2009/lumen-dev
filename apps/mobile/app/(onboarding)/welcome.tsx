@@ -2,25 +2,27 @@ import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { LanguageSwitch } from '@/components/LanguageSwitch';
+import { Button } from '@/components/Button';
 import { LumenLockup } from '@/components/LumenLockup';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
-import { TryDemoButton } from '@/demo/TryDemoButton';
+import { useStartDemo } from '@/demo/useStartDemo';
 import { FourChecks } from '@/onboarding/FourChecks';
+import { LanguagePill } from '@/onboarding/LanguagePill';
 import { useTheme } from '@/theme';
 
-// Mockup 01 v2 draws the lockup at 73% of the screen width and the tagline at 20 pt.
-const LOCKUP_SCREEN_SHARE = 0.73;
-// Below this window height (a 360 x 640 phone) the drawn lockup shrinks and the check tiles go compact; text keeps its size.
+// Mockup 01 draws the stacked lockup (tile above the wordmark) 150 pt wide and the tagline at 20 pt.
+const LOCKUP_WIDTH = 150;
+// Below this window height (a 360 x 640 phone) the drawn lockup shrinks and the check rows tighten; text keeps its size.
 const COMPACT_HEIGHT = 700;
-const COMPACT_LOCKUP_SHARE = 0.45;
+const COMPACT_LOCKUP_WIDTH = 110;
 const TAGLINE_MAX_WIDTH = 300;
 
 export default function WelcomeScreen() {
   const { t } = useTranslation();
   const { spacing } = useTheme();
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const { height: screenHeight } = useWindowDimensions();
+  const startDemo = useStartDemo();
   const compact = screenHeight < COMPACT_HEIGHT;
   return (
     <Screen
@@ -28,20 +30,20 @@ export default function WelcomeScreen() {
       footer={
         <>
           <NavButton label={t('welcome.getStarted')} href="/consent" />
-          <TryDemoButton />
-          <LanguageSwitch />
-          <AppText variant="caption" tone="textFaint" style={styles.centeredText}>
+          <Button variant="link" label={t('welcome.tryDemo')} onPress={startDemo} />
+          <AppText variant="caption" tone="textDim" style={styles.centeredText}>
             {t('welcome.footer')}
           </AppText>
         </>
       }
     >
+      <LanguagePill />
       <ScrollView
-        contentContainerStyle={[styles.body, { gap: compact ? spacing.md : spacing.xl }]}
+        contentContainerStyle={[styles.body, { gap: compact ? spacing.md : spacing.xxxl }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.group, { gap: spacing.md }]}>
-          <LumenLockup width={screenWidth * (compact ? COMPACT_LOCKUP_SHARE : LOCKUP_SCREEN_SHARE)} />
+          <LumenLockup stacked width={compact ? COMPACT_LOCKUP_WIDTH : LOCKUP_WIDTH} />
           <AppText accessibilityRole="header" style={styles.screenReaderOnly}>
             {t('app.name')}
           </AppText>

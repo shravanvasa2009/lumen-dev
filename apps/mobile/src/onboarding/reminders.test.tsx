@@ -1,5 +1,5 @@
 import { requestPermissionsAsync } from 'expo-notifications';
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import en from '@/i18n/en.json';
 import { fixClockAtMorning } from '@/testing/fixClockAtMorning';
@@ -12,6 +12,11 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   __esModule: true,
   default: () => 'light',
 }));
+// The native picker can't render in Jest; this stand-in passes a picked time through the same callback.
+jest.mock('@expo/ui/community/datetime-picker', () => {
+  const { View } = jest.requireActual('react-native');
+  return { DateTimePicker: (props: object) => <View testID="time-picker" {...props} /> };
+});
 jest.mock('expo-file-system', () => jest.requireActual('@/testing/memoryFiles').mockFileSystem);
 jest.mock('@/notifications/scheduler', () => ({ syncNotifications: jest.fn(async () => undefined) }));
 jest.mock('expo-notifications', () => ({
@@ -40,30 +45,21 @@ describe('reminders', () => {
   // Spec §8.2 step 9: the daily check stays off until the person turns it on.
   it('starts at 8:00 AM with the daily check off and follow-ups on', () => {
     renderRouter('./app', { initialUrl: '/reminders' });
-    expect(screen.getByLabelText(/8:00/)).toBeOnTheScreen();
+    expect(screen.getByText('8:00 AM')).toBeOnTheScreen();
     expect(screen.getByRole('switch', { name: en['notifications.daily'] })).not.toBeChecked();
     for (const key of ['notifications.followUp', 'notifications.doctor'] as const)
       expect(screen.getByRole('switch', { name: en[key] })).toBeChecked();
     expect(screen.getByText(en['reminders.localOnly'])).toBeOnTheScreen();
   });
 
-  it('shows the neighbouring times without AM or PM, as in the mockup', () => {
+  it('opens a time picker from the chip and shows the picked time', () => {
     renderRouter('./app', { initialUrl: '/reminders' });
-    expect(screen.getByText('7:00')).toBeOnTheScreen();
-    expect(screen.getByText('9:00')).toBeOnTheScreen();
-    expect(screen.getByText('8:00 AM')).toBeOnTheScreen();
-  });
-
-  it('moves the time an hour at a time and wraps past midnight', () => {
-    renderRouter('./app', { initialUrl: '/reminders' });
-    fireEvent.press(screen.getByRole('button', { name: /^One hour later/ }));
-    expect(screen.getByLabelText(/Reminder time, 9:00/)).toBeOnTheScreen();
-    for (let step = 0; step < 9; step += 1)
-      fireEvent.press(screen.getByRole('button', { name: /^One hour later/ }));
-    expect(screen.getByLabelText(/Reminder time, 6:00/)).toBeOnTheScreen();
-    for (let step = 0; step < 7; step += 1)
-      fireEvent.press(screen.getByRole('button', { name: /^One hour earlier/ }));
-    expect(screen.getByLabelText(/Reminder time, 11:00/)).toBeOnTheScreen();
+    expect(screen.queryByTestId('time-picker')).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(en['notifications.dailyTime']) }));
+    act(() => {
+      fireEvent(screen.getByTestId('time-picker'), 'valueChange', {}, new Date(2000, 0, 1, 21, 30));
+    });
+    expect(screen.getByText('9:30 PM')).toBeOnTheScreen();
   });
 
   it('asks for notification permission, then opens Home', async () => {
@@ -79,14 +75,17 @@ describe('reminders', () => {
       ReturnType<typeof requestPermissionsAsync>
     >);
     renderRouter('./app', { initialUrl: '/reminders' });
-    fireEvent.press(screen.getByRole('button', { name: /^One hour later/ }));
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(en['notifications.dailyTime']) }));
+    act(() => {
+      fireEvent(screen.getByTestId('time-picker'), 'valueChange', {}, new Date(2000, 0, 1, 9, 15));
+    });
     fireEvent.press(screen.getByRole('switch', { name: en['notifications.daily'] }));
     fireEvent.press(screen.getByRole('switch', { name: en['notifications.doctor'] }));
     fireEvent.press(screen.getByRole('button', { name: en['reminders.turnOn'] }));
     await screen.findByRole('header', { name: en['home.greetingMorning'] });
     const saved = loadNotificationPrefs();
     expect(saved.enabled).toMatchObject({ daily: true, confirmation: true, 'doctor-followup': false });
-    expect(saved.dailyTime).toEqual({ hour: 9, minute: 0 });
+    expect(saved.dailyTime).toEqual({ hour: 9, minute: 15 });
     expect(sync).toHaveBeenCalledTimes(1);
     expect(sync.mock.calls[0]?.[0].prefs.enabled.daily).toBe(true);
   });

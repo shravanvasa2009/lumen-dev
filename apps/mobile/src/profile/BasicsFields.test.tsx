@@ -25,6 +25,11 @@ function Harness({ onChange }: { onChange: jest.Mock }) {
   );
 }
 
+function pickImperial(copy: typeof en) {
+  fireEvent.press(screen.getByRole('button', { name: copy['profile.units'] }));
+  fireEvent.press(screen.getByRole('radio', { name: copy['profile.unitsImperial'] }));
+}
+
 async function typeMeasure(
   field: 'height' | 'weight',
   language: 'en' | 'es',
@@ -35,7 +40,7 @@ async function typeMeasure(
   const change = jest.fn();
   render(<Harness onChange={change} />);
   const copy = labels[language];
-  if (imperial) fireEvent.press(screen.getByRole('radio', { name: copy['profile.unitsImperial'] }));
+  if (imperial) pickImperial(copy);
   fireEvent.changeText(screen.getByLabelText(copy[`profile.${field}`]), text);
   return { change, copy };
 }
@@ -115,7 +120,7 @@ describe('switching units with an unreadable value', () => {
     const { change, copy } = await typeMeasure('weight', 'es', '70,5,1');
     const field = screen.getByLabelText(copy['profile.weight']);
     expect(field.props.value).toBe('70,5,1');
-    fireEvent.press(screen.getByRole('radio', { name: copy['profile.unitsImperial'] }));
+    pickImperial(copy);
     expect(screen.getByLabelText(copy['profile.weight']).props.value).toBe('');
     expect(screen.queryByRole('alert')).toBeNull();
     expect(lastStored(change, 'weightKg')).toBeNull();

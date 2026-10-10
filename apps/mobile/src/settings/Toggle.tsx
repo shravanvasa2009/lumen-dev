@@ -12,25 +12,25 @@ type ToggleProps = {
 };
 
 // Drawn instead of the platform Switch: Android's Material switch renders a small thumb and an
-// off-centre track, while the mockups show one 46x28 pill on both platforms.
-const TRACK_WIDTH = 46;
-const TRACK_HEIGHT = 28;
-const THUMB_SIZE = 22;
+// off-centre track, while the mockups show one 51x31 pill with a 27 pt white knob on both platforms.
+const TRACK_WIDTH = 51;
+const TRACK_HEIGHT = 31;
+const THUMB_SIZE = 27;
 const THUMB_INSET = (TRACK_HEIGHT - THUMB_SIZE) / 2;
 const DISABLED_OPACITY = 0.5;
 const THUMB_TRAVEL = TRACK_WIDTH - THUMB_SIZE - 2 * THUMB_INSET;
 
 export function Toggle({ label, value, onValueChange, disabled = false }: ToggleProps) {
   const { colors, radius, control } = useTheme();
-  // The pill is 28 pt tall; the touch area grows to the minimum target without changing the drawing.
+  // The pill is 31 pt tall; the touch area grows to the minimum target without changing the drawing.
   const touchSlop = (control.minTarget - TRACK_HEIGHT) / 2;
   const reduceMotion = useReduceMotion();
   const timing = timingConfig(reduceMotion);
   const trackStyle = useAnimatedStyle(() => ({
-    backgroundColor: withTiming(value ? colors.accent : colors.surface3, timing),
+    backgroundColor: withTiming(value ? colors.buttonFill : colors.surface3, timing),
   }));
   const thumbStyle = useAnimatedStyle(() => ({
-    backgroundColor: withTiming(value ? colors.surface : colors.textDim, timing),
+    backgroundColor: colors.onButtonFill,
     transform: [{ translateX: withTiming(value ? THUMB_TRAVEL : 0, timing) }],
   }));
   return (

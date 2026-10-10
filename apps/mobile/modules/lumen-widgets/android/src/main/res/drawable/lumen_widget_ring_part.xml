@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Two thirds of the status ring, clockwise from the top with round ends (Widgets mockup "check again"): a reading
+     that asks for something more. The end point is 240 degrees round a radius-17 circle: (20 - 17 sin 60, 20 + 17 cos 60). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:pathData="M20,3 A17,17 0 1,1 5.278,28.5"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeColor="#FFFFFFFF" />
+</vector>

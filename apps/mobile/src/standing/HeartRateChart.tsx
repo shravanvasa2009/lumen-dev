@@ -18,10 +18,17 @@ type HeartRateChartProps = {
   label: string;
   lyingLabel: string;
   nowLabel: string;
+  thresholdLabel: string;
 };
 
-function yAxis(points: readonly ChartPoint[]) {
-  const bpms = points.map(({ bpm }) => bpm);
+// The line sits this far above the lying rate: the heart-rate part of the POTS criteria.
+export const RISE_THRESHOLD_BPM = 30;
+
+function yAxis(points: readonly ChartPoint[], baseline: number | null) {
+  const bpms = [
+    ...points.map(({ bpm }) => bpm),
+    ...(baseline === null ? [] : [baseline + RISE_THRESHOLD_BPM]),
+  ];
   const low = Math.floor((Math.min(...bpms) - 5) / 10) * 10;
   const high = Math.ceil((Math.max(...bpms) + 5) / 10) * 10;
   const ticks = Array.from({ length: TICK_COUNT }, (_, i) =>
@@ -30,10 +37,17 @@ function yAxis(points: readonly ChartPoint[]) {
   return { low, high, ticks };
 }
 
-export function HeartRateChart({ points, baseline, label, lyingLabel, nowLabel }: HeartRateChartProps) {
+export function HeartRateChart({
+  points,
+  baseline,
+  label,
+  lyingLabel,
+  nowLabel,
+  thresholdLabel,
+}: HeartRateChartProps) {
   const { colors } = useTheme();
   const hasData = points.length > 0;
-  const { low, high, ticks } = hasData ? yAxis(points) : { low: 0, high: 1, ticks: [] };
+  const { low, high, ticks } = hasData ? yAxis(points, baseline) : { low: 0, high: 1, ticks: [] };
   const firstMinute = points[0]?.minute ?? 0;
   const lastMinute = Math.max(points.at(-1)?.minute ?? 0, firstMinute + 1);
 
@@ -75,6 +89,28 @@ export function HeartRateChart({ points, baseline, label, lyingLabel, nowLabel }
           {tick}
         </SvgText>
       ))}
+      {baseline === null ? null : (
+        <>
+          <Line
+            x1={PLOT.left}
+            x2={PLOT.right}
+            y1={yAt(baseline + RISE_THRESHOLD_BPM)}
+            y2={yAt(baseline + RISE_THRESHOLD_BPM)}
+            stroke={colors.alertFill}
+            strokeWidth={1.5}
+            strokeDasharray="5 4"
+          />
+          <SvgText
+            x={PLOT.right}
+            y={yAt(baseline + RISE_THRESHOLD_BPM) - 5}
+            fill={colors.alertText}
+            fontSize={LABEL_SIZE}
+            textAnchor="end"
+          >
+            {thresholdLabel}
+          </SvgText>
+        </>
+      )}
       {points.length > 1 ? (
         <Polyline
           points={points.map(({ minute, bpm }) => `${xAt(minute)},${yAt(bpm)}`).join(' ')}

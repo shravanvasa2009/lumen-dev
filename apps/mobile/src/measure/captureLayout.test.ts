@@ -1,9 +1,9 @@
 import { captureSizes } from './captureLayout';
 
 describe('captureSizes', () => {
-  it('uses the 176 dp live view with a 150 dp ring before the body is measured and on a roomy screen', () => {
-    expect(captureSizes(0, false)).toMatchObject({ tight: false, preview: 176, ring: 150 });
-    expect(captureSizes(900, false)).toMatchObject({ tight: false, preview: 176, ring: 150 });
+  it('uses the 176 dp live view with a 168 dp ring (150 dp inside its ticks) before the body is measured and on a roomy screen', () => {
+    expect(captureSizes(0, false)).toMatchObject({ tight: false, preview: 176, ring: 168 });
+    expect(captureSizes(900, false)).toMatchObject({ tight: false, preview: 176, ring: 168 });
   });
 
   it('keeps the full view on a mid-height phone and lets the body scroll', () => {

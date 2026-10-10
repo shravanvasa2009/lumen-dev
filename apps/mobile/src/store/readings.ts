@@ -12,11 +12,18 @@ export type SavedReading = {
   context: ReadingContext;
   results: ReadingResult;
   models: ModelOutputs;
+  intervalsMs: readonly number[];
 };
 
-type ReadingRow = { id: string; created_at: number; mode: string; results_json: string };
+type ReadingRow = {
+  id: string;
+  created_at: number;
+  mode: string;
+  results_json: string;
+  intervals_json: string | null;
+};
 
-const READING_COLUMNS = 'id, created_at, mode, results_json';
+const READING_COLUMNS = 'id, created_at, mode, results_json, intervals_json';
 
 function toStoredReading(row: ReadingRow): StoredReading {
   return {
@@ -24,6 +31,7 @@ function toStoredReading(row: ReadingRow): StoredReading {
     takenAt: row.created_at,
     mode: parseMode(row.mode),
     outcome: JSON.parse(row.results_json) as ReadingResult,
+    intervalsMs: row.intervals_json === null ? [] : (JSON.parse(row.intervals_json) as number[]),
   };
 }
 
@@ -31,7 +39,7 @@ function toStoredReading(row: ReadingRow): StoredReading {
 export async function saveReading(reading: SavedReading): Promise<void> {
   const database = await lumenDatabase();
   await database.runAsync(
-    'INSERT INTO readings (id, created_at, mode, context_json, results_json, models_json, demo) VALUES (?, ?, ?, ?, ?, ?, 0)',
+    'INSERT INTO readings (id, created_at, mode, context_json, results_json, models_json, intervals_json, demo) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
     [
       reading.id,
       reading.createdAt,
@@ -39,6 +47,7 @@ export async function saveReading(reading: SavedReading): Promise<void> {
       JSON.stringify(reading.context),
       JSON.stringify(reading.results),
       JSON.stringify(reading.models),
+      JSON.stringify(reading.intervalsMs),
     ],
   );
 }

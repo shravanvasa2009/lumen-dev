@@ -38,6 +38,11 @@ describe('readingsToCsv', () => {
     expect(row!.endsWith(',low,quickMode|shortClean')).toBe(true);
   });
 
+  it('writes the same row whether or not the reading kept its beat intervals', () => {
+    const reading = makeReading(Date.UTC(2026, 9, 1, 8), 64, 48);
+    expect(readingsToCsv([{ ...reading, intervalsMs: [930, 945, 962] }])).toBe(readingsToCsv([reading]));
+  });
+
   it('is only a header for no readings', () => {
     expect(readingsToCsv([]).split('\n')).toHaveLength(2);
   });

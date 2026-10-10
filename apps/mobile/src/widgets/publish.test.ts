@@ -1,22 +1,24 @@
 import { waitFor } from '@testing-library/react-native';
+import i18next from 'i18next';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
 import '@/i18n';
+import { lockscreenStrings } from '@/i18n/lockscreen';
 import { memoryFiles, mockFileSystem } from '@/testing/memoryFiles';
 import { makeReading } from '@/testing/reading';
 import type { PlannedNotification } from '@/notifications/plan';
 import { saveScheduleRecord } from '@/notifications/record';
 import { type FollowUpAnswer, saveFollowUpAnswer } from '@/profile/followUp';
 import type { MeasureMode } from '@/measure/mode';
+import { lockTextLines } from '@/settings/lockText';
 import { saveReading } from '@/store/readings';
 import { setPreference } from '@/theme/preferences';
 
-import * as evidence from '@/evidence';
-import i18next from 'i18next';
+import tokens from '@/theme/tokens.json';
 import lockscreen from '@/i18n/lockscreen.json';
 import { LumenWidgets } from '../../modules/lumen-widgets/src';
-import { publishWidgetCopy, publishWidgets } from './publish';
-import type { WidgetSnapshot } from './snapshot';
+import { PALETTE_TOKENS, publishWidgetCopy, publishWidgets } from './publish';
+import type { WidgetSnapshot, WidgetStatus } from './snapshot';
 
 jest.mock('expo-file-system', () => mockFileSystem);
 jest.mock('../../modules/lumen-widgets/src', () => ({
@@ -60,6 +62,7 @@ async function saveCheck(
     },
     results: outcome,
     models: { rhythm: null, diabetes: null },
+    intervalsMs: [],
   });
 }
 
@@ -78,31 +81,32 @@ beforeEach(() => {
 });
 
 function publishedDisplay(): {
-  checks: string[];
-  diabetesTag: string | null;
   lock: { lastCheck: string; checkNow: string };
+  palette: Record<'light' | 'dark', Record<keyof typeof PALETTE_TOKENS, string>>;
 } {
   const calls = publishSnapshot().mock.calls;
   return JSON.parse(calls[calls.length - 1]![1]);
 }
 
-describe('the four checks on the medium widget', () => {
-  afterEach(() => jest.restoreAllMocks());
-
-  it('names AFib, POTS, HRV and Diabetes in the app language', async () => {
+describe('the widget copy and colors', () => {
+  // The redesigned widgets list no checks, so no condition name reaches the native side at all.
+  it('names no check or condition', async () => {
     await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
-    expect(publishedDisplay().checks).toEqual(['AFib', 'POTS', 'HRV', 'Diabetes']);
+    const calls = publishSnapshot().mock.calls;
+    expect(calls[calls.length - 1]![1]).not.toMatch(/AFib|POTS|HRV|Diabetes|Experimental/);
   });
 
-  // EVID-1: the tag is the evidence label's word, never written into the widget.
-  it.each([
-    ['experimental', 'Experimental'],
-    ['checked', null],
-  ] as const)('tags Diabetes only while its evidence label is Experimental (%s)', async (label, tag) => {
-    const real = evidence.evidenceFor('diabetes');
-    jest.spyOn(evidence, 'evidenceFor').mockReturnValue({ ...real, label });
+  it('sends every color role from the light and dark tokens', async () => {
     await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
-    expect(publishedDisplay().diabetesTag).toBe(tag);
+    const { palette } = publishedDisplay();
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const [role, token] of Object.entries(PALETTE_TOKENS)) {
+        expect({ role, color: palette[scheme][role as keyof typeof PALETTE_TOKENS] }).toEqual({
+          role,
+          color: tokens[scheme][token],
+        });
+      }
+    }
   });
 });
 
@@ -192,5 +196,62 @@ describe('publishing the copy at launch', () => {
     const calls = publishSnapshot().mock.calls;
     expect(publishDisplay).toHaveBeenCalledTimes(1);
     expect(publishDisplay.mock.calls[0]![0]).toBe(calls[calls.length - 1]![1]);
+  });
+});
+
+const STATUSES: WidgetStatus[] = ['regular', 'check-again', 'see-doctor', 'inconclusive'];
+
+type PublishedDisplay = {
+  language: string;
+  name: string;
+  status: Record<WidgetStatus, string>;
+  inline: Record<WidgetStatus, string>;
+  nextCheck: string;
+};
+
+async function publishedLockDisplay(language: string): Promise<PublishedDisplay> {
+  await i18next.changeLanguage(language);
+  await publishWidgets({ appearance: 'system', hideWidgetValues: false }, NOW);
+  const calls = publishSnapshot().mock.calls;
+  return JSON.parse(calls[calls.length - 1]![1]) as PublishedDisplay;
+}
+
+// A lock-screen part is a whole lockscreen.json string or one side of a "Lumen · Status" string, so
+// check-notification-copy.mjs has already screened it (WID-2).
+function screenedParts(language: string): Set<string> {
+  return new Set(
+    Object.values(lockscreenStrings(language)).flatMap((text) => {
+      const { name, status } = lockTextLines(text);
+      return [text, name, status];
+    }),
+  );
+}
+
+describe('the lock-screen copy the widgets receive (WID-1, WID-2)', () => {
+  afterAll(() => i18next.changeLanguage('en'));
+
+  it.each(['en', 'es'])('builds the name and statuses only from lockscreen.json (%s)', async (language) => {
+    const display = await publishedLockDisplay(language);
+    const screened = screenedParts(language);
+    for (const part of [display.name, ...STATUSES.map((status) => display.status[status])]) {
+      expect({ part, screened: screened.has(part) }).toEqual({ part, screened: true });
+    }
+  });
+
+  it.each(['en', 'es'])('says the same thing inline as on the rectangular widget (%s)', async (language) => {
+    const display = await publishedLockDisplay(language);
+    for (const status of STATUSES) {
+      expect({ status, lines: lockTextLines(display.inline[status]) }).toEqual({
+        status,
+        lines: { name: display.name, status: display.status[status] },
+      });
+    }
+  });
+
+  it('passes the next-check template and the language through for Swift to fill in', async () => {
+    const display = await publishedLockDisplay('es');
+    expect(display.nextCheck).toBe(lockscreenStrings('es')['widget.lock.nextCheck']);
+    expect(display.nextCheck).toContain('{{time}}');
+    expect(display.language).toBe('es');
   });
 });

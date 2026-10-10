@@ -2,12 +2,9 @@ import type { TFunction } from 'i18next';
 
 type LessonTone = 'accent' | 'flag' | 'public';
 
-export type LessonDiagramId = 'finger-on-lens' | 'pulse-wave' | 'rhythm-gaps';
-
 export type LessonSection = {
   heading: (t: TFunction) => string;
   body: (t: TFunction) => string;
-  diagram?: LessonDiagramId;
   // Short causes shown as chips under the body, with a small label above them when one is given.
   chips?: { label?: (t: TFunction) => string; items: (t: TFunction) => readonly string[] };
 };
@@ -18,10 +15,8 @@ export type LessonQuestion = {
   correctIndex: number;
 };
 
-// A lesson written as numbered cards, a takeaway and one optional question instead of plain paragraphs.
+// A chapter's words: its sections, a takeaway and one quick-check question. Its chapter view lays them out.
 export type LessonTemplate = {
-  // Drawn above the first card.
-  heroDiagram?: LessonDiagramId;
   sections: readonly LessonSection[];
   takeaway: (t: TFunction) => string;
   question: LessonQuestion;
@@ -33,12 +28,9 @@ export type Lesson = {
   slug: string;
   tone: LessonTone;
   title: (t: TFunction) => string;
-  // Shown under the title in the list, for example "2 min".
-  length: (t: TFunction) => string;
-  // Spec 8.4 gives only the first lesson an animation; it is a labelled placeholder until artwork exists.
-  illustration?: (t: TFunction) => string;
-  // The heart-rhythm lesson appends the measured false-alarm figures from evidence.json.
-  showsRhythmFigures?: boolean;
+  minutes: number;
+  // Spec 8.4 gives only the first lesson an animation, so its length reads "2 min · with animation".
+  animated?: true;
 };
 
 // Each key stays a literal so the i18n check can see it.
@@ -47,13 +39,12 @@ export const lessons: readonly Lesson[] = [
     slug: 'how-lumen-reads-your-pulse',
     tone: 'accent',
     title: (t) => t('learn.lessonPulse'),
-    length: (t) => t('learn.minutesAnimated', { minutes: 2 }),
-    illustration: (t) => t('learn.pulseAnimation'),
+    minutes: 2,
+    animated: true,
     template: {
-      heroDiagram: 'finger-on-lens',
       sections: [
         { heading: (t) => t('learn.pulse.h1'), body: (t) => t('learn.pulse.p1') },
-        { heading: (t) => t('learn.pulse.h2'), body: (t) => t('learn.pulse.p2'), diagram: 'pulse-wave' },
+        { heading: (t) => t('learn.pulse.h2'), body: (t) => t('learn.pulse.p2') },
         {
           heading: (t) => t('learn.pulse.h3'),
           body: (t) => t('learn.pulse.p3'),
@@ -80,13 +71,52 @@ export const lessons: readonly Lesson[] = [
     },
   },
   {
+    slug: 'how-the-rhythm-check-works',
+    tone: 'public',
+    title: (t) => t('learn.lessonRhythm'),
+    minutes: 2,
+    template: {
+      sections: [
+        {
+          heading: (t) => t('learn.rhythm.h1'),
+          body: (t) => t('learn.rhythm.p1'),
+        },
+        {
+          heading: (t) => t('learn.rhythm.h2'),
+          body: (t) => t('learn.rhythm.p2'),
+          chips: {
+            items: (t) => [
+              t('learn.rhythm.chipMovement'),
+              t('learn.rhythm.chipLoose'),
+              t('learn.rhythm.chipExtra'),
+            ],
+          },
+        },
+        {
+          heading: (t) => t('learn.rhythm.h3'),
+          body: (t) => t('learn.rhythm.p3'),
+        },
+      ],
+      takeaway: (t) => t('learn.rhythm.takeaway'),
+      question: {
+        prompt: (t) => t('learn.rhythm.question'),
+        options: (t) => [
+          t('learn.rhythm.answerIgnore'),
+          t('learn.rhythm.answerDoctor'),
+          t('learn.rhythm.answerDiagnosis'),
+        ],
+        correctIndex: 1,
+      },
+    },
+  },
+  {
     slug: 'what-is-afib',
     tone: 'flag',
     title: (t) => t('learn.lessonAfib'),
-    length: (t) => t('learn.minutes', { minutes: 3 }),
+    minutes: 3,
     template: {
       sections: [
-        { heading: (t) => t('learn.afib.h1'), body: (t) => t('learn.afib.p1'), diagram: 'rhythm-gaps' },
+        { heading: (t) => t('learn.afib.h1'), body: (t) => t('learn.afib.p1') },
         { heading: (t) => t('learn.afib.h2'), body: (t) => t('learn.afib.p2') },
         { heading: (t) => t('learn.afib.h3'), body: (t) => t('learn.afib.p3') },
         { heading: (t) => t('learn.afib.h4'), body: (t) => t('learn.afib.p4') },
@@ -104,48 +134,10 @@ export const lessons: readonly Lesson[] = [
     },
   },
   {
-    slug: 'how-the-rhythm-check-works',
-    tone: 'public',
-    title: (t) => t('learn.lessonRhythm'),
-    length: (t) => t('learn.minutes', { minutes: 2 }),
-    showsRhythmFigures: true,
-    template: {
-      sections: [
-        {
-          heading: (t) => t('learn.rhythm.h1'),
-          body: (t) => t('learn.rhythm.p1'),
-          diagram: 'rhythm-gaps',
-        },
-        {
-          heading: (t) => t('learn.rhythm.h2'),
-          body: (t) => t('learn.rhythm.p2'),
-          chips: {
-            items: (t) => [
-              t('learn.rhythm.chipMovement'),
-              t('learn.rhythm.chipLoose'),
-              t('learn.rhythm.chipExtra'),
-            ],
-          },
-        },
-        { heading: (t) => t('learn.rhythm.h3'), body: (t) => t('learn.rhythm.p3') },
-      ],
-      takeaway: (t) => t('learn.rhythm.takeaway'),
-      question: {
-        prompt: (t) => t('learn.rhythm.question'),
-        options: (t) => [
-          t('learn.rhythm.answerIgnore'),
-          t('learn.rhythm.answerDoctor'),
-          t('learn.rhythm.answerDiagnosis'),
-        ],
-        correctIndex: 1,
-      },
-    },
-  },
-  {
     slug: 'stroke-warning-signs',
     tone: 'flag',
     title: (t) => t('learn.lessonStroke'),
-    length: (t) => t('learn.minutes', { minutes: 1 }),
+    minutes: 1,
     template: {
       sections: [
         { heading: (t) => t('learn.stroke.h1'), body: (t) => t('learn.stroke.intro') },
@@ -154,7 +146,7 @@ export const lessons: readonly Lesson[] = [
         { heading: (t) => t('learn.stroke.h4'), body: (t) => t('learn.stroke.face') },
         { heading: (t) => t('learn.stroke.h5'), body: (t) => t('learn.stroke.arm') },
         { heading: (t) => t('learn.stroke.h6'), body: (t) => t('learn.stroke.speech') },
-        { heading: (t) => t('learn.stroke.h7'), body: (t) => t('learn.stroke.time') },
+        { heading: (t) => t('learn.beFastTime'), body: (t) => t('learn.stroke.time') },
       ],
       takeaway: (t) => t('learn.stroke.takeaway'),
       question: {
@@ -172,7 +164,7 @@ export const lessons: readonly Lesson[] = [
     slug: 'diabetes-and-your-pulse',
     tone: 'flag',
     title: (t) => t('learn.lessonDiabetes'),
-    length: (t) => t('learn.minutes', { minutes: 2 }),
+    minutes: 2,
     template: {
       sections: [
         { heading: (t) => t('learn.diabetes.h1'), body: (t) => t('learn.diabetes.p1') },
@@ -206,17 +198,13 @@ export const lessons: readonly Lesson[] = [
     slug: 'heart-rate-variability',
     tone: 'public',
     title: (t) => t('learn.lessonHrv'),
-    length: (t) => t('learn.minutes', { minutes: 2 }),
+    minutes: 2,
     template: {
       sections: [
         { heading: (t) => t('learn.hrv.h1'), body: (t) => t('learn.hrv.p1') },
         {
           heading: (t) => t('learn.hrv.h2'),
           body: (t) => t('learn.hrv.p2'),
-          chips: {
-            label: (t) => t('learn.hrv.recoveryLabel'),
-            items: (t) => [t('learn.hrv.chipStress'), t('learn.hrv.chipExercise'), t('learn.hrv.chipSleep')],
-          },
         },
         { heading: (t) => t('learn.hrv.h3'), body: (t) => t('learn.hrv.p3') },
         { heading: (t) => t('learn.hrv.h4'), body: (t) => t('learn.hrv.p4') },
@@ -233,21 +221,13 @@ export const lessons: readonly Lesson[] = [
     slug: 'what-lumen-cannot-measure',
     tone: 'public',
     title: (t) => t('learn.lessonLimits'),
-    length: (t) => t('learn.minutes', { minutes: 2 }),
+    minutes: 2,
     template: {
       sections: [
         { heading: (t) => t('learn.limits.h1'), body: (t) => t('learn.limits.p1') },
         {
           heading: (t) => t('learn.limits.h2'),
           body: (t) => t('learn.limits.p2'),
-          chips: {
-            items: (t) => [
-              t('learn.limits.chipPressure'),
-              t('learn.limits.chipOxygen'),
-              t('learn.limits.chipArteries'),
-              t('learn.limits.chipHeartAttack'),
-            ],
-          },
         },
         { heading: (t) => t('learn.limits.h3'), body: (t) => t('learn.limits.p3') },
         { heading: (t) => t('learn.limits.h4'), body: (t) => t('learn.limits.p4') },
@@ -268,32 +248,17 @@ export const lessons: readonly Lesson[] = [
     slug: 'when-to-see-a-doctor',
     tone: 'accent',
     title: (t) => t('learn.lessonDoctor'),
-    length: (t) => t('learn.minutes', { minutes: 2 }),
+    minutes: 2,
     template: {
       sections: [
         { heading: (t) => t('learn.doctor.h1'), body: (t) => t('learn.doctor.p1') },
         {
           heading: (t) => t('learn.doctor.h2'),
           body: (t) => t('learn.doctor.p2'),
-          chips: {
-            items: (t) => [
-              t('learn.doctor.chipChest'),
-              t('learn.doctor.chipFainting'),
-              t('learn.doctor.chipBreath'),
-              t('learn.doctor.chipStroke'),
-            ],
-          },
         },
         {
           heading: (t) => t('learn.doctor.h3'),
           body: (t) => t('learn.doctor.p3'),
-          chips: {
-            items: (t) => [
-              t('learn.doctor.chipRepeat'),
-              t('learn.doctor.chipRate'),
-              t('learn.doctor.chipRacing'),
-            ],
-          },
         },
         { heading: (t) => t('learn.doctor.h4'), body: (t) => t('learn.doctor.p4') },
         { heading: (t) => t('learn.doctor.h5'), body: (t) => t('learn.doctor.p5') },
@@ -311,3 +276,12 @@ export const lessons: readonly Lesson[] = [
     },
   },
 ];
+
+// Shown under the title in the list, for example "2 min".
+export function lessonLength(t: TFunction, lesson: Lesson): string {
+  return lesson.animated
+    ? t('learn.minutesAnimated', { minutes: lesson.minutes })
+    : t('learn.minutes', { minutes: lesson.minutes });
+}
+
+export const totalMinutes = lessons.reduce((sum, lesson) => sum + lesson.minutes, 0);

@@ -5,7 +5,7 @@ import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
-import { OnboardingStep } from '@/components/OnboardingStep';
+import { OnboardingFrame } from '@/onboarding/OnboardingFrame';
 import { SeatedIllustration } from '@/onboarding/SeatedIllustration';
 import { useTheme } from '@/theme';
 
@@ -14,8 +14,8 @@ export default function HowToSitScreen() {
   const { colors, control } = useTheme();
   const checklist = [t('howToSit.elbows'), t('howToSit.height'), t('howToSit.hand'), t('howToSit.warm')];
   return (
-    <OnboardingStep
-      step={6}
+    <OnboardingFrame
+      step={4}
       title={t('howToSit.title')}
       subtitle={t('howToSit.subtitle')}
       footer={<NavButton label={t('common.continue')} href="/rating" />}
@@ -37,6 +37,6 @@ export default function HowToSitScreen() {
           />
         ))}
       </Card>
-    </OnboardingStep>
+    </OnboardingFrame>
   );
 }

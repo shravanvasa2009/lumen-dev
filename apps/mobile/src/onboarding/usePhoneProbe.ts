@@ -12,14 +12,16 @@ function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// Reads what the rear camera can do from the capture module's capability probe (Appendix A).
-export function usePhoneProbe(): PhoneProbe {
+// Reads what the rear camera can do from the capture module's capability probe (Appendix A). recheck runs it again.
+export function usePhoneProbe(): { probe: PhoneProbe; recheck: () => void } {
   const [probe, setProbe] = useState<PhoneProbe>(
     LumenCapture ? { kind: 'checking' } : { kind: 'unavailable' },
   );
+  const [run, setRun] = useState(0);
   useEffect(() => {
     if (!LumenCapture) return;
     let current = true;
+    setProbe({ kind: 'checking' });
     // Spec §9.5: the first camera request is here. Capture asks again as a fallback; the
     // capability read itself needs no permission, so neither a refusal nor a failed request
     // stops the probe. A failed request is reported and the probe still runs.
@@ -38,6 +40,6 @@ export function usePhoneProbe(): PhoneProbe {
     return () => {
       current = false;
     };
-  }, []);
-  return probe;
+  }, [run]);
+  return { probe, recheck: () => setRun((count) => count + 1) };
 }

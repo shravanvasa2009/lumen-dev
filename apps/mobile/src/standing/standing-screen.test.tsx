@@ -56,6 +56,23 @@ describe.each(['dark', 'light'] as const)('standing test in the %s theme', (sche
     expect(screen.queryByText(/^Step \d/)).toBeNull();
   });
 
+  it('fills the intro with the timeline, the result preview, what you need and one safety card', () => {
+    open(injectedSource);
+    expect(screen.getByText(en['standing.about'])).toBeOnTheScreen();
+    expect(screen.getByText(en['standing.threshold'])).toBeOnTheScreen();
+    expect(screen.getByText(en['standing.needTitle'])).toBeOnTheScreen();
+    expect(screen.getByText(en['standing.needLie'])).toBeOnTheScreen();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('draws the lying timer as a ticked dial with the time left', () => {
+    open(injectedSource);
+    pressButton(en['standing.start']);
+    expect(screen.getByRole('timer')).toBeOnTheScreen();
+    expect(screen.getByText('05:00')).toBeOnTheScreen();
+    expect(JSON.stringify(screen.toJSON()).match(/RNSVGLine/g)?.length).toBeGreaterThanOrEqual(60);
+  });
+
   it('numbers the steps like mockup 21 and shows chart and values from an injected source', async () => {
     open(injectedSource);
     pressButton(en['standing.start']);

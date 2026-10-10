@@ -75,7 +75,12 @@ describe('buildReportHtml', () => {
     const html = htmlFor();
     expect(html).toContain(tokens.light.surface);
     expect(html).toContain(tokens.light.text);
-    for (const dark of [tokens.dark.surface, tokens.dark.surface2, tokens.dark.text]) {
+    // Some dark colours equal a light one (dark text is light surface), and those are fine on paper.
+    const lightValues = Object.values(tokens.light);
+    const darkOnly = [tokens.dark.surface, tokens.dark.surface2, tokens.dark.text].filter(
+      (color) => !lightValues.includes(color),
+    );
+    for (const dark of darkOnly) {
       expect(html.includes(dark)).toBe(false);
     }
     expect(html.includes(tokens.light.criticalText)).toBe(false);

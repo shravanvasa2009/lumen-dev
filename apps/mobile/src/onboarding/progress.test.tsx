@@ -14,17 +14,17 @@ jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
 }));
 
-// The mockups fill 1 segment on consent and count up by one per screen; Reminders shows all nine.
+// The mockups count six steps: consent, about you, finger placement, practice, rating, reminders.
 const steps = [
   ['/consent', 1],
   ['/profile', 2],
   ['/diabetes-risk', 2],
   ['/phone-check', 3],
-  ['/placement', 4],
-  ['/practice', 5],
-  ['/how-to-sit', 6],
-  ['/rating', 7],
-  ['/reminders', 9],
+  ['/placement', 3],
+  ['/practice', 4],
+  ['/how-to-sit', 4],
+  ['/rating', 5],
+  ['/reminders', 6],
 ] as const;
 
 jest.setTimeout(30_000);
@@ -32,10 +32,9 @@ jest.setTimeout(30_000);
 preloadAppRoutes();
 
 describe('onboarding progress bar', () => {
-  it.each(steps)('%s fills %i of 9 segments', (url, step) => {
+  it.each(steps)('%s is step %i of 6', (url, step) => {
     renderRouter('./app', { initialUrl: url });
-    const progress = screen.getByLabelText(`Step ${step} of 9`);
-    expect(progress.props.accessibilityValue).toMatchObject({ min: 1, max: 9, now: step });
-    expect(progress.children).toHaveLength(9);
+    const progress = screen.getByLabelText(`Step ${step} of 6`);
+    expect(progress.props.accessibilityValue).toMatchObject({ min: 1, max: 6, now: step });
   });
 });

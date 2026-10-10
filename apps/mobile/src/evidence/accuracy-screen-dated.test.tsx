@@ -30,5 +30,5 @@ it('EVID-1: shows the diabetes row with its dataset, interval, and the not-a-tes
   expect(screen.getByText('95% CI: 0.7–0.85')).toBeTruthy();
   expect(screen.getByText(en['accuracy.notDiabetesTest'])).toBeTruthy();
   expect(screen.getByText('Evidence file Oct 20')).toBeTruthy();
-  expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(5);
+  expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(6);
 });

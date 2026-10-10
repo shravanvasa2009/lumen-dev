@@ -2,12 +2,11 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, View } from 'react-native';
 
-import { CHECK_ICON, CHECK_IDS, CHECK_PILL, type CheckId, checkCell, planPhone } from '@/checks/checkPlan';
+import { CHECK_ICON, CHECK_IDS, type CheckId, checkCell, planPhone } from '@/checks/checkPlan';
 import { lockText } from '@/checks/lockText';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { EvidenceBadge } from '@/components/EvidenceBadge';
 import { Icon, type IconName } from '@/components/Icon';
 import { ValueSettle } from '@/components/Reveal';
 import { NavButton } from '@/components/NavButton';
@@ -19,9 +18,11 @@ import { useTheme } from '@/theme';
 import { type AnalysisProgress, completedPercent, pendingProgress, STEP_ORDER } from './analysisProgress';
 import type { MeasureMode } from './mode';
 import { StepRow } from './StepRow';
+import { TickRing } from './TickRing';
 import type { AnalysisState } from './useReadingAnalysis';
 
-const RING_SIZE = 160;
+const RING_SIZE = 180;
+const TICK_COUNT = 60;
 const RING_STROKE = 12;
 const NO_VALUE = '—';
 
@@ -61,24 +62,20 @@ function CheckSummary({ mode, progress }: { mode: MeasureMode; progress: Analysi
       <AppText variant="caption" tone="textDim" style={{ fontWeight: '600', textTransform: 'uppercase' }}>
         {t('checks.inReading')}
       </AppText>
-      {CHECK_IDS.map((check) => {
-        const pill = CHECK_PILL[check];
-        return (
-          <View
-            key={check}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 32 }}
-          >
-            <Icon name={CHECK_ICON[check]} size={20} color={colors.accent} />
-            <AppText variant="headline">{names[check]}</AppText>
-            {pill === null ? null : <EvidenceBadge metric={pill} />}
-            <ValueSettle value={stateOf(check)} style={{ flex: 1 }}>
-              <AppText variant="caption" tone="textDim" style={{ textAlign: 'right' }}>
-                {stateOf(check)}
-              </AppText>
-            </ValueSettle>
-          </View>
-        );
-      })}
+      {CHECK_IDS.map((check) => (
+        <View
+          key={check}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 32 }}
+        >
+          <Icon name={CHECK_ICON[check]} size={20} color={colors.accent} />
+          <AppText variant="headline">{names[check]}</AppText>
+          <ValueSettle value={stateOf(check)} style={{ flex: 1 }}>
+            <AppText variant="caption" tone="textDim" style={{ textAlign: 'right' }}>
+              {stateOf(check)}
+            </AppText>
+          </ValueSettle>
+        </View>
+      ))}
     </Card>
   );
 }
@@ -146,7 +143,16 @@ export function ProcessingView({ analysis, mode }: { analysis: AnalysisState; mo
             accessibilityLabel={percentText}
             style={{ alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm }}
           >
-            <ProgressRing fraction={(percent ?? 0) / 100} size={RING_SIZE} strokeWidth={RING_STROKE} />
+            <TickRing
+              size={RING_SIZE}
+              count={TICK_COUNT}
+              lit={Math.round(((percent ?? 0) / 100) * TICK_COUNT)}
+              majorEvery={TICK_COUNT / 4}
+            >
+              {(innerSize) => (
+                <ProgressRing fraction={(percent ?? 0) / 100} size={innerSize} strokeWidth={RING_STROKE} />
+              )}
+            </TickRing>
             <View style={{ position: 'absolute' }}>
               <ValueSettle value={percentText}>
                 <AppText variant="title">{percentText}</AppText>

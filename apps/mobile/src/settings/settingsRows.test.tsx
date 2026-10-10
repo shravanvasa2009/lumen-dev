@@ -62,6 +62,7 @@ async function saveOwnReading(takenAt: number, mode: 'quick' | 'full') {
     context: {} as never,
     results: outcome,
     models: { rhythm: null, diabetes: null },
+    intervalsMs: [],
   });
 }
 

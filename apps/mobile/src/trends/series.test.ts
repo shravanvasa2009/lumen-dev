@@ -13,6 +13,7 @@ function reading(day: number, hr: number | null, rmssd: number | null = null): H
     rhythm: 'sinus',
     flaggedLowRhythm: null,
     caffeine: false,
+    intervalsMs: [],
   };
 }
 
@@ -139,6 +140,7 @@ describe('flagged lower-quality rhythms', () => {
     resp: null,
     rhythm: null,
     caffeine: false,
+    intervalsMs: [],
   };
 
   it('lists one in range even without a value, and keeps it out of the median', () => {

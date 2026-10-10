@@ -16,13 +16,14 @@ describe('practice', () => {
     expect(screen.getByText(en['coach.cover'])).toBeOnTheScreen();
     for (const key of ['signal.weak', 'signal.ok', 'signal.strong'] as const)
       expect(screen.getByText(en[key])).toBeOnTheScreen();
-    expect(screen.getByText('0 of 30 steady seconds')).toBeOnTheScreen();
+    expect(screen.getByLabelText('0 of 30 steady seconds')).toBeOnTheScreen();
     expect(screen.getByText(en['practice.pending'])).toBeOnTheScreen();
   });
 
-  it('continues to How to sit', () => {
+  it('keeps Continue off until the 30 seconds are counted, and Skip practice goes on to the rating', () => {
     renderRouter('./app', { initialUrl: '/practice' });
-    fireEvent.press(screen.getByRole('button', { name: en['common.continue'] }));
+    expect(screen.getByRole('button', { name: en['common.continue'] })).toBeDisabled();
+    fireEvent.press(screen.getByRole('button', { name: en['practice.skip'] }));
     expect(screen.getByRole('header', { name: en['howToSit.title'] })).toBeOnTheScreen();
   });
 });

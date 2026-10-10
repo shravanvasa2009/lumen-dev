@@ -28,12 +28,12 @@ describe('Measure button look', () => {
     expect(tokens[theme].measureCore).toMatch(/^#[0-9A-F]{6}$/);
   });
 
-  it('draws one gradient disc with no stroke, and the theme text colour on the label', () => {
+  it('draws one gradient disc and 90 timer ticks, and the theme text colour on the label', () => {
     const screen = render(
       <MeasureButton label="Measure" modeLabel="Full, 90 s" size={320} onPress={() => {}} />,
     );
     const themeTextColors = [tokens.light.text, tokens.dark.text];
     expect(themeTextColors).toContain(StyleSheet.flatten(screen.getByText('Measure').props.style).color);
-    expect(JSON.stringify(screen.toJSON())).not.toContain('stroke');
+    expect(JSON.stringify(screen.toJSON()).match(/RNSVGLine/g)).toHaveLength(90);
   });
 });

@@ -9,6 +9,7 @@ import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { Reveal, Settle, ValueSettle } from '@/components/Reveal';
 import { Screen } from '@/components/Screen';
+import { placementCopy } from '@/onboarding/phoneBackLayouts';
 import { FingerPreview, ProgressRing } from '@/onboarding/practiceParts';
 import { useTheme } from '@/theme';
 import { StillMotion } from '@/theme/motion';
@@ -24,11 +25,13 @@ import { captureVerdict } from './captureVerdict';
 import { cleanSecondsNeeded, type MeasureMode } from './mode';
 import { phaseCaption } from './phaseCaption';
 import { QualityChip } from './QualityChip';
+import { TickRing } from './TickRing';
 import type { LiveCapture } from './useLiveCapture';
 
 const RING_STROKE = 10;
 const TIGHT_RING_STROKE = 8;
 const NO_VALUE = '—';
+const MAJOR_TICK_SECONDS = 30;
 
 type CaptureViewProps = {
   mode: MeasureMode;
@@ -148,12 +151,23 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
               alignSelf: 'center',
             }}
           >
-            <ProgressRing
-              fraction={done === null ? 0 : done / total}
+            <TickRing
               size={sizes.ring}
-              strokeWidth={tight ? TIGHT_RING_STROKE : RING_STROKE}
+              count={total}
+              lit={done ?? 0}
+              majorEvery={MAJOR_TICK_SECONDS}
               paused={paused}
-            />
+              compact={tight}
+            >
+              {(innerSize) => (
+                <ProgressRing
+                  fraction={done === null ? 0 : done / total}
+                  size={innerSize}
+                  strokeWidth={tight ? TIGHT_RING_STROKE : RING_STROKE}
+                  paused={paused}
+                />
+              )}
+            </TickRing>
             <View style={{ position: 'absolute', alignItems: 'center' }}>
               <ValueSettle value={done ?? NO_VALUE}>
                 <AppText variant="display">{done ?? NO_VALUE}</AppText>
@@ -197,7 +211,7 @@ export function CaptureView({ mode, live, phone, onCancel, onStop }: CaptureView
           {fingerOn ? null : (
             <Reveal settle>
               <AppText tone="textDim" style={{ textAlign: 'center' }}>
-                {t('placement.flashOutsideBump')}
+                {placementCopy(t).instruction}
               </AppText>
             </Reveal>
           )}

@@ -72,14 +72,17 @@ const diabetes = (flag: 'pattern' | null) => (metrics: ReadingResult['metrics'])
   };
 };
 
-function show(readings: StoredReading[], compact = false) {
+function show(readings: StoredReading[]) {
   return renderRouter({
-    index: () => <ChecksSection readings={readings} now={NOW} compact={compact} />,
+    index: () => <ChecksSection readings={readings} now={NOW} />,
     'results/[id]': () => null,
+    trends: () => null,
+    'measure/precheck': () => null,
+    'measure/standing-test': () => null,
   });
 }
 
-describe('check cards with no readings', () => {
+describe('check rows with no readings', () => {
   it('say so on AFib, HRV and Diabetes, and name the Standing test for POTS', () => {
     show([]);
     expect(screen.getAllByText(en['home.noReadings'])).toHaveLength(3);
@@ -87,7 +90,7 @@ describe('check cards with no readings', () => {
   });
 });
 
-describe('check cards with saved readings', () => {
+describe('check rows with saved readings', () => {
   it('give AFib the rhythm words of the newest reading that has one', () => {
     show([reading(0, rhythm('sinus')), reading(2, rhythm('af'))]);
     expect(screen.getByText(`${en['results.rhythmRegular']} · ${en['checks.today']}`)).toBeOnTheScreen();
@@ -167,26 +170,39 @@ describe('check cards with saved readings', () => {
     expect(screen.getAllByText(en['home.noReadings'])).toHaveLength(2);
   });
 
-  it('opens the reading behind a finding', () => {
-    const saved = reading(0, rmssd(null));
+  it.each([
+    ['afib', 'reading'],
+    ['diabetes', 'reading'],
+    ['hrv', 'trends'],
+  ] as const)('opens the %s row on its %s', (check, target) => {
+    const saved = reading(0, (metrics) => {
+      rhythm('sinus')(metrics);
+      rmssd(null)(metrics);
+      diabetes(null)(metrics);
+    });
     const route = show([saved]);
-    fireEvent.press(screen.getByRole('button', { name: `${en['checks.hrv.name']}: 48 ms` }));
-    expect(route.getPathname()).toBe(`/results/${saved.id}`);
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${en[`checks.${check}.name`]}`) }));
+    expect(route.getPathname()).toBe(target === 'reading' ? `/results/${saved.id}` : '/trends');
   });
 
-  it('keeps every Scan button on a compact screen', () => {
-    show([], true);
-    expect(screen.getAllByRole('button', { name: /^Scan for / })).toHaveLength(4);
+  it.each([
+    ['AFib', '/measure/precheck'],
+    ['HRV', '/measure/precheck'],
+    ['Diabetes', '/measure/precheck'],
+    ['POTS', '/measure/standing-test'],
+  ])('starts the right check from %s while it has no reading', (name, path) => {
+    const route = show([]);
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${name}`) }));
+    expect(route.getPathname()).toBe(path);
   });
 });
 
-describe('check cards in Spanish', () => {
+describe('check rows in Spanish', () => {
   beforeAll(() => i18n.changeLanguage('es'));
   afterAll(() => i18n.changeLanguage('en'));
 
-  it('label each Scan button with the check name', () => {
+  it('shows the POTS line in Spanish', () => {
     show([]);
-    expect(screen.getByRole('button', { name: `Escanear ${es['checks.afib.name']}` })).toBeOnTheScreen();
     expect(screen.getByText(es['checks.status.potsNone'])).toBeOnTheScreen();
   });
 });

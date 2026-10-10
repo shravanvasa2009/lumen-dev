@@ -33,25 +33,25 @@ describe('choose a mode: footer and back chevron (mockup 11)', () => {
   it('names the phone and its rating, and says no mode is locked by the rating when nothing is locked', async () => {
     mockRating = ratingOf('full', 60);
     await open();
-    expect(screen.getByText('This phone · Full rating — no modes locked by this rating')).toBeOnTheScreen();
+    expect(screen.getByText('This phone · Full rating, no modes locked by this rating')).toBeOnTheScreen();
   });
 
   it('says some modes are locked when the rating locks one', async () => {
     mockRating = ratingOf('basic', 30);
     await open();
-    expect(screen.getByText('This phone · Basic rating — some modes are locked')).toBeOnTheScreen();
+    expect(screen.getByText('This phone · Basic rating, some modes are locked')).toBeOnTheScreen();
   });
 
   it('has no footer before the phone is rated', async () => {
     await open();
-    expect(screen.queryByText(/rating —/)).toBeNull();
+    expect(screen.queryByText(/rating, /)).toBeNull();
   });
 
   it('puts the footer under the last mode card', async () => {
     mockRating = ratingOf('full', 60);
     await open();
     const drawn = JSON.stringify(screen.toJSON());
-    expect(drawn.indexOf(en['mode.standing'])).toBeLessThan(drawn.indexOf('rating —'));
+    expect(drawn.indexOf(en['mode.standing'])).toBeLessThan(drawn.indexOf('rating,'));
   });
 
   it('shows the footer in Spanish', async () => {
@@ -61,7 +61,7 @@ describe('choose a mode: footer and back chevron (mockup 11)', () => {
       await open();
       expect(
         screen.getByText(
-          'Este teléfono · calificación Completa — ningún modo bloqueado por esta calificación',
+          'Este teléfono · calificación Completa, ningún modo bloqueado por esta calificación',
         ),
       ).toBeOnTheScreen();
     } finally {

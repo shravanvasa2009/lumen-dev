@@ -11,6 +11,44 @@ import { useTheme } from '@/theme';
 
 import { reasonText } from './quality';
 
+type LowerQualitySheetProps = { visible: boolean; reasons: readonly QualityReason[]; onDismiss: () => void };
+
+// Why a reading is lower quality, and how to get a better one.
+export function LowerQualitySheet({ visible, reasons, onDismiss }: LowerQualitySheetProps) {
+  const { t } = useTranslation();
+  const { spacing } = useTheme();
+  return (
+    <BottomSheet
+      visible={visible}
+      onDismiss={onDismiss}
+      dismissLabel={t('common.close')}
+      appearance="grouped"
+    >
+      <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.lg }}>
+        <AppText variant="title" accessibilityRole="header">
+          {t('quality.sheetTitle')}
+        </AppText>
+        <View style={{ gap: spacing.sm }}>
+          {reasons.map((reason) => (
+            <AppText key={reason.kind}>• {reasonText(t, reason)}</AppText>
+          ))}
+        </View>
+        <AppText variant="headline">{t('quality.betterTitle')}</AppText>
+        <View style={{ gap: spacing.sm }}>
+          {[t('quality.tipFlat'), t('quality.tipStill'), t('quality.tipWarm'), t('quality.tipFull')].map(
+            (tip) => (
+              <AppText key={tip} tone="textDim">
+                • {tip}
+              </AppText>
+            ),
+          )}
+        </View>
+      </ScrollView>
+      <Button label={t('common.gotIt')} variant="tint" onPress={onDismiss} />
+    </BottomSheet>
+  );
+}
+
 type LowerQualityTagProps = { reasons: readonly QualityReason[]; small?: boolean };
 
 // §6: a reading is never withheld for quality; this quiet amber-neutral tag says it was weaker, and the
@@ -32,36 +70,14 @@ export function LowerQualityTag({ reasons, small = false }: LowerQualityTagProps
           backgroundColor: colors.badgeFlagBg,
           borderRadius: radius.pill,
           paddingHorizontal: small ? spacing.sm : spacing.md,
-          paddingVertical: small ? 0 : spacing.xs,
+          paddingVertical: small ? 0 : spacing.xs - 1,
         }}
       >
-        <AppText variant="caption" style={{ color: colors.badgeFlagFg }}>
+        <AppText variant="caption" style={{ color: colors.badgeFlagFg, fontWeight: small ? '400' : '600' }}>
           {t('quality.chip')} ›
         </AppText>
       </Pressable>
-      <BottomSheet visible={open} onDismiss={() => setOpen(false)} dismissLabel={t('common.close')}>
-        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.lg }}>
-          <AppText variant="title" accessibilityRole="header">
-            {t('quality.sheetTitle')}
-          </AppText>
-          <View style={{ gap: spacing.sm }}>
-            {reasons.map((reason) => (
-              <AppText key={reason.kind}>• {reasonText(t, reason)}</AppText>
-            ))}
-          </View>
-          <AppText variant="headline">{t('quality.betterTitle')}</AppText>
-          <View style={{ gap: spacing.sm }}>
-            {[t('quality.tipFlat'), t('quality.tipStill'), t('quality.tipWarm'), t('quality.tipFull')].map(
-              (tip) => (
-                <AppText key={tip} tone="textDim">
-                  • {tip}
-                </AppText>
-              ),
-            )}
-          </View>
-        </ScrollView>
-        <Button label={t('common.gotIt')} variant="secondary" onPress={() => setOpen(false)} />
-      </BottomSheet>
+      <LowerQualitySheet visible={open} reasons={reasons} onDismiss={() => setOpen(false)} />
     </>
   );
 }

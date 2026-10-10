@@ -1,7 +1,6 @@
-import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, renderRouter, screen } from 'expo-router/testing-library';
 import i18n, { type TFunction } from 'i18next';
 
-import es from '@/i18n/es.json';
 import { tableRows } from '@/report/model';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
@@ -38,10 +37,10 @@ describe('results rounding', () => {
   it('floors clean seconds and rounds bpm, HRV and its band on the Results screen', () => {
     renderRouter('./app', { initialUrl: '/results/fractional' });
     expect(screen.getByText(/^Full Scan · 90 clean s/)).toBeOnTheScreen();
-    expect(screen.getByText('66 bpm')).toBeOnTheScreen();
+    expect(screen.getAllByText('66')).toHaveLength(2);
     expect(screen.getByText('Regular rhythm, 66 bpm.')).toBeOnTheScreen();
-    expect(screen.getByText('48 ms')).toBeOnTheScreen();
-    expect(screen.getByText('your band 41–55')).toBeOnTheScreen();
+    expect(screen.getByText('48')).toBeOnTheScreen();
+    expect(screen.getByText('41–55 ms')).toBeOnTheScreen();
     expect(screen.queryByText(/66\.07|90\.08|48\.44/)).toBeNull();
   });
 
@@ -58,8 +57,7 @@ describe('results rounding', () => {
       expect(await screen.findByText(/^0,7 por minuto/)).toBeOnTheScreen();
       screen.unmount();
       renderRouter('./app', { initialUrl: '/results/fractional' });
-      fireEvent.press(screen.getByText(es['results.extraAndShape']));
-      expect(screen.getByText('Latidos extra u omitidos: 0,7 por minuto')).toBeOnTheScreen();
+      expect(screen.getByText('0,7 por minuto')).toBeOnTheScreen();
     } finally {
       await act(() => i18n.changeLanguage('en'));
     }

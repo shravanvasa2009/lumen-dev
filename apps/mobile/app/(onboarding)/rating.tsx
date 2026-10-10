@@ -1,64 +1,26 @@
 import type { TFunction } from 'i18next';
+import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import {
-  CHECK_ICON,
-  CHECK_IDS,
-  CHECK_PILL,
-  type CheckId,
-  checkCell,
-  type PlanMode,
-  planPhone,
-} from '@/checks/checkPlan';
+import { CHECK_ICON, CHECK_IDS, type CheckId, checkCell, type PlanMode, planPhone } from '@/checks/checkPlan';
 import { lockText } from '@/checks/lockText';
-import { EvidenceBadge } from '@/components/EvidenceBadge';
-import { Icon } from '@/components/Icon';
+import { Card } from '@/components/Card';
+import { Icon, type IconName } from '@/components/Icon';
+import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
-import { OnboardingStep } from '@/components/OnboardingStep';
+import { PressableScale } from '@/components/PressableScale';
 import { TryDemoButton } from '@/demo/TryDemoButton';
-import { ratingModeLabel, tierLabel } from '@/rating/labels';
+import { capabilityRows } from '@/onboarding/capabilityRows';
+import { OnboardingFrame } from '@/onboarding/OnboardingFrame';
+import { RatingDial } from '@/onboarding/RatingDial';
+import { usePhoneProbe } from '@/onboarding/usePhoneProbe';
+import { tierLabel } from '@/rating/labels';
 import { useRatingReveal } from '@/rating/useRatingReveal';
-import { RatingGauge } from '@/settings/RatingGauge';
 import { SectionLabel } from '@/settings/SectionLabel';
 import type { StoredRating } from '@/store/deviceRating';
 import { useTheme } from '@/theme';
-
-function UnlockedModes({ rating }: { rating: StoredRating }) {
-  const { t } = useTranslation();
-  const { colors, spacing, radius } = useTheme();
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <AppText variant="caption" tone="textDim" style={{ fontWeight: '600', textTransform: 'uppercase' }}>
-        {t('rating.unlocked')}
-      </AppText>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-        {rating.unlocks.map((mode) => (
-          <View
-            key={mode}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.xs,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.xs,
-              borderRadius: radius.pill,
-              borderWidth: 1,
-              borderColor: colors.accent,
-              backgroundColor: colors.surface2,
-            }}
-          >
-            <Icon name="check" size={16} color={colors.accent} />
-            <AppText variant="caption" tone="accent">
-              {ratingModeLabel(t, mode)}
-            </AppText>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
 
 // Each check is listed under the mode that runs it: the Standing test for POTS, a Full Scan for the rest.
 const LISTED_MODE: Record<CheckId, PlanMode> = {
@@ -68,13 +30,61 @@ const LISTED_MODE: Record<CheckId, PlanMode> = {
   pots: 'standing',
 };
 
+const PHONE_CHECK_ICONS: IconName[] = ['camera', 'warm', 'lock'];
+
+// The first three capability rows are the ones mockup 08 lists; frame timing and lens count stay on the phone check.
+function PhoneCheckGroup() {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const { colors, spacing, control } = useTheme();
+  const rows = capabilityRows(usePhoneProbe().probe, t).slice(0, PHONE_CHECK_ICONS.length);
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <SectionLabel>{t('rating.phoneCheck')}</SectionLabel>
+      <Card flush>
+        {rows.map(({ title, value }, index) => (
+          <ListRow
+            key={title}
+            title={title}
+            last={index === rows.length - 1}
+            leading={
+              <Icon
+                name={PHONE_CHECK_ICONS[index] ?? 'camera'}
+                size={control.chevronSize}
+                color={colors.accent}
+              />
+            }
+            trailing={<AppText tone="textDim">{value}</AppText>}
+          />
+        ))}
+      </Card>
+      <PressableScale
+        accessibilityRole="link"
+        onPress={() => router.push('/phone-check')}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.xs,
+          minHeight: control.minTarget,
+          paddingHorizontal: spacing.lg,
+        }}
+      >
+        <AppText variant="subheadline" tone="accent" style={{ fontWeight: '600' }}>
+          {t('rating.fullPhoneCheck')}
+        </AppText>
+        <Icon name="chevron" size={12} color={colors.accent} />
+      </PressableScale>
+    </View>
+  );
+}
+
 function CheckableList({ rating }: { rating: StoredRating }) {
   const { t } = useTranslation();
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing, control } = useTheme();
   const names: Record<CheckId, string> = {
     afib: t('checks.afib.name'),
     hrv: t('checks.hrv.name'),
-    diabetes: t('checks.diabetes.name'),
+    diabetes: t('checks.diabetes.pattern'),
     pots: t('checks.pots.name'),
   };
   const whats: Record<CheckId, string> = {
@@ -84,71 +94,39 @@ function CheckableList({ rating }: { rating: StoredRating }) {
     pots: t('checks.pots.whatShort'),
   };
   return (
-    <View
-      style={{
-        backgroundColor: colors.surface,
-        borderColor: colors.line,
-        borderWidth: 1,
-        borderRadius: radius.card,
-        overflow: 'hidden',
-      }}
-    >
-      <View style={{ padding: spacing.md }}>
-        <SectionLabel>{t('rating.checksHere')}</SectionLabel>
-      </View>
-      {CHECK_IDS.map((check) => {
-        const cell = checkCell(LISTED_MODE[check], check, planPhone(rating));
-        const lockedWhy = cell.state === 'locked' ? cell.why : null;
-        const pill = CHECK_PILL[check];
-        return (
-          <View
-            key={check}
-            accessible
-            accessibilityLabel={`${names[check]}: ${lockedWhy === null ? whats[check] : lockText(t, lockedWhy)}`}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.md,
-              padding: spacing.md,
-              borderTopWidth: 1,
-              borderTopColor: colors.line,
-            }}
-          >
-            <View
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: radius.card - 6,
-                backgroundColor: colors.surface2,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Icon
-                name={CHECK_ICON[check]}
-                size={20}
-                color={lockedWhy === null ? colors.accent : colors.textFaint}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-                <AppText variant="headline" tone={lockedWhy === null ? 'text' : 'textDim'}>
-                  {names[check]}
-                </AppText>
-                {pill === null ? null : <EvidenceBadge metric={pill} />}
-              </View>
-              <AppText variant="caption" tone="textDim">
-                {lockedWhy === null ? whats[check] : lockText(t, lockedWhy)}
-              </AppText>
-            </View>
-            <Icon
-              name={lockedWhy === null ? 'check' : 'lock'}
-              size={20}
-              color={lockedWhy === null ? colors.accent : colors.textFaint}
+    <View style={{ gap: spacing.sm }}>
+      <SectionLabel>{t('rating.checksHere')}</SectionLabel>
+      <Card flush>
+        {CHECK_IDS.map((check, index) => {
+          const cell = checkCell(LISTED_MODE[check], check, planPhone(rating));
+          const lockedWhy = cell.state === 'locked' ? cell.why : null;
+          const detail = lockedWhy === null ? whats[check] : lockText(t, lockedWhy);
+          return (
+            <ListRow
+              key={check}
+              title={names[check]}
+              subtitle={detail}
+              last={index === CHECK_IDS.length - 1}
+              leading={
+                <Icon
+                  name={CHECK_ICON[check]}
+                  size={control.chevronSize}
+                  color={lockedWhy === null ? colors.accent : colors.textFaint}
+                />
+              }
+              trailing={
+                <View accessible accessibilityLabel={lockedWhy === null ? t('rating.available') : detail}>
+                  <Icon
+                    name={lockedWhy === null ? 'check' : 'lock'}
+                    size={control.chevronSize}
+                    color={lockedWhy === null ? colors.accent : colors.textFaint}
+                  />
+                </View>
+              }
             />
-          </View>
-        );
-      })}
+          );
+        })}
+      </Card>
     </View>
   );
 }
@@ -168,15 +146,16 @@ export default function RatingScreen() {
   const rating = reveal.kind === 'rated' ? reveal.rating : null;
   const note = rating === null ? null : ratingNote(rating, t);
   return (
-    <OnboardingStep
-      step={7}
+    <OnboardingFrame
+      step={5}
       title={t('rating.title')}
       subtitle={t('rating.subtitle')}
+      centered
       footer={<NavButton label={t('common.continue')} href="/reminders" />}
     >
       {rating === null ? (
         <>
-          <RatingGauge
+          <RatingDial
             score={null}
             label={t('phoneRating.noScore')}
             caption={reveal.kind === 'measuring' ? t('rating.measuring') : t('phoneRating.notTested')}
@@ -192,16 +171,13 @@ export default function RatingScreen() {
         </>
       ) : (
         <>
-          <RatingGauge
-            score={rating.score}
-            label={String(rating.score)}
-            caption={tierLabel(t, rating.tier)}
-          />
+          <RatingDial score={rating.score} label={String(rating.score)} caption={tierLabel(t, rating.tier)} />
           {note === null ? null : (
             <AppText tone="textDim" style={{ textAlign: 'center' }}>
               {note}
             </AppText>
           )}
+          <PhoneCheckGroup />
           {rating.tier === 'unsupported' ? (
             <>
               <AppText tone="textDim" style={{ textAlign: 'center' }}>
@@ -210,13 +186,10 @@ export default function RatingScreen() {
               <TryDemoButton />
             </>
           ) : (
-            <>
-              <UnlockedModes rating={rating} />
-              <CheckableList rating={rating} />
-            </>
+            <CheckableList rating={rating} />
           )}
         </>
       )}
-    </OnboardingStep>
+    </OnboardingFrame>
   );
 }

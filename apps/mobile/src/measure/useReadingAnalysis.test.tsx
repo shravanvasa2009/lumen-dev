@@ -2,6 +2,7 @@ import type { InconclusiveOutcome } from '@lumen/core';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { emptyMockDatabases } from '../../__mocks__/expo-sqlite';
+import { demoReadingById } from '@/demo/demoReadings';
 import '@/i18n';
 // Before applyPrefs: the mockFileSystem factory runs when applyPrefs loads expo-file-system.
 import { mockFileSystem } from '@/testing/memoryFiles';
@@ -37,6 +38,8 @@ const finishedProgress = {
   outputs: null,
 } as const;
 
+const INTERVALS_MS = [930, 945, 962];
+
 function analysedReading(): AnalysedReading {
   return {
     readingId: `reading-${TAKEN_AT}`,
@@ -54,6 +57,7 @@ function analysedReading(): AnalysedReading {
     },
     models: { rhythm: null, diabetes: null },
     reading: makeReading(TAKEN_AT, 64, 48).outcome,
+    intervalsMs: INTERVALS_MS,
     progress: finishedProgress,
     urgent: null,
   };
@@ -125,6 +129,22 @@ describe('saving the analysed reading', () => {
     await waitFor(() => expect(saved.result.current.phase).toBe('done'));
     expect(await listReadings()).toHaveLength(1);
     expect(resyncNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves the beat intervals with the reading', async () => {
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('done'));
+    expect((await listReadings())[0]?.intervalsMs).toEqual(INTERVALS_MS);
+  });
+
+  it('keeps the beat intervals of a Demo reading in memory only', async () => {
+    keepCapture({ ...newCapture(), demo: true });
+    const { result: analysis } = renderHook(() => useReadingAnalysis(REQUEST));
+    await waitFor(() => expect(analysis.current.phase).toBe('done'));
+    const done = analysis.current;
+    if (done.phase !== 'done') throw new Error('the analysis did not finish');
+    expect(demoReadingById(done.readingId)?.intervalsMs).toEqual(INTERVALS_MS);
+    expect(await listReadings()).toEqual([]);
   });
 
   it('does not re-sync the reminders for a Demo reading, which is never stored', async () => {

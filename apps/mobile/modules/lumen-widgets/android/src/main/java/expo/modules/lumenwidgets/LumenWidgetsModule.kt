@@ -41,8 +41,8 @@ class LumenWidgetsModule : Module() {
                 refreshPickerPreviews(context, displayJson)
             }
 
-            // The copy alone, at every launch: a widget placed before any reading then shows the four checks and the
-            // evidence tag instead of the fallback, and the picker gets its generated preview. The snapshot isn't sent,
+            // The copy alone, at every launch: a widget placed before any reading then draws in the app's language and
+            // palette instead of the fallback, and the picker gets its generated preview. The snapshot isn't sent,
             // so a launch never changes what the widget shows about readings.
             AsyncFunction("publishDisplay") Coroutine { displayJson: String ->
                 widgetView(NO_READING_SNAPSHOT, displayJson, System.currentTimeMillis())

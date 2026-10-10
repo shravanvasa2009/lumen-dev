@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The lock-screen widget's card: the dark surface, slightly see-through, in either phone theme (LockWidget.kt). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/lumen_widget_lock_glass" />
+    <corners android:radius="22dp" />
+</shape>

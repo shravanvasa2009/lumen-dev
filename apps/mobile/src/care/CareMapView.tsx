@@ -5,9 +5,11 @@ import { ActivityIndicator, StyleSheet, useWindowDimensions, View } from 'react-
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
+import { PressableScale } from '@/components/PressableScale';
 import { useTheme } from '@/theme';
 
 import type { Coordinates, NearbyClinic } from './clinics';
+import { ContactIcon } from './ContactIcons';
 import type { NearbyDoctor } from './nearbyDoctors';
 
 // OpenFreeMap needs no key; commercial use is allowed and the attribution stays on (ADR 0054 §2).
@@ -106,16 +108,16 @@ function MapLegend({ entries }: { entries: readonly LegendEntry[] }) {
         position: 'absolute',
         top: spacing.xs,
         left: spacing.xs,
-        maxWidth: '92%',
+        maxWidth: '78%',
         flexDirection: 'row',
         flexWrap: 'wrap',
         columnGap: spacing.md,
         rowGap: spacing.xs,
         paddingVertical: spacing.xs,
         paddingHorizontal: spacing.sm,
-        borderRadius: radius.card,
-        borderWidth: 1,
-        borderColor: colors.line2,
+        borderRadius: radius.pill,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.line,
         backgroundColor: colors.surface,
       }}
     >
@@ -153,6 +155,8 @@ type CareMapViewProps = {
   compact: boolean;
   onSelectClinic: (id: string) => void;
   onClearSelection: () => void;
+  // Given only while a searched place is shown, to bring the map back to the person's own area.
+  onShowMyLocation?: () => void;
 };
 
 // The style is the same in both themes, so it is never swapped on a live map (a crash on some Android
@@ -166,9 +170,10 @@ export function CareMapView({
   compact,
   onSelectClinic,
   onClearSelection,
+  onShowMyLocation,
 }: CareMapViewProps) {
   const { t } = useTranslation();
-  const { radius, colors, spacing } = useTheme();
+  const { radius, colors, spacing, control } = useTheme();
   const [attempt, setAttempt] = useState(0);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'failed'>('loading');
   const { height: windowHeight } = useWindowDimensions();
@@ -198,7 +203,7 @@ export function CareMapView({
       testID="care-map-frame"
       style={{
         height: compact ? Math.min(mapHeight, MAP_KEYBOARD_HEIGHT) : mapHeight,
-        borderRadius: radius.card,
+        borderRadius: radius.sheet,
         overflow: 'hidden',
         backgroundColor: colors.surface2,
       }}
@@ -254,6 +259,28 @@ export function CareMapView({
         ))}
       </Map>
       <MapLegend entries={legend} />
+      {onShowMyLocation ? (
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel={t('careMap.showMyLocation')}
+          onPress={onShowMyLocation}
+          style={{
+            position: 'absolute',
+            top: spacing.sm,
+            right: spacing.sm,
+            width: control.minTarget,
+            height: control.minTarget,
+            borderRadius: radius.pill,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.surface,
+            borderColor: colors.line2,
+            borderWidth: 1,
+          }}
+        >
+          <ContactIcon name="locate" size={22} color={colors.accent} />
+        </PressableScale>
+      ) : null}
       {loadState === 'loading' ? (
         <View
           testID="care-map-loading"

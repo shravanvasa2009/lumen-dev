@@ -5,31 +5,34 @@ import { View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { Checkbox } from '@/components/Checkbox';
-import { Icon, type IconName } from '@/components/Icon';
+import { Icon } from '@/components/Icon';
+import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
-import { OnboardingStep } from '@/components/OnboardingStep';
+import { OnboardingFrame } from '@/onboarding/OnboardingFrame';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
 
-const TILE_SIZE = 36;
-
-function ConsentRow({ icon, allowed, children }: { icon: IconName; allowed: boolean; children: string }) {
-  const { colors, spacing, radius, control } = useTheme();
+function ConsentGroup({ heading, allowed, texts }: { heading: string; allowed: boolean; texts: string[] }) {
+  const { colors, spacing, control } = useTheme();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-      <View
-        style={{
-          width: TILE_SIZE,
-          height: TILE_SIZE,
-          borderRadius: radius.card / 2,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: allowed ? colors.badgeCheckedBg : colors.surface3,
-        }}
-      >
-        <Icon name={icon} size={control.chevronSize} color={allowed ? colors.accent : colors.textDim} />
-      </View>
-      <AppText style={{ flex: 1 }}>{children}</AppText>
+    <View style={{ gap: spacing.sm }}>
+      <SectionLabel>{heading}</SectionLabel>
+      <Card flush>
+        {texts.map((text, index) => (
+          <ListRow
+            key={text}
+            title={text}
+            last={index === texts.length - 1}
+            leading={
+              <Icon
+                name={allowed ? 'check' : 'close'}
+                size={control.chevronSize}
+                color={allowed ? colors.accent : colors.textDim}
+              />
+            }
+          />
+        ))}
+      </Card>
     </View>
   );
 }
@@ -39,44 +42,28 @@ export default function ConsentScreen() {
   const { colors, spacing, radius, control } = useTheme();
   const [understood, setUnderstood] = useState(false);
   return (
-    <OnboardingStep
+    <OnboardingFrame
       step={1}
       title={t('consent.title')}
       footer={
         <View testID="consent-footer" style={{ gap: spacing.md }}>
-          <Checkbox label={t('consent.understand')} checked={understood} onChange={setUnderstood} />
+          <Card>
+            <Checkbox label={t('consent.understand')} checked={understood} onChange={setUnderstood} />
+          </Card>
           <NavButton label={t('common.continue')} href="/profile" disabled={!understood} />
         </View>
       }
     >
-      <View style={{ gap: spacing.sm }}>
-        <SectionLabel>{t('consent.can')}</SectionLabel>
-        <Card>
-          <ConsentRow icon="finger" allowed>
-            {t('consent.canPulse')}
-          </ConsentRow>
-          <ConsentRow icon="pulse" allowed>
-            {t('consent.canRhythm')}
-          </ConsentRow>
-          <ConsentRow icon="trends" allowed>
-            {t('consent.canHrv')}
-          </ConsentRow>
-        </Card>
-      </View>
-      <View style={{ gap: spacing.sm }}>
-        <SectionLabel>{t('consent.cannot')}</SectionLabel>
-        <Card>
-          <ConsentRow icon="close" allowed={false}>
-            {t('consent.cannotDiagnose')}
-          </ConsentRow>
-          <ConsentRow icon="close" allowed={false}>
-            {t('consent.cannotReplace')}
-          </ConsentRow>
-          <ConsentRow icon="warning" allowed={false}>
-            {t('consent.cannotDetect')}
-          </ConsentRow>
-        </Card>
-      </View>
+      <ConsentGroup
+        heading={t('consent.can')}
+        allowed
+        texts={[t('consent.canPulse'), t('consent.canRhythm'), t('consent.canHrv')]}
+      />
+      <ConsentGroup
+        heading={t('consent.cannot')}
+        allowed={false}
+        texts={[t('consent.cannotDiagnose'), t('consent.cannotReplace'), t('consent.cannotDetect')]}
+      />
       <View
         accessible
         accessibilityRole="alert"
@@ -94,6 +81,6 @@ export default function ConsentScreen() {
           {t('consent.callWarning')}
         </AppText>
       </View>
-    </OnboardingStep>
+    </OnboardingFrame>
   );
 }

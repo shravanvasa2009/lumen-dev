@@ -28,6 +28,7 @@ function savedAt(createdAt: number, mode: 'quick' | 'full' = 'full') {
     context: CONTEXT,
     results: makeReading(createdAt, 64, 48).outcome,
     models: MODELS,
+    intervalsMs: [930, 945, 962],
   };
 }
 
@@ -40,16 +41,48 @@ describe('the schema', () => {
       "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
     );
     expect(tables.map(({ name }) => name)).toEqual(['baselines', 'device_rating', 'profile', 'readings']);
-    expect(await database.getFirstAsync('PRAGMA user_version')).toEqual({ user_version: 1 });
+    expect(await database.getFirstAsync('PRAGMA user_version')).toEqual({ user_version: 2 });
+  });
+
+  it('adds the intervals column to a version-1 database and keeps its readings, with no intervals', async () => {
+    await jest.isolateModulesAsync(async () => {
+      const { openDatabaseAsync } = await import('expo-sqlite');
+      const older = await openDatabaseAsync('lumen.db');
+      await older.execAsync(`
+        CREATE TABLE readings (
+          id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, mode TEXT NOT NULL,
+          app_version TEXT, device_model TEXT, rating_score INTEGER, rating_tier TEXT, lens_id TEXT,
+          context_json TEXT, results_json TEXT NOT NULL, quality_json TEXT, models_json TEXT,
+          capture_path TEXT, demo INTEGER DEFAULT 0);
+        PRAGMA user_version = 1;`);
+      const outcome = makeReading(1_000, 64, 48).outcome;
+      await older.runAsync('INSERT INTO readings (id, created_at, mode, results_json) VALUES (?, ?, ?, ?)', [
+        'reading-1000',
+        1_000,
+        'full',
+        JSON.stringify(outcome),
+      ]);
+      const { lumenDatabase: openOlder } = await import('./database');
+      const { storedReadingById: readOlder } = await import('./readings');
+      await openOlder();
+      expect(await older.getFirstAsync('PRAGMA user_version')).toEqual({ user_version: 2 });
+      expect(await readOlder('reading-1000')).toEqual({
+        id: 'reading-1000',
+        takenAt: 1_000,
+        mode: 'full',
+        outcome,
+        intervalsMs: [],
+      });
+    });
   });
 
   it('refuses a database written by a newer version and leaves its tables alone', async () => {
     await jest.isolateModulesAsync(async () => {
       const { openDatabaseAsync } = await import('expo-sqlite');
       const newer = await openDatabaseAsync('lumen.db');
-      await newer.execAsync('PRAGMA user_version = 2');
+      await newer.execAsync('PRAGMA user_version = 3');
       const { lumenDatabase: openNewer } = await import('./database');
-      await expect(openNewer()).rejects.toThrow(/schema version 2, newer than this app's 1/);
+      await expect(openNewer()).rejects.toThrow(/schema version 3, newer than this app's 2/);
       await expect(openNewer()).rejects.toThrow(/newer/);
       expect(await newer.getAllAsync("SELECT name FROM sqlite_master WHERE type = 'table'")).toEqual([]);
     });
@@ -61,7 +94,7 @@ describe('the schema', () => {
 });
 
 describe('readings', () => {
-  it('saves a reading and reads it back by id, with the results JSON intact', async () => {
+  it('saves a reading and reads it back by id, with the results JSON and beat intervals intact', async () => {
     const reading = savedAt(1_700_000_000_000);
     await saveReading(reading);
     expect(await storedReadingById(reading.id)).toEqual({
@@ -69,7 +102,9 @@ describe('readings', () => {
       takenAt: reading.createdAt,
       mode: 'full',
       outcome: reading.results,
+      intervalsMs: [930, 945, 962],
     });
+    expect((await listReadings())[0]?.intervalsMs).toEqual([930, 945, 962]);
   });
 
   it('keeps the context and models JSON and marks the row as not demo', async () => {

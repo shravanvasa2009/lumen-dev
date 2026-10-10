@@ -39,35 +39,44 @@ export function ListRow({
       disabled={!onPress || disabled}
       accessibilityState={{ disabled, expanded }}
       onPress={onPress}
-      style={[
-        styles.row,
-        {
-          minHeight: control.minTarget,
-          paddingVertical: spacing.md,
-          paddingHorizontal: spacing.lg,
-          gap: spacing.md,
-          borderBottomColor: colors.line,
-          borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
-          opacity: disabled ? 0.5 : 1,
-        },
-      ]}
+      style={[styles.row, { paddingLeft: spacing.lg, opacity: disabled ? 0.5 : 1 }]}
     >
-      {leading}
-      <View style={styles.text}>
-        <AppText>{title}</AppText>
-        {subtitle ? (
-          <AppText variant="caption" tone="textDim">
-            {subtitle}
-          </AppText>
-        ) : null}
+      {leading ? (
+        <View style={{ width: 28, marginRight: spacing.md, alignItems: 'center', justifyContent: 'center' }}>
+          {leading}
+        </View>
+      ) : null}
+      {/* The divider starts under the text, not under the icon, as in the mockups. */}
+      <View
+        style={[
+          styles.body,
+          {
+            minHeight: control.minTarget,
+            paddingVertical: subtitle ? 9 : spacing.sm,
+            paddingRight: spacing.lg,
+            gap: spacing.md,
+            borderBottomColor: colors.line,
+            borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
+          },
+        ]}
+      >
+        <View style={styles.text}>
+          <AppText>{title}</AppText>
+          {subtitle ? (
+            <AppText variant="subheadline" tone="textDim">
+              {subtitle}
+            </AppText>
+          ) : null}
+        </View>
+        {trailing}
+        {chevron ? <Icon name="chevron" size={control.chevronSize} color={colors.glyph} /> : null}
       </View>
-      {trailing}
-      {chevron ? <Icon name="chevron" size={control.chevronSize} color={colors.textFaint} /> : null}
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
+  row: { flexDirection: 'row', alignItems: 'stretch' },
+  body: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   text: { flex: 1 },
 });

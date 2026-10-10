@@ -15,11 +15,12 @@ const CONTEXT: ReadingContext = {
   validationRhythmLabel: null,
 };
 
-// Writes a reading to the (mock) readings table, optionally with a flagged heart rate, and returns its id.
+// Writes a reading to the (mock) readings table, optionally with a flagged heart rate or beat intervals, and
+// returns its id.
 export async function saveTestReading(
   takenAt: number,
   hr: number,
-  { flagged = false }: { flagged?: boolean } = {},
+  { flagged = false, intervalsMs = [] }: { flagged?: boolean; intervalsMs?: readonly number[] } = {},
 ): Promise<string> {
   const { id, outcome } = makeReading(takenAt, hr, 48);
   const results = flagged && outcome.metrics.hr
@@ -32,6 +33,7 @@ export async function saveTestReading(
     context: CONTEXT,
     results,
     models: { rhythm: null, diabetes: null },
+    intervalsMs,
   });
   return id;
 }

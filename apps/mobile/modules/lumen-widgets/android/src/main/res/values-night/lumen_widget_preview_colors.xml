@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="lumen_widget_preview_surface">@color/lumen_widget_dark_surface</color>
-    <color name="lumen_widget_preview_line">@color/lumen_widget_dark_line</color>
-    <color name="lumen_widget_preview_line2">@color/lumen_widget_dark_line2</color>
     <color name="lumen_widget_preview_text">@color/lumen_widget_dark_text</color>
     <color name="lumen_widget_preview_text_dim">@color/lumen_widget_dark_text_dim</color>
     <color name="lumen_widget_preview_accent">@color/lumen_widget_dark_accent</color>
-    <color name="lumen_widget_preview_accent_fill">@color/lumen_widget_dark_accent_fill</color>
-    <color name="lumen_widget_preview_on_accent_fill">@color/lumen_widget_dark_on_accent_fill</color>
+    <color name="lumen_widget_preview_ring_track">@color/lumen_widget_dark_ring_track</color>
+    <color name="lumen_widget_preview_button_fill">@color/lumen_widget_dark_button_fill</color>
+    <color name="lumen_widget_preview_on_button_fill">@color/lumen_widget_dark_on_button_fill</color>
+    <color name="lumen_widget_preview_tonal_fill">@color/lumen_widget_dark_tonal_fill</color>
+    <color name="lumen_widget_preview_on_tonal_fill">@color/lumen_widget_dark_on_tonal_fill</color>
 </resources>

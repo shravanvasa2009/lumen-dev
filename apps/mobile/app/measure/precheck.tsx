@@ -9,7 +9,7 @@ import type { IconName } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
 import { NavButton } from '@/components/NavButton';
 import { Screen } from '@/components/Screen';
-import { ContextChip } from '@/measure/ContextChip';
+import { ContextRow } from '@/measure/ContextRow';
 import { parseMode } from '@/measure/mode';
 import { conclusiveCount, READINGS_BEFORE_COLLAPSE, ReminderRows } from '@/measure/reminders';
 import { RestRing } from '@/measure/RestRing';
@@ -29,11 +29,11 @@ export default function PrecheckScreen() {
   const folded = conclusiveCount(useStoredReadings()) >= READINGS_BEFORE_COLLAPSE;
   const [tipsOpen, setTipsOpen] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<Context>>(new Set());
-  const chips: readonly { context: Context; label: string; icon?: IconName }[] = [
+  const contexts: readonly { context: Context; label: string; icon: IconName }[] = [
     { context: 'caffeine', label: t('precheck.caffeine'), icon: 'cup' },
-    { context: 'exercise', label: t('precheck.exercise') },
-    { context: 'ill', label: t('precheck.ill') },
-    { context: 'medication', label: t('precheck.medication') },
+    { context: 'exercise', label: t('precheck.exercise'), icon: 'dumbbell' },
+    { context: 'ill', label: t('precheck.ill'), icon: 'thermometer' },
+    { context: 'medication', label: t('precheck.medication'), icon: 'pill' },
   ];
   const toggle = (context: Context) => {
     const next = new Set(selected);
@@ -64,17 +64,18 @@ export default function PrecheckScreen() {
           {remaining > 0 ? <Button label={t('precheck.skip')} variant="link" onPress={skip} /> : null}
         </View>
         <SectionLabel>{t('precheck.lastHours')}</SectionLabel>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          {chips.map(({ context, label, icon }) => (
-            <ContextChip
+        <Card flush>
+          {contexts.map(({ context, label, icon }, index) => (
+            <ContextRow
               key={context}
               label={label}
               icon={icon}
               selected={selected.has(context)}
+              last={index === contexts.length - 1}
               onToggle={() => toggle(context)}
             />
           ))}
-        </View>
+        </Card>
         <ScanChecks mode={mode} />
         {folded ? (
           <Card flush>

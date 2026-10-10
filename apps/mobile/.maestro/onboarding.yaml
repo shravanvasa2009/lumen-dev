@@ -23,27 +23,26 @@ name: Onboarding from welcome to Home
           timeout: 60000
 - assertNotVisible: 'Change mode'
 - tapOn: 'Get started'
-- assertVisible: "What Lumen is — and isn't"
+- assertVisible: "What Lumen is and isn't"
 - tapOn: 'I understand Lumen is a screening tool, not a diagnosis.'
 - tapOn: 'Continue'
 - assertVisible: 'About you'
 - tapOn: 'Enter age'
 - inputText: '42'
 - hideKeyboard
-- assertVisible: 'Question set 1 of 2'
-- tapOn: 'Next'
+- tapOn: 'Continue'
 - assertVisible: 'Diabetes risk questions'
 - assertVisible: 'Question set 2 of 2'
 - tapOn: 'Back'
 - assertVisible: 'About you'
-- tapOn: 'Next'
+- tapOn: 'Continue'
 - tapOn: 'Continue'
 - assertVisible: 'Checking your phone'
 - tapOn: 'Next: finger placement'
 - assertVisible: 'Where your finger goes'
-- tapOn: "I'm ready — start practice"
+- tapOn: "I'm ready, start practice"
 - assertVisible: 'Practice reading'
-- tapOn: 'Continue'
+- tapOn: 'Skip practice'
 - assertVisible: 'How to sit'
 - tapOn: 'Continue'
 - assertVisible: 'Your Lumen rating'

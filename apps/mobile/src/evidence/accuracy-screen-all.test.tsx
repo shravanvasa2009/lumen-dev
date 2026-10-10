@@ -18,11 +18,10 @@ jest.mock('../../assets/evidence.json', () => ({
   ),
 }));
 
-it('EVID-1: when every label passes the summary says so and the "rest are Experimental" line is absent', () => {
+it('EVID-1: when every label passes the ring counts every check as checked', () => {
   renderRouter({ _layout: () => <Stack />, index: AccuracyScreen });
   const total = String(evidenceMetrics.length);
   expect(
-    screen.getByText(en['accuracy.summary'].replace('{{checked}}', total).replace('{{total}}', total)),
+    screen.getByLabelText(en['accuracy.summary'].replace('{{checked}}', total).replace('{{total}}', total)),
   ).toBeTruthy();
-  expect(screen.queryByText(en['accuracy.summaryRest'])).toBeNull();
 });

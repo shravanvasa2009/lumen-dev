@@ -19,23 +19,25 @@ class WidgetViewTest {
         assertEquals("Up to date", view.status)
         assertEquals("Last check 2 h ago", view.lastCheck)
         assertEquals("64", view.bpm)
-        assertEquals("streak 5 days", view.streak)
         assertEquals("No checks yet", view.emptyTitle)
         assertEquals("Takes 90 seconds", view.emptyBody)
         assertEquals("system", view.theme)
-        assertEquals(0xFF2EC4B6L, view.dark.accentFill)
+        assertEquals(0xFF2EC4B6L, view.dark.buttonFill)
+        assertEquals(0xFF18333BL, view.dark.tonalFill)
+        assertEquals(0xFF252C3DL, view.dark.ringTrack)
         assertEquals(0xFFF87171L, view.dark.criticalText)
-        assertEquals(0xFF272B36L, view.dark.badgeExperimentalBg)
-        assertEquals(emptyList<String>(), view.checks)
-        assertEquals(null, view.diabetesTag)
     }
 
+    // The ring the small widget draws for each status (Widgets mockup).
     @Test
-    fun readsTheFourChecksAndTheDiabetesTag() {
-        val view = widgetView(testSnapshot(), testDisplayWithChecks(), TEST_READING_MS)
-        assertEquals(listOf("AFib", "POTS", "HRV", "Diabetes"), view.checks)
-        assertEquals("Experimental", view.diabetesTag)
-        assertEquals(null, widgetView(testSnapshot(), testDisplayWithChecks(null), TEST_READING_MS).diabetesTag)
+    fun ringsTheStatusFullOnlyWhileUpToDate() {
+        val palette = widgetView(testSnapshot(), TEST_DISPLAY, TEST_READING_MS).dark
+        assertNull(statusRing(null))
+        assertEquals(R.drawable.lumen_widget_ring, statusRing("regular")!!.arc)
+        assertEquals(palette.accent, statusRing("regular")!!.color(palette))
+        assertEquals(R.drawable.lumen_widget_ring_part, statusRing("check-again")!!.arc)
+        assertEquals(palette.flag, statusRing("inconclusive")!!.color(palette))
+        assertEquals(palette.criticalText, statusRing("see-doctor")!!.color(palette))
     }
 
     @Test
@@ -59,7 +61,6 @@ class WidgetViewTest {
         assertNull(view.status)
         assertNull(view.lastCheck)
         assertNull(view.bpm)
-        assertNull(view.streak)
         assertEquals("Check now", view.checkNow)
         assertEquals("Full Scan", view.fullScan)
     }

@@ -3,11 +3,15 @@
      first publishes. -->
 <resources>
     <color name="lumen_widget_preview_surface">@color/lumen_widget_light_surface</color>
-    <color name="lumen_widget_preview_line">@color/lumen_widget_light_line</color>
-    <color name="lumen_widget_preview_line2">@color/lumen_widget_light_line2</color>
     <color name="lumen_widget_preview_text">@color/lumen_widget_light_text</color>
     <color name="lumen_widget_preview_text_dim">@color/lumen_widget_light_text_dim</color>
     <color name="lumen_widget_preview_accent">@color/lumen_widget_light_accent</color>
-    <color name="lumen_widget_preview_accent_fill">@color/lumen_widget_light_accent_fill</color>
-    <color name="lumen_widget_preview_on_accent_fill">@color/lumen_widget_light_on_accent_fill</color>
+    <color name="lumen_widget_preview_ring_track">@color/lumen_widget_light_ring_track</color>
+    <color name="lumen_widget_preview_button_fill">@color/lumen_widget_light_button_fill</color>
+    <color name="lumen_widget_preview_on_button_fill">@color/lumen_widget_light_on_button_fill</color>
+    <color name="lumen_widget_preview_tonal_fill">@color/lumen_widget_light_tonal_fill</color>
+    <color name="lumen_widget_preview_on_tonal_fill">@color/lumen_widget_light_on_tonal_fill</color>
+    <!-- The dark surface at 85% (0xD9), the Live Activity card's see-through dark (Widgets mockup). Static previews
+         can't take an alpha from a token, so LockWidget.kt draws the same mix from the dark palette. -->
+    <color name="lumen_widget_lock_glass">#D91C1C1E</color>
 </resources>

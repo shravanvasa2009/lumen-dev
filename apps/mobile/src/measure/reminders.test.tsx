@@ -62,6 +62,7 @@ async function saveReadings(headlines: readonly ReadingResult['headlineKey'][]):
       },
       results: { ...outcome, headlineKey },
       models: { rhythm: null, diabetes: null },
+      intervalsMs: [],
     });
   }
 }

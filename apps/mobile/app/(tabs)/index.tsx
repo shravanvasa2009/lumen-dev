@@ -10,12 +10,15 @@ import { Screen } from '@/components/Screen';
 import { useDemoActive } from '@/demo/demoSession';
 import { ChecksSection } from '@/home/ChecksSection';
 import { MeasureButton } from '@/home/MeasureButton';
-import { MetricTile } from '@/home/MetricTile';
+import { ModePill } from '@/home/ModePill';
+import { LatestReading } from '@/home/LatestReading';
 import { dateLine, dayPeriod } from '@/home/moment';
-import { tileSeries } from '@/home/readings';
+import { latestReading } from '@/home/readings';
+import { SectionTitle } from '@/home/SectionTitle';
 import { WidgetPromo } from '@/home/WidgetPromo';
 import { durationLabel } from '@/measure/durationLabel';
 import { DEFAULT_MODE, MODES } from '@/measure/mode';
+import { useProfileName } from '@/profile/profileName';
 import { useOnboardingState } from '@/profile/onboarding';
 import { useStoredReadings } from '@/store/useStoredReadings';
 import { useTheme } from '@/theme';
@@ -34,21 +37,22 @@ export default function HomeScreen() {
   return <Home />;
 }
 
-// Below this window height (a 360 x 640 phone) the layout follows mockup 10-home.small: a 164 dp Measure (131 dp disc; 256 dp otherwise), no date line,
-// compact check cards and tiles, so the four checks and the tiles fit without scrolling.
+// Below this window height (a 360 x 640 phone) the layout drops the date line and shrinks Measure to 164 dp
+// (320 dp otherwise) so the first checks stay in view.
 const COMPACT_HEIGHT = 700;
 const MEASURE_SIZE = 320;
 const COMPACT_GREETING = { size: 26, lineHeight: 30 };
-// The link's 44 dp target tucks under the Measure halo, which is transparent at its edge.
-const COMPACT_LINK_OVERLAP = 32;
-const LINK_OVERLAP = 16;
-const COMPACT_GAP = 2;
+// The mode pill tucks under the Measure halo, which is transparent at its edge.
+const COMPACT_PILL_OVERLAP = 28;
+const PILL_OVERLAP = 12;
 const MEASURE_SIZE_COMPACT = 164;
 
 function Home() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const readings = useStoredReadings();
+  const newest = latestReading(readings);
+  const { name } = useProfileName();
   const { spacing } = useTheme();
   const { height } = useWindowDimensions();
   const compact = height < COMPACT_HEIGHT;
@@ -59,6 +63,7 @@ function Home() {
     afternoon: t('home.greetingAfternoon'),
     evening: t('home.greetingEvening'),
   };
+  const greeting = greetings[dayPeriod(now.getHours())];
   const modeNames = { quick: t('mode.quick'), full: t('mode.full') };
   const modeLabel = t('home.modeLine', {
     mode: modeNames[DEFAULT_MODE],
@@ -70,7 +75,7 @@ function Home() {
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
-          gap: compact ? COMPACT_GAP : spacing.sm,
+          gap: spacing.md,
           paddingBottom: compact ? 0 : spacing.lg,
         }}
       >
@@ -85,7 +90,7 @@ function Home() {
                 : undefined
             }
           >
-            {greetings[dayPeriod(now.getHours())]}
+            {name ? t('home.greetingNamed', { greeting, name }) : greeting}
           </AppText>
         </Reveal>
         <Reveal index={1} style={{ alignItems: 'center' }}>
@@ -95,32 +100,19 @@ function Home() {
             size={compact ? MEASURE_SIZE_COMPACT : MEASURE_SIZE}
             onPress={() => router.push('/measure/mode')}
           />
-          <View style={{ marginTop: -(compact ? COMPACT_LINK_OVERLAP : LINK_OVERLAP) }}>
-            <NavButton label={t('home.changeMode')} href="/measure/mode" variant="link" />
+          <View style={{ marginTop: -(compact ? COMPACT_PILL_OVERLAP : PILL_OVERLAP) }}>
+            <ModePill mode={modeNames[DEFAULT_MODE]} />
           </View>
         </Reveal>
-        <Reveal index={2}>
-          <ChecksSection readings={readings} now={now} compact={compact} />
-        </Reveal>
-        <Reveal index={3} style={{ flexDirection: 'row', gap: compact ? spacing.sm : spacing.md }}>
-          <MetricTile
-            label={t('home.restingHr')}
-            unit={t('home.unitBpm')}
-            points={tileSeries(readings, 'hr')}
-            compact={compact}
-          />
-          <MetricTile
-            label={t('home.hrv')}
-            unit={t('home.unitMs')}
-            points={tileSeries(readings, 'rmssd')}
-            compact={compact}
-          />
-          <MetricTile
-            label={t('home.breathing')}
-            unit={t('home.unitPerMin')}
-            points={tileSeries(readings, 'resp')}
-            compact={compact}
-          />
+        {newest ? (
+          <Reveal index={2} style={{ gap: spacing.sm }}>
+            <SectionTitle>{t('home.latestTitle')}</SectionTitle>
+            <LatestReading reading={newest} now={now} />
+          </Reveal>
+        ) : null}
+        <Reveal index={3} style={{ gap: spacing.sm }}>
+          <SectionTitle>{t('home.checksTitle')}</SectionTitle>
+          <ChecksSection readings={readings} now={now} />
         </Reveal>
         {promoDismissed ? null : (
           <Reveal index={4} settle>

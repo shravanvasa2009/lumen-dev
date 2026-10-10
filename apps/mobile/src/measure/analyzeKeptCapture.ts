@@ -35,6 +35,8 @@ export type AnalysedReading = {
   context: ReadingContext;
   models: ModelOutputs;
   reading: ReadingResult;
+  // The accepted beat-to-beat intervals in whole ms, in beat order, for the rhythm charts.
+  intervalsMs: number[];
   progress: AnalysisProgress;
   // ADR 0076: the emergency heart-rate rules ran on this capture; Processing routes on it, never on the model.
   urgent: UrgentHeartRate | null;
@@ -177,6 +179,9 @@ export async function analyzeKeptCapture(
     context,
     models,
     reading,
+    // DSP-9: an accepted interval joins two beats that are normal or atypical, so an irregular rhythm keeps
+    // every real beat and only artifacts drop out. Whole ms is finer than the charts can draw.
+    intervalsMs: analysis.intervals.filter(({ accepted }) => accepted).map(({ ibiMs }) => Math.round(ibiMs)),
     progress: finished,
     urgent: outcome.urgent,
   };

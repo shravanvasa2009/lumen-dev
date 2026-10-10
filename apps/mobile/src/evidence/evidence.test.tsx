@@ -109,12 +109,17 @@ describe.each([
     mockScheme = scheme;
   });
 
-  it('shows the word, in the Experimental colours, for a metric the file has not upgraded', () => {
+  it('draws nothing for Experimental unless the screen asks for it', () => {
     render(<EvidenceBadge metric="diabetes" />);
+    expect(screen.queryByTestId('evidence-badge')).toBeNull();
+  });
+
+  it('shows the word, in the Experimental colours, where the Accuracy screen asks for it', () => {
+    render(<EvidenceBadge metric="diabetes" showExperimental />);
     const word = screen.getByText(en['evidence.experimental']);
-    expect(StyleSheet.flatten(word.props.style).color).toBe(colors.badgeExperimentalFg);
+    expect(StyleSheet.flatten(word.props.style).color).toBe(colors.badgeFlagFg);
     expect(StyleSheet.flatten(screen.getByTestId('evidence-badge').props.style).backgroundColor).toBe(
-      colors.badgeExperimentalBg,
+      colors.badgeFlagBg,
     );
   });
 });

@@ -21,10 +21,10 @@ private val FLAGGED_SNAPSHOT =
         .replace("\"rhythmFlag\":false", "\"rhythmFlag\":true")
         .replace("\"diabetesFlag\":false", "\"diabetesFlag\":true")
 
-// Everything the home-screen widgets may show that the lock screen must not (WID-2): the value, its unit, every status
-// word, and the four checks' names.
+// Everything the home-screen widgets may show that the lock screen must not (WID-2): the value, its unit, and every
+// status word; and the condition names, which no widget shows.
 private val HOME_ONLY_TEXT =
-    listOf("64", "bpm", "Up to date", "Check again", "Doctor", "streak", "AFib", "POTS", "HRV", "Diabetes", "Experimental")
+    listOf("64", "bpm", "Up to date", "Check again", "Doctor", "AFib", "POTS", "HRV", "Diabetes")
 
 // The same display in Spanish (es.json and lockscreen.json's words), and what the lock screen must not show in it.
 private val SPANISH_DISPLAY =
@@ -34,15 +34,12 @@ private val SPANISH_DISPLAY =
         "Doctor visit suggested" to "Se sugiere ver a un médico",
         "Last check {{hours}} h ago" to "Última revisión hace {{hours}} h",
         "\"bpm\"" to "\"lpm\"",
-        "streak {{days}} days" to "racha de {{days}} días",
         "Check now" to "Revisar ahora",
         "Full Scan" to "Escaneo completo",
         "No checks yet" to "Sin revisiones aún",
-        "\"AFib\"" to "\"FA\"",
-        "\"HRV\"" to "\"VFC\"",
-    ).fold(testDisplayWithChecks()) { display, (english, spanish) -> display.replace(english, spanish) }
+    ).fold(TEST_DISPLAY) { display, (english, spanish) -> display.replace(english, spanish) }
 private val SPANISH_HOME_ONLY_TEXT =
-    listOf("64", "lpm", "Al día", "Revisa de nuevo", "médico", "racha", "FA", "POTS", "VFC", "Diabetes", "Experimental")
+    listOf("64", "lpm", "Al día", "Revisa de nuevo", "médico", "FA", "POTS", "VFC", "Diabetes")
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -51,15 +48,39 @@ class LockWidgetTest {
 
     @Test
     fun showsWhenTheLastCheckWasAndNothingAboutIt() {
-        val view = lockView(FLAGGED_SNAPSHOT, testDisplayWithChecks(), TWO_HOURS_LATER_MS)
+        val view = lockView(FLAGGED_SNAPSHOT, TEST_DISPLAY, TWO_HOURS_LATER_MS)
         assertEquals("Lumen", view.name)
         assertEquals("Last check 2 h ago", view.line)
         assertEquals("Check now", view.checkNow)
     }
 
+    // The ring tells only how long ago the check was: full right after it, empty a day later and before any.
+    @Test
+    fun theRingEmptiesOverTheDayAfterACheck() {
+        assertEquals(1f, freshness(TEST_READING_MS, TEST_READING_MS), 0f)
+        assertEquals(0.75f, freshness(TEST_READING_MS, TEST_READING_MS + 6 * 3_600_000L), 0.0001f)
+        assertEquals(0f, freshness(TEST_READING_MS, TEST_READING_MS + 30 * 3_600_000L), 0f)
+        assertEquals(1f, freshness(TEST_READING_MS, TEST_READING_MS - 60_000L), 0f)
+        assertEquals(0f, freshness(null, TEST_READING_MS), 0f)
+    }
+
+    // A lock screen is dark behind its widgets, so the widget takes the dark palette in either app theme.
+    @Test
+    fun drawsWithTheDarkPalette() {
+        val light = TEST_DISPLAY.replaceFirst("\"surface\":\"#141925\"", "\"surface\":\"#FFFFFF\"")
+        assertEquals(0xFF141925L, lockView(FLAGGED_SNAPSHOT, light, TWO_HOURS_LATER_MS).palette.surface)
+    }
+
+    @Test
+    fun drawsTheRingAtTheAskedSize() {
+        val ring = ringBitmap(104, 0.5f, 0xFF252C3D.toInt(), 0xFFF3F5F9.toInt())
+        assertEquals(104, ring.width)
+        assertEquals(104, ring.height)
+    }
+
     @Test
     fun showsNoChecksYetBeforeTheFirstReading() {
-        WidgetStore.writeDisplay(context, testDisplayWithChecks())
+        WidgetStore.writeDisplay(context, TEST_DISPLAY)
         assertEquals("No checks yet", WidgetStore.readLock(context, TWO_HOURS_LATER_MS)!!.line)
     }
 
@@ -75,7 +96,7 @@ class LockWidgetTest {
     private fun assertDrawsNoHealthDetails(
         size: DpSize,
         checkTargets: Int,
-        display: String = testDisplayWithChecks(),
+        display: String = TEST_DISPLAY,
         line: String = "Last check 2 h ago",
         forbidden: List<String> = HOME_ONLY_TEXT,
     ) =

@@ -19,10 +19,19 @@ jest.mock('expo-linking', () => ({
 
 const mockRatePhone = jest.fn();
 jest.mock('@/rating/ratePhone', () => ({ ratePhone: (...args: unknown[]) => mockRatePhone(...args) }));
-// One object, as the real hook's state is, so the rating effect does not rerun on every render.
+// One object, as the real hook's state is, so How to sit effect does not rerun on every render.
 jest.mock('@/onboarding/usePhoneProbe', () => {
-  const probe = { kind: 'ready', capabilities: { platform: 'android' } };
-  return { usePhoneProbe: () => probe };
+  const probe = {
+    kind: 'ready',
+    capabilities: {
+      platform: 'android',
+      rearLenses: [{ id: 'main', kind: 'wide', maxFps: 60, torchUsable: true }],
+      torch: { available: true, levels: true },
+      locks: { exposure: true, whiteBalance: true, focus: true },
+    },
+  };
+  const state = { probe, recheck: () => undefined };
+  return { usePhoneProbe: () => state };
 });
 
 jest.mock('../../modules/lumen-capture/src/LumenPreviewView', () => ({
@@ -50,6 +59,9 @@ const running: LiveCapture = {
   adjustingExposure: false,
 };
 
+// Enough of a stored rating for How to sit screen the practice moves on to; Unsupported skips the checks list.
+const RATED = { score: 94, tier: 'unsupported', ambient: false, hardFail: null, unlocks: [] };
+
 jest.setTimeout(30_000);
 
 preloadAppRoutes();
@@ -61,7 +73,7 @@ describe('practice with a running capture', () => {
     expect(screen.getByTestId('live-waveform', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.queryByText(en['coach.cover'])).toBeNull();
     expect(screen.getByText(en['capture.waiting'])).toBeOnTheScreen();
-    expect(screen.getByText('0 of 30 steady seconds')).toBeOnTheScreen();
+    expect(screen.getByLabelText('0 of 30 steady seconds')).toBeOnTheScreen();
   });
 
   it('coaches to cover the lens when the module reports no finger', () => {
@@ -73,7 +85,7 @@ describe('practice with a running capture', () => {
   it('shows the steady seconds and the coaching key a session supplies', () => {
     mockLive = { ...running, cleanSeconds: 9.6, coachingKey: 'coach.still' };
     renderRouter('./app', { initialUrl: '/practice' });
-    expect(screen.getByText('9 of 30 steady seconds')).toBeOnTheScreen();
+    expect(screen.getByLabelText('9 of 30 steady seconds')).toBeOnTheScreen();
     expect(screen.getByText(en['coach.still'])).toBeOnTheScreen();
   });
   it('puts the meter marker where the live signal level says', () => {
@@ -133,7 +145,7 @@ describe('practice reaching 30 of 30', () => {
   });
 
   it('rates first, says it is done, then moves to How to sit 1.5 s later', async () => {
-    let storeRating = (_rating: { score: number }) => {};
+    let storeRating = (_rating: typeof RATED) => {};
     mockRatePhone.mockReturnValue(
       new Promise((resolve) => {
         storeRating = resolve;
@@ -148,17 +160,17 @@ describe('practice reaching 30 of 30', () => {
     expect(screen.queryByText(en['practice.done'])).toBeNull();
     expect(route.getPathname()).toBe('/practice');
 
-    await act(async () => storeRating({ score: 94 }));
+    await act(async () => storeRating(RATED));
     expect(screen.getByText(en['practice.done'])).toBeOnTheScreen();
     await pass(1499);
     expect(route.getPathname()).toBe('/practice');
+    expect(mockRatePhone).toHaveBeenCalledTimes(1);
     await pass(1);
     expect(route.getPathname()).toBe('/how-to-sit');
-    expect(mockRatePhone).toHaveBeenCalledTimes(1);
   });
 
   it('pushes How to sit once when Continue is tapped during the 1.5 s', async () => {
-    mockRatePhone.mockResolvedValue({ score: 94 });
+    mockRatePhone.mockResolvedValue(RATED);
     mockLive = finished;
     const route = renderRouter('./app', { initialUrl: '/practice' });
     await settle();
@@ -171,7 +183,7 @@ describe('practice reaching 30 of 30', () => {
   });
 
   it('does not push again after Back from the automatic step, and Continue still works', async () => {
-    mockRatePhone.mockResolvedValue({ score: 94 });
+    mockRatePhone.mockResolvedValue(RATED);
     mockLive = finished;
     const route = renderRouter('./app', { initialUrl: '/practice' });
     await settle();
@@ -184,18 +196,16 @@ describe('practice reaching 30 of 30', () => {
     expect(route.getPathname()).toBe('/how-to-sit');
   });
 
-  it('drops the live chip and caption once the camera has stopped', async () => {
+  it('drops the live chip once the camera has stopped', async () => {
     mockRatePhone.mockReturnValue(new Promise(() => {}));
     mockLive = { ...running, nativeCamera: true, cleanSeconds: 5, advancing: true };
     renderRouter('./app', { initialUrl: '/practice' });
-    expect(screen.getByText(en['capture.liveBadge'])).toBeOnTheScreen();
-    expect(screen.getByText(en['capture.liveView'])).toBeOnTheScreen();
+    expect(screen.getByText(en['practice.liveChip'])).toBeOnTheScreen();
     screen.unmount();
     mockLive = { ...finished, nativeCamera: true };
     renderRouter('./app', { initialUrl: '/practice' });
     await settle();
-    expect(screen.queryByText(en['capture.liveBadge'])).toBeNull();
-    expect(screen.queryByText(en['capture.liveView'])).toBeNull();
+    expect(screen.queryByText(en['practice.liveChip'])).toBeNull();
     expect(screen.queryByText(en['coach.cover'])).toBeNull();
   });
 

@@ -4,7 +4,7 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import { Linking } from 'react-native';
 
 import en from '@/i18n/en.json';
-import { expectNavTitle } from '@/testing/navHeader';
+import { expectChapterTitle } from '@/testing/navHeader';
 import es from '@/i18n/es.json';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
@@ -26,7 +26,7 @@ describe('Learn tab', () => {
     renderRouter(appDirectory, { initialUrl: '/learn' });
     for (const lesson of lessons) {
       expect(
-        screen.getByRole('button', { name: new RegExp(lesson.title(i18next.t.bind(i18next))) }),
+        screen.getAllByRole('button', { name: new RegExp(lesson.title(i18next.t.bind(i18next))) })[0],
       ).toBeOnTheScreen();
     }
     expect(screen.getByText(en['learn.minutesAnimated'].replace('{{minutes}}', '2'))).toBeOnTheScreen();
@@ -37,7 +37,7 @@ describe('Learn tab', () => {
   it('opens the lesson that was tapped', () => {
     renderRouter(appDirectory, { initialUrl: '/learn' });
     fireEvent.press(screen.getByRole('button', { name: new RegExp(en['learn.lessonAfib']) }));
-    expectNavTitle(en['learn.lessonAfib']);
+    expectChapterTitle(en['learn.guideTitle'], en['learn.lessonAfib']);
   });
 
   it('switches the lessons to Spanish with the EN/ES toggle', async () => {

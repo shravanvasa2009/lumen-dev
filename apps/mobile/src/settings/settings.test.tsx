@@ -78,7 +78,7 @@ describe('Settings tab', () => {
 
   it('opens Lab mode on the seventh tap of the version and not before', () => {
     renderRouter(appDirectory, { initialUrl: '/settings' });
-    const version = screen.getByRole('button', { name: /Version/ });
+    const version = screen.getByRole('button', { name: /Screening prototype/ });
     for (let tap = 1; tap < 7; tap += 1) fireEvent.press(version);
     expect(focusedNavHeader()?.title).not.toBe(en['lab.title']);
     fireEvent.press(version);
@@ -158,7 +158,7 @@ describe('Appearance', () => {
 
   it('recolours another screen when Light is chosen on a dark phone', () => {
     renderRouter(appDirectory, { initialUrl: '/settings' });
-    const versionNote = () => screen.getByText(new RegExp(en['settings.version'].split('{{')[0]!));
+    const versionNote = () => screen.getByText(/Screening prototype/);
     expect(versionNote()).toHaveStyle({ color: tokens.dark.textFaint });
     act(() => router.navigate('/settings/appearance'));
     fireEvent.press(screen.getByRole('radio', { name: en['appearance.light'] }));
@@ -212,12 +212,15 @@ describe('Widget gallery', () => {
     expect(screen.queryByLabelText(`2. ${en['widgets.androidStep2']}`)).toBeNull();
   });
 
-  it('on Android shows the Android previews and steps, and no lock-screen section or link', () => {
+  // The Android lock-screen widget (LockWidget.kt) has its own preview, with its Check now; the iPhone lock-screen
+  // section and the Live Activity link stay iPhone only.
+  it('on Android shows the Android home and lock-screen previews and steps, and no iPhone section or link', () => {
     Platform.OS = 'android';
     renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
     expect(screen.getByText(en['widgets.sample'])).toBeOnTheScreen();
     expect(screen.getByText(en['widgets.android'])).toBeOnTheScreen();
-    expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
+    expect(screen.getByText(en['widgets.androidLock'])).toBeOnTheScreen();
+    expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(3);
     expect(screen.getByText(en['mode.full'])).toBeOnTheScreen();
     expect(screen.getByText('64')).toBeOnTheScreen();
     expect(screen.getByText(en['widgets.buttons'])).toBeOnTheScreen();
@@ -244,7 +247,18 @@ describe('Widget gallery', () => {
     expect(screen.queryByText('64')).toBeNull();
     expect(screen.queryByText('—')).toBeNull();
     expect(screen.queryByText(en['widgets.bpm'])).toBeNull();
-    expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(2);
+    expect(screen.getAllByText(en['widgets.checkNow'])).toHaveLength(3);
+  });
+
+  // Widgets mockup, "In the app": the switch sits on the Widgets screen, and the previews follow it at once.
+  it('hides and shows the sample number with the Hide values on widgets switch', () => {
+    act(() => setPreference('hideWidgetValues', false));
+    renderRouter(appDirectory, { initialUrl: '/settings/widgets' });
+    expect(screen.getByText('64')).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('switch', { name: en['notifications.hideValues'] }));
+    expect(screen.queryByText('64')).toBeNull();
+    fireEvent.press(screen.getByRole('switch', { name: en['notifications.hideValues'] }));
+    expect(screen.getByText('64')).toBeOnTheScreen();
   });
 
   it('on iPhone titles the two step lists differently', () => {

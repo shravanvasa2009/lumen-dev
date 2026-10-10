@@ -1,17 +1,19 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TextInput, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { ListRow } from '@/components/ListRow';
-import { OnboardingStep } from '@/components/OnboardingStep';
 import { BasicsFields } from '@/profile/BasicsFields';
 import { basicsAcceptable } from '@/profile/diabetesRisk';
 import { isValidPhone, useDoctorPhone } from '@/profile/doctorPhone';
+import { NAME_MAX_LENGTH, useProfileName } from '@/profile/profileName';
+import { TextFieldGroup } from '@/profile/TextFieldGroup';
 import { useRiskDraft } from '@/profile/useRiskDraft';
+import { OnboardingFrame } from '@/onboarding/OnboardingFrame';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { Toggle } from '@/settings/Toggle';
 import { type HealthNote, loadProfile, saveHealthNote } from '@/store/profile';
@@ -19,10 +21,12 @@ import { useTheme } from '@/theme';
 
 export default function ProfileScreen() {
   const { t } = useTranslation();
-  const { colors, spacing, radius, control } = useTheme();
+  const { spacing } = useTheme();
   const router = useRouter();
   const risk = useRiskDraft('basics');
   const { phone, problem: phoneProblem, setPhone } = useDoctorPhone();
+  const { name, setName } = useProfileName();
+  const [nameText, setNameText] = useState(name ?? '');
   const [phoneText, setPhoneText] = useState(phone ?? '');
   const [notes, setNotes] = useState<Record<HealthNote, boolean>>({
     betaBlocker: false,
@@ -52,6 +56,10 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (phone !== null) setPhoneText((typed) => (typed === '' ? phone : typed));
   }, [phone]);
+  // Same rule as the phone: the saved name fills the field only while the person has typed nothing.
+  useEffect(() => {
+    if (name !== null) setNameText((typed) => (typed === '' ? name : typed));
+  }, [name]);
   const phoneInvalid = phoneText.trim() !== '' && !isValidPhone(phoneText.trim());
   const noteRows: readonly { note: HealthNote; title: string }[] = [
     { note: 'betaBlocker', title: t('profile.betaBlocker') },
@@ -59,6 +67,10 @@ export default function ProfileScreen() {
     { note: 'knownAf', title: t('profile.afibReported') },
     { note: 'athlete', title: t('profile.athlete') },
   ];
+  function updateName(text: string) {
+    setNameText(text);
+    setName(text);
+  }
   // Only a valid number is saved; an empty or invalid field leaves the doctor's phone unset.
   function updateDoctorPhone(text: string) {
     setPhoneText(text);
@@ -77,60 +89,47 @@ export default function ProfileScreen() {
     if (await risk.persist()) router.push('/diabetes-risk');
   }
   return (
-    <OnboardingStep
+    <OnboardingFrame
       step={2}
-      eyebrow={t('dr.stepOf', { a: 1, b: 2 })}
       title={t('profile.title')}
       subtitle={t('profile.subtitle')}
       footer={
         <Button
-          label={t('common.next')}
+          label={t('common.continue')}
           disabled={!basicsAcceptable(risk.draft)}
           onPress={() => void saveBasicsAndOpenNextSet()}
         />
       }
     >
+      <TextFieldGroup
+        heading={t('profile.name')}
+        placeholder={t('profile.namePlaceholder')}
+        note={t('profile.nameHelp')}
+        value={nameText}
+        onChangeText={updateName}
+        maxLength={NAME_MAX_LENGTH}
+      />
       <View style={{ gap: spacing.sm }}>
         <SectionLabel>{t('profile.basics')}</SectionLabel>
         {risk.loaded ? <BasicsFields draft={risk.draft} change={risk.change} /> : null}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.sm,
-            minHeight: control.primaryButtonHeight,
-            paddingHorizontal: spacing.lg,
-            borderRadius: radius.card,
-            borderWidth: 1,
-            borderColor: colors.line,
-            backgroundColor: colors.surface2,
-          }}
-        >
-          <AppText tone="textDim" style={{ flexShrink: 1 }}>
-            {t('profile.doctorPhone')}
-          </AppText>
-          <TextInput
-            accessibilityLabel={t('profile.doctorPhone')}
-            placeholder={t('profile.doctorPhonePlaceholder')}
-            placeholderTextColor={colors.textFaint}
-            keyboardType="phone-pad"
-            maxLength={24}
-            value={phoneText}
-            onChangeText={updateDoctorPhone}
-            style={{ flex: 1, textAlign: 'right', fontSize: 16, color: colors.text }}
-          />
-        </View>
-        {phoneProblem !== null ? (
-          <AppText variant="caption" tone="textDim" accessibilityRole="alert">
-            {phoneProblem === 'load' ? t('profile.loadFailed') : t('profile.saveFailed')}
-          </AppText>
-        ) : null}
-        {phoneInvalid ? (
-          <AppText variant="caption" tone="textDim" accessibilityRole="alert">
-            {t('profile.doctorPhoneInvalid')}
-          </AppText>
-        ) : null}
       </View>
+      <TextFieldGroup
+        heading={t('profile.doctorPhone')}
+        placeholder={t('profile.doctorPhonePlaceholder')}
+        keyboardType="phone-pad"
+        maxLength={24}
+        value={phoneText}
+        onChangeText={updateDoctorPhone}
+        problem={
+          phoneProblem !== null
+            ? phoneProblem === 'load'
+              ? t('profile.loadFailed')
+              : t('profile.saveFailed')
+            : phoneInvalid
+              ? t('profile.doctorPhoneInvalid')
+              : null
+        }
+      />
       <View style={{ gap: spacing.sm }}>
         <SectionLabel>{t('profile.healthNotes')}</SectionLabel>
         <Card flush>
@@ -159,6 +158,6 @@ export default function ProfileScreen() {
           </AppText>
         ) : null}
       </View>
-    </OnboardingStep>
+    </OnboardingFrame>
   );
 }

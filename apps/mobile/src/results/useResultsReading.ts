@@ -4,8 +4,8 @@ import { useStoredReading } from '@/store/useStoredReadings';
 
 import { type FixtureReading, readingById } from './fixtures';
 
-// The beat intervals, the repeat counter and the diabetes days are not in the readings row, so a stored
-// reading shows none of them instead of invented ones.
+// The repeat counter and the diabetes days are not in the readings row, so a stored reading shows none of
+// them instead of invented ones. A reading saved before its intervals were kept has none, and draws no chart.
 export function fromStored(stored: StoredReading): FixtureReading {
   return {
     id: stored.id,
@@ -14,7 +14,7 @@ export function fromStored(stored: StoredReading): FixtureReading {
     sample: false,
     synthetic: false,
     scan: stored.outcome,
-    intervalsMs: [],
+    intervalsMs: stored.intervalsMs ?? [],
     repeat: null,
     diabetesDays: [],
   };

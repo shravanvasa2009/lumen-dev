@@ -7,7 +7,7 @@ import en from '@/i18n/en.json';
 import es from '@/i18n/es.json';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import { lumenDatabase } from '@/store/database';
-import { loadProfile, loadRiskDraft, saveHealthNote } from '@/store/profile';
+import { loadProfile, loadRiskDraft, profileValue, saveHealthNote } from '@/store/profile';
 import { preloadAppRoutes } from '@/testing/preloadAppRoutes';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
@@ -15,7 +15,7 @@ jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({
   default: () => 'dark',
 }));
 
-const nextButton = () => screen.getByRole('button', { name: en['common.next'] });
+const nextButton = () => screen.getByRole('button', { name: en['common.continue'] });
 const ageField = () => screen.findByLabelText(en['profile.age']);
 
 const phoneField = () => screen.getByLabelText(en['profile.doctorPhone']);
@@ -34,6 +34,7 @@ describe('profile', () => {
   it('shows the age field, the three sex options and the four health notes', async () => {
     renderRouter('./app', { initialUrl: '/profile' });
     expect(await ageField()).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['profile.sex'] }));
     for (const key of ['profile.female', 'profile.male', 'profile.preferNot'] as const)
       expect(screen.getByRole('radio', { name: en[key] })).toBeOnTheScreen();
     for (const key of [
@@ -65,9 +66,12 @@ describe('profile', () => {
   it('selects one sex option at a time and flips a health note', async () => {
     renderRouter('./app', { initialUrl: '/profile' });
     await ageField();
+    fireEvent.press(screen.getByRole('button', { name: en['profile.sex'] }));
     fireEvent.press(screen.getByRole('radio', { name: en['profile.male'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['profile.sex'] }));
     expect(screen.getByRole('radio', { name: en['profile.male'] })).toBeChecked();
     fireEvent.press(screen.getByRole('radio', { name: en['profile.preferNot'] }));
+    fireEvent.press(screen.getByRole('button', { name: en['profile.sex'] }));
     expect(screen.getByRole('radio', { name: en['profile.male'] })).not.toBeChecked();
     const athlete = screen.getByRole('switch', { name: en['profile.athlete'] });
     fireEvent(athlete, 'valueChange', true);
@@ -148,10 +152,15 @@ describe('profile', () => {
     await waitFor(async () => expect((await loadProfile()).athlete).toBe(false));
   });
 
-  it('names the question set above the title', async () => {
+  it('keeps the name optional, saves it as typed and shows it again on the next visit', async () => {
+    const first = renderRouter('./app', { initialUrl: '/profile' });
+    fireEvent.changeText(await ageField(), '40');
+    expect(nextButton()).toBeEnabled();
+    fireEvent.changeText(screen.getByLabelText(en['profile.name']), '  Nitin ');
+    await waitFor(async () => expect(await profileValue('name')).toBe('Nitin'));
+    first.unmount();
     renderRouter('./app', { initialUrl: '/profile' });
-    await ageField();
-    expect(screen.getByText('Question set 1 of 2')).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByLabelText(en['profile.name']).props.value).toBe('Nitin'));
   });
 
   it('works out the body mass index live and never asks for it', async () => {
@@ -196,6 +205,7 @@ describe('profile', () => {
     fireEvent.changeText(await ageField(), '52');
     fireEvent.changeText(screen.getByLabelText(en['profile.height']), '170');
     fireEvent.changeText(screen.getByLabelText(en['profile.weight']), '80');
+    fireEvent.press(screen.getByRole('button', { name: en['profile.units'] }));
     fireEvent.press(screen.getByRole('radio', { name: en['profile.unitsImperial'] }));
     expect(screen.getByLabelText(en['profile.height']).props.value).toBe('66.9');
     expect(screen.getByLabelText(en['profile.weight']).props.value).toBe('176.4');
@@ -207,6 +217,7 @@ describe('profile', () => {
   it('stores the basics when Next is pressed and opens the second question set', async () => {
     renderRouter('./app', { initialUrl: '/profile' });
     fireEvent.changeText(await ageField(), '52');
+    fireEvent.press(screen.getByRole('button', { name: en['profile.sex'] }));
     fireEvent.press(screen.getByRole('radio', { name: en['profile.female'] }));
     fireEvent.changeText(screen.getByLabelText(en['profile.height']), '168');
     fireEvent.changeText(screen.getByLabelText(en['profile.weight']), '82');

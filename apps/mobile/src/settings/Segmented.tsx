@@ -4,6 +4,11 @@ import { AppText } from '@/components/AppText';
 import { PressableScale } from '@/components/PressableScale';
 import { useTheme } from '@/theme';
 
+// The board's pill is 32 pt tall in a 2 pt track; the touch area grows to the 44 pt minimum.
+const SEGMENT_HEIGHT = 28;
+const TRACK_PADDING = 2;
+const TOUCH_SLOP = 8;
+
 type Option<Value extends string> = { value: Value; label: string; hint?: string };
 
 type SegmentedProps<Value extends string> = {
@@ -20,18 +25,16 @@ export function Segmented<Value extends string>({
   onSelect,
   label,
 }: SegmentedProps<Value>) {
-  const { colors, control, radius, spacing } = useTheme();
+  const { colors, radius, shadow } = useTheme();
   return (
     <View
       accessibilityRole="radiogroup"
       accessibilityLabel={label}
       style={{
         flexDirection: 'row',
-        padding: spacing.xs,
-        backgroundColor: colors.surface,
-        borderColor: colors.line,
-        borderWidth: 1,
-        borderRadius: radius.card,
+        padding: TRACK_PADDING,
+        backgroundColor: colors.surface2,
+        borderRadius: SEGMENT_HEIGHT / 2 + TRACK_PADDING,
       }}
     >
       {options.map(({ value, label, hint }) => {
@@ -42,17 +45,21 @@ export function Segmented<Value extends string>({
             accessibilityRole="radio"
             accessibilityState={{ checked: isSelected }}
             accessibilityHint={hint}
+            hitSlop={{ top: TOUCH_SLOP, bottom: TOUCH_SLOP }}
             onPress={() => onSelect(value)}
-            style={{
-              flex: 1,
-              minHeight: control.minTarget,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: radius.card - spacing.xs,
-              backgroundColor: isSelected ? colors.surface3 : 'transparent',
-            }}
+            style={[
+              {
+                flex: 1,
+                minHeight: SEGMENT_HEIGHT,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: radius.pill,
+                backgroundColor: isSelected ? colors.surface : 'transparent',
+              },
+              isSelected ? shadow.raised : null,
+            ]}
           >
-            <AppText variant="headline" tone={isSelected ? 'text' : 'textDim'}>
+            <AppText variant="caption" style={{ fontWeight: isSelected ? '600' : '500' }}>
               {label}
             </AppText>
           </PressableScale>

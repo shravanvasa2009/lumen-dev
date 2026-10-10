@@ -12,5 +12,5 @@ it('EVID-1: with an empty evidence file every metric, diabetes included, is Expe
   renderRouter({ _layout: () => <Stack />, index: AccuracyScreen });
   const shown = screen.getAllByTestId('evidence-badge').map((badge) => badge.props.accessibilityLabel);
   expect(shown).toEqual(Array(6).fill(en['evidence.experimental']));
-  expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(6);
+  expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(7);
 });

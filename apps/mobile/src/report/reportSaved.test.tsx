@@ -127,6 +127,7 @@ describe('Doctor report for a Demo reading', () => {
         },
         models: { rhythm: null, diabetes: null },
         reading: outcome,
+        intervalsMs: [],
         progress: pendingProgress,
       },
       'quick',

@@ -1,15 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The picker's preview of the lock-screen widget (LockWidget.kt LockBody): the mark, the app's name, "Last check 2 h
-     ago" and Check now. No status, value or check name (WID-2); its strings are all in lumen_widget_lock_strings.xml
-     except the app's name, which the config plugin sets. Static views only, as the picker requires. -->
+<!-- The picker's preview of the lock-screen widget (LockWidget.kt LockBody): the ring with the mark, the app's name,
+     "Last check 2 h ago" and Check now, on the see-through dark card in either phone theme. No status, value or check
+     name (WID-2); its strings are all in lumen_widget_lock_strings.xml except the app's name, which the config plugin
+     sets. Static views only, as the picker requires. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/lumen_widget_preview_card"
+    android:background="@drawable/lumen_widget_preview_lock_card"
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:padding="14dp">
-    <include layout="@layout/lumen_widget_preview_mark" />
+    <FrameLayout
+        android:layout_width="52dp"
+        android:layout_height="52dp">
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_widget_ring"
+            android:tint="@color/lumen_widget_dark_ring_track" />
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_widget_ring_part"
+            android:tint="@color/lumen_widget_dark_text" />
+        <ImageView
+            android:layout_width="12dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_brand_mark_body"
+            android:tint="@color/lumen_widget_dark_text" />
+        <ImageView
+            android:layout_width="12dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:src="@drawable/lumen_brand_mark_pulse"
+            android:tint="@color/lumen_widget_dark_surface" />
+    </FrameLayout>
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -21,25 +51,25 @@
             android:layout_height="wrap_content"
             android:maxLines="1"
             android:text="@string/lumen_widget_preview_name"
-            android:textColor="@color/lumen_widget_preview_text_dim"
-            android:textSize="15sp" />
+            android:textColor="@color/lumen_widget_dark_text"
+            android:textSize="15sp"
+            android:textStyle="bold" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:maxLines="2"
             android:text="@string/lumen_widget_lock_sample_last_check"
-            android:textColor="@color/lumen_widget_preview_text"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+            android:textColor="@color/lumen_widget_dark_text_dim"
+            android:textSize="15sp" />
     </LinearLayout>
     <TextView
-        android:layout_width="120dp"
+        android:layout_width="112dp"
         android:layout_height="40dp"
         android:layout_marginStart="12dp"
-        android:background="@drawable/lumen_widget_preview_pill_filled"
+        android:background="@drawable/lumen_widget_preview_lock_pill"
         android:gravity="center"
         android:maxLines="1"
         android:text="@string/lumen_widget_lock_check_now"
-        android:textColor="@color/lumen_widget_preview_on_accent_fill"
+        android:textColor="@color/lumen_widget_dark_on_button_fill"
         android:textSize="15sp" />
 </LinearLayout>

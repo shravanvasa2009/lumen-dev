@@ -4,33 +4,48 @@ import Svg, { Path } from 'react-native-svg';
 import { AppText } from '@/components/AppText';
 import { useTheme } from '@/theme';
 
-// The amber card is the strongest tone this screen uses; red stays on the emergency screen (SAFE-1).
-export function SafetyCard({ text }: { text: string }) {
+type SafetyCardProps = { text: string; title?: string };
+
+// Red alert tokens, as the owner asked for the safety cards (round 2). The title, when there is one, leads.
+export function SafetyCard({ text, title }: SafetyCardProps) {
   const { colors, radius, spacing } = useTheme();
   return (
     <View
+      accessible
+      accessibilityRole="alert"
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        backgroundColor: colors.flagBg,
+        backgroundColor: colors.alertTint,
         borderRadius: radius.card,
-        padding: spacing.lg,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
       }}
     >
       <Svg
-        width={20}
-        height={20}
+        width={22}
+        height={22}
         viewBox="0 0 24 24"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
-        <Path d="M12 3 22 20H2Z" fill={colors.flag} />
-        <Path d="M12 9.5v5M12 17v.5" stroke={colors.flagBg} strokeWidth={2} strokeLinecap="round" />
+        <Path d="M12 3 22 20H2Z" fill={colors.alertFill} />
+        <Path d="M12 9.5v5M12 17v.5" stroke={colors.onAlertFill} strokeWidth={2} strokeLinecap="round" />
       </Svg>
-      <AppText variant="headline" style={{ flex: 1, color: colors.flag }}>
-        {text}
-      </AppText>
+      <View style={{ flex: 1 }}>
+        {title ? (
+          <AppText variant="headline" style={{ color: colors.alertText }}>
+            {title}
+          </AppText>
+        ) : null}
+        <AppText
+          variant={title ? 'caption' : 'headline'}
+          style={{ color: title ? colors.textDim : colors.alertText }}
+        >
+          {text}
+        </AppText>
+      </View>
     </View>
   );
 }

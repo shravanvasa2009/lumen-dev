@@ -33,38 +33,36 @@ describe('welcome', () => {
     expect(screen.getByText(en['welcome.footer'])).toBeOnTheScreen();
   });
 
-  it('lists the four checks, with Diabetes marked Experimental and POTS under the Standing test', () => {
+  it('lists the four checks, with no Experimental tag', () => {
     renderRouter('./app', { initialUrl: '/welcome' });
-    for (const name of ['checks.afib.name', 'checks.hrv.name', 'checks.diabetes.name', 'checks.pots.name']) {
+    for (const name of ['checks.afib.name', 'checks.hrv.name', 'checks.diabetes.pattern', 'checks.pots.name']) {
       expect(screen.getByText(en[name as keyof typeof en])).toBeOnTheScreen();
     }
-    expect(screen.getAllByText(en['checks.from.full'])).toHaveLength(3);
-    expect(screen.getByText(en['checks.from.standing'])).toBeOnTheScreen();
-    expect(screen.getAllByTestId('evidence-badge')).toHaveLength(1);
+    expect(screen.queryByTestId('evidence-badge')).toBeNull();
   });
 
-  it('keeps all four checks in compact one-line tiles on a 360 x 640 window', () => {
+  it('keeps all four checks and the buttons on a 360 x 640 window', () => {
     Object.assign(mockWindow, { width: 360, height: 640 });
     renderRouter('./app', { initialUrl: '/welcome' });
     for (const name of [
       'checks.afib.name',
       'checks.hrv.name',
-      'checks.diabetes.name',
+      'checks.diabetes.pattern',
       'checks.pots.name',
     ] as const) {
       expect(screen.getByText(en[name])).toBeOnTheScreen();
     }
-    expect(screen.queryByText(en['checks.from.full'])).toBeNull();
-    expect(screen.getAllByTestId('evidence-badge')).toHaveLength(1);
     expect(screen.getByRole('button', { name: en['welcome.getStarted'] })).toBeOnTheScreen();
   });
 
   it('switches the screen to Spanish and back', () => {
     renderRouter('./app', { initialUrl: '/welcome' });
+    fireEvent.press(screen.getByRole('button', { name: en['language.label'] }));
     fireEvent.press(screen.getByRole('radio', { name: es['language.es'] }));
     expect(screen.getByText(es['app.tagline'])).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: es['welcome.getStarted'] })).toBeOnTheScreen();
-    expect(screen.getByText(es['checks.title'])).toBeOnTheScreen();
+    expect(screen.getByLabelText(es['checks.title'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: es['language.label'] }));
     fireEvent.press(screen.getByRole('radio', { name: en['language.en'] }));
     expect(screen.getByText(en['app.tagline'])).toBeOnTheScreen();
   });

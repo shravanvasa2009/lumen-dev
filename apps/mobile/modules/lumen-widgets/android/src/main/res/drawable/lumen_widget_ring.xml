@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The status ring's full circle (Widgets mockup: a 40 x 40 ring, radius 17, stroke 5). Tinted in code: the track in
+     ringTrack, and the arc in accent when the last reading is up to date. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:pathData="M20,3 A17,17 0 1,1 20,37 A17,17 0 1,1 20,3"
+        android:strokeWidth="5"
+        android:strokeColor="#FFFFFFFF" />
+</vector>

@@ -1,3 +1,4 @@
+import type { RhythmMetric } from '@lumen/core';
 import { renderHook } from '@testing-library/react-native';
 import { type ReactNode, Component } from 'react';
 import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
@@ -26,8 +27,24 @@ fixClockAtMorning();
 const TAKEN_AT = new Date(2026, 9, 1, 6, 30).getTime();
 const ID = `reading-${TAKEN_AT}`;
 
-async function saveHeartRate(hr: number): Promise<void> {
+// A regular rhythm card, as the analysis saves it for a steady pulse.
+const SINUS: RhythmMetric = {
+  class: 'sinus',
+  pAF: 0.05,
+  evidence: 'experimental',
+  confidence: 'moderate',
+  flag: null,
+  quality: 'standard',
+  qualityReasons: [],
+  qualityDetails: [],
+};
+
+async function saveHeartRate(
+  hr: number,
+  { rhythm = null, intervalsMs = [] }: { rhythm?: RhythmMetric | null; intervalsMs?: number[] } = {},
+): Promise<void> {
   const { outcome } = makeReading(TAKEN_AT, hr, 48);
+  outcome.metrics.rhythm = rhythm;
   await saveReading({
     id: ID,
     createdAt: TAKEN_AT,
@@ -45,6 +62,7 @@ async function saveHeartRate(hr: number): Promise<void> {
     },
     results: outcome,
     models: { rhythm: null, diabetes: null },
+    intervalsMs,
   });
 }
 
@@ -53,7 +71,7 @@ beforeEach(startOnboarded);
 afterEach(() => jest.restoreAllMocks());
 
 describe('Home with a saved reading', () => {
-  it('shows its HRV finding on the HRV card, with its heart rate on the tile', async () => {
+  it('shows its HRV finding on the HRV card, with its heart rate in the latest reading', async () => {
     await saveHeartRate(71);
     renderRouter('./app', { initialUrl: '/' });
     await waitFor(() => expect(screen.getByText('48 ms')).toBeOnTheScreen());
@@ -61,11 +79,15 @@ describe('Home with a saved reading', () => {
     expect(screen.getByText('71')).toBeOnTheScreen();
   });
 
-  it('opens that reading from the HRV card', async () => {
+  it('opens that reading from the latest reading card', async () => {
     await saveHeartRate(71);
     renderRouter('./app', { initialUrl: '/' });
     await waitFor(() => expect(screen.getByText('48 ms')).toBeOnTheScreen());
-    fireEvent.press(screen.getAllByRole('button', { name: `${en['checks.hrv.name']}: 48 ms` })[0]!);
+    fireEvent.press(
+      screen.getByRole('button', {
+        name: new RegExp(`^${en['results.rhythmTooShort']}|^${en['home.latestSaved']}`),
+      }),
+    );
     await waitFor(() => expectNavTitle(en['results.title']));
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
   });
@@ -107,7 +129,7 @@ describe('Results for a saved reading id', () => {
     await saveHeartRate(71);
     renderRouter('./app', { initialUrl: `/results/${ID}` });
     await waitFor(() => expectNavTitle(en['results.title']));
-    expect(screen.getByText('71 bpm')).toBeOnTheScreen();
+    expect(screen.getAllByText('71')[0]).toBeOnTheScreen();
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
   });
 
@@ -125,5 +147,26 @@ describe('Results for a saved reading id', () => {
     renderRouter('./app', { initialUrl: '/results/reading-1' });
     await waitFor(() => expect(screen.getByText(en['result.inconclusive'])).toBeOnTheScreen());
     expect(screen.queryByText(en['demo.banner'])).toBeNull();
+  });
+});
+
+describe('Why regular for a saved reading', () => {
+  const intervalsMs = [930, 945, 962, 951, 938, 921, 915, 929];
+
+  it('draws the saved beat intervals, with no sample-data banner', async () => {
+    await saveHeartRate(64, { rhythm: SINUS, intervalsMs });
+    renderRouter('./app', { initialUrl: `/results/${ID}/why` });
+    expect(await screen.findByText(en['why.titleRegular'])).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText(en['why.intervalsChart'].replace('{{beats}}', String(intervalsMs.length))),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText(en['demo.banner'])).toBeNull();
+  });
+
+  it('keeps the no-chart screen for a reading saved without intervals', async () => {
+    await saveHeartRate(64, { rhythm: SINUS });
+    renderRouter('./app', { initialUrl: `/results/${ID}/why` });
+    expect(await screen.findByRole('header', { name: en['result.inconclusive'] })).toBeOnTheScreen();
+    expect(screen.queryByText(en['why.titleRegular'])).toBeNull();
   });
 });

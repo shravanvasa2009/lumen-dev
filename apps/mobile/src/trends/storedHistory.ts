@@ -12,7 +12,7 @@ const standard = <T extends object>(metric: T | null): T | null =>
 // The caffeine answer is not saved with a reading yet, so no point is marked: a guess would draw a cup the
 // person never chose.
 export function historyFromStored(readings: readonly StoredReading[]): HistoryReading[] {
-  return readings.map(({ id, takenAt, mode, outcome }) => ({
+  return readings.map(({ id, takenAt, mode, outcome, intervalsMs }) => ({
     id,
     createdAt: new Date(takenAt),
     mode: mode ?? 'quick',
@@ -25,5 +25,6 @@ export function historyFromStored(readings: readonly StoredReading[]): HistoryRe
         ? outcome.metrics.rhythm.class
         : null,
     caffeine: false,
+    intervalsMs: intervalsMs ?? [],
   }));
 }

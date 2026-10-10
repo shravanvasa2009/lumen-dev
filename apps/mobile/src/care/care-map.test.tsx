@@ -10,7 +10,7 @@ import es from '@/i18n/es.json';
 import { useDoctorPhone } from '@/profile/doctorPhone';
 import tokens from '@/theme/tokens.json';
 
-import { ClinicCard } from './ClinicCard';
+import { ClinicRow } from './ClinicRow';
 import { distanceMiles, findPlace, nearestClinics } from './clinics';
 import { SEARCH_THROTTLED_CODE } from './nearbyDoctors';
 
@@ -166,6 +166,18 @@ describe('Care map with location allowed', () => {
     expect(screen.getAllByRole('button', { name: en['careMap.call'] }).length).toBeGreaterThan(5);
   });
 
+  it('brings the map back to the person after a search with Show my location', async () => {
+    await openCareMap();
+    const home = mapCentre();
+    expect(screen.queryByRole('button', { name: en['careMap.showMyLocation'] })).toBeNull();
+    fireEvent.changeText(screen.getByLabelText(en['careMap.zipLabel']), '10001');
+    expect(mapCentre()).not.toEqual(home);
+    fireEvent.press(screen.getByRole('button', { name: en['careMap.showMyLocation'] }));
+    expect(mapCentre()).toEqual(home);
+    expect(screen.queryByTestId('care-map-place')).toBeNull();
+    expect(screen.queryByRole('button', { name: en['careMap.showMyLocation'] })).toBeNull();
+  });
+
   it('uses the liberty style in light', async () => {
     mockScheme = 'light';
     await openCareMap();
@@ -261,9 +273,9 @@ describe('Care map with location allowed', () => {
   it('labels each clinic card with its kind', async () => {
     await openCareMap();
     const nearby = nearestClinics(HOUSTON);
-    expect(screen.getByTestId(`clinic-kind-${nearby[0]!.id}`)).toHaveTextContent(en['careMap.legendClinic']);
+    expect(screen.getByTestId(`clinic-kind-${nearby[0]!.id}`)).toHaveTextContent(new RegExp(`^${en['careMap.legendClinic']} · `));
     expect(screen.getByTestId(`clinic-kind-${nearby[10]!.id}`)).toHaveTextContent(
-      en['careMap.legendRegular'],
+      new RegExp(`^${en['careMap.legendRegular']} · `),
     );
   });
 
@@ -359,14 +371,14 @@ describe('Care map with location allowed', () => {
     expect(mapCentre()).toEqual([newYork.lon, newYork.lat]);
     expect(screen.getByTestId('care-map-place')).toHaveTextContent('Showing clinics near 10001');
   });
-  it('puts Call my doctor first as the filled primary button when a number is saved', async () => {
+  it('lists Call my doctor as a white row with the saved number when one is saved', async () => {
     saveDoctorPhone('(713) 555-0100');
     await openCareMap();
-    const buttons = screen.getAllByRole('button');
-    expect(buttons[0]).toBe(screen.getByRole('button', { name: en['careMap.callMyDoctor'] }));
-    expect(StyleSheet.flatten(buttons[0]!.props.style)).toMatchObject({
-      backgroundColor: tokens.dark.accentFill,
+    const doctorRow = screen.getByRole('button', { name: en['careMap.callMyDoctor'] });
+    expect(StyleSheet.flatten(doctorRow.props.style)).toMatchObject({
+      backgroundColor: tokens.dark.surface,
     });
+    expect(screen.getByText('(713) 555-0100')).toBeOnTheScreen();
     expect(
       StyleSheet.flatten(screen.getByRole('button', { name: en['careMap.search'] }).props.style),
     ).toMatchObject({
@@ -388,7 +400,7 @@ describe('Care map with location allowed', () => {
     await act(async () => fireEvent.press(screen.getAllByRole('button', { name: en['careMap.call'] })[0]!));
     expect(screen.getByText(en['careMap.callFailed'], { exact: false })).toBeOnTheScreen();
     const numbers = screen.getAllByText(first!.phone);
-    expect(numbers.length).toBeGreaterThan(1);
+    expect(numbers.length).toBeGreaterThan(0);
     expect(numbers.every((number) => number.props.selectable)).toBe(true);
   });
 
@@ -585,23 +597,25 @@ describe('clinic card', () => {
       miles: 1.25,
     };
     render(
-      <ClinicCard
+      <ClinicRow
         clinic={clinic}
         selected={false}
+        last
         callFailed={false}
         directionsFailed={false}
         onCall={jest.fn()}
         onDirections={jest.fn()}
       />,
     );
-    expect(screen.getByText('TX 77002 · 1.3 mi')).toBeOnTheScreen();
+    expect(screen.getByText('TX 77002')).toBeOnTheScreen();
+    expect(screen.getByText(/· 1\.3 mi$/)).toBeOnTheScreen();
   });
 
   it('writes the distance with a decimal comma in Spanish', async () => {
     await act(() => i18n.changeLanguage('es'));
     try {
       render(
-        <ClinicCard
+        <ClinicRow
           clinic={{
             ...nearestClinics(HOUSTON)[10]!,
             street: '',
@@ -611,13 +625,15 @@ describe('clinic card', () => {
             miles: 1.25,
           }}
           selected={false}
+          last
           callFailed={false}
           directionsFailed={false}
           onCall={jest.fn()}
           onDirections={jest.fn()}
         />,
       );
-      expect(screen.getByText('TX 77002 · 1,3 mi')).toBeOnTheScreen();
+      expect(screen.getByText('TX 77002')).toBeOnTheScreen();
+      expect(screen.getByText(/· 1,3 mi$/)).toBeOnTheScreen();
     } finally {
       await act(() => i18n.changeLanguage('en'));
     }

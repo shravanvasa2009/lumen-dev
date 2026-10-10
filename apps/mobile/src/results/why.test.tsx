@@ -92,20 +92,12 @@ describe.each([
     expect(screen.queryAllByLabelText(en['evidence.publicData'])).toHaveLength(0);
   });
 
-  it('keeps the evidence-file label on the rhythm badge for a model-scored reading', () => {
-    mockEvidence.rhythmPublic = true;
-    openWhy('demo-flag');
-    expect(screen.getAllByLabelText(en['evidence.publicData'])).toHaveLength(1);
-  });
-
-  it('explains an irregular reading with both charts in the flag colour', () => {
+  it('explains an irregular reading with the beats, the rhythm map and the interval chart in the flag colour', () => {
     openWhy('demo-flag');
     expect(screen.getByRole('header', { name: en['why.titleIrregular'] })).toBeOnTheScreen();
     expect(screen.getByText(en['why.intervals'])).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: en['why.learnMore'] }));
     expect(screen.getByText(en['why.poincare'])).toBeOnTheScreen();
-    expect(screen.getByText(en['why.yours'])).toBeOnTheScreen();
-    expect(screen.getByText(en['why.typical'])).toBeOnTheScreen();
+    expect(screen.getByLabelText(/^Your rhythm map: \d+ dots\. SD1 \d+ ms, SD2 \d+ ms\.$/)).toBeOnTheScreen();
     expect(screen.getByText(en['why.explainIrregular'])).toBeOnTheScreen();
     expect(screen.getByText(`${en['results.noteIrregular']} · ${en['confidence.high']}`)).toBeOnTheScreen();
     expect(
@@ -114,27 +106,48 @@ describe.each([
     expect(lineStrokes()).toEqual([processColor(colors.flag)]);
   });
 
-  it('puts the plain sentence and badges before the charts', () => {
+  it('puts the plain sentence before the charts', () => {
     openWhy('demo-flag');
     const order = JSON.stringify(screen.toJSON());
     const at = (text: string) => order.indexOf(text);
     expect(at(en['why.explainIrregular'])).toBeGreaterThan(-1);
     expect(at(en['why.explainIrregular'])).toBeLessThan(at(en['why.intervals']));
-    expect(at(en['evidence.experimental'])).toBeLessThan(at(en['why.intervals']));
     expect(at(en['results.accuracy'])).toBeLessThan(at(en['why.intervals']));
   });
 
-  it('folds the Poincare plots under a collapsed Learn more button that expands and collapses', () => {
+  it('opens how a rhythm map is made in a sheet that Got it closes', () => {
     openWhy('demo-flag');
-    const toggle = () => screen.getByRole('button', { name: en['why.learnMore'] });
-    expect(toggle().props.accessibilityState).toMatchObject({ expanded: false });
-    expect(screen.getByText(en['why.poincare'])).toBeOnTheScreen();
-    expect(screen.queryByText(en['why.yours'])).toBeNull();
-    fireEvent.press(toggle());
-    expect(toggle().props.accessibilityState).toMatchObject({ expanded: true });
-    expect(screen.getByText(en['why.yours'])).toBeOnTheScreen();
-    fireEvent.press(toggle());
-    expect(screen.queryByText(en['why.yours'])).toBeNull();
+    expect(screen.queryByText(en['why.stepTimeTitle'])).toBeNull();
+    fireEvent.press(screen.getByText(en['why.howMapMade']));
+    expect(screen.getByText(en['why.stepTimeTitle'])).toBeOnTheScreen();
+    expect(screen.getByText(en['why.stepPairTitle'])).toBeOnTheScreen();
+    expect(screen.getByText(en['why.stepDotTitle'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['common.gotIt'] }));
+    expect(screen.queryByText(en['why.stepTimeTitle'])).toBeNull();
+  });
+
+  it('lists next steps for an irregular reading, with Get help now, and none for a regular one', () => {
+    openWhy('demo-flag');
+    expect(screen.getByText(en['results.nextSteps'])).toBeOnTheScreen();
+    expect(screen.getByText(en['why.askForBody'])).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: en['emergency.title'] }));
+    expect(screen.getByRole('header', { name: en['emergency.title'] })).toBeOnTheScreen();
+  });
+
+  it('shows no next steps on a regular reading', () => {
+    openWhy('demo');
+    expect(screen.queryByText(en['results.nextSteps'])).toBeNull();
+  });
+
+  it('steps through the beats on the Beat by beat page', () => {
+    openWhy('demo');
+    fireEvent.press(screen.getByText(en['why.beatByBeat']));
+    expect(screen.getByText('Gaps 1 to 6 of 40')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: en['why.earlier'] }).props.accessibilityState).toMatchObject({
+      disabled: true,
+    });
+    fireEvent.press(screen.getByRole('button', { name: en['why.later'] }));
+    expect(screen.getByText('Gaps 7 to 12 of 40')).toBeOnTheScreen();
   });
 
   it('captions the sentence and the chart and ends with the not-a-diagnosis line', () => {
@@ -156,10 +169,9 @@ describe.each([
     expect(lineStrokes()).toEqual([processColor(colors.accent)]);
   });
 
-  it('draws a grey Experimental badge for extra beats and the rhythm badge from the evidence file', () => {
+  it('draws no badge while the extra beats and the rhythm are Experimental', () => {
     openWhy('demo-flag');
-    const badges = screen.getAllByTestId('evidence-badge').map((badge) => badge.props.accessibilityLabel);
-    expect(badges).toEqual([en['evidence.experimental'], en['evidence.experimental']]);
+    expect(screen.queryAllByTestId('evidence-badge')).toEqual([]);
   });
 
   it('gives an unclear rhythm its own title and explanation, not the regular ones', () => {
@@ -195,6 +207,6 @@ describe.each([
   it('shows no chart for an unknown id', async () => {
     openWhy('missing');
     await waitFor(() => expectNavTitle(en['result.inconclusive']));
-    expect(screen.queryByText(en['why.poincare'])).toBeNull();
+    expect(screen.queryByText(en['why.yourMap'])).toBeNull();
   });
 });

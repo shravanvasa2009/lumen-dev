@@ -6,8 +6,9 @@ import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Card } from '@/components/Card';
-import { EvidenceBadge } from '@/components/EvidenceBadge';
+import { Icon, type IconName } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
+import { PressableScale } from '@/components/PressableScale';
 import { Reveal, ValueSettle } from '@/components/Reveal';
 import { DemoBanner } from '@/results/DemoBanner';
 import { readingById } from '@/results/fixtures';
@@ -18,14 +19,23 @@ import { useTheme } from '@/theme';
 
 import { learningReadings } from './baseline';
 import { CupIcon } from './CupIcon';
-import { MetricChips } from './MetricChips';
+import { OtherMetricTile } from './OtherMetricTile';
+import { type RhythmDay, RhythmOverTime } from './RhythmOverTime';
 import { trendMetrics, trendSeries, type HistoryReading, type TrendMetric, type TrendRange } from './series';
 import { TrendChart } from './TrendChart';
 
+const metricIcons: Record<TrendMetric, IconName> = { hr: 'heart', hrv: 'rhythm', resp: 'breath' };
+
 const recentRows = 5;
+const rhythmDayCount = 5;
+const sparklinePoints = 7;
 
 function metricName(t: TFunction, metric: TrendMetric): string {
-  return { hr: t('trends.restingHr'), hrv: t('trends.hrv'), resp: t('trends.breathing') }[metric];
+  return { hr: t('trends.heartRate'), hrv: t('trends.hrv'), resp: t('trends.breathing') }[metric];
+}
+
+function metricUnit(t: TFunction, metric: TrendMetric): string {
+  return { hr: t('trends.unitBpm'), hrv: t('trends.unitMs'), resp: t('trends.unitBreaths') }[metric];
 }
 
 function metricValue(t: TFunction, metric: TrendMetric, value: number): string {
@@ -73,6 +83,21 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
   ].sort((earlier, later) => earlier.createdAt.getTime() - later.createdAt.getTime());
   const first = points[0];
   const last = points[points.length - 1];
+  const intervalsById = new Map(readings.map((reading) => [reading.id, reading.intervalsMs]));
+  const rhythmDays: RhythmDay[] = rows
+    .filter((row) => row.rhythm !== null || row.flaggedLow !== null)
+    .slice(-rhythmDayCount)
+    .reverse()
+    .map((row) => ({
+      id: row.id,
+      day: dayLabel(row.createdAt),
+      rhythm: row.rhythm ?? row.flaggedLow,
+      lowerQuality: row.flaggedLow !== null,
+      intervalsMs: intervalsById.get(row.id) ?? [],
+    }));
+  const otherMetrics = trendMetrics.filter((other) => other !== metric);
+  const nextMetric = trendMetrics[(trendMetrics.indexOf(metric) + 1) % trendMetrics.length]!;
+  const middle = first && last ? new Date((first.createdAt.getTime() + last.createdAt.getTime()) / 2) : null;
 
   return (
     <>
@@ -102,48 +127,85 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
             selected={range}
             onSelect={setRange}
           />
-          <MetricChips
-            options={trendMetrics.map((value) => ({ value, label: metricName(t, value) }))}
-            selected={metric}
-            onSelect={setMetric}
-          />
           <ValueSettle value={`${metric}-${range}`}>
             <Card>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <AppText variant="headline">{metricName(t, metric)}</AppText>
-                <EvidenceBadge metric={metric} />
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={t('trends.metricSwitch', {
+                  metric: metricName(t, metric),
+                  next: metricName(t, nextMetric),
+                })}
+                onPress={() => setMetric(nextMetric)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.xs,
+                  alignSelf: 'flex-start',
+                }}
+              >
+                <AppText variant="headline" tone="accent" accessibilityRole="header">
+                  {metricName(t, metric)}
+                </AppText>
+                <Icon name="chevron" size={14} color={colors.accent} />
+              </PressableScale>
+              <View
+                accessible
+                accessibilityLabel={`${t('trends.median')}: ${
+                  series.median === null ? '—' : metricValue(t, metric, series.median)
+                }`}
+              >
+                <AppText variant="caption" tone="textDim" style={{ fontWeight: '600' }}>
+                  {t('trends.median')}
+                </AppText>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
+                  <AppText variant="vitalL">
+                    {series.median === null ? '—' : String(Math.round(series.median))}
+                  </AppText>
+                  {series.median === null ? null : (
+                    <AppText tone="textDim" style={{ fontWeight: '500' }}>
+                      {metricUnit(t, metric)}
+                    </AppText>
+                  )}
+                </View>
               </View>
               {first && last ? (
-                <TrendChart
-                  points={points}
-                  band={series.band}
-                  label={t('trends.chartLabel', { metric: metricName(t, metric), count: points.length })}
-                  firstLabel={dayLabel(first.createdAt)}
-                  lastLabel={dayLabel(last.createdAt)}
-                />
+                <>
+                  <AppText variant="caption" tone="textDim">
+                    {t('trends.dateSpan', { from: dayLabel(first.createdAt), to: dayLabel(last.createdAt) })}
+                  </AppText>
+                  <TrendChart
+                    points={points}
+                    band={series.band}
+                    label={t('trends.chartLabel', { metric: metricName(t, metric), count: points.length })}
+                    firstLabel={dayLabel(first.createdAt)}
+                    middleLabel={middle && points.length > 2 ? dayLabel(middle) : null}
+                    lastLabel={dayLabel(last.createdAt)}
+                  />
+                </>
               ) : (
                 <AppText tone="textDim">{t('trends.noneInRange')}</AppText>
               )}
-              {series.baselineCount > 0 && !series.band ? (
+              {series.band ? (
+                <AppText variant="caption" tone="textDim">
+                  {t('trends.bandLine', {
+                    low: Math.round(series.band.low),
+                    high: Math.round(series.band.high),
+                    unit: metricUnit(t, metric),
+                    count: points.length,
+                  })}
+                </AppText>
+              ) : series.baselineCount > 0 ? (
                 <AppText variant="caption" tone="textDim">
                   {t('trends.learning', { count: series.baselineCount, total: learningReadings })}
                 </AppText>
               ) : null}
             </Card>
           </ValueSettle>
-          <Reveal style={{ flexDirection: 'row', gap: spacing.md }}>
-            <Tile
-              title={t('trends.median')}
-              value={series.median === null ? '—' : metricValue(t, metric, series.median)}
-            />
-            <Tile
-              title={t('trends.band')}
-              value={series.band ? `${Math.round(series.band.low)}–${Math.round(series.band.high)}` : '—'}
-            />
-            <Tile title={t('trends.readings')} value={String(points.length)} />
-          </Reveal>
           {rows.length > 0 ? (
-            <Reveal>
+            <Reveal style={{ gap: spacing.sm }}>
+              <AppText variant="caption" tone="textDim" style={{ paddingHorizontal: spacing.lg }}>
+                {t('trends.recent')}
+              </AppText>
               <Card flush>
                 {rows
                   .slice(-recentRows)
@@ -153,8 +215,7 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                       ? t('quality.marked', { value: rhythmClassWords(t, point.flaggedLow).value })
                       : point.rhythm
                         ? rhythmClassWords(t, point.rhythm).value
-                        : null;
-                    const value = point.value === null ? null : metricValue(t, metric, point.value);
+                        : undefined;
                     // Saved readings always open. Sample rows open only when a fixture has that id.
                     const fixture = demo ? readingById(point.id) : undefined;
                     const opens = !demo || fixture !== undefined;
@@ -166,6 +227,7 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                       <ListRow
                         key={point.id}
                         title={when}
+                        subtitle={word}
                         last={index === shown.length - 1}
                         chevron={opens}
                         onPress={opens ? () => router.push(`/results/${point.id}`) : undefined}
@@ -173,7 +235,14 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
                             {fixture?.synthetic ? <SyntheticTag /> : null}
                             {point.caffeine ? <CupIcon size={16} color={colors.flag} /> : null}
-                            <AppText tone="textDim">{[value, word].filter(Boolean).join(' · ')}</AppText>
+                            {point.value === null ? null : (
+                              <AppText variant="headline">
+                                {Math.round(point.value)}
+                                <AppText variant="subheadline" tone="textDim" style={{ fontWeight: '500' }}>
+                                  {` ${metricUnit(t, metric)}`}
+                                </AppText>
+                              </AppText>
+                            )}
                           </View>
                         }
                       />
@@ -182,6 +251,30 @@ export function TrendsView({ readings, now, demo }: TrendsViewProps) {
               </Card>
             </Reveal>
           ) : null}
+          {rhythmDays.length > 0 ? (
+            <Reveal>
+              <RhythmOverTime days={rhythmDays} />
+            </Reveal>
+          ) : null}
+          <Reveal style={{ gap: spacing.md }}>
+            {otherMetrics.map((other) => {
+              const otherSeries = trendSeries(readings, other, range, now);
+              const latest = otherSeries.points[otherSeries.points.length - 1];
+              return (
+                <OtherMetricTile
+                  key={other}
+                  name={metricName(t, other)}
+                  icon={metricIcons[other]}
+                  band={otherSeries.band}
+                  unit={metricUnit(t, other)}
+                  value={latest ? Math.round(latest.value) : null}
+                  when={latest ? dayLabel(latest.createdAt) : null}
+                  sparkline={otherSeries.points.slice(-sparklinePoints).map((point) => point.value)}
+                  onPress={() => setMetric(other)}
+                />
+              );
+            })}
+          </Reveal>
         </>
       )}
     </>
@@ -204,32 +297,6 @@ function SyntheticTag() {
       <AppText variant="caption" style={{ color: colors.badgeExperimentalFg }}>
         {t('trends.synthetic')}
       </AppText>
-    </View>
-  );
-}
-
-function Tile({ title, value }: { title: string; value: string }) {
-  const { colors, radius, spacing } = useTheme();
-  return (
-    <View
-      accessible
-      accessibilityLabel={`${title}: ${value}`}
-      style={{
-        flex: 1,
-        backgroundColor: colors.surface,
-        borderColor: colors.line,
-        borderWidth: 1,
-        borderRadius: radius.card,
-        padding: spacing.md,
-        gap: spacing.xs,
-      }}
-    >
-      <AppText variant="caption" tone="textDim">
-        {title}
-      </AppText>
-      <ValueSettle value={value}>
-        <AppText variant="headline">{value}</AppText>
-      </ValueSettle>
     </View>
   );
 }

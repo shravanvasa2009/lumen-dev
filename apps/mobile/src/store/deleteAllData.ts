@@ -8,6 +8,7 @@ import { keepCapture } from '@/measure/keptCapture';
 import type { NotificationPrefs, NotificationTriggers } from '@/notifications/plan';
 import { syncNotifications } from '@/notifications/scheduler';
 import { resetDoctorPhone } from '@/profile/doctorPhone';
+import { resetProfileName } from '@/profile/profileName';
 import { currentPreferences, resetPreferences } from '@/theme/preferences';
 import { publishWidgets } from '@/widgets/publish';
 
@@ -79,6 +80,7 @@ export async function deleteAllData(languageTag: string): Promise<void> {
   clearDemoReadings();
   resetPreferences();
   resetDoctorPhone();
+  resetProfileName();
   exitDemo();
   // The widget snapshot is a copy of the latest reading outside SQLite; with the tables empty this writes the
   // no-reading snapshot, so the home-screen widget shows its empty state.

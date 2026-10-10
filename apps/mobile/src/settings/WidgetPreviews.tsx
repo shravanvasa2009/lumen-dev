@@ -1,58 +1,80 @@
-import type { TFunction } from 'i18next';
 import type { ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
-import { StyleSheet, View } from 'react-native';
+import { type ColorValue, StyleSheet, View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
-import { Icon, type IconName } from '@/components/Icon';
-import { evidenceFor } from '@/evidence';
 import { useTheme } from '@/theme';
 import tokens from '@/theme/tokens.json';
 
 import { LumenMark } from './LumenMark';
 
+// Sizes from the Widgets mockup: a 170 pt small widget with a 40 pt ring, a 72 pt lock-screen circle.
 const SMALL_SIZE = 160;
-const SMALL_MARK_SIZE = 34;
-const MEDIUM_MARK_SIZE = 26;
-const DOT_SIZE = 10;
-const LOCK_CIRCLE_SIZE = 64;
-// Sizes that mimic OS widget buttons; they are previews, not touch targets, so control.minTarget does not apply.
-const PILL_MIN_HEIGHT = 40;
-const BUTTON_COLUMN_WIDTH = 132;
-const LOCK_DOT_SIZE = 10;
-const SMALL_CHECK_ICON_SIZE = 11;
-const MEDIUM_CHECK_ICON_SIZE = 12;
-const CHECK_NAME_SIZE = 12;
-const CHECK_TAG_SIZE = 9;
-const CHECK_GAP = 8;
+const RING_SIZE = 40;
+const RING_STROKE = 5;
+const LOCK_CIRCLE_SIZE = 72;
+const LOCK_RECT_HEIGHT = 72;
+const WIDGET_RADIUS = 22;
+// The mockup's buttons; they are previews, not touch targets, so control.minTarget does not apply.
+const SMALL_PILL_HEIGHT = 32;
+const MEDIUM_PILL_HEIGHT = 40;
+const BUTTON_COLUMN_WIDTH = 124;
+// Two thirds: the mockup's "check again" ring and lock-screen circle.
+const PART_RING = 2 / 3;
+// The mockup's see-through dark lock-screen card.
+const GLASS_OPACITY = 0.85;
 
-// Same order and shapes as the real widgets: AFib, POTS, HRV, Diabetes.
-// Each name is a literal key so the i18n check can see it.
-const CHECKS = [
-  { icon: 'pulse', name: (t: TFunction) => t('widgets.checkAfib') },
-  { icon: 'standing', name: (t: TFunction) => t('widgets.checkPots') },
-  { icon: 'bars', name: (t: TFunction) => t('widgets.checkHrv') },
-  { icon: 'drop', name: (t: TFunction) => t('widgets.checkDiabetes') },
-] as const satisfies readonly { icon: IconName; name: (t: TFunction) => string }[];
+type Scheme = 'light' | 'dark';
 
-function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
+// A ring drawn clockwise from the top, like the real widgets' rings.
+function Ring({
+  size,
+  fraction,
+  track,
+  arc,
+}: {
+  size: number;
+  fraction: number;
+  track: ColorValue;
+  arc: ColorValue;
+}) {
+  const radius = (size - RING_STROKE) / 2;
+  const circumference = 2 * Math.PI * radius;
+  return (
+    <Svg width={size} height={size} accessibilityElementsHidden>
+      <Circle cx={size / 2} cy={size / 2} r={radius} stroke={track} strokeWidth={RING_STROKE} fill="none" />
+      <Circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        stroke={arc}
+        strokeWidth={RING_STROKE}
+        fill="none"
+        strokeLinecap={fraction < 1 ? 'round' : 'butt'}
+        strokeDasharray={`${circumference * fraction} ${circumference}`}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+    </Svg>
+  );
+}
+
+function PreviewPill({ label, filled, height }: { label: string; filled: boolean; height: number }) {
   const { colors, radius, spacing } = useTheme();
   return (
     <View
       style={{
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: PILL_MIN_HEIGHT,
-        paddingHorizontal: spacing.md,
+        height,
+        paddingHorizontal: spacing.sm,
         borderRadius: radius.pill,
-        borderWidth: 1,
-        borderColor: filled ? colors.accentFill : colors.line2,
-        backgroundColor: filled ? colors.accentFill : 'transparent',
+        backgroundColor: filled ? colors.buttonFill : colors.accentTint,
       }}
     >
       <AppText
-        variant="caption"
-        style={{ color: filled ? colors.onAccentFill : colors.text, fontWeight: '600' }}
+        variant="subheadline"
+        numberOfLines={1}
+        style={{ color: filled ? colors.onButtonFill : colors.accent, fontWeight: '600' }}
       >
         {label}
       </AppText>
@@ -60,17 +82,16 @@ function PreviewPill({ label, filled }: { label: string; filled: boolean }) {
   );
 }
 
-function WidgetFrame({ children, width }: { children: ReactNode; width?: number }) {
-  const { colors, radius, spacing } = useTheme();
+function WidgetFrame({ children, width, row }: { children: ReactNode; width?: number; row?: boolean }) {
+  const { colors, spacing } = useTheme();
   return (
     <View
       style={{
         width,
-        padding: spacing.lg,
-        gap: spacing.xs,
-        borderRadius: radius.sheet,
-        borderWidth: 1,
-        borderColor: colors.line,
+        flexDirection: row ? 'row' : 'column',
+        padding: spacing.lg - 2,
+        gap: row ? spacing.lg : 0,
+        borderRadius: WIDGET_RADIUS,
         backgroundColor: colors.surface,
       }}
     >
@@ -81,155 +102,177 @@ function WidgetFrame({ children, width }: { children: ReactNode; width?: number 
 
 type SmallWidgetProps = { status: string; detail: string; action: string };
 
+// Widgets mockup, small: the full up-to-date ring and the mark, the status, how long ago, and Check now.
 export function SmallWidgetPreview({ status, detail, action }: SmallWidgetProps) {
   const { colors, spacing } = useTheme();
   return (
     <WidgetFrame width={SMALL_SIZE}>
       <View style={styles.spread}>
-        <View style={[styles.logoRow, { gap: spacing.sm }]}>
-          <LumenMark size={SMALL_MARK_SIZE} color={colors.accent} />
-          <View style={[styles.logoRow, { gap: spacing.xs }]}>
-            {CHECKS.map(({ icon }) => (
-              <Icon key={icon} name={icon} size={SMALL_CHECK_ICON_SIZE} color={colors.textDim} />
-            ))}
-          </View>
-        </View>
-        <View style={[styles.dot, { backgroundColor: colors.accent, marginTop: spacing.xs }]} />
+        <Ring size={RING_SIZE} fraction={1} track={colors.surface3} arc={colors.accent} />
+        <LumenMark size={20} color={colors.accent} />
       </View>
-      <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
+      <View style={{ marginTop: spacing.lg }}>
         <AppText variant="headline">{status}</AppText>
-        <AppText variant="caption" tone="textDim">
+        <AppText variant="caption1" tone="textDim">
           {detail}
         </AppText>
       </View>
-      <PreviewPill label={action} filled />
+      <View style={{ marginTop: spacing.sm }}>
+        <PreviewPill label={action} filled height={SMALL_PILL_HEIGHT} />
+      </View>
     </WidgetFrame>
   );
 }
 
 type MediumWidgetProps = {
   name: string;
-  // Null leaves the reading row out, as the Android widget does when values are hidden.
+  // Null leaves the number out, as the real widgets do when values are hidden.
   reading: string | null;
   unit: string;
   status: string;
+  detail: string;
   checkNow: string;
   fullScan: string;
 };
 
-export function MediumWidgetPreview({ name, reading, unit, status, checkNow, fullScan }: MediumWidgetProps) {
+// Widgets mockup, medium: the mark and name, the heart rate, the status and how long ago, and Check now over a tonal
+// Full Scan.
+export function MediumWidgetPreview({
+  name,
+  reading,
+  unit,
+  status,
+  detail,
+  checkNow,
+  fullScan,
+}: MediumWidgetProps) {
   const { colors, spacing } = useTheme();
   return (
-    <WidgetFrame>
-      <View style={[styles.mediumColumns, { gap: spacing.md }]}>
-        <View style={[styles.mediumInfo, { gap: spacing.xs }]}>
-          <View style={[styles.logoRow, { gap: spacing.sm }]}>
-            <LumenMark size={MEDIUM_MARK_SIZE} color={colors.accent} />
-            <AppText tone="textDim">{name}</AppText>
-          </View>
-          <View style={styles.mediumReading}>
-            {reading === null ? null : (
-              <View style={[styles.readingRow, { gap: spacing.sm }]}>
-                <AppText variant="display">{reading}</AppText>
-                <AppText variant="headline" tone="textDim">
-                  {unit}
-                </AppText>
-              </View>
-            )}
-            <AppText tone="textDim">{status}</AppText>
-          </View>
+    <WidgetFrame row>
+      <View style={[styles.mediumInfo, { gap: spacing.sm }]}>
+        <View style={[styles.logoRow, { gap: spacing.xs }]}>
+          <LumenMark size={16} color={colors.accent} />
+          <AppText variant="caption" tone="textDim">
+            {name}
+          </AppText>
         </View>
-        <View style={{ gap: spacing.sm, width: BUTTON_COLUMN_WIDTH, justifyContent: 'center' }}>
-          <PreviewPill label={checkNow} filled />
-          <PreviewPill label={fullScan} filled={false} />
+        {reading === null ? null : (
+          <View style={[styles.readingRow, { gap: spacing.xs }]}>
+            <AppText variant="vitalL">{reading}</AppText>
+            <AppText variant="headline" tone="textDim">
+              {unit}
+            </AppText>
+          </View>
+        )}
+        <View>
+          <AppText variant="subheadline" style={styles.strong}>
+            {status}
+          </AppText>
+          <AppText variant="caption" tone="textDim">
+            {detail}
+          </AppText>
         </View>
       </View>
-      <FourChecksRow />
+      <View style={{ gap: spacing.sm, width: BUTTON_COLUMN_WIDTH, justifyContent: 'center' }}>
+        <PreviewPill label={checkNow} filled height={MEDIUM_PILL_HEIGHT} />
+        <PreviewPill label={fullScan} filled={false} height={MEDIUM_PILL_HEIGHT} />
+      </View>
     </WidgetFrame>
   );
 }
 
-// The Diabetes tag is the evidence label's word and shows only while that label is Experimental (EVID-1).
-function FourChecksRow() {
-  const { t } = useTranslation();
-  const { colors, radius, spacing } = useTheme();
-  const tagged = evidenceFor('diabetes').label === 'experimental';
-  return (
-    <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
-      <View style={{ height: 1, backgroundColor: colors.line }} />
-      <View style={[styles.logoRow, { gap: CHECK_GAP }]}>
-        {CHECKS.map(({ icon, name }) => (
-          <View key={icon} style={[styles.logoRow, { gap: spacing.xs }]}>
-            <Icon name={icon} size={MEDIUM_CHECK_ICON_SIZE} color={colors.accent} />
-            <AppText
-              style={{ fontSize: CHECK_NAME_SIZE, lineHeight: CHECK_NAME_SIZE + 4, fontWeight: '500' }}
-            >
-              {name(t)}
-            </AppText>
-          </View>
-        ))}
-        {tagged ? (
-          <View
-            style={{
-              paddingHorizontal: spacing.xs + 2,
-              paddingVertical: 1,
-              borderRadius: radius.pill,
-              backgroundColor: colors.badgeExperimentalBg,
-            }}
-          >
-            <AppText
-              style={{
-                color: colors.badgeExperimentalFg,
-                fontSize: CHECK_TAG_SIZE,
-                lineHeight: CHECK_TAG_SIZE + 4,
-                fontWeight: '600',
-              }}
-            >
-              {t('evidence.experimental')}
-            </AppText>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
+// A lock screen is dark behind its widgets in either app theme, so the lock previews take a scheme (dark by
+// default) instead of the app theme.
+function lockColors(scheme: Scheme | undefined) {
+  return tokens[scheme ?? 'dark'];
 }
 
-type Scheme = 'light' | 'dark';
-
-// A lock screen looks the same in either app theme, so the lock-screen route passes its own scheme.
+// Widgets mockup, circular: the ring with the mark. The ring shows only how long ago the last check was.
 export function LockCirclePreview({ scheme }: { scheme?: Scheme }) {
-  const theme = useTheme();
-  const colors = scheme ? tokens[scheme] : theme.colors;
+  const colors = lockColors(scheme);
   return (
     <View style={[styles.lockCircle, { backgroundColor: colors.surface2 }]}>
-      <LumenMark size={SMALL_MARK_SIZE + 8} color={colors.text} />
-      <View style={[styles.lockDot, { backgroundColor: colors.accent }]} />
+      <View style={StyleSheet.absoluteFill}>
+        <Ring size={LOCK_CIRCLE_SIZE} fraction={PART_RING} track={colors.surface3} arc={colors.text} />
+      </View>
+      <LumenMark size={26} color={colors.text} />
     </View>
   );
 }
 
 type LockRectangleProps = { name: string; status: string; scheme?: Scheme };
 
+// Widgets mockup, rectangular: the name and the status, no number (WID-2).
 export function LockRectanglePreview({ name, status, scheme }: LockRectangleProps) {
-  const { colors: themeColors, radius, spacing } = useTheme();
-  const colors = scheme ? tokens[scheme] : themeColors;
+  const { spacing } = useTheme();
+  const colors = lockColors(scheme);
   return (
     <View
       style={{
         flex: 1,
         justifyContent: 'center',
-        height: LOCK_CIRCLE_SIZE,
-        paddingHorizontal: spacing.lg,
-        borderRadius: radius.card,
+        height: LOCK_RECT_HEIGHT,
+        paddingHorizontal: spacing.md + 2,
+        borderRadius: spacing.lg,
         backgroundColor: colors.surface2,
       }}
     >
-      <AppText variant="headline" style={{ color: colors.text }}>
+      <AppText variant="subheadline" style={[styles.strong, { color: colors.text }]}>
         {name}
       </AppText>
-      <AppText variant="caption" style={{ color: colors.textDim }}>
+      <AppText variant="subheadline" style={{ color: colors.textDim }}>
         {status}
       </AppText>
+    </View>
+  );
+}
+
+type LockWidgetProps = { name: string; line: string; action: string };
+
+// The Android lock-screen widget (LockWidget.kt): the ring and mark, the name, when the last check was, and Check
+// now, on the see-through dark card. No status or value (WID-2).
+export function AndroidLockPreview({ name, line, action }: LockWidgetProps) {
+  const { spacing, radius } = useTheme();
+  const colors = tokens.dark;
+  return (
+    <View style={[styles.logoRow, { padding: spacing.lg - 2, gap: spacing.md, borderRadius: WIDGET_RADIUS }]}>
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { borderRadius: WIDGET_RADIUS, backgroundColor: colors.surface, opacity: GLASS_OPACITY },
+        ]}
+      />
+      <View style={styles.lockRing}>
+        <View style={StyleSheet.absoluteFill}>
+          <Ring size={52} fraction={PART_RING} track={colors.surface3} arc={colors.text} />
+        </View>
+        <LumenMark size={24} color={colors.text} />
+      </View>
+      <View style={styles.mediumInfo}>
+        <AppText variant="subheadline" style={[styles.strong, { color: colors.text }]}>
+          {name}
+        </AppText>
+        <AppText variant="subheadline" style={{ color: colors.textDim }}>
+          {line}
+        </AppText>
+      </View>
+      <View
+        style={{
+          height: MEDIUM_PILL_HEIGHT,
+          justifyContent: 'center',
+          paddingHorizontal: spacing.md,
+          borderRadius: radius.pill,
+          backgroundColor: colors.buttonFill,
+        }}
+      >
+        <AppText
+          variant="subheadline"
+          numberOfLines={1}
+          style={[styles.strong, { color: colors.onButtonFill }]}
+        >
+          {action}
+        </AppText>
+      </View>
     </View>
   );
 }
@@ -238,7 +281,8 @@ const styles = StyleSheet.create({
   spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   logoRow: { flexDirection: 'row', alignItems: 'center' },
   readingRow: { flexDirection: 'row', alignItems: 'baseline' },
-  dot: { width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2 },
+  strong: { fontWeight: '600' },
+  mediumInfo: { flex: 1, justifyContent: 'space-between' },
   lockCircle: {
     width: LOCK_CIRCLE_SIZE,
     height: LOCK_CIRCLE_SIZE,
@@ -246,15 +290,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  lockDot: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    width: LOCK_DOT_SIZE,
-    height: LOCK_DOT_SIZE,
-    borderRadius: LOCK_DOT_SIZE / 2,
-  },
-  mediumColumns: { flexDirection: 'row', alignItems: 'stretch' },
-  mediumInfo: { flex: 1, justifyContent: 'space-between' },
-  mediumReading: { gap: 2 },
+  lockRing: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
 });

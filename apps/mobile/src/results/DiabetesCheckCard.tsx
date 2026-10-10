@@ -1,13 +1,8 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { BottomSheet } from '@/components/BottomSheet';
-import { Button } from '@/components/Button';
-import { Card } from '@/components/Card';
-import { EvidenceBadge } from '@/components/EvidenceBadge';
+import { Icon } from '@/components/Icon';
 import { evidenceFor } from '@/evidence';
 import { SectionLabel } from '@/settings/SectionLabel';
 import { useTheme } from '@/theme';
@@ -19,72 +14,43 @@ export const showsPulseExtra = (reading: FixtureReading) =>
   reading.scan.metrics.diabetes !== null && !evidenceFor('diabetes').measured;
 
 // ADR 0082, 0090: while its model is Experimental the pulse pattern is an extra under the questionnaire
-// result, with no number. It is never flagged, and the pill comes from the evidence reader; tapping it
-// explains the label in one sentence.
+// result, with no number. It is never flagged. The Experimental pill is shown on the Accuracy screen only.
 export function DiabetesCheckCard() {
   const { t } = useTranslation();
-  const router = useRouter();
-  const { spacing } = useTheme();
-  const [explaining, setExplaining] = useState(false);
-  const explainable = evidenceFor('diabetes').label === 'experimental';
-  const pill = <EvidenceBadge metric="diabetes" />;
+  const { colors, radius, spacing, shadow } = useTheme();
   return (
     <View testID="pulse-extra" style={{ gap: spacing.sm }}>
       <SectionLabel>{t('dr.pulseExtra')}</SectionLabel>
-      <Card>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          gap: spacing.md,
+          backgroundColor: colors.surface,
+          borderRadius: radius.sheet,
+          padding: spacing.lg,
+          ...shadow.raised,
+        }}
+      >
         <View
           style={{
-            flexDirection: 'row',
+            width: 44,
+            height: 44,
+            borderRadius: 14,
+            backgroundColor: colors.accentTint,
             alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: spacing.md,
+            justifyContent: 'center',
           }}
         >
-          <AppText variant="title" style={{ flexShrink: 1 }}>
-            {t('results.pulsePattern')}
-          </AppText>
-          {explainable ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('results.whatExperimentalMeans')}
-              hitSlop={spacing.md}
-              onPress={() => setExplaining(true)}
-            >
-              {pill}
-            </Pressable>
-          ) : (
-            pill
-          )}
+          <Icon name="drop" size={24} color={colors.accent} />
         </View>
-        <AppText tone="textDim">
-          {t('dm.experimental')} {t('dr.notInScore')}
-        </AppText>
-        <BottomSheet
-          visible={explaining}
-          onDismiss={() => setExplaining(false)}
-          dismissLabel={t('common.close')}
-        >
-          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.lg }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-              {pill}
-              <AppText variant="headline">{t('checks.diabetes.name')}</AppText>
-            </View>
-            <AppText>{t('evidence.experimental.explain')}</AppText>
-            <AppText tone="textDim">{t('dm.experimental')}</AppText>
-            <AppText
-              accessibilityRole="link"
-              tone="accent"
-              onPress={() => {
-                setExplaining(false);
-                router.push('/settings/accuracy');
-              }}
-            >
-              {t('results.accuracy')} ›
-            </AppText>
-          </ScrollView>
-          <Button label={t('common.gotIt')} onPress={() => setExplaining(false)} />
-        </BottomSheet>
-      </Card>
+        <View style={{ flex: 1 }}>
+          <AppText variant="title3">{t('results.pulsePattern')}</AppText>
+          <AppText variant="subheadline" tone="textDim" style={{ marginTop: 2 }}>
+            {t('dm.experimental')} {t('dr.notInScore')}
+          </AppText>
+        </View>
+      </View>
     </View>
   );
 }

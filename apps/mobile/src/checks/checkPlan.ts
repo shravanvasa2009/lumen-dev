@@ -44,7 +44,7 @@ export const CHECK_ICON: Record<CheckId, IconName> = {
   afib: 'pulse',
   hrv: 'trends',
   diabetes: 'lens',
-  pots: 'finger',
+  pots: 'standing',
 };
 
 // Spec 05 §5.2 table: the rating row each check needs. A Limited phone has no rhythmFlags row, and Quick (30 s)

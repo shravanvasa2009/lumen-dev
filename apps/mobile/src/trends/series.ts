@@ -19,6 +19,8 @@ export type HistoryReading = {
   flaggedLowRhythm: RhythmClass | null;
   // The caffeine answer of the context check (§7).
   caffeine: boolean;
+  // Accepted beat-to-beat intervals for the rhythm map tiles; [] when the reading kept none.
+  intervalsMs: readonly number[];
 };
 
 export const trendMetrics = ['hr', 'hrv', 'resp'] as const;

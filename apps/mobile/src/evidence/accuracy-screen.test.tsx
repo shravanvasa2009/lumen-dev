@@ -47,7 +47,7 @@ it('EVID-1: shows one badge per metric with the label the file supports', () => 
     en['evidence.experimental'],
   ]);
   expect(screen.getByText(en['accuracy.diabetes'])).toBeTruthy();
-  expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(4);
+  expect(screen.getAllByText(en['evidence.notTested'])).toHaveLength(5);
 });
 
 it('EVID-1: shows measured figures only for the metrics that passed', () => {
@@ -67,8 +67,10 @@ it('EVID-1: the summary counts the labels above Experimental from the file, not 
   const checked = shown.filter((label) => label !== en['evidence.experimental']).length;
   expect(checked).toBeGreaterThan(0);
   expect(
-    screen.getByText(
-      en['accuracy.summary'].replace('{{checked}}', String(checked)).replace('{{total}}', String(shown.length)),
+    screen.getByLabelText(
+      en['accuracy.summary']
+        .replace('{{checked}}', String(checked))
+        .replace('{{total}}', String(shown.length)),
     ),
   ).toBeTruthy();
 });

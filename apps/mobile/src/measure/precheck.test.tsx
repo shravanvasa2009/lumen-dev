@@ -105,11 +105,11 @@ describe('pre-check for a Full Scan', () => {
     jest.useRealTimers();
   });
 
-  it('lists AFib, HRV and Diabetes with its Experimental pill, and leaves POTS to the Standing test', () => {
+  it('lists AFib, HRV and Diabetes with no evidence badge, and leaves POTS to the Standing test', () => {
     renderRouter('./app', { initialUrl: '/measure/precheck?mode=full' });
     expect(screen.getByText(en['checks.hrv.name'])).toBeOnTheScreen();
     expect(screen.getByText(en['checks.diabetes.name'])).toBeOnTheScreen();
-    expect(screen.getAllByTestId('evidence-badge')).toHaveLength(1);
+    expect(screen.queryByTestId('evidence-badge')).toBeNull();
     expect(screen.getByText('Not in this scan: POTS')).toBeOnTheScreen();
   });
 

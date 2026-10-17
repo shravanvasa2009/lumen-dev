@@ -45,40 +45,47 @@ export function nextShowcaseAttempt(): 1 | 2 {
 // ReplayCapture's status always reports a covered lens and no motion. The film needs both to follow the
 // recording: the finger chip reads the newest frame's DSP-4 contact, and motionRms follows `motion`, so the
 // live session rejects those stretches and shows "Hold still" as it does on a moving phone.
-export class ShowcaseReplay extends ReplayCapture {
-  private readonly motion: ShowcaseRecording['motion'];
-  private readonly firstNs: number;
-  private newest: { sample: Sample; stat: FrameStat } | null = null;
+// Defined on first use: screens that import this file are tested with the capture module mocked, where
+// ReplayCapture is not a class yet.
+let replayClass: (new (recording: ShowcaseRecording) => ReplayCapture) | null = null;
 
-  constructor(recording: ShowcaseRecording) {
-    super(recording);
-    this.motion = recording.motion;
-    this.firstNs = recording.samples.tNs[0] ?? 0;
-    super.addListener('samples', ({ samples, stats }) => {
-      const sample = samples[samples.length - 1];
-      const stat = stats[stats.length - 1];
-      if (sample && stat) this.newest = { sample, stat };
-    });
-  }
+export function showcaseReplay(recording: ShowcaseRecording): ReplayCapture {
+  replayClass ??= class extends ReplayCapture {
+    private readonly motion: ShowcaseRecording['motion'];
+    private readonly firstNs: number;
+    private newest: { sample: Sample; stat: FrameStat } | null = null;
 
-  override addListener<E extends keyof LumenCaptureEvents>(
-    e: E,
-    cb: LumenCaptureEvents[E],
-  ): { remove(): void } {
-    if (e !== 'status') return super.addListener(e, cb);
-    const forward = cb as LumenCaptureEvents['status'];
-    return super.addListener('status', (status) => forward(this.scripted(status)));
-  }
+    constructor(recording: ShowcaseRecording) {
+      super(recording);
+      this.motion = recording.motion;
+      this.firstNs = recording.samples.tNs[0] ?? 0;
+      super.addListener('samples', ({ samples, stats }) => {
+        const sample = samples[samples.length - 1];
+        const stat = stats[stats.length - 1];
+        if (sample && stat) this.newest = { sample, stat };
+      });
+    }
 
-  private scripted(status: CaptureStatus): CaptureStatus {
-    if (this.newest === null) return status;
-    const { sample, stat } = this.newest;
-    const atS = (sample.tNs - this.firstNs) / 1e9;
-    const moving = this.motion.some(({ fromS, toS }) => atS >= fromS && atS < toS);
-    return {
-      ...status,
-      fingerCovered: frameProblem(sample, stat) !== 'coverage',
-      motionRms: moving ? SCRIPTED_MOTION_RMS : 0,
-    };
-  }
+    override addListener<E extends keyof LumenCaptureEvents>(
+      e: E,
+      cb: LumenCaptureEvents[E],
+    ): { remove(): void } {
+      if (e !== 'status') return super.addListener(e, cb);
+      const forward = cb as LumenCaptureEvents['status'];
+      return super.addListener('status', (status) => forward(this.scripted(status)));
+    }
+
+    private scripted(status: CaptureStatus): CaptureStatus {
+      if (this.newest === null) return status;
+      const { sample, stat } = this.newest;
+      const atS = (sample.tNs - this.firstNs) / 1e9;
+      const moving = this.motion.some(({ fromS, toS }) => atS >= fromS && atS < toS);
+      return {
+        ...status,
+        fingerCovered: frameProblem(sample, stat) !== 'coverage',
+        motionRms: moving ? SCRIPTED_MOTION_RMS : 0,
+      };
+    }
+  };
+  return new replayClass(recording);
 }

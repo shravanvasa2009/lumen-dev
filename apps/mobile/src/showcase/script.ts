@@ -97,12 +97,14 @@ export class Script {
       'scroll',
       async () => {
         const range = await scrollRange();
-        const frames = Math.max(1, Math.round((seconds * 1000) / SCROLL_FRAME_MS));
-        for (let frame = 1; frame <= frames; frame += 1) {
-          const progress = frame / frames;
+        // Paced by the clock, so a slow frame never stretches the scroll past its seconds.
+        const startedMs = Date.now();
+        for (;;) {
+          const progress = Math.min(1, (Date.now() - startedMs) / (seconds * 1000));
           // Ease in and out so the start and end of the scroll don't jolt.
           const eased = progress < 0.5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2;
           scrollTo(range * eased);
+          if (progress >= 1) break;
           await sleep(SCROLL_FRAME_MS);
         }
         return true;

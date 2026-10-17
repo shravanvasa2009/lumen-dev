@@ -10,7 +10,7 @@ import { CaptureView } from '@/measure/CaptureView';
 import { cleanSecondsNeeded, parseMode, processingHref } from '@/measure/mode';
 import { useLiveCapture } from '@/measure/useLiveCapture';
 import { SHOWCASE } from '@/showcase/flag';
-import { nextShowcaseAttempt, recordingFor, ShowcaseReplay } from '@/showcase/scanSource';
+import { nextShowcaseAttempt, recordingFor, showcaseReplay } from '@/showcase/scanSource';
 import { useStoredRating } from '@/store/useStoredRating';
 
 const DEMO_LEAD_IN_S = 10;
@@ -27,7 +27,7 @@ export default function CaptureScreen() {
   // cover the frames before the first clean second. Showcase recordings carry their own lead-in and tail.
   const replay = useMemo(() => {
     if (demo) return new ReplayCapture(syntheticDemoRecording(cleanSecondsNeeded(mode) + DEMO_LEAD_IN_S));
-    return showcaseAttempt === null ? null : new ShowcaseReplay(recordingFor(showcaseAttempt));
+    return showcaseAttempt === null ? null : showcaseReplay(recordingFor(showcaseAttempt));
   }, [demo, mode, showcaseAttempt]);
   const live = useLiveCapture(replay ?? undefined, { demo });
   const rating = useStoredRating();

@@ -62,7 +62,7 @@ export class ReplayCapture implements LumenCaptureModule {
   private timers: ReturnType<typeof setInterval>[] = [];
   private sampleCursor = 0;
   private statCursor = 0;
-  private batchesSent = 0;
+  private startedAtMs = 0;
   private dropped = 0;
   private lensId?: string;
   // Stays true after the recording runs out, like a stalled camera, until stop().
@@ -98,7 +98,7 @@ export class ReplayCapture implements LumenCaptureModule {
     this.clearTimers();
     this.sampleCursor = 0;
     this.statCursor = 0;
-    this.batchesSent = 0;
+    this.startedAtMs = Date.now();
     this.dropped = 0;
     this.lensId = config.lensId ?? this.capabilities.rearLenses[0]?.id;
     this.running = true;
@@ -145,8 +145,9 @@ export class ReplayCapture implements LumenCaptureModule {
   }
 
   private emitBatch(): void {
-    this.batchesSent += 1;
-    const edgeNs = (this.sampleRows[0]?.tNs ?? 0) + this.batchesSent * BATCH_MS * 1e6;
+    // Frames are released by the wall clock, not by counting timer ticks: a busy JS thread delays ticks, and
+    // counting them would let a slow phone fall behind the recording (two showcase phones must finish together).
+    const edgeNs = (this.sampleRows[0]?.tNs ?? 0) + (Date.now() - this.startedAtMs) * 1e6;
 
     const samples: Sample[] = [];
     let next = this.sampleRows[this.sampleCursor];

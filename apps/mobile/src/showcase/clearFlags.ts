@@ -51,6 +51,8 @@ export function showcaseResult(reading: ReadingResult): ReadingResult {
   if (reading.quality.level !== 'standard')
     cleared.push(`quality ${reading.quality.reasons.map((reason) => reason.kind).join('+')}`);
   if (reading.retakePrompt !== null) cleared.push(`retake prompt ${reading.retakePrompt}`);
+  if (reading.experimental.extraBeatsPerMin > 0)
+    cleared.push(`extra beats ${reading.experimental.extraBeatsPerMin.toFixed(1)}/min`);
   // With no rhythm metric the reading cannot read as regular; it stays heart-rate only.
   const headlineKey = rhythm === null ? reading.headlineKey : 'result.regular';
   if (headlineKey !== reading.headlineKey) cleared.push(`headline ${reading.headlineKey}`);
@@ -68,7 +70,7 @@ export function showcaseResult(reading: ReadingResult): ReadingResult {
     quality: { level: 'standard', reasons: [] },
     retakePrompt: null,
     metrics,
-    experimental: { ...reading.experimental, ...standardFields() },
+    experimental: { ...reading.experimental, ...standardFields(), extraBeatsPerMin: 0 },
   };
   report(cleared);
   return cleaned;

@@ -78,7 +78,8 @@ export function setupSteps(script: Script, reminderAt: { hour: number; minute: n
     .pick({ prop: 'mode', equals: 'time' }, null, new Date(2000, 0, 1, reminderAt.hour, reminderAt.minute));
   // iOS shows the wheel inline until the row is tapped again; Android closes its dialog on the pick.
   if (Platform.OS === 'ios') script.tap(/^Reminder time/);
-  script.hold(HOLD_S).tap('Turn on reminders').hold(2);
+  // Home's first render with a month of readings can hold the JS thread for several seconds.
+  script.hold(HOLD_S).tap('Turn on reminders').hold(5);
   return script;
 }
 

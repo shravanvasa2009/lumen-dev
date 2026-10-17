@@ -31,14 +31,16 @@ export function showcaseOutcome(outcome: InconclusiveOutcome): InconclusiveOutco
 
 const standardFields = () => ({ quality: 'standard' as const, qualityReasons: [], qualityDetails: [] });
 
-function standard<M extends { quality: string }>(
+function standard<M extends { quality: string; confidence?: string }>(
   name: string,
   metric: M | null,
   cleared: string[],
 ): M | null {
   if (metric === null) return null;
   if (metric.quality !== 'standard') cleared.push(`${name} lower quality`);
-  return { ...metric, ...standardFields() };
+  if (metric.confidence !== undefined && metric.confidence !== 'high')
+    cleared.push(`${name} ${metric.confidence} confidence`);
+  return { ...metric, ...standardFields(), ...(metric.confidence === undefined ? {} : { confidence: 'high' }) };
 }
 
 export function showcaseResult(reading: ReadingResult): ReadingResult {

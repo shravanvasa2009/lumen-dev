@@ -2,6 +2,8 @@ import type { Script } from './script';
 import { visibleTexts } from './driver';
 
 const RETRY_MS = 100;
+// Later than this, the app was in the background (the widget beat keeps it there about 15 s).
+const AWAY_S = 12;
 // Both phones are opened by hand, within the same minute; the run starts on the next whole minute at least
 // this far away, read from each phone's own network-set clock.
 const MIN_LEAD_MS = 15_000;
@@ -24,15 +26,18 @@ export async function runScript(script: Script, startMs: number): Promise<void> 
     // A missing control may wait only until the next step is due, so one miss never delays the rest.
     const nextDueMs = next === undefined || next.at <= step.at ? Infinity : startMs + next.at * 1000;
     const deadlineMs = Math.min(dueMs + step.graceS * 1000, nextDueMs);
-    // Back from the background past the deadline (the widget beat): this step's moment has gone.
-    if (Date.now() > deadlineMs) {
+    // Back from the background (the widget beat): steps whose moment went by while away are dropped.
+    if (Date.now() - dueMs > AWAY_S * 1000) {
       log(`+${step.at.toFixed(1)}s ${step.label}: passed while away, skipped`);
       continue;
     }
     if (dueMs > Date.now()) await sleep(dueMs - Date.now());
     let done = false;
     let startedMs = Date.now();
-    while (!done && Date.now() <= deadlineMs) {
+    // A step reached late (a busy JS thread) still gets one try, so a stall costs time, not screens.
+    let tries = 0;
+    while (!done && (tries === 0 || Date.now() <= deadlineMs)) {
+      tries += 1;
       startedMs = Date.now();
       try {
         done = await step.attempt();

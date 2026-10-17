@@ -7,6 +7,8 @@ import { DemoStrip } from '@/demo/DemoStrip';
 import { useSavedLanguage } from '@/i18n/language';
 import { showNotificationsInForeground } from '@/notifications/foreground';
 import { useOpenTappedNotification } from '@/notifications/openTapped';
+import { SHOWCASE } from '@/showcase/flag';
+import { ShowcaseHost } from '@/showcase/ShowcaseHost';
 import { useTheme } from '@/theme';
 import { stackAnimation, useReduceMotion } from '@/theme/motion';
 
@@ -65,6 +67,7 @@ export default function RootLayout() {
         {/* SAFE-1: the urgent screen appears with no transition, so nothing delays it. */}
         <Stack.Screen name="emergency" options={{ animation: 'none' }} />
       </Stack>
+      {SHOWCASE ? <ShowcaseHost /> : null}
     </DemoStrip>
   );
 }

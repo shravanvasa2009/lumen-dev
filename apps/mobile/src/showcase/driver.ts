@@ -236,7 +236,11 @@ export async function scrollRange(): Promise<number> {
   const view = activeScrollView();
   if (view === null || fabric === undefined) return 0;
   const [frame, content] = await Promise.all([sizeOf(view.node), sizeOf(view.content)]);
-  return Math.max(0, content.height - frame.height);
+  const range = Math.max(0, content.height - frame.height);
+  console.warn(`[showcase] scroll range ${range} (frame ${frame.height}, content ${content.height})`);
+  // A frame that measures empty is a view still being laid out; scrolling by its content height would push
+  // the whole screen out of sight.
+  return frame.height < 100 ? 0 : range;
 }
 
 export function scrollTo(y: number): boolean {

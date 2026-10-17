@@ -18,9 +18,12 @@ const log = (message: string) => console.warn(`[showcase] ${message}`);
 // logged with what was on screen and skipped, so one miss cannot push the rest of the film out of sync.
 export async function runScript(script: Script, startMs: number): Promise<void> {
   log(`start at ${new Date(startMs).toISOString()}, ${script.steps.length} steps, ends at +${script.now}s`);
-  for (const step of script.steps) {
+  for (const [index, step] of script.steps.entries()) {
     const dueMs = startMs + step.at * 1000;
-    const deadlineMs = dueMs + step.graceS * 1000;
+    const next = script.steps[index + 1];
+    // A missing control may wait only until the next step is due, so one miss never delays the rest.
+    const nextDueMs = next === undefined || next.at <= step.at ? Infinity : startMs + next.at * 1000;
+    const deadlineMs = Math.min(dueMs + step.graceS * 1000, nextDueMs);
     // Back from the background past the deadline (the widget beat): this step's moment has gone.
     if (Date.now() > deadlineMs) {
       log(`+${step.at.toFixed(1)}s ${step.label}: passed while away, skipped`);

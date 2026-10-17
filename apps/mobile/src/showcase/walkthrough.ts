@@ -1,4 +1,9 @@
+import { router } from 'expo-router';
 import { Platform } from 'react-native';
+
+import cues from './cues.json';
+import { deliverDailyReminderNow } from './reminderBeat';
+import { showTap } from './TapDots';
 
 import { person } from './people';
 import { REHEARSAL } from './flag';
@@ -65,5 +70,64 @@ export function setupSteps(script: Script, reminderAt: { hour: number; minute: n
   // iOS shows the wheel inline until the row is tapped again; Android closes its dialog on the pick.
   if (Platform.OS === 'ios') script.tap(/^Reminder time/);
   script.hold(HOLD_S).tap('Turn on reminders').hold(2);
+  return script;
+}
+
+// The native header's back chevron is not a React control; it is pressed the way it would be by a finger,
+// with the dot drawn over it.
+const HEADER_BACK = { x: 8, y: Platform.OS === 'ios' ? 54 : 36, width: 44, height: 44 };
+function back(script: Script): Script {
+  return script
+    .call('back', () => {
+      showTap(HEADER_BACK);
+      router.back();
+      return true;
+    })
+    .hold();
+}
+
+// After setup: Home, the scan modes, Trends, the reminder from setup arriving on time, the widgets outside
+// the app (driven by the A17's adb script and by hand on the iPhone, on the same cue seconds), Learn, the care
+// map, and the doctor report.
+export function tourSteps(script: Script): Script {
+  script
+    // Home with a month of mornings behind it.
+    .hold(2.5)
+    .scrollThrough(3, 1.5)
+    .scrollToTop()
+    // The scan modes, glanced at; the scanning film shows a full scan.
+    .tap('Measure')
+    .hold(1)
+    .scrollThrough(2, 1.5);
+  back(script)
+    .tap('Trends')
+    .hold(2)
+    .scrollThrough(4, 2)
+    .holdUntil(cues.reminder)
+    .call('the daily reminder from setup arrives', deliverDailyReminderNow, 0, 3)
+    // Outside the app until the widget is tapped; these seconds belong to the drivers.
+    .holdUntil(cues.backInApp)
+    .tap('Learn')
+    .hold(1.5)
+    .tap(/How the rhythm check works/)
+    .hold(1.5)
+    .scrollThrough(7, 1.5);
+  back(script)
+    .tap(/^Care/)
+    .hold(2)
+    .type('ZIP code or city', '78681', 1)
+    .tap('Search')
+    .hold(3)
+    .scrollThrough(3, 1.5)
+    .tap('Home')
+    .hold(1)
+    .tap(/^AFib/)
+    .hold(2)
+    .scrollThrough(3, 1)
+    .tap('Doctor report')
+    .hold(2)
+    .scrollThrough(3, 1.5)
+    .tap('Share PDF')
+    .hold(4);
   return script;
 }

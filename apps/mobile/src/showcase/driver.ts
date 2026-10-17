@@ -36,10 +36,13 @@ function propsOf(fiber: Fiber): Record<string, unknown> {
   return props !== null && typeof props === 'object' ? props : {};
 }
 
+// A react-native-screens screen that is not the active one (activityState 0), or a navigator scene that is
+// not focused: React Navigation's Screen gets focused, route and header (bottom tabs keep visited tabs
+// mounted). Tab bar buttons also get focused and route, but no header, and must stay pressable.
 function isInactiveScreen(fiber: Fiber): boolean {
-  if (fiber.tag !== HOST_COMPONENT || fiber.type !== 'RNSScreen') return false;
   const props = propsOf(fiber);
-  return props.activityState === INACTIVE_SCREEN;
+  if (props.activityState === INACTIVE_SCREEN) return true;
+  return props.focused === false && props.route !== undefined && 'header' in props;
 }
 
 // Depth-first over what is on screen: the subtrees of covered stack screens and unfocused tabs are skipped.

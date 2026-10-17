@@ -1,0 +1,9 @@
+{
+  "comment": "Seconds after the run's start minute. The phones, the A17 adb driver and the Mac cue script all read these.",
+  "reminder": 120,
+  "home": 126,
+  "shadeOpen": 131,
+  "shadeClose": 136,
+  "widgetTap": 138,
+  "backInApp": 141
+}

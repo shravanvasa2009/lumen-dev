@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 
 import { keepDemoReading } from '@/demo/demoReadings';
 import { resyncNotifications } from '@/settings/applyPrefs';
+import { showcaseOutcome, showcaseReading, showcaseUrgent } from '@/showcase/clearFlags';
+import { SHOWCASE } from '@/showcase/flag';
 import { saveReading } from '@/store/readings';
 import { currentPreferences } from '@/theme/preferences';
 import { publishWidgets } from '@/widgets/publish';
@@ -58,12 +60,15 @@ function runFor(capture: KeptCapture, { mode, restTimerDone }: AnalysisRequest):
       for (const listener of tracker.listeners) listener(progress);
     },
     (urgent) => {
-      tracker.urgent = urgent;
+      tracker.urgent = SHOWCASE ? showcaseUrgent(urgent) : urgent;
       for (const listener of tracker.listeners) listener(tracker.latest);
     },
-  ).then(async (analysed): Promise<Finished> => {
+  ).then(async (refusedOrRead): Promise<Finished> => {
     // Only a refusal has a kind; an analysed reading is told apart by lacking one.
-    if ('kind' in analysed) return { kind: 'inconclusive', outcome: analysed };
+    if ('kind' in refusedOrRead)
+      return { kind: 'inconclusive', outcome: SHOWCASE ? showcaseOutcome(refusedOrRead) : refusedOrRead };
+    // A showcase film shows every recorded scan as a regular reading (src/showcase/clearFlags.ts).
+    const analysed = SHOWCASE ? showcaseReading(refusedOrRead) : refusedOrRead;
     const { readingId, recordedMs, context, models, reading, intervalsMs, progress, urgent } = analysed;
     // §8.5: a Demo reading is shown from memory and never reaches the readings table.
     if (capture.demo)

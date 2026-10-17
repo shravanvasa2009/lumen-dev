@@ -22,7 +22,8 @@ export const HOLD_S = 1.5;
 const DEFAULT_GRACE_S = 6;
 const SCROLL_FRAME_MS = 33;
 
-const shown = (pressed: Pressed | null) => {
+// Draws the touch dot for a press that found its control; false while the control is not on screen.
+export const shown = (pressed: Pressed | null) => {
   if (pressed === null) return false;
   showTap(pressed.layout);
   return true;

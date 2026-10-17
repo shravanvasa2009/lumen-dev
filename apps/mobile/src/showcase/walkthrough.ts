@@ -2,12 +2,13 @@ import { router } from 'expo-router';
 import { Platform } from 'react-native';
 
 import cues from './cues.json';
+import { isShowing, press } from './driver';
 import { deliverDailyReminderNow } from './reminderBeat';
 import { showTap } from './TapDots';
 
 import { person } from './people';
 import { REHEARSAL } from './flag';
-import { HOLD_S, Script } from './script';
+import { HOLD_S, Script, shown } from './script';
 
 // The full walkthrough from a fresh start: setup, Home, the scan modes, Trends, the reminder and widgets,
 // Learn, and the care map with the doctor report. Seconds are raw film time; the editor speeds up the
@@ -52,8 +53,16 @@ export function setupSteps(script: Script, reminderAt: { hour: number; minute: n
   else
     script
       .hold(42)
-      .step('tap Continue after practice', async () => true)
-      .tap('Continue');
+      // Continue is enabled only once 30 steady seconds are in; a finger that never settles is skipped, so a
+      // take never stalls here (the rating then reads "not tested yet").
+      .step('tap Continue after practice', async () => shown(await press('Continue')), 0, 10)
+      .hold(10)
+      .call('skip practice if it never finished', async () => {
+        if (!isShowing('Practice reading')) return true;
+        console.warn('[showcase] practice did not finish; skipping it');
+        return shown(await press('Skip practice'));
+      })
+      .hold(HOLD_S);
   script
     // How to sit
     .hold(2.5)

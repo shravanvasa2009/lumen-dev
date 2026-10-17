@@ -116,9 +116,12 @@ function findWith(target: Target, prop: string, { within }: Scope = {}): Fiber |
   eachVisibleFiber((fiber) => {
     if (fiber.tag === HOST_COMPONENT || fiber.tag === HOST_TEXT) return;
     const props = propsOf(fiber);
-    if (typeof props[prop] === 'function' && props.disabled !== true && matches(fiber, target)) found.push(fiber);
+    if (typeof props[prop] === 'function' && matches(fiber, target)) found.push(fiber);
   });
-  if (within === undefined) return found.at(-1) ?? null;
+  // A disabled match still counts as the newest one: otherwise a covered screen's enabled button with the
+  // same label (an earlier Continue) would be pressed instead of waiting for this one.
+  const usable = (fiber: Fiber | null) => (fiber !== null && propsOf(fiber).disabled !== true ? fiber : null);
+  if (within === undefined) return usable(found.at(-1) ?? null);
   let best: Fiber | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const fiber of found) {
@@ -128,7 +131,7 @@ function findWith(target: Target, prop: string, { within }: Scope = {}): Fiber |
       bestDistance = distance;
     }
   }
-  return bestDistance === Number.POSITIVE_INFINITY ? null : best;
+  return bestDistance === Number.POSITIVE_INFINITY ? null : usable(best);
 }
 
 function firstHostNode(fiber: Fiber): unknown {

@@ -13,11 +13,12 @@ export function registerMapCamera(camera: MapCamera | null, centre: Centre): voi
   shown = camera === null ? null : { camera, centre };
 }
 
-// Offsets in degrees from the search centre (about 2–3 km at 30° N) and zooms around the map's start zoom of 11.
+// Offsets in degrees from the search centre (about 1 km at 30° N) and zooms just past the map's start zoom of
+// 11, so the clinic pins stay in view while the map moves.
 const LOOKS = [
-  { east: 0.03, north: 0.015, zoom: 12, ms: 1300 },
-  { east: -0.025, north: -0.02, zoom: 12.6, ms: 1500 },
-  { east: -0.005, north: 0.01, zoom: 13.2, ms: 1200 },
+  { east: 0.015, north: 0.008, zoom: 11.8, ms: 1300 },
+  { east: -0.012, north: -0.01, zoom: 12.3, ms: 1500 },
+  { east: -0.004, north: 0.006, zoom: 12.6, ms: 1200 },
   { east: 0, north: 0, zoom: 11, ms: 1300 },
 ];
 const PAUSE_MS = 350;

@@ -27,6 +27,8 @@ const SCROLL_FRAME_MS = 16;
 const FLICK_SHARE = 0.75;
 const FLICK_S = 0.5;
 const BETWEEN_FLICKS_S = 0.25;
+// Holds up to this long are a person's pauses and get varied; longer ones are fixed waits.
+const MAX_PACED_HOLD_S = 3;
 // Flicks cover a screen faster than the old even scroll; the script's scroll lengths are scaled by this.
 const SCROLL_PACE = 0.6;
 
@@ -61,8 +63,9 @@ export class Script {
     return this.cursor;
   }
 
+  // Only a person's short pauses vary; long fixed waits (the rest, a scan) keep their length.
   hold(seconds = HOLD_S): this {
-    this.cursor += seconds * this.pace();
+    this.cursor += seconds <= MAX_PACED_HOLD_S ? seconds * this.pace() : seconds;
     return this;
   }
 
@@ -128,7 +131,10 @@ export class Script {
       async () => {
         const { range, frame } = await scrollRange();
         if (range === 0) return true;
-        const flicks = Math.max(1, Math.ceil(range / (frame * FLICK_SHARE)));
+        // As many flicks as the screen needs, but no more than fit the step's time, so a long list never
+        // pushes the next step late; each flick then travels farther.
+        const fit = Math.floor((seconds * SCROLL_PACE + BETWEEN_FLICKS_S) / (FLICK_S + BETWEEN_FLICKS_S));
+        const flicks = Math.max(1, Math.min(fit, Math.ceil(range / (frame * FLICK_SHARE))));
         let from = 0;
         for (let flick = 1; flick <= flicks; flick += 1) {
           const to = (range * flick) / flicks;

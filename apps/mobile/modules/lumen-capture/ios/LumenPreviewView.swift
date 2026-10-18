@@ -5,7 +5,7 @@ import ExpoModulesCore
 final class LumenPreviewView: ExpoView {
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
-    // The preview layer is a sublayer, which UIView does not clip unless asked; screens round this view.
+    // The preview layer is a sublayer, which UIView does not clip unless asked; the parent view rounds the circle.
     clipsToBounds = true
   }
 

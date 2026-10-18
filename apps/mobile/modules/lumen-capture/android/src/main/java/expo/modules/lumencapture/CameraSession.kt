@@ -276,7 +276,11 @@ class CameraSession(
         val builder =
             ImageAnalysis.Builder()
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                // ADR 0107: every frame is a pulse sample. KEEP_ONLY_LATEST reads with acquireLatestImage() from a
+                // 4-image reader (CameraX 1.6.2, javap), so a frame handed over late under UI load is discarded; on
+                // the Galaxy A17 that cut the scan screen to 22-28 fps while the camera ran at 30. analyze() takes
+                // about 3 ms of the 33 ms frame, so blocking the producer does not hold the camera back.
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER)
                 .setResolutionSelector(
                     ResolutionSelector.Builder()
                         .setResolutionStrategy(

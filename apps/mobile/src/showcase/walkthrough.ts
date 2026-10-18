@@ -2,12 +2,12 @@ import { router } from 'expo-router';
 import { Platform } from 'react-native';
 
 import cues from './cues.json';
-import { isShowing, press } from './driver';
+import { press } from './driver';
+import { lookAroundMap } from './mapLook';
 import { deliverDailyReminderNow } from './reminderBeat';
 import { showTap } from './TapDots';
 
 import { person } from './people';
-import { REHEARSAL } from './flag';
 import { HOLD_S, Script, shown } from './script';
 
 // The full walkthrough from a fresh start: setup, Home, the scan modes, Trends, the reminder and widgets,
@@ -48,21 +48,12 @@ export function setupSteps(script: Script, reminderAt: { hour: number; minute: n
     .tap('Next: finger placement')
     .hold(2.5)
     .tap("I'm ready, start practice");
-  // Practice is a real finger scan: 30 steady seconds, with room for the finger to settle.
-  if (REHEARSAL) script.hold(3).tap('Skip practice');
-  else
-    script
-      .hold(42)
-      // Continue is enabled only once 30 steady seconds are in; a finger that never settles is skipped, so a
-      // take never stalls here (the rating then reads "not tested yet").
-      .step('tap Continue after practice', async () => shown(await press('Continue')), 0, 10)
-      .hold(10)
-      .call('skip practice if it never finished', async () => {
-        if (!isShowing('Practice reading')) return true;
-        console.warn('[showcase] practice did not finish; skipping it');
-        return shown(await press('Skip practice'));
-      })
-      .hold(HOLD_S);
+  // Practice replays the person's recorded take (no finger, the finger landing, then 30 steady seconds) while
+  // the camera shows their finger; it counts out about 40 s in and Continue appears.
+  script
+    .hold(40)
+    .step('tap Continue after practice', async () => shown(await press('Continue')), 0, 10)
+    .hold();
   script
     // How to sit
     .hold(2.5)
@@ -76,8 +67,10 @@ export function setupSteps(script: Script, reminderAt: { hour: number; minute: n
     .switchTo('Daily check', true)
     .tap(/^Reminder time/)
     .pick({ prop: 'mode', equals: 'time' }, null, new Date(2000, 0, 1, reminderAt.hour, reminderAt.minute));
-  // iOS shows the wheel inline until the row is tapped again; Android closes its dialog on the pick.
+  // iOS shows the wheel inline until the row is tapped again; Android closes its dialog on the pick and holds
+  // as long, so both films stay on one timetable.
   if (Platform.OS === 'ios') script.tap(/^Reminder time/);
+  else script.hold();
   // Home's first render with a month of readings can hold the JS thread for several seconds.
   script.hold(HOLD_S).tap('Turn on reminders').hold(5);
   return script;
@@ -128,6 +121,8 @@ export function tourSteps(script: Script): Script {
     .type('ZIP code or city', '78681', 1)
     .tap('Search')
     .hold(3)
+    .call('look around the map', lookAroundMap, 6.6, 3)
+    .hold()
     .scrollThrough(3, 1.5)
     .tap('Home')
     .hold(1)

@@ -9,9 +9,9 @@ import {
   ReplayCapture,
   type Sample,
 } from '../../modules/lumen-capture/src';
-import nitinAttempt1 from './recordings/nitin-attempt1.json';
+import nitinPractice from './recordings/nitin-practice.json';
 import nitinScan from './recordings/nitin-scan.json';
-import shravanAttempt1 from './recordings/shravan-attempt1.json';
+import shravanPractice from './recordings/shravan-practice.json';
 import shravanScan from './recordings/shravan-scan.json';
 
 // tools/showcase/recording.mjs writes these; `motion` holds the stretches, in seconds from the first frame,
@@ -24,22 +24,14 @@ type ShowcaseRecording = RecordedCapture & {
 // Well above live.motionRmsThreshold (0.05 g); tools/showcase/check-timing.mjs uses the same value.
 const SCRIPTED_MOTION_RMS = 0.3;
 
-// The A17 films Shravan and the iPhone films Nitin (people.ts); attempt 1 is the refused reading.
-export function recordingFor(attempt: 1 | 2): ShowcaseRecording {
+// The A17 films Shravan and the iPhone films Nitin (people.ts): the setup's practice take and the Full Scan take.
+export function recordingFor(take: 'practice' | 'scan'): ShowcaseRecording {
   const ios = Platform.OS === 'ios';
   const recordings = {
-    1: ios ? nitinAttempt1 : shravanAttempt1,
-    2: ios ? nitinScan : shravanScan,
+    practice: ios ? nitinPractice : shravanPractice,
+    scan: ios ? nitinScan : shravanScan,
   };
-  return recordings[attempt] as ShowcaseRecording;
-}
-
-let capturesStarted = 0;
-
-// The first capture of a run is the refused attempt; every later one is the good scan.
-export function nextShowcaseAttempt(): 1 | 2 {
-  capturesStarted += 1;
-  return capturesStarted === 1 ? 1 : 2;
+  return recordings[take] as ShowcaseRecording;
 }
 
 // ReplayCapture's status always reports a covered lens and no motion. The film needs both to follow the

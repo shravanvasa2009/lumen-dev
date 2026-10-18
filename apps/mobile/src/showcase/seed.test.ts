@@ -16,7 +16,7 @@ jest.mock('@/store/database', () => ({
 
 // The film's two people (owner, 2026-10-17): resting HR, RMSSD and breathing spreads.
 const people = [
-  { name: 'Shravan', readings: shravan as unknown as SeedReading[], hr: [64, 73], rmssd: [35, 58], resp: 14 },
+  { name: 'Shravan', readings: shravan as unknown as SeedReading[], hr: [68, 77], rmssd: [30, 50], resp: 14 },
   { name: 'Nitin', readings: nitin as unknown as SeedReading[], hr: [57, 66], rmssd: [50, 75], resp: 13 },
 ];
 

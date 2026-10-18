@@ -16,7 +16,10 @@ type Fiber = {
 type Layout = { x: number; y: number; width: number; height: number };
 
 type FabricUIManager = {
-  measureInWindow: (node: unknown, done: (x: number, y: number, width: number, height: number) => void) => void;
+  measureInWindow: (
+    node: unknown,
+    done: (x: number, y: number, width: number, height: number) => void,
+  ) => void;
   measure: (
     node: unknown,
     done: (x: number, y: number, width: number, height: number, pageX: number, pageY: number) => void,
@@ -66,7 +69,8 @@ function textOf(fiber: Fiber): string {
   const collect = (node: Fiber | null) => {
     let current = node;
     while (current !== null) {
-      if (current.tag === HOST_TEXT && typeof current.memoizedProps === 'string') parts.push(current.memoizedProps);
+      if (current.tag === HOST_TEXT && typeof current.memoizedProps === 'string')
+        parts.push(current.memoizedProps);
       collect(current.child);
       current = current.sibling;
     }
@@ -81,7 +85,13 @@ export type Target = string | RegExp | { prop: string; equals: unknown };
 function matches(fiber: Fiber, target: Target): boolean {
   const props = propsOf(fiber);
   if (typeof target === 'object' && !(target instanceof RegExp)) return props[target.prop] === target.equals;
-  const names = [props.testID, props.accessibilityLabel, props['aria-label'], props.placeholder, textOf(fiber)];
+  const names = [
+    props.testID,
+    props.accessibilityLabel,
+    props['aria-label'],
+    props.placeholder,
+    textOf(fiber),
+  ];
   return names.some(
     (name) =>
       typeof name === 'string' && (typeof target === 'string' ? name.trim() === target : target.test(name)),
@@ -89,7 +99,9 @@ function matches(fiber: Fiber, target: Target): boolean {
 }
 
 const describe = (target: Target) =>
-  typeof target === 'object' && !(target instanceof RegExp) ? `${target.prop}=${String(target.equals)}` : String(target);
+  typeof target === 'object' && !(target instanceof RegExp)
+    ? `${target.prop}=${String(target.equals)}`
+    : String(target);
 export { describe as describeTarget };
 
 export type Scope = { within?: string | RegExp };
@@ -161,15 +173,30 @@ function windowLayout(fiber: Fiber): Promise<Layout | null> {
 }
 
 const pressEvent = () => ({ nativeEvent: {}, persist: () => undefined, preventDefault: () => undefined });
+// About as long as a fingertip rests on a button; PressableScale's spring shows the press in that time.
+const FINGER_DOWN_MS = 110;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export type Pressed = { layout: Layout | null };
 
-/** Calls the onPress of the visible control showing `target`; null while no such control is on screen. */
+type Handler = (event: unknown) => void;
+
+// Down, a moment's hold, up, then the press, in the order a finger produces them, so the control animates.
+async function pressLikeAFinger(props: Record<string, unknown>): Promise<void> {
+  const call = (name: string) => (props[name] as Handler | undefined)?.(pressEvent());
+  call('onPressIn');
+  await sleep(FINGER_DOWN_MS);
+  call('onPressOut');
+  call('onPress');
+}
+
+/** Presses the visible control showing `target`; null while no such control is on screen. */
 export async function press(target: Target, scope?: Scope): Promise<Pressed | null> {
   const fiber = findWith(target, 'onPress', scope);
   if (fiber === null) return null;
   const layout = await windowLayout(fiber);
-  (propsOf(fiber).onPress as (event: unknown) => void)(pressEvent());
+  await pressLikeAFinger(propsOf(fiber));
   return { layout };
 }
 
@@ -180,7 +207,7 @@ export async function setSwitch(target: Target, on: boolean): Promise<Pressed | 
   const props = propsOf(fiber);
   const state = props.accessibilityState as { checked?: boolean } | undefined;
   const layout = await windowLayout(fiber);
-  if (state?.checked !== on) (props.onPress as (event: unknown) => void)(pressEvent());
+  if (state?.checked !== on) await pressLikeAFinger(props);
   return { layout };
 }
 
@@ -202,16 +229,18 @@ export async function setText(target: Target, text: string): Promise<Pressed | n
   return { layout };
 }
 
-/** True while some visible text equals or matches `target`. */
-export function isShowing(target: string | RegExp): boolean {
-  let seen = false;
-  eachVisibleFiber((fiber) => {
-    if (seen || fiber.tag !== HOST_TEXT || typeof fiber.memoizedProps !== 'string') return;
-    const text = fiber.memoizedProps.trim();
-    seen = typeof target === 'string' ? text === target : target.test(text);
-  });
-  return seen;
+// TextInput's native commands (react-native TextInputNativeCommands): focus opens the real keyboard, blur
+// closes it, as a tap on the field and a tap away would.
+function textInputCommand(target: Target, command: 'focus' | 'blur'): boolean {
+  const fiber = findWith(target, 'onChangeText');
+  const node = fiber === null ? null : firstHostNode(fiber);
+  if (node === null || fabric === undefined) return false;
+  fabric.dispatchCommand(node, command, []);
+  return true;
 }
+
+export const focusInput = (target: Target) => textInputCommand(target, 'focus');
+export const blurInput = (target: Target) => textInputCommand(target, 'blur');
 
 type ScrollView = { node: unknown; content: unknown };
 
@@ -222,25 +251,28 @@ function activeScrollView(): ScrollView | null {
     if (fiber.tag !== HOST_COMPONENT || fiber.type !== 'RCTScrollView') return;
     if (propsOf(fiber).horizontal === true) return;
     const content = fiber.child === null ? null : firstHostNode(fiber.child);
-    if (fiber.stateNode?.node !== undefined && content !== null) found = { node: fiber.stateNode.node, content };
+    if (fiber.stateNode?.node !== undefined && content !== null)
+      found = { node: fiber.stateNode.node, content };
   });
   return found;
 }
 
 function sizeOf(node: unknown): Promise<{ width: number; height: number }> {
-  return new Promise((resolve) => fabric!.measure(node, (_x, _y, width, height) => resolve({ width, height })));
+  return new Promise((resolve) =>
+    fabric!.measure(node, (_x, _y, width, height) => resolve({ width, height })),
+  );
 }
 
-/** How far the screen's scroll view can move, in points; 0 when the screen does not scroll. */
-export async function scrollRange(): Promise<number> {
+/** How far the screen's scroll view can move and its visible height, in points; range 0 when it does not scroll. */
+export async function scrollRange(): Promise<{ range: number; frame: number }> {
   const view = activeScrollView();
-  if (view === null || fabric === undefined) return 0;
+  if (view === null || fabric === undefined) return { range: 0, frame: 0 };
   const [frame, content] = await Promise.all([sizeOf(view.node), sizeOf(view.content)]);
   const range = Math.max(0, content.height - frame.height);
   console.warn(`[showcase] scroll range ${range} (frame ${frame.height}, content ${content.height})`);
   // A frame that measures empty is a view still being laid out; scrolling by its content height would push
   // the whole screen out of sight.
-  return frame.height < 100 ? 0 : range;
+  return { range: frame.height < 100 ? 0 : range, frame: frame.height };
 }
 
 export function scrollTo(y: number): boolean {
@@ -254,7 +286,11 @@ export function scrollTo(y: number): boolean {
 export function visibleTexts(): string[] {
   const texts: string[] = [];
   eachVisibleFiber((fiber) => {
-    if (fiber.tag === HOST_TEXT && typeof fiber.memoizedProps === 'string' && fiber.memoizedProps.trim() !== '')
+    if (
+      fiber.tag === HOST_TEXT &&
+      typeof fiber.memoizedProps === 'string' &&
+      fiber.memoizedProps.trim() !== ''
+    )
       texts.push(fiber.memoizedProps.trim());
   });
   return texts;

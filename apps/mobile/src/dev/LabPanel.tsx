@@ -22,6 +22,7 @@ import {
   type SampleBatch,
 } from '../../modules/lumen-capture/src';
 
+import { LumenPreviewView } from '../../modules/lumen-capture/src/LumenPreviewView';
 import { captureRequestBody, type PhoneRating, type PolarRr } from './captureRequest';
 import type { HeartRateMeasurement } from './heartRateMeasurement';
 import { keepLiveWindow, readLiveHeartRate, type LiveHeartRate } from './liveHeartRate';
@@ -46,6 +47,8 @@ const TORCH_ON_OFF = [0, 1];
 const LIVE_HR_EVERY_NS = 1e9;
 // Paced-breathing metronomes run well inside this range; anything else is a typo.
 const MAX_PACED_BRPM = 60;
+const MONITOR_TICK_MS = 250;
+const MONITOR_SIZE = 140;
 
 type Subscription = { remove(): void };
 type Recorded = {
@@ -105,6 +108,32 @@ function RedTrace({ values }: { values: readonly number[] }) {
           />
         </View>
       ))}
+    </View>
+  );
+}
+
+// While a take records, the fingertip as the camera sees it and the seconds since Start, so the person can
+// time their moves. The box keeps its size when idle, so Start and Stop never move under a scripted press.
+function TakeMonitor({ running }: { running: boolean }) {
+  const { colors } = useTheme();
+  const [startedMs, setStartedMs] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    if (!running) {
+      setStartedMs(null);
+      return;
+    }
+    setStartedMs(Date.now());
+    const timer = setInterval(() => setNowMs(Date.now()), MONITOR_TICK_MS);
+    return () => clearInterval(timer);
+  }, [running]);
+  const seconds = startedMs === null ? 0 : Math.max(0, Math.floor((nowMs - startedMs) / 1000));
+  return (
+    <View style={styles.monitor}>
+      <View style={[styles.monitorView, { backgroundColor: colors.surface2 }]}>
+        {running && LumenPreviewView ? <LumenPreviewView style={styles.monitorView} /> : null}
+      </View>
+      <AppText style={styles.monitorSeconds}>{`${seconds} s`}</AppText>
     </View>
   );
 }
@@ -621,6 +650,7 @@ export function LabPanel({ capture }: { capture: LumenCaptureModule | null }) {
         disabled={running || switching}
       />
 
+      <TakeMonitor running={running} />
       <Button
         label={running ? t('lab.stop') : t('lab.start')}
         onPress={running ? stopCapture : startCapture}
@@ -750,4 +780,12 @@ const styles = StyleSheet.create({
   traceColumn: { flex: 1, justifyContent: 'flex-end' },
   choices: { flexDirection: 'row', flexWrap: 'wrap' },
   choice: { alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  monitor: { flexDirection: 'row', alignItems: 'center', gap: 24 },
+  monitorView: {
+    width: MONITOR_SIZE,
+    height: MONITOR_SIZE,
+    borderRadius: MONITOR_SIZE / 2,
+    overflow: 'hidden',
+  },
+  monitorSeconds: { fontSize: 48, lineHeight: 60, fontWeight: '700', fontVariant: ['tabular-nums'] },
 });

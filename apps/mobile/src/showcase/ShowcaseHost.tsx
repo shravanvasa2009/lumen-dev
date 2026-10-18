@@ -2,7 +2,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useEffect } from 'react';
 
 import { profileValue } from '@/store/profile';
-import { currentPreferences } from '@/theme/preferences';
+import { currentPreferences, setPreference } from '@/theme/preferences';
 import { publishWidgets } from '@/widgets/publish';
 
 import { nextStartMs, runScript } from './runner';
@@ -30,6 +30,8 @@ async function runAwake(script: Script, startMs: number): Promise<void> {
 // One run per launch: a fresh start (setup not done) films the walkthrough; a launch after setup films the
 // scan.
 async function startRun(): Promise<void> {
+  // Both films are shot in light mode (owner, 2026-10-17).
+  setPreference('appearance', 'light');
   const onboarded = (await profileValue('onboardingDone')) === 'true';
   const startMs = nextStartMs(Date.now());
   if (onboarded) {
@@ -42,7 +44,9 @@ async function startRun(): Promise<void> {
   console.warn(`[showcase] seeded ${seeded} readings`);
   // The start is a whole minute and the reminder cue a whole number of minutes after it.
   const reminder = new Date(startMs + cues.reminder * 1000);
-  const script = tourSteps(setupSteps(new Script(), { hour: reminder.getHours(), minute: reminder.getMinutes() }));
+  const script = tourSteps(
+    setupSteps(new Script(), { hour: reminder.getHours(), minute: reminder.getMinutes() }),
+  );
   await runAwake(script, startMs);
 }
 

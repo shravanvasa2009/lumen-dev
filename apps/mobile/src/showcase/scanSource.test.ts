@@ -5,9 +5,8 @@ describe('ShowcaseReplay', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
-  it('reports the scripted motion and the recorded finger contact in its status', async () => {
-    const recording = recordingFor(1);
-    const replay = showcaseReplay(recording);
+  it('reports the recorded finger contact in its status, uncovered until the finger lands', async () => {
+    const replay = showcaseReplay(recordingFor('scan'));
     const statuses: { atMs: number; status: CaptureStatus }[] = [];
     let atMs = 0;
     replay.addListener('status', (status) => statuses.push({ atMs, status }));
@@ -16,11 +15,8 @@ describe('ShowcaseReplay', () => {
     await replay.stop();
 
     const at = (ms: number) => statuses.find((entry) => entry.atMs >= ms)?.status;
-    const [firstMotion] = recording.motion;
-    expect(firstMotion).toBeDefined();
-    expect(at(firstMotion!.fromS * 1000 + 500)?.motionRms).toBeGreaterThan(0.05);
-    expect(at(firstMotion!.fromS * 1000 + 500)?.fingerCovered).toBe(true);
-    // Between the first lift (2.5 s) and the finger coming back (6 s) the lens is uncovered.
-    expect(at(4000)).toMatchObject({ fingerCovered: false, motionRms: 0 });
+    // The stand-in take opens on the floor and the finger lies flat from 5 s (tools/showcase/make-standins.mjs).
+    expect(at(2000)).toMatchObject({ fingerCovered: false, motionRms: 0 });
+    expect(at(8000)).toMatchObject({ fingerCovered: true, motionRms: 0 });
   });
 });

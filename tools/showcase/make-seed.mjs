@@ -25,7 +25,7 @@ const PROFILE = { athlete: false, betaBlocker: false, pacemaker: false, knownAf:
 const ANCHOR = new Date(2026, 9, 17);
 
 const PEOPLE = [
-  { file: 'shravan.json', seed: 0x5eed16, hr: [68, 64, 73], rmssd: [45, 35, 58], breathing: 14 },
+  { file: 'shravan.json', seed: 0x5eed16, hr: [72, 68, 77], rmssd: [38, 30, 50], breathing: 14 },
   { file: 'nitin.json', seed: 0x5eed17, hr: [61, 57, 66], rmssd: [62, 50, 75], breathing: 13 },
 ];
 

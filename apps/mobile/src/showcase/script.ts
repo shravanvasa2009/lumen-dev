@@ -1,5 +1,7 @@
 import {
+  blurInput,
   changeValue,
+  focusInput,
   describeTarget,
   press,
   type Pressed,
@@ -16,11 +18,30 @@ import { showTap } from './TapDots';
 // however fast each phone renders. `attempt` returns false while its control is not on screen yet.
 export type Step = { at: number; label: string; attempt: () => Promise<boolean>; graceS: number };
 
-// After every screen change and every input the picture holds still this long, so the editor can stretch
-// or cut there.
-export const HOLD_S = 1.5;
+// After every screen change and every input the picture holds still about this long, so the editor can
+// stretch or cut there. Each hold is varied a little, as a person's pace is.
+export const HOLD_S = 0.9;
 const DEFAULT_GRACE_S = 6;
-const SCROLL_FRAME_MS = 33;
+const SCROLL_FRAME_MS = 16;
+// A flick moves at most this share of the visible height, then glides to a stop over FLICK_S.
+const FLICK_SHARE = 0.75;
+const FLICK_S = 0.5;
+const BETWEEN_FLICKS_S = 0.25;
+// Flicks cover a screen faster than the old even scroll; the script's scroll lengths are scaled by this.
+const SCROLL_PACE = 0.6;
+
+// The same sequence on both phones (a fixed seed, one draw per hold), so the varied holds keep the two films
+// on the same timetable: 0.75x to 1.25x.
+function paceFactors(): () => number {
+  let state = 20261017;
+  return () => {
+    state = (state * 1103515245 + 12345) % 2147483648;
+    return 0.75 + (state / 2147483648) * 0.5;
+  };
+}
+
+// Fast at the start, gliding to a stop: a flick's deceleration.
+const easeOutCubic = (progress: number) => 1 - (1 - progress) ** 3;
 
 // Draws the touch dot for a press that found its control; false while the control is not on screen.
 export const shown = (pressed: Pressed | null) => {
@@ -34,13 +55,14 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export class Script {
   readonly steps: Step[] = [];
   private cursor = 0;
+  private readonly pace = paceFactors();
 
   get now(): number {
     return this.cursor;
   }
 
   hold(seconds = HOLD_S): this {
-    this.cursor += seconds;
+    this.cursor += seconds * this.pace();
     return this;
   }
 
@@ -62,26 +84,32 @@ export class Script {
   }
 
   switchTo(target: Target, on: boolean): this {
-    return this.step(`switch ${describeTarget(target)}`, async () => shown(await setSwitch(target, on))).hold(1);
+    return this.step(`switch ${describeTarget(target)}`, async () => shown(await setSwitch(target, on))).hold(
+      1,
+    );
   }
 
-  // Letters appear one by one over `seconds`, the same length on both phones whatever the word.
+  // The field is focused so the keyboard opens, then letters arrive one by one with uneven gaps over
+  // `seconds`, the same on both phones whatever the word, and the keyboard closes.
   type(target: Target, text: string, seconds = 1.2): this {
     return this.step(
       `type ${describeTarget(target)}`,
       async () => {
-        const first = await setText(target, text.slice(0, 1));
+        const first = await setText(target, '');
         if (first === null) return false;
         showTap(first.layout);
-        const gapMs = (seconds * 1000) / Math.max(1, text.length);
-        for (let typed = 2; typed <= text.length; typed += 1) {
-          await sleep(gapMs);
-          await setText(target, text.slice(0, typed));
+        focusInput(target);
+        const gaps = Array.from(text, () => this.pace());
+        const total = gaps.reduce((sum, gap) => sum + gap, 0);
+        for (const [index, gap] of gaps.entries()) {
+          await sleep((seconds * 1000 * gap) / total);
+          await setText(target, text.slice(0, index + 1));
         }
+        blurInput(target);
         return true;
       },
       seconds,
-    ).hold(0.8);
+    ).hold(0.6);
   }
 
   pick(target: Target, ...values: unknown[]): this {
@@ -91,26 +119,33 @@ export class Script {
     ).hold(1);
   }
 
-  // Scrolls the screen top to bottom at an even speed, then holds at the bottom; a screen that does not
-  // scroll just holds.
+  // Flicks the screen top to bottom, each flick fast then gliding to a stop, then holds at the bottom; a
+  // screen that does not scroll just holds. The timetable gives it SCROLL_PACE of `seconds` on every phone;
+  // the flick count follows the screen's height.
   scrollThrough(seconds: number, holdAtEndS = 2): this {
     return this.step(
       'scroll',
       async () => {
-        const range = await scrollRange();
-        // Paced by the clock, so a slow frame never stretches the scroll past its seconds.
-        const startedMs = Date.now();
-        for (;;) {
-          const progress = Math.min(1, (Date.now() - startedMs) / (seconds * 1000));
-          // Ease in and out so the start and end of the scroll don't jolt.
-          const eased = progress < 0.5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2;
-          scrollTo(range * eased);
-          if (progress >= 1) break;
-          await sleep(SCROLL_FRAME_MS);
+        const { range, frame } = await scrollRange();
+        if (range === 0) return true;
+        const flicks = Math.max(1, Math.ceil(range / (frame * FLICK_SHARE)));
+        let from = 0;
+        for (let flick = 1; flick <= flicks; flick += 1) {
+          const to = (range * flick) / flicks;
+          // Paced by the clock, so a slow frame never stretches a flick.
+          const startedMs = Date.now();
+          for (;;) {
+            const progress = Math.min(1, (Date.now() - startedMs) / (FLICK_S * 1000));
+            scrollTo(from + (to - from) * easeOutCubic(progress));
+            if (progress >= 1) break;
+            await sleep(SCROLL_FRAME_MS);
+          }
+          from = to;
+          if (flick < flicks) await sleep(BETWEEN_FLICKS_S * 1000);
         }
         return true;
       },
-      seconds,
+      seconds * SCROLL_PACE,
     ).hold(holdAtEndS);
   }
 

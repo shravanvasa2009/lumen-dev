@@ -36,3 +36,11 @@ NotificationPermissionsModule.getPermissionsAsync = async () => ({
 // Likewise the scheduler stand-in answers the list of pending reminders with nothing, which the sync reads
 // before it plans. A fresh install has none pending.
 NotificationScheduler.getAllScheduledNotificationsAsync = async () => [];
+
+// Showcase only: expo-video reads its native player class when imported, which jest has no native module for. The
+// film's finger video (src/showcase/filmVideo.tsx) is never played in tests, so a still view and an idle player
+// stand in.
+jest.mock('expo-video', () => ({
+  VideoView: jest.requireActual('react-native').View,
+  useVideoPlayer: () => ({ muted: true, loop: false, currentTime: 0, play: () => undefined, pause: () => undefined }),
+}));

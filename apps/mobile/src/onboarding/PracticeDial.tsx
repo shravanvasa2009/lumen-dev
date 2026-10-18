@@ -9,6 +9,8 @@ import { useTheme } from '@/theme';
 import { timingConfig, useReduceMotion } from '@/theme/motion';
 
 import { LumenPreviewView } from '../../modules/lumen-capture/src/LumenPreviewView';
+import { FilmFingerVideo } from '../showcase/filmVideo';
+import { SHOWCASE } from '../showcase/flag';
 
 // Everything is drawn in mockup 06's 280-unit square and scaled to `size`.
 const BOX = 280;
@@ -50,7 +52,9 @@ export function PracticeDial({
   const { spacing, radius, gradients } = useTheme();
   const { stops, highlight, centerX, centerY } = gradients.fingertip;
   const reduceMotion = useReduceMotion();
-  const live = cameraRunning && LumenPreviewView !== null;
+  // A showcase film plays the take's recorded finger video where the live camera view goes.
+  const LiveView = SHOWCASE ? FilmFingerVideo : LumenPreviewView;
+  const live = cameraRunning && LiveView !== null;
   const timing = timingConfig(reduceMotion);
   const glowOpacity = fingerDetected ? 1 : 0.3;
   const glowStyle = useAnimatedStyle(() => ({ opacity: withTiming(glowOpacity, timing) }));
@@ -75,8 +79,8 @@ export function PracticeDial({
               overflow: 'hidden',
             }}
           >
-            {live && LumenPreviewView ? (
-              <LumenPreviewView style={{ width: discSize, height: discSize }} />
+            {live && LiveView ? (
+              <LiveView style={{ width: discSize, height: discSize }} />
             ) : (
               <Animated.View style={glowStyle}>
                 <Svg width={discSize} height={discSize} viewBox={`0 0 ${DISC} ${DISC}`}>

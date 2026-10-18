@@ -10,8 +10,7 @@ import { CaptureView } from '@/measure/CaptureView';
 import { cleanSecondsNeeded, parseMode, processingHref } from '@/measure/mode';
 import { useLiveCapture } from '@/measure/useLiveCapture';
 import { SHOWCASE } from '@/showcase/flag';
-import { useFilmCamera } from '@/showcase/filmCamera';
-import { recordingFor, showcaseReplay } from '@/showcase/scanSource';
+import { showcaseReplay } from '@/showcase/scanSource';
 import { useStoredRating } from '@/store/useStoredRating';
 
 const DEMO_LEAD_IN_S = 10;
@@ -28,11 +27,11 @@ export default function CaptureScreen() {
   // cover the frames before the first clean second. Showcase recordings carry their own lead-in and tail.
   const replay = useMemo(() => {
     if (demo) return new ReplayCapture(syntheticDemoRecording(cleanSecondsNeeded(mode) + DEMO_LEAD_IN_S));
-    return showcase ? showcaseReplay(recordingFor('scan')) : null;
+    return showcase ? showcaseReplay('scan') : null;
   }, [demo, mode, showcase]);
   const replayed = useLiveCapture(replay ?? undefined, { demo });
-  const filmCamera = useFilmCamera(showcase);
-  const live = filmCamera ? { ...replayed, nativeCamera: true } : replayed;
+  // The dial plays the take's finger video in place of the camera (src/showcase/filmVideo.tsx).
+  const live = showcase ? { ...replayed, nativeCamera: true } : replayed;
   const rating = useStoredRating();
 
   // Only the clean-seconds count ends a reading, never a timer (spec §7).

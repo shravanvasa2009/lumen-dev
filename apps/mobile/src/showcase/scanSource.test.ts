@@ -1,12 +1,12 @@
 import type { CaptureStatus } from '../../modules/lumen-capture/src';
-import { recordingFor, showcaseReplay } from './scanSource';
+import { showcaseReplay } from './scanSource';
 
 describe('ShowcaseReplay', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
   it('reports the recorded finger contact in its status, uncovered until the finger lands', async () => {
-    const replay = showcaseReplay(recordingFor('scan'));
+    const replay = showcaseReplay('scan');
     const statuses: { atMs: number; status: CaptureStatus }[] = [];
     let atMs = 0;
     replay.addListener('status', (status) => statuses.push({ atMs, status }));

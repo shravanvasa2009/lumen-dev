@@ -16,6 +16,8 @@ import { useTheme } from '@/theme';
 import { glideConfig, timingConfig, useReduceMotion } from '@/theme/motion';
 
 import { LumenPreviewView } from '../../modules/lumen-capture/src/LumenPreviewView';
+import { FilmFingerVideo } from '../showcase/filmVideo';
+import { SHOWCASE } from '../showcase/flag';
 
 const PREVIEW_SIZE = 190;
 const METER_HEIGHT = 28;
@@ -54,7 +56,9 @@ export function FingerPreview({
 }: FingerPreviewProps) {
   const { colors, spacing, radius } = useTheme();
   const { t } = useTranslation();
-  const live = cameraRunning && LumenPreviewView !== null;
+  // A showcase film plays the take's recorded finger video where the live camera view goes.
+  const LiveView = SHOWCASE ? FilmFingerVideo : LumenPreviewView;
+  const live = cameraRunning && LiveView !== null;
   const reduceMotion = useReduceMotion();
   // Built on the JS thread, as in ProgressRing: the worklets below must not call a plain function.
   const timing = timingConfig(reduceMotion || still);
@@ -75,8 +79,8 @@ export function FingerPreview({
         ]}
       >
         <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
-          {live && LumenPreviewView ? (
-            <LumenPreviewView style={{ width: size, height: size }} />
+          {live && LiveView ? (
+            <LiveView style={{ width: size, height: size }} />
           ) : (
             <Animated.View style={glowStyle}>
               <Svg width={size} height={size}>

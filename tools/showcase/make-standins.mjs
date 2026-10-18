@@ -1,4 +1,7 @@
-import { writeRecording } from './recording.mjs';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+
+import { RECORDINGS_DIR, writeRecording } from './recording.mjs';
 
 // node tools/showcase/make-standins.mjs
 // SYNTHETIC rehearsal stand-ins for the showcase film: generated pulses, not recorded from anyone. They are
@@ -78,10 +81,47 @@ function take(name, pulseHz, seconds) {
   });
 }
 
+// The take's finger video, a stand-in too (ffmpeg): a dim brown floor until the finger lands, then a red
+// fingertip glow that brightens and dims with each beat, square like the Lab's camera monitor.
+const VIDEO_SIZE = 480;
+function writeVideo(name, pulseHz, seconds) {
+  const file = path.join(RECORDINGS_DIR, `${name}.mp4`);
+  const lit = `gte(T,${LANDS_S})`;
+  const beat = `(0.85+0.15*sin(2*PI*${pulseHz}*T))`;
+  const glow = `(1-0.6*hypot(X-W/2,Y-H/2)/(W/2))`;
+  execFileSync('ffmpeg', [
+    '-loglevel',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=black:s=${VIDEO_SIZE}x${VIDEO_SIZE}:r=30:d=${seconds}`,
+    '-vf',
+    `geq=r='if(${lit},clip(235*${beat}*${glow},0,255),90)':g='if(${lit},clip(25*${glow},0,255),75)':b='if(${lit},clip(20*${glow},0,255),60)'`,
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-crf',
+    '32',
+    '-pix_fmt',
+    'yuv420p',
+    '-movflags',
+    '+faststart',
+    file,
+  ]);
+  console.log(`wrote ${path.relative(process.cwd(), file)}: ${seconds} s stand-in finger video`);
+}
+
 // Shravan's heart rate is the higher of the two (owner, 2026-10-17).
 const SHRAVAN_HZ = 1.2; // 72 beats/min
 const NITIN_HZ = 1.05; // 63 beats/min
 writeRecording('shravan-practice', take('shravan-practice', SHRAVAN_HZ, PRACTICE_S));
+writeVideo('shravan-practice', SHRAVAN_HZ, PRACTICE_S);
 writeRecording('nitin-practice', take('nitin-practice', NITIN_HZ, PRACTICE_S));
+writeVideo('nitin-practice', NITIN_HZ, PRACTICE_S);
 writeRecording('shravan-scan', take('shravan-scan', SHRAVAN_HZ, SCAN_S));
+writeVideo('shravan-scan', SHRAVAN_HZ, SCAN_S);
 writeRecording('nitin-scan', take('nitin-scan', NITIN_HZ, SCAN_S));
+writeVideo('nitin-scan', NITIN_HZ, SCAN_S);

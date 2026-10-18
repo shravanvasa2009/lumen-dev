@@ -2,7 +2,10 @@ import { frameProblem } from '@lumen/core';
 import { Platform } from 'react-native';
 
 import {
+  type CaptureConfig,
+  type CaptureStarted,
   type CaptureStatus,
+  type CaptureSummary,
   type FrameStat,
   type LumenCaptureEvents,
   type RecordedCapture,
@@ -13,6 +16,7 @@ import nitinPractice from './recordings/nitin-practice.json';
 import nitinScan from './recordings/nitin-scan.json';
 import shravanPractice from './recordings/shravan-practice.json';
 import shravanScan from './recordings/shravan-scan.json';
+import { startFilmVideo, stopFilmVideo, type Take } from './filmVideo';
 
 // tools/showcase/recording.mjs writes these; `motion` holds the stretches, in seconds from the first frame,
 // when the person moved. A Lab capture has no accelerometer stream, so the cue sheet's stretches stand in.
@@ -25,7 +29,7 @@ type ShowcaseRecording = RecordedCapture & {
 const SCRIPTED_MOTION_RMS = 0.3;
 
 // The A17 films Shravan and the iPhone films Nitin (people.ts): the setup's practice take and the Full Scan take.
-export function recordingFor(take: 'practice' | 'scan'): ShowcaseRecording {
+export function recordingFor(take: Take): ShowcaseRecording {
   const ios = Platform.OS === 'ios';
   const recordings = {
     practice: ios ? nitinPractice : shravanPractice,
@@ -37,18 +41,23 @@ export function recordingFor(take: 'practice' | 'scan'): ShowcaseRecording {
 // ReplayCapture's status always reports a covered lens and no motion. The film needs both to follow the
 // recording: the finger chip reads the newest frame's DSP-4 contact, and motionRms follows `motion`, so the
 // live session rejects those stretches and shows "Hold still" as it does on a moving phone.
+// The take's finger video starts when the replay starts emitting and stops with it (filmVideo.tsx).
 // Defined on first use: screens that import this file are tested with the capture module mocked, where
 // ReplayCapture is not a class yet.
-let replayClass: (new (recording: ShowcaseRecording) => ReplayCapture) | null = null;
+let replayClass: (new (take: Take) => ReplayCapture) | null = null;
 
-export function showcaseReplay(recording: ShowcaseRecording): ReplayCapture {
+export function showcaseReplay(take: Take): ReplayCapture {
   replayClass ??= class extends ReplayCapture {
     private readonly motion: ShowcaseRecording['motion'];
     private readonly firstNs: number;
     private newest: { sample: Sample; stat: FrameStat } | null = null;
 
-    constructor(recording: ShowcaseRecording) {
+    private readonly take: Take;
+
+    constructor(take: Take) {
+      const recording = recordingFor(take);
       super(recording);
+      this.take = take;
       this.motion = recording.motion;
       this.firstNs = recording.samples.tNs[0] ?? 0;
       super.addListener('samples', ({ samples, stats }) => {
@@ -56,6 +65,17 @@ export function showcaseReplay(recording: ShowcaseRecording): ReplayCapture {
         const stat = stats[stats.length - 1];
         if (sample && stat) this.newest = { sample, stat };
       });
+    }
+
+    override async start(config: CaptureConfig): Promise<CaptureStarted> {
+      const started = await super.start(config);
+      startFilmVideo(this.take);
+      return started;
+    }
+
+    override async stop(): Promise<CaptureSummary> {
+      stopFilmVideo();
+      return super.stop();
     }
 
     override addListener<E extends keyof LumenCaptureEvents>(
@@ -79,5 +99,5 @@ export function showcaseReplay(recording: ShowcaseRecording): ReplayCapture {
       };
     }
   };
-  return new replayClass(recording);
+  return new replayClass(take);
 }

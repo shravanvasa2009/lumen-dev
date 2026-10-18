@@ -21,9 +21,8 @@ import { PracticeDial } from '@/onboarding/PracticeDial';
 import { PracticeSignal } from '@/onboarding/PracticeSignal';
 import { practiceSteadySeconds, STEADY_SECONDS_NEEDED } from '@/onboarding/practiceProgress';
 import { usePracticeRating } from '@/onboarding/usePracticeRating';
-import { useFilmCamera } from '@/showcase/filmCamera';
 import { SHOWCASE } from '@/showcase/flag';
-import { recordingFor, showcaseReplay } from '@/showcase/scanSource';
+import { showcaseReplay } from '@/showcase/scanSource';
 import { useTheme } from '@/theme';
 import { easeOut, motion, reduceMotionMode, useReduceMotion } from '@/theme/motion';
 
@@ -97,11 +96,10 @@ function PracticeRun({ onPracticeAgain }: { onPracticeAgain: () => void }) {
   const [finished, setFinished] = useState(false);
   const focused = useIsFocused();
   const cameraOn = focused && !finished;
-  // A showcase film replays the person's recorded practice while the camera shows their finger (src/showcase).
-  const [practiceReplay] = useState(() => (SHOWCASE ? showcaseReplay(recordingFor('practice')) : null));
+  // A showcase film replays the person's recorded practice, and the dial plays its finger video (src/showcase).
+  const [practiceReplay] = useState(() => (SHOWCASE ? showcaseReplay('practice') : null));
   const replayed = useLiveCapture(practiceReplay ?? undefined, { enabled: cameraOn });
-  const filmCamera = useFilmCamera(practiceReplay !== null && cameraOn);
-  const live = filmCamera ? { ...replayed, nativeCamera: true } : replayed;
+  const live = practiceReplay !== null ? { ...replayed, nativeCamera: true } : replayed;
   const fingerOn = live.status?.fingerCovered === true;
   // Counted by the LiveSession once it feeds the hook; until then there are none to show.
   const steadySeconds = practiceSteadySeconds(live.cleanSeconds);

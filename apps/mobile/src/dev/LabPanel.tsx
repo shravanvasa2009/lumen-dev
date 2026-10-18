@@ -48,7 +48,8 @@ const LIVE_HR_EVERY_NS = 1e9;
 // Paced-breathing metronomes run well inside this range; anything else is a typo.
 const MAX_PACED_BRPM = 60;
 const MONITOR_TICK_MS = 250;
-const MONITOR_SIZE = 140;
+// Large and square: tools/showcase-cues.ps1 records this square with scrcpy as the take's finger video.
+const MONITOR_SIZE = 300;
 
 type Subscription = { remove(): void };
 type Recorded = {
@@ -113,7 +114,7 @@ function RedTrace({ values }: { values: readonly number[] }) {
 }
 
 // While a take records, the fingertip as the camera sees it and the seconds since Start, so the person can
-// time their moves. The box keeps its size when idle, so Start and Stop never move under a scripted press.
+// time their moves; the square is also recorded as the take's finger video. The box keeps its size when idle, so Start and Stop never move under a scripted press.
 function TakeMonitor({ running }: { running: boolean }) {
   const { colors } = useTheme();
   const [startedMs, setStartedMs] = useState<number | null>(null);
@@ -130,7 +131,7 @@ function TakeMonitor({ running }: { running: boolean }) {
   const seconds = startedMs === null ? 0 : Math.max(0, Math.floor((nowMs - startedMs) / 1000));
   return (
     <View style={styles.monitor}>
-      <View style={[styles.monitorView, { backgroundColor: colors.surface2 }]}>
+      <View testID="take-monitor-view" style={[styles.monitorView, { backgroundColor: colors.surface2 }]}>
         {running && LumenPreviewView ? <LumenPreviewView style={styles.monitorView} /> : null}
       </View>
       <AppText style={styles.monitorSeconds}>{`${seconds} s`}</AppText>
@@ -780,11 +781,10 @@ const styles = StyleSheet.create({
   traceColumn: { flex: 1, justifyContent: 'flex-end' },
   choices: { flexDirection: 'row', flexWrap: 'wrap' },
   choice: { alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  monitor: { flexDirection: 'row', alignItems: 'center', gap: 24 },
+  monitor: { alignItems: 'center', gap: 8 },
   monitorView: {
     width: MONITOR_SIZE,
     height: MONITOR_SIZE,
-    borderRadius: MONITOR_SIZE / 2,
     overflow: 'hidden',
   },
   monitorSeconds: { fontSize: 48, lineHeight: 60, fontWeight: '700', fontVariant: ['tabular-nums'] },

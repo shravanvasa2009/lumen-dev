@@ -30,6 +30,9 @@ final class CaptureSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
   private let log = os.Logger(subsystem: "lumen.capture", category: "capture")
   private var observers: [NSObjectProtocol] = []
 
+  // For LivePreview only, which shows this session and never configures it (ADR 0099).
+  var previewSession: AVCaptureSession { session }
+
   // Touched only on sessionQueue.
   private var device: AVCaptureDevice?
   private var running = false

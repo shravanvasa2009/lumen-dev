@@ -43,7 +43,7 @@ type FingerPreviewProps = {
 };
 
 // Variant A: the rear camera's live view clipped to a circle inside a status ring, with its caption. Where there is
-// no native view (iOS for now, Replay, Demo, no running capture) the same frame holds the pulse-coloured glow, dim
+// no native view (Replay, Demo, no running capture) the same frame holds the pulse-coloured glow, dim
 // without a finger, and the chip and caption stay out because nothing live is being shown.
 export function FingerPreview({
   detected,

@@ -276,7 +276,10 @@ class CameraSession(
         val builder =
             ImageAnalysis.Builder()
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                // ADR 0107: every frame is a pulse sample. KEEP_ONLY_LATEST reads with acquireLatestImage() from a
+                // 4-image reader and keeps one cached image (CameraX 1.6.2, javap), so frames handed over late under UI
+                // load are discarded. Blocking keeps all of them; analysis is far shorter than a frame interval.
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER)
                 .setResolutionSelector(
                     ResolutionSelector.Builder()
                         .setResolutionStrategy(
@@ -371,7 +374,7 @@ class CameraSession(
         sensorManager?.unregisterListener(motionListener)
         events.removeCallbacksAndMessages(null)
         analyzerThread.shutdown()
-        // A frame still in analyze() takes well under 1 ms (Lab frame work), so this bound is generous.
+        // A frame still in analyze() takes a few ms (the "analyze ms" log), so this bound is generous.
         analyzerThread.awaitTermination(ANALYZER_DRAIN_MS, TimeUnit.MILLISECONDS)
         // A batch the event thread is sending right now goes out first, so batches stay in time order.
         eventThread.quitSafely()

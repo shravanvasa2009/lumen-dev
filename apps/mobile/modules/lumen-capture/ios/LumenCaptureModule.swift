@@ -25,7 +25,8 @@ public final class LumenCaptureModule: Module {
       self.capture.emit = { [weak self] name, body in
         self?.sendEvent(name, body.mapValues { Optional($0) })
       }
-      // Before any start(), so a live view coming or going never touches the session (ADR 0099).
+      // Joined once, from the main actor, long before a screen can call start(); later views only move the layer,
+      // so a live view coming or going never touches the session (ADR 0099).
       let session = self.capture.previewSession
       Task { @MainActor in LivePreview.connect(to: session) }
     }

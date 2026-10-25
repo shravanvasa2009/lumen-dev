@@ -14,11 +14,12 @@ const PLACES = { r: 6, g: 4, b: 4, spatialStdR: 5, clipFrac: 5 };
 
 const rounded = (values, places) => values.map((value) => Number(value.toFixed(places)));
 
-export function compactRecording({ capabilities, samples, stats, motion, origin }) {
+export function compactRecording({ capabilities, samples, stats, motion, slip, origin }) {
   return {
     origin,
     capabilities,
     motion,
+    slip,
     samples: {
       tNs: samples.tNs.map(Math.round),
       r: rounded(samples.r, PLACES.r),

@@ -43,7 +43,8 @@ const COACHING_FOR = {
   coldHands: 'coach.warm',
   exposure: 'coach.brightness',
 };
-// Mirrors scanSource.ts SLIP and SLIPPED_GREEN_BLUE_SHARE: the scan take's scripted slipped finger.
+// Mirrors scanSource.ts SLIP and SLIPPED_GREEN_BLUE_SHARE: the scan take's slipped finger, at the take's own `slip`
+// when it has one.
 const SLIP = { fromS: 42, toS: 46 };
 const SLIPPED_GREEN_BLUE_SHARE = 0.4;
 const PROFILE = { athlete: false, betaBlocker: false, pacemaker: false, knownAf: false };
@@ -78,10 +79,11 @@ const rows = samples.tNs.map((tNs, i) => ({
   },
 }));
 const firstNs = samples.tNs[0];
-if (/scan/.test(path.basename(target)))
+const slip = /scan/.test(path.basename(target)) ? (recording.slip ?? SLIP) : null;
+if (slip)
   for (const row of rows) {
     const atS = (row.sample.tNs - firstNs) / 1e9;
-    if (atS >= SLIP.fromS && atS < SLIP.toS)
+    if (atS >= slip.fromS && atS < slip.toS)
       row.sample.g = row.sample.b = SLIPPED_GREEN_BLUE_SHARE * row.sample.r;
   }
 const captureFps = 1e9 / medianIntervalNs(samples.tNs);
@@ -158,6 +160,7 @@ console.log(`${recording.origin ?? target}`);
 console.log(
   `  ${rows.length} frames at ${captureFps.toFixed(2)} fps, ${seconds(samples.tNs.at(-1)).toFixed(1)} s long`,
 );
+if (slip) console.log(`  slip: ${slip.fromS.toFixed(2)}-${slip.toS.toFixed(2)} s`);
 console.log(`  scripted motion: ${motion.map(({ fromS, toS }) => `${fromS}-${toS}`).join(', ') || 'none'}`);
 console.log(
   `  clean 30 s at capture time ${fmt(reached[30])}; clean ${neededS} s (Processing) at ${fmt(reached[neededS])}`,

@@ -19,7 +19,7 @@ const CUES = {
   0: 'Camera at the carpet',
   3: 'Finger on, flat over the lens and the flash. Then hold still',
 };
-// The scan take's slip (scanSource.ts SLIP, 42 to 46 s): each cue a second early, for the reaction time.
+// The scan take's slip; video-take.mjs finds when the video shows it, and the app coaches it then.
 const SCAN_CUES = { 41: 'Slide your finger half off the lens', 45: 'Back on, flat. Hold still' };
 
 function speak(text, wait = false) {

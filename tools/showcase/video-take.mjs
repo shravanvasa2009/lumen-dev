@@ -124,26 +124,39 @@ if (landedS < 1.5 || landedS > 5)
     `warning: the finger lands ${landedS.toFixed(1)} s into the take; the carpet should show for 2–4 s`,
   );
 
-// The scan film coaches a slipped finger at scanSource.ts SLIP (42 to 46 s); take-cues.mjs has the person slide the
-// finger half off then. Half off, the lens sees flash-lit carpet, so the picture is much less red than when held.
-const SLIP = { fromS: 42, toS: 46 };
+// The scan film coaches a slipped finger; take-cues.mjs has the person slide the finger half off at 41 s. Half off,
+// the lens sees flash-lit carpet, so the picture is much less red than when held. The seconds the video shows it go
+// into the take as `slip`, so the coaching matches the finger video; without one the app uses scanSource.ts SLIP.
+const SLIP_SEARCH = { fromS: 38, toS: 56 };
 const SLIP_REDNESS_SHARE = 0.8;
-if (name.endsWith('-scan')) {
-  const redness = (fromS, toS) => {
-    const values = [];
-    for (let frame = Math.round(fromS * FPS); frame < Math.round(toS * FPS); frame += 1)
-      values.push(real.r[frame] / Math.max(1e-6, real.g[frame] + real.b[frame]));
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-  };
-  const held = redness(SLIP.fromS - 12, SLIP.fromS - 2);
-  const slipped = redness(SLIP.fromS + 1, SLIP.toS - 0.5);
-  console.log(`finger redness held ${held.toFixed(2)}, during the slip ${slipped.toFixed(2)}`);
-  if (slipped > SLIP_REDNESS_SHARE * held)
+// Frames that briefly read red again mid-slip don't end it.
+const SLIP_GAP_S = 0.3;
+function findSlip() {
+  const redness = (frame) => real.r[frame] / Math.max(1e-6, real.g[frame] + real.b[frame]);
+  const heldFrames = [];
+  for (let frame = 30 * FPS; frame < SLIP_SEARCH.fromS * FPS; frame += 1) heldFrames.push(redness(frame));
+  const held = heldFrames.sort((x, y) => x - y)[Math.floor(heldFrames.length / 2)];
+  let best = null;
+  let run = null;
+  for (let frame = SLIP_SEARCH.fromS * FPS; frame < SLIP_SEARCH.toS * FPS; frame += 1) {
+    if (redness(frame) >= SLIP_REDNESS_SHARE * held) continue;
+    if (run && (frame - run.last) / FPS <= SLIP_GAP_S) run.last = frame;
+    else run = { first: frame, last: frame };
+    if (!best || run.last - run.first > best.last - best.first) best = { ...run };
+  }
+  console.log(`finger redness held ${held.toFixed(2)}`);
+  if (!best) {
     console.warn(
-      `warning: the video shows no finger slip at ${SLIP.fromS}-${SLIP.toS} s; the app will still coach it there, ` +
-        "but the finger video won't match. Redo the take and slide off on the cue.",
+      `warning: the video shows no finger slip at ${SLIP_SEARCH.fromS}-${SLIP_SEARCH.toS} s; the app will coach one ` +
+        "at 42-46 s, but the finger video won't match. Redo the take and slide off on the cue.",
     );
+    return undefined;
+  }
+  const slip = { fromS: best.first / FPS, toS: (best.last + 1) / FPS };
+  console.log(`finger slip in the video: ${slip.fromS.toFixed(2)}-${slip.toS.toFixed(2)} s`);
+  return slip;
 }
+const slip = name.endsWith('-scan') ? findSlip() : undefined;
 
 // The real red's slow drift, so the covered level breathes like a real one instead of sitting flat.
 const half = Math.round((SMOOTH_S * FPS) / 2);
@@ -178,6 +191,7 @@ writeRecording(name, {
     locks: { exposure: true, whiteBalance: true, focus: true },
   },
   motion: [],
+  slip,
   samples: { tNs, r: columns.r, g: columns.g, b: columns.b },
   stats: {
     tNs,

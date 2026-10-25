@@ -20,15 +20,17 @@ import { startFilmVideo, stopFilmVideo, type Take } from './filmVideo';
 
 // tools/showcase/recording.mjs writes these; `motion` holds the stretches, in seconds from the first frame,
 // when the person moved. A Lab capture has no accelerometer stream, so the cue sheet's stretches stand in.
+// `slip` is when a scan take's video shows the finger half off (video-take.mjs).
+type Span = { fromS: number; toS: number };
 type ShowcaseRecording = RecordedCapture & {
   origin: string;
-  motion: { fromS: number; toS: number }[];
+  motion: Span[];
+  slip?: Span;
 };
 
 // The scan film always shows Lumen coaching a slipped finger, whatever the take recorded (owner, 2026-10-25): in
-// these seconds of the scan take, from its first frame, the replayed colours become a fingertip half off the lens.
-// take-cues.mjs tells the person to slide the finger half off then, so the finger video shows the same slip;
-// video-take.mjs warns when it doesn't, and check-timing.mjs mirrors the swap.
+// the seconds the take's video shows the finger half off (take-cues.mjs cues it at 41 s), or these seconds when it
+// doesn't, the replayed colours become a fingertip half off the lens. check-timing.mjs mirrors the swap.
 export const SLIP = { fromS: 42, toS: 46 };
 // Green and blue against red while the finger is half off: well under DSP-4's R ≥ 2 (G + B), so the live session
 // rejects those frames and coaches "Cover the lens and the flash." as it does when a real finger slips.
@@ -48,11 +50,12 @@ export function recordingFor(take: Take): ShowcaseRecording {
 }
 
 function withSlip(recording: ShowcaseRecording): ShowcaseRecording {
+  const { fromS, toS } = recording.slip ?? SLIP;
   const firstNs = recording.samples.tNs[0] ?? 0;
   const { tNs, r, g, b } = recording.samples;
   const slipped = tNs.map((ns) => {
     const atS = (ns - firstNs) / 1e9;
-    return atS >= SLIP.fromS && atS < SLIP.toS;
+    return atS >= fromS && atS < toS;
   });
   const greenBlue = (channel: number[]) =>
     channel.map((value, i) => (slipped[i] ? SLIPPED_GREEN_BLUE_SHARE * r[i]! : value));

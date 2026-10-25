@@ -3,7 +3,7 @@ import { HOLD_S, Script } from './script';
 // The two-minute rest before a reading runs for real; the editor speeds through it.
 const REST_S = 121;
 // The scan take plays in one piece: the camera on the floor and the finger landing (no pulse, "Cover the
-// lens"), then the count, which pauses while the scripted slip shows "Cover the lens and the flash." (filmVideo.tsx
+// lens"), then the count, which pauses while the scripted slip shows "Cover the lens and the flash." (scanSource.ts
 // SLIP). Recorded takes reach 90 clean seconds about 112 s in, 8 s later than without the slip
 // (tools/showcase/check-timing.mjs), then Processing runs; the slower phone needs about 10 s.
 const SCAN_S = 114;

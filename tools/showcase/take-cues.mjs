@@ -19,6 +19,8 @@ const CUES = {
   0: 'Camera at the carpet',
   3: 'Finger on, flat over the lens and the flash. Then hold still',
 };
+// The scan take's slip (scanSource.ts SLIP, 42 to 46 s): each cue a second early, for the reaction time.
+const SCAN_CUES = { 41: 'Slide your finger half off the lens', 45: 'Back on, flat. Hold still' };
 
 function speak(text, wait = false) {
   const command =
@@ -51,7 +53,8 @@ const goMs = Date.now();
 for (let second = 0; second <= lengthS; second += 1) {
   await sleep(Math.max(0, goMs + second * 1000 - Date.now()));
   console.log(`${String(second).padStart(3)} s`);
-  if (CUES[second]) speak(CUES[second]);
+  const cue = CUES[second] ?? (kind === 'scan' ? SCAN_CUES[second] : undefined);
+  if (cue) speak(cue);
   else if (second > 0 && second % 10 === 0) speak(String(second));
 }
 speak('Stop. Lift your finger and stop the recording.', true);

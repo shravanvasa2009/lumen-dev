@@ -124,6 +124,27 @@ if (landedS < 1.5 || landedS > 5)
     `warning: the finger lands ${landedS.toFixed(1)} s into the take; the carpet should show for 2–4 s`,
   );
 
+// The scan film coaches a slipped finger at scanSource.ts SLIP (42 to 46 s); take-cues.mjs has the person slide the
+// finger half off then. Half off, the lens sees flash-lit carpet, so the picture is much less red than when held.
+const SLIP = { fromS: 42, toS: 46 };
+const SLIP_REDNESS_SHARE = 0.8;
+if (name.endsWith('-scan')) {
+  const redness = (fromS, toS) => {
+    const values = [];
+    for (let frame = Math.round(fromS * FPS); frame < Math.round(toS * FPS); frame += 1)
+      values.push(real.r[frame] / Math.max(1e-6, real.g[frame] + real.b[frame]));
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  };
+  const held = redness(SLIP.fromS - 12, SLIP.fromS - 2);
+  const slipped = redness(SLIP.fromS + 1, SLIP.toS - 0.5);
+  console.log(`finger redness held ${held.toFixed(2)}, during the slip ${slipped.toFixed(2)}`);
+  if (slipped > SLIP_REDNESS_SHARE * held)
+    console.warn(
+      `warning: the video shows no finger slip at ${SLIP.fromS}-${SLIP.toS} s; the app will still coach it there, ` +
+        "but the finger video won't match. Redo the take and slide off on the cue.",
+    );
+}
+
 // The real red's slow drift, so the covered level breathes like a real one instead of sitting flat.
 const half = Math.round((SMOOTH_S * FPS) / 2);
 const smooth = real.r.map((_, frame) => {

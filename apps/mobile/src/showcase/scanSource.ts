@@ -16,7 +16,7 @@ import nitinPractice from './recordings/nitin-practice.json';
 import nitinScan from './recordings/nitin-scan.json';
 import shravanPractice from './recordings/shravan-practice.json';
 import shravanScan from './recordings/shravan-scan.json';
-import { SLIP, startFilmVideo, stopFilmVideo, type Take } from './filmVideo';
+import { startFilmVideo, stopFilmVideo, type Take } from './filmVideo';
 
 // tools/showcase/recording.mjs writes these; `motion` holds the stretches, in seconds from the first frame,
 // when the person moved. A Lab capture has no accelerometer stream, so the cue sheet's stretches stand in.
@@ -25,6 +25,11 @@ type ShowcaseRecording = RecordedCapture & {
   motion: { fromS: number; toS: number }[];
 };
 
+// The scan film always shows Lumen coaching a slipped finger, whatever the take recorded (owner, 2026-10-25): in
+// these seconds of the scan take, from its first frame, the replayed colours become a fingertip half off the lens.
+// take-cues.mjs tells the person to slide the finger half off then, so the finger video shows the same slip;
+// video-take.mjs warns when it doesn't, and check-timing.mjs mirrors the swap.
+export const SLIP = { fromS: 42, toS: 46 };
 // Green and blue against red while the finger is half off: well under DSP-4's R ≥ 2 (G + B), so the live session
 // rejects those frames and coaches "Cover the lens and the flash." as it does when a real finger slips.
 const SLIPPED_GREEN_BLUE_SHARE = 0.4;

@@ -1,6 +1,5 @@
 import type { CaptureStatus } from '../../modules/lumen-capture/src';
-import { SLIP } from './filmVideo';
-import { showcaseReplay } from './scanSource';
+import { showcaseReplay, SLIP } from './scanSource';
 
 describe('ShowcaseReplay', () => {
   beforeEach(() => jest.useFakeTimers());

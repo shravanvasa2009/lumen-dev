@@ -23,6 +23,10 @@ The app taps through by itself (grey touch dots) starting on the next whole minu
 - Never commit or push Nitin's take files (`apps/mobile/src/showcase/recordings/nitin-*`): leave them unstaged.
 - Don't push. If code must change to build, commit on a local branch and make a patch for Shravan.
 - Rear camera only.
+- **Don't change the film's timing** (`apps/mobile/src/showcase/script.ts`, `walkthrough.ts`, `scan.ts`,
+  `runner.ts`, `people.ts`). Shravan's A17 films are final; every tap lands at a fixed second after the start on
+  both phones, so the editor lines the two films up on the first tap and they stay in step to the end. A timing
+  change on the Mac would break that. If something seems to need one, ask Shravan first.
 
 ## 1. Get the latest code (must include commit "showcase replay reports the phone's camera" or later)
 

@@ -93,9 +93,13 @@ export function showcaseReplay(take: Take): ReplayCapture {
     }
 
     override async start(config: CaptureConfig): Promise<CaptureStarted> {
-      // A take made from a Camera app video names no lens of this phone (video-take.mjs), and the rating refuses a
-      // practice on a lens the probe doesn't list, so the replay reports the phone's own first rear lens.
-      const lensId = config.lensId ?? (await LumenCapture?.getCapabilities())?.rearLenses[0]?.id;
+      // A take made from a Camera app video names a lens this phone doesn't have (video-take.mjs: camera-video), and
+      // the app passes it on from the take's capabilities; the rating refuses a lens the probe doesn't list, so the
+      // replay reports the phone's own first rear lens instead.
+      const phoneLenses = (await LumenCapture?.getCapabilities())?.rearLenses ?? [];
+      const lensId = phoneLenses.some((lens) => lens.id === config.lensId)
+        ? config.lensId
+        : (phoneLenses[0]?.id ?? config.lensId);
       const started = await super.start({ ...config, lensId });
       startFilmVideo(this.take);
       return started;

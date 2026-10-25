@@ -10,6 +10,8 @@ import {
   type StoredRating,
 } from '@/store/deviceRating';
 
+import { showcaseRating } from '../showcase/rating';
+import { SHOWCASE } from '../showcase/flag';
 import { practiceMeasures } from './practiceMeasures';
 
 // ADR 0058 item 1: with no lens chosen and nothing measured, the rating is the phone check's capability points.
@@ -33,8 +35,9 @@ export async function ratePhone(
   if (rating.tier === null) {
     if (practice === null) return null;
     const { measures, summary } = practiceMeasures(practice);
-    if (measures.coupling === null) return null;
-    rating = rateDevice(capabilities, measures);
+    if (SHOWCASE) rating = showcaseRating(capabilities, measures);
+    else if (measures.coupling === null) return null;
+    else rating = rateDevice(capabilities, measures);
     measured = { lensId: measures.lensId, summary };
   }
   await saveDeviceRating(rating, {

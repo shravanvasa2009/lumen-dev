@@ -8,10 +8,9 @@ import { publishWidgets } from '@/widgets/publish';
 import { nextStartMs, runScript } from './runner';
 import { Script } from './script';
 import { TapDots } from './TapDots';
-import cues from './cues.json';
 import { scanSteps } from './scan';
 import { seedHistory } from './seedHistory';
-import { setupSteps, tourSteps } from './walkthrough';
+import { setupSteps } from './walkthrough';
 
 const KEEP_AWAKE_TAG = 'lumen-showcase';
 
@@ -27,8 +26,8 @@ async function runAwake(script: Script, startMs: number): Promise<void> {
   }
 }
 
-// One run per launch: a fresh start (setup not done) films the walkthrough; a launch after setup films the
-// scan.
+// One run per launch: a fresh start (setup not done) films setup and the Lumen score; a launch after setup
+// films the scan.
 async function startRun(): Promise<void> {
   // Both films are shot in light mode (owner, 2026-10-17).
   setPreference('appearance', 'light');
@@ -38,16 +37,11 @@ async function startRun(): Promise<void> {
     await runAwake(scanSteps(new Script()), startMs);
     return;
   }
-  // A month of mornings is already there when setup starts, so Home, Trends and the widgets have history.
+  // A month of mornings is already there when setup starts, so Home and the widgets have history.
   const seeded = await seedHistory(Date.now());
   if (seeded > 0) await publishWidgets(currentPreferences());
   console.warn(`[showcase] seeded ${seeded} readings`);
-  // The start is a whole minute and the reminder cue a whole number of minutes after it.
-  const reminder = new Date(startMs + cues.reminder * 1000);
-  const script = tourSteps(
-    setupSteps(new Script(), { hour: reminder.getHours(), minute: reminder.getMinutes() }),
-  );
-  await runAwake(script, startMs);
+  await runAwake(setupSteps(new Script()), startMs);
 }
 
 export function ShowcaseHost() {

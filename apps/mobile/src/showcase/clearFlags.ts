@@ -40,7 +40,11 @@ function standard<M extends { quality: string; confidence?: string }>(
   if (metric.quality !== 'standard') cleared.push(`${name} lower quality`);
   if (metric.confidence !== undefined && metric.confidence !== 'high')
     cleared.push(`${name} ${metric.confidence} confidence`);
-  return { ...metric, ...standardFields(), ...(metric.confidence === undefined ? {} : { confidence: 'high' }) };
+  return {
+    ...metric,
+    ...standardFields(),
+    ...(metric.confidence === undefined ? {} : { confidence: 'high' }),
+  };
 }
 
 export function showcaseResult(reading: ReadingResult): ReadingResult {

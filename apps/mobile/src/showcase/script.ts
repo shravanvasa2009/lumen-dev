@@ -12,7 +12,7 @@ import {
   setText,
   type Target,
 } from './driver';
-import { showTap } from './TapDots';
+import { showSwipe, showTap } from './TapDots';
 
 // A step runs at a fixed second after the start on both phones, so the two films stay on the same screen
 // however fast each phone renders. `attempt` returns false while its control is not on screen yet.
@@ -31,6 +31,13 @@ const BETWEEN_FLICKS_S = 0.25;
 const MAX_PACED_HOLD_S = 3;
 // Flicks cover a screen faster than the old even scroll; the script's scroll lengths are scaled by this.
 const SCROLL_PACE = 0.6;
+// The owner's limit for one swipe through a page (2026-10-25).
+const MAX_SCROLL_S = 10;
+// The thumb touches the glass this long before the page moves, and drags for DRAG_S of the flick, over this
+// share of the distance the page travels; then it lifts and the page glides.
+const TOUCH_LEAD_S = 0.08;
+const DRAG_S = 0.22;
+const DRAG_SHARE = 0.6;
 
 // The same sequence on both phones (a fixed seed, one draw per hold), so the varied holds keep the two films
 // on the same timetable: 0.75x to 1.25x.
@@ -126,6 +133,8 @@ export class Script {
   // screen that does not scroll just holds. The timetable gives it SCROLL_PACE of `seconds` on every phone;
   // the flick count follows the screen's height.
   scrollThrough(seconds: number, holdAtEndS = 2): this {
+    if (seconds * SCROLL_PACE > MAX_SCROLL_S)
+      throw new Error(`showcase: a ${seconds} s scroll is over ${MAX_SCROLL_S} s`);
     return this.step(
       'scroll',
       async () => {
@@ -133,11 +142,15 @@ export class Script {
         if (range === 0) return true;
         // As many flicks as the screen needs, but no more than fit the step's time, so a long list never
         // pushes the next step late; each flick then travels farther.
-        const fit = Math.floor((seconds * SCROLL_PACE + BETWEEN_FLICKS_S) / (FLICK_S + BETWEEN_FLICKS_S));
+        const fit = Math.floor(
+          (seconds * SCROLL_PACE + BETWEEN_FLICKS_S) / (TOUCH_LEAD_S + FLICK_S + BETWEEN_FLICKS_S),
+        );
         const flicks = Math.max(1, Math.min(fit, Math.ceil(range / (frame * FLICK_SHARE))));
         let from = 0;
         for (let flick = 1; flick <= flicks; flick += 1) {
           const to = (range * flick) / flicks;
+          showSwipe(Math.min(to - from, frame * 0.45) * DRAG_SHARE + 40, DRAG_S * 1000);
+          await sleep(TOUCH_LEAD_S * 1000);
           // Paced by the clock, so a slow frame never stretches a flick.
           const startedMs = Date.now();
           for (;;) {
@@ -155,8 +168,26 @@ export class Script {
     ).hold(holdAtEndS);
   }
 
+  // One flick back down to the top, from the bottom where scrollThrough left the page.
   scrollToTop(): this {
-    return this.step('scroll to top', async () => scrollTo(0)).hold(0.6);
+    return this.step(
+      'scroll to top',
+      async () => {
+        const { range, frame } = await scrollRange();
+        if (range === 0) return scrollTo(0);
+        showSwipe(-Math.min(range, frame * 0.45) * DRAG_SHARE - 40, DRAG_S * 1000);
+        await sleep(TOUCH_LEAD_S * 1000);
+        const startedMs = Date.now();
+        for (;;) {
+          const progress = Math.min(1, (Date.now() - startedMs) / (FLICK_S * 1000));
+          scrollTo(range * (1 - easeOutCubic(progress)));
+          if (progress >= 1) break;
+          await sleep(SCROLL_FRAME_MS);
+        }
+        return true;
+      },
+      TOUCH_LEAD_S + FLICK_S,
+    ).hold(0.6);
   }
 
   call(label: string, run: () => Promise<boolean> | boolean, takesS = 0, graceS?: number): this {

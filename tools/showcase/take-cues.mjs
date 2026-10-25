@@ -1,10 +1,10 @@
 import { execFileSync, spawn } from 'node:child_process';
 
 // node tools/showcase/take-cues.mjs nitin-practice|nitin-scan|shravan-practice|shravan-scan
-// Speaks the countdown and the moves for one showcase take, on a Mac (`say`) or Windows (System.Speech), for a
-// phone the computer can't press: the person taps Start in the Lab on "Go" and Stop when told. The A17 has its
-// own driven version (tools/showcase-cues.ps1 in the workspace). The moves match it: camera at the floor, the
-// finger on at 4 s, then still; the take keeps that opening, and the film shows it.
+// Speaks the countdown and the moves for one showcase take, on a Mac (`say`) or Windows (System.Speech). Both
+// people can record at once: each phone's Camera app records video with the flash on, started on "Go". The
+// camera shows the carpet for the first 3 s, then the finger goes on and stays still (owner, 2026-10-25: 2–4 s
+// of carpet); the take keeps that opening and the film shows it. tools/showcase/video-take.mjs makes the take.
 
 const TAKES = { practice: 50, scan: 120 };
 const take = process.argv[2] ?? '';
@@ -16,8 +16,8 @@ if (!/^(nitin|shravan)-(practice|scan)$/.test(take) || lengthS === undefined) {
 }
 
 const CUES = {
-  0: 'Point the camera at the floor',
-  4: 'Finger on, flat over the lens and the flash. Then hold still',
+  0: 'Camera at the carpet',
+  3: 'Finger on, flat over the lens and the flash. Then hold still',
 };
 
 function speak(text, wait = false) {
@@ -39,7 +39,7 @@ function speak(text, wait = false) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 speak(
-  `Recording ${take.replace('-', ' ')}. Hold the phone with the camera facing the floor. Tap Start on Go.`,
+  `Recording ${take.replace('-', ' ')}. Camera app on video, flash on, camera facing the carpet. Tap record on Go.`,
   true,
 );
 for (const count of ['3', '2', '1']) {
@@ -54,4 +54,4 @@ for (let second = 0; second <= lengthS; second += 1) {
   if (CUES[second]) speak(CUES[second]);
   else if (second > 0 && second % 10 === 0) speak(String(second));
 }
-speak('Stop. Tap Stop, then Send to PC.', true);
+speak('Stop. Lift your finger and stop the recording.', true);

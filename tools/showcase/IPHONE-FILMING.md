@@ -125,13 +125,23 @@ swift tools/showcase/record-iphone.swift ~/Desktop/nitin-scan.mov
 Swipe Lumen away, then open it between :05 and :35 past a minute. Hands off about 6 min, until "Show me why" has
 scrolled to the bottom and stopped. Ctrl-C.
 
-**Make the files** and send them to Shravan (AirDrop, USB stick or Google Drive):
+**Make the files, trimmed like Shravan's**, and send them to Shravan (AirDrop, USB stick or Google Drive). Each
+recording opens with up to a minute of the app waiting for the whole minute; Shravan's films start 2 s before the
+first tap, so cut Nitin's the same way. Find where the opening still stretch ends (the first `freeze_end` after
+Lumen is on screen, about 30–90 s in), then cut 2 s before it:
 
 ```sh
 for f in nitin-setup nitin-scan; do
-  ffmpeg -i ~/Desktop/$f.mov -c:v libx264 -crf 18 -pix_fmt yuv420p -an ~/Desktop/$f.mp4
+  ffmpeg -hide_banner -i ~/Desktop/$f.mov -vf "freezedetect=n=0.003:d=3" -map 0:v -f null - 2>&1 | grep freeze_end | head -3
 done
+# START = that freeze_end minus 2, for each film:
+ffmpeg -ss <START> -i ~/Desktop/nitin-setup.mov -c:v libx264 -crf 16 -pix_fmt yuv420p -movflags +faststart -an ~/Desktop/nitin-setup-trimmed.mp4
+ffmpeg -ss <START> -i ~/Desktop/nitin-scan.mov -c:v libx264 -crf 16 -pix_fmt yuv420p -movflags +faststart -an ~/Desktop/nitin-scan-trimmed.mp4
 ```
+
+**Then watch both trimmed files from start to end before sending them.** The setup one must open on Welcome a
+moment before "Get started" and end on Home; the scan one must open on Home a moment before "Measure" and end on
+"Why regular?". Check the rating number, the slip with "Cover the lens and the flash.", and the result.
 
 ## 7. Report back to Shravan
 

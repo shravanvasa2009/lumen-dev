@@ -1,6 +1,7 @@
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useSyncExternalStore } from 'react';
-import { Platform, type ViewProps } from 'react-native';
+import { Platform, StyleSheet, type ViewProps } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import nitinPractice from './recordings/nitin-practice.mp4';
 import nitinScan from './recordings/nitin-scan.mp4';
@@ -17,6 +18,13 @@ const VIDEOS: Record<Take, number> = {
   practice: ios ? nitinPractice : shravanPractice,
   scan: ios ? nitinScan : shravanScan,
 };
+
+// The scan film always shows Lumen coaching a slipped finger, whatever the take recorded (owner, 2026-10-25): in
+// these seconds of the scan take, from its first frame, the replay's colours become a fingertip half off the lens
+// (scanSource.ts) and the finger video slides that share of the dial aside. tools/showcase/check-timing.mjs mirrors it.
+export const SLIP = { fromS: 42, toS: 46 };
+const SLIP_SHARE = 0.45;
+const SLIP_SLIDE_MS = 250;
 
 // Checked once a second; a video more than this far from the take's clock is moved back onto it.
 const RESYNC_EVERY_MS = 1000;
@@ -52,6 +60,22 @@ export function FilmFingerVideo({ style }: ViewProps) {
     created.muted = true;
     created.loop = false;
   });
+  const slide = useSharedValue(0);
+  const slid = useAnimatedStyle(() => ({ transform: [{ translateX: slide.value }] }));
+  const width = Number(StyleSheet.flatten(style)?.width ?? 0);
+  useEffect(() => {
+    slide.value = 0;
+    if (film?.take !== 'scan') return;
+    const slideTo = (share: number) => () => {
+      slide.value = withTiming(share * width, { duration: SLIP_SLIDE_MS });
+    };
+    const elapsedMs = Date.now() - film.startedMs;
+    const timers = [
+      setTimeout(slideTo(SLIP_SHARE), SLIP.fromS * 1000 - elapsedMs),
+      setTimeout(slideTo(0), SLIP.toS * 1000 - elapsedMs),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [film, slide, width]);
   useEffect(() => {
     if (film === null) return;
     const takeSeconds = () => (Date.now() - film.startedMs) / 1000;
@@ -62,5 +86,9 @@ export function FilmFingerVideo({ style }: ViewProps) {
     }, RESYNC_EVERY_MS);
     return () => clearInterval(timer);
   }, [film, player]);
-  return <VideoView player={player} style={style} contentFit="cover" nativeControls={false} />;
+  return (
+    <Animated.View style={[style, slid]}>
+      <VideoView player={player} style={style} contentFit="cover" nativeControls={false} />
+    </Animated.View>
+  );
 }

@@ -43,6 +43,9 @@ const COACHING_FOR = {
   coldHands: 'coach.warm',
   exposure: 'coach.brightness',
 };
+// Mirrors filmVideo.tsx SLIP and scanSource.ts SLIPPED_GREEN_BLUE_SHARE: the scan take's scripted slipped finger.
+const SLIP = { fromS: 42, toS: 46 };
+const SLIPPED_GREEN_BLUE_SHARE = 0.4;
 const PROFILE = { athlete: false, betaBlocker: false, pacemaker: false, knownAf: false };
 
 const core = await loadCore();
@@ -75,6 +78,12 @@ const rows = samples.tNs.map((tNs, i) => ({
   },
 }));
 const firstNs = samples.tNs[0];
+if (/scan/.test(path.basename(target)))
+  for (const row of rows) {
+    const atS = (row.sample.tNs - firstNs) / 1e9;
+    if (atS >= SLIP.fromS && atS < SLIP.toS)
+      row.sample.g = row.sample.b = SLIPPED_GREEN_BLUE_SHARE * row.sample.r;
+  }
 const captureFps = 1e9 / medianIntervalNs(samples.tNs);
 const sqiThreshold = sqiEntry.threshold[sqiEntry.labels[0]];
 const session = core.createLiveSession({

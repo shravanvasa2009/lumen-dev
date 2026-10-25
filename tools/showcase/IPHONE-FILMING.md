@@ -107,6 +107,21 @@ On A17 these went wrong before they were fixed; check each one on the iPhone:
 Before each film: iPhone charged, brightness high, sound off, **Focus / Do Not Disturb ON**, notifications
 cleared, Lumen closed, on the home screen. Close QuickTime.
 
+**Recording quality (Shravan's A17 films are 1080×2340 at a constant 60 fps; match that).** First make a 10 s test
+while scrolling on the iPhone, then check it:
+
+```sh
+swift tools/showcase/record-iphone.swift ~/Desktop/quality-test.mov    # scroll the iPhone for 10 s, Ctrl-C
+ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate -of default=nw=1 ~/Desktop/quality-test.mov
+```
+
+It must show the iPhone's own screen resolution (iPhone 17 Pro: 1206×2622, or the same shape) and about 60 fps
+while scrolling. If it is smaller or about 30 fps, fix `record-iphone.swift` before filming: set
+`session.sessionPreset = .inputPriority`, choose the device format with the largest dimensions whose
+`videoSupportedFrameRateRanges` reach 60, set it as `device.activeFormat` and set
+`activeVideoMinFrameDuration`/`activeVideoMaxFrameDuration` to 1/60 s (inside `lockForConfiguration`), then test
+again. Keep that change on the local branch and include it in the patch for Shravan.
+
 **Setup film** (reset first: Settings → Delete all data, swipe Lumen away)
 
 ```sh
@@ -135,9 +150,13 @@ for f in nitin-setup nitin-scan; do
   ffmpeg -hide_banner -i ~/Desktop/$f.mov -vf "freezedetect=n=0.003:d=3" -map 0:v -f null - 2>&1 | grep freeze_end | head -3
 done
 # START = that freeze_end minus 2, for each film:
-ffmpeg -ss <START> -i ~/Desktop/nitin-setup.mov -c:v libx264 -crf 16 -pix_fmt yuv420p -movflags +faststart -an ~/Desktop/nitin-setup-trimmed.mp4
-ffmpeg -ss <START> -i ~/Desktop/nitin-scan.mov -c:v libx264 -crf 16 -pix_fmt yuv420p -movflags +faststart -an ~/Desktop/nitin-scan-trimmed.mp4
+ffmpeg -ss <START> -i ~/Desktop/nitin-setup.mov -vf fps=60 -c:v libx264 -crf 14 -pix_fmt yuv420p -movflags +faststart -an ~/Desktop/nitin-setup-trimmed.mp4
+ffmpeg -ss <START> -i ~/Desktop/nitin-scan.mov -vf fps=60 -c:v libx264 -crf 14 -pix_fmt yuv420p -movflags +faststart -an ~/Desktop/nitin-scan-trimmed.mp4
 ```
+
+Also cut the idle Home at the end: add `-t <seconds>` after the input so each film ends about 3 s after the
+last step (setup: Home scrolled back to the top; scan: "Why regular?" scrolled to the bottom). Check each with
+`ffprobe` (native resolution, `r_frame_rate=60/1`).
 
 **Then watch both trimmed files from start to end before sending them.** The setup one must open on Welcome a
 moment before "Get started" and end on Home; the scan one must open on Home a moment before "Measure" and end on

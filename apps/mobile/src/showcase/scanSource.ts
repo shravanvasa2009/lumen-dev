@@ -2,6 +2,7 @@ import { frameProblem } from '@lumen/core';
 import { Platform } from 'react-native';
 
 import {
+  type Capabilities,
   type CaptureConfig,
   type CaptureStarted,
   type CaptureStatus,
@@ -92,15 +93,15 @@ export function showcaseReplay(take: Take): ReplayCapture {
       });
     }
 
+    // A take made from a Camera app video lists a lens this phone doesn't have (video-take.mjs: camera-video). The
+    // app picks its lens from these capabilities and the rating refuses a lens the phone's probe doesn't list, so
+    // the replay reports this phone's own camera.
+    override async getCapabilities(): Promise<Capabilities> {
+      return (await LumenCapture?.getCapabilities()) ?? super.getCapabilities();
+    }
+
     override async start(config: CaptureConfig): Promise<CaptureStarted> {
-      // A take made from a Camera app video names a lens this phone doesn't have (video-take.mjs: camera-video), and
-      // the app passes it on from the take's capabilities; the rating refuses a lens the probe doesn't list, so the
-      // replay reports the phone's own first rear lens instead.
-      const phoneLenses = (await LumenCapture?.getCapabilities())?.rearLenses ?? [];
-      const lensId = phoneLenses.some((lens) => lens.id === config.lensId)
-        ? config.lensId
-        : (phoneLenses[0]?.id ?? config.lensId);
-      const started = await super.start({ ...config, lensId });
+      const started = await super.start(config);
       startFilmVideo(this.take);
       return started;
     }

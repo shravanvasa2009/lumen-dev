@@ -1,7 +1,8 @@
 // Drives the Galaxy A17's system screens during the setup film's widget beat, on the same cues the app reads
 // (apps/mobile/src/showcase/cues.json): Home with the Lumen widget, the lock screen with the reminder, unlock,
 // then a tap on the widget. Start it in the same minute you open the app; it picks the same start the app does.
-// The A17 has no screen lock credential, so a swipe unlocks it.
+// The A17 has no screen lock credential, so a swipe unlocks it; a quick one (250 ms) failed with the reminder's
+// card on the lock screen, so it is slower, and the keyguard is dismissed after it in case it still missed.
 // Usage: node tools/showcase/a17-driver.mjs --widget x,y [--start <ISO time>]
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -36,7 +37,9 @@ await sleepUntil(cues.lockScreen);
 adb('input', 'keyevent', 'KEYCODE_WAKEUP');
 console.log('lock screen');
 await sleepUntil(cues.unlock);
-adb('input', 'swipe', '540', '1900', '540', '700', '250');
+adb('input', 'swipe', '540', '1900', '540', '700', '450');
+await new Promise((resolve) => setTimeout(resolve, 500));
+adb('wm', 'dismiss-keyguard');
 console.log('unlocked');
 await sleepUntil(cues.widgetTap);
 adb('input', 'tap', String(widget[0]), String(widget[1]));

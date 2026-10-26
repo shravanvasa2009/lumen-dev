@@ -6,6 +6,8 @@ import { ActivityIndicator, StyleSheet, useWindowDimensions, View } from 'react-
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { PressableScale } from '@/components/PressableScale';
+import { SHOWCASE } from '@/showcase/flag';
+import { registerMapCamera } from '@/showcase/mapLook';
 import { useTheme } from '@/theme';
 
 import type { Coordinates, NearbyClinic } from './clinics';
@@ -224,7 +226,11 @@ export function CareMapView({
         onDidFinishRenderingMapFully={showMap}
         onDidFailLoadingMap={() => setLoadState((state) => (state === 'loading' ? 'failed' : state))}
       >
-        <Camera initialViewState={{ center: [centre.lon, centre.lat], zoom: START_ZOOM }} />
+        <Camera
+          // A showcase film looks around the map after the search (src/showcase/mapLook.ts).
+          ref={SHOWCASE ? (camera) => registerMapCamera(camera, centre) : undefined}
+          initialViewState={{ center: [centre.lon, centre.lat], zoom: START_ZOOM }}
+        />
         {you ? (
           <Marker id="you" lngLat={[you.lon, you.lat]}>
             <Pin shape="you" />

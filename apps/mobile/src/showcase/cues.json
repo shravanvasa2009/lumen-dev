@@ -1,0 +1,10 @@
+{
+  "comment": "Seconds after the setup film's start. The reminder second is a whole minute on the clock (runner.ts nextStartMs). The phones, the A17 adb driver and the Mac cue script all read these.",
+  "reminder": 130,
+  "home": 135,
+  "screenOff": 139,
+  "lockScreen": 140,
+  "unlock": 146,
+  "widgetTap": 149,
+  "backInApp": 152
+}

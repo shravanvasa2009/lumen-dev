@@ -2,14 +2,17 @@ import type { Script } from './script';
 import { visibleTexts } from './driver';
 
 const RETRY_MS = 100;
-// Later than this, the app was in the background (the widget beat keeps it there about 15 s).
+// Later than this, the app was in the background (the widget beat keeps it there about 14 s).
 const AWAY_S = 12;
 // Both phones are opened by hand, within the same minute; the run starts on the next whole minute at least
 // this far away, read from each phone's own network-set clock.
 const MIN_LEAD_MS = 15_000;
 
-export function nextStartMs(nowMs: number): number {
-  return Math.ceil((nowMs + MIN_LEAD_MS) / 60_000) * 60_000;
+// `wholeMinuteAtS` moves the start back so that second of the film falls on a whole minute instead (the setup
+// film's reminder, which is set to a clock minute); 0 starts on the whole minute itself.
+export function nextStartMs(nowMs: number, wholeMinuteAtS = 0): number {
+  const offsetMs = (wholeMinuteAtS % 60) * 1000;
+  return Math.ceil((nowMs + MIN_LEAD_MS + offsetMs) / 60_000) * 60_000 - offsetMs;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
